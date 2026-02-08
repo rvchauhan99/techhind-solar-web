@@ -1,0 +1,476 @@
+"use client";
+
+import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
+import poInwardService from "@/services/poInwardService";
+import ListingPageContainer from "@/components/common/ListingPageContainer";
+import PaginatedTable from "@/components/common/PaginatedTable";
+import PaginationControls from "@/components/common/PaginationControls";
+import DetailsSidebar from "@/components/common/DetailsSidebar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { IconCircleCheck, IconEye, IconPencil } from "@tabler/icons-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { formatDate } from "@/utils/dataTableUtils";
+
+const COLUMN_FILTER_KEYS = [
+  "po_number",
+  "po_number_op",
+  "supplier_name",
+  "supplier_name_op",
+  "warehouse_name",
+  "warehouse_name_op",
+  "supplier_invoice_number",
+  "supplier_invoice_number_op",
+  "status",
+  "received_at_from",
+  "received_at_to",
+  "received_at_op",
+  "total_received_quantity",
+  "total_received_quantity_op",
+  "total_received_quantity_to",
+  "total_accepted_quantity",
+  "total_accepted_quantity_op",
+  "total_accepted_quantity_to",
+];
+
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "RECEIVED", label: "Received" },
+];
+
+export default function POInwardPage() {
+  const { modulePermissions, currentModuleId } = useAuth();
+  const router = useRouter();
+  const currentPerm = modulePermissions?.[currentModuleId] || {
+    can_create: false,
+    can_read: false,
+    can_update: false,
+    can_delete: false,
+  };
+
+  const listingState = useListingQueryState({
+    defaultLimit: 20,
+    filterKeys: COLUMN_FILTER_KEYS,
+  });
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+    listingState;
+
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [poInwardToApprove, setPoInwardToApprove] = useState(null);
+  const [approving, setApproving] = useState(false);
+  const [selectedPOInward, setSelectedPOInward] = useState(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [tableKey, setTableKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+  const [exporting, setExporting] = useState(false);
+
+  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+  const handleColumnFilterChange = useCallback(
+    (key, value) => setFilter(key, value),
+    [setFilter]
+  );
+
+  const handleOpenSidebar = useCallback(async (id) => {
+    setLoadingRecord(true);
+    try {
+      const response = await poInwardService.getPOInwardById(id);
+      const result = response?.result || response;
+      setSelectedPOInward(result);
+      setSidebarOpen(true);
+    } catch (error) {
+      console.error("Error fetching PO Inward:", error);
+      toast.error("Failed to load PO Inward");
+    } finally {
+      setLoadingRecord(false);
+    }
+  }, []);
+
+  const handleCloseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    setSelectedPOInward(null);
+  }, []);
+
+  const filterParams = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
+      ),
+    [filters]
+  );
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const exportParams = Object.fromEntries(
+        Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
+      );
+      const blob = await poInwardService.exportPOInwards(exportParams);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `po-inwards-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Export completed");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to export PO Inwards");
+    } finally {
+      setExporting(false);
+    }
+  }, [filters]);
+
+  const getStatusVariant = (status) => {
+    const s = (status || "").toLowerCase();
+    if (s === "received") return "default";
+    if (s === "draft") return "secondary";
+    return "outline";
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        field: "purchaseOrder",
+        label: "PO Number",
+        sortable: false,
+        filterType: "text",
+        filterKey: "po_number",
+        defaultFilterOperator: "contains",
+        render: (row) => row.purchaseOrder?.po_number || "-",
+      },
+      {
+        field: "supplier",
+        label: "Supplier",
+        sortable: false,
+        filterType: "text",
+        filterKey: "supplier_name",
+        defaultFilterOperator: "contains",
+        render: (row) => row.supplier?.supplier_name || "-",
+      },
+      {
+        field: "warehouse",
+        label: "Warehouse",
+        sortable: false,
+        filterType: "text",
+        filterKey: "warehouse_name",
+        defaultFilterOperator: "contains",
+        render: (row) => row.warehouse?.name || "-",
+      },
+      {
+        field: "supplier_invoice_number",
+        label: "Supplier Invoice",
+        sortable: false,
+        filterType: "text",
+        filterKey: "supplier_invoice_number",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "status",
+        label: "Status",
+        sortable: true,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
+        render: (row) => (
+          <Badge variant={getStatusVariant(row.status)} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+            {row.status || "-"}
+          </Badge>
+        ),
+      },
+      {
+        field: "total_received_quantity",
+        label: "Received Qty",
+        sortable: true,
+        filterType: "number",
+        filterKey: "total_received_quantity",
+        filterKeyTo: "total_received_quantity_to",
+        operatorKey: "total_received_quantity_op",
+        defaultFilterOperator: "equals",
+      },
+      {
+        field: "total_accepted_quantity",
+        label: "Accepted Qty",
+        sortable: true,
+        filterType: "number",
+        filterKey: "total_accepted_quantity",
+        filterKeyTo: "total_accepted_quantity_to",
+        operatorKey: "total_accepted_quantity_op",
+        defaultFilterOperator: "equals",
+      },
+      {
+        field: "received_at",
+        label: "Received At",
+        sortable: true,
+        filterType: "date",
+        filterKey: "received_at_from",
+        filterKeyTo: "received_at_to",
+        operatorKey: "received_at_op",
+        defaultFilterOperator: "inRange",
+        render: (row) => (row.received_at ? new Date(row.received_at).toLocaleString() : "-"),
+      },
+      {
+        field: "actions",
+        label: "Actions",
+        sortable: false,
+        isActionColumn: true,
+        render: (row, reload, perms) => (
+          <div className="flex gap-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              onClick={() => handleOpenSidebar(row.id)}
+              title="View"
+              aria-label="View"
+            >
+              <IconEye className="size-4" />
+            </Button>
+            {row.status === "DRAFT" && perms?.can_update && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                onClick={() => router.push(`/po-inwards/edit?id=${row.id}`)}
+                title="Edit"
+                aria-label="Edit"
+              >
+                <IconPencil className="size-4" />
+              </Button>
+            )}
+            {row.status === "DRAFT" && (
+              <Button
+                size="icon"
+                variant="success"
+                size="icon"
+                onClick={() => {
+                  setPoInwardToApprove(row);
+                  setShowApproveDialog(true);
+                }}
+                title="Approve"
+                aria-label="Approve"
+              >
+                <IconCircleCheck className="size-4" />
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [handleOpenSidebar, router]
+  );
+
+  const fetcher = useMemo(
+    () => async (params) => {
+      const p = params || {};
+      const response = await poInwardService.getPOInwards({
+        page: p.page,
+        limit: p.limit,
+        q: p.q || undefined,
+        status: p.status || undefined,
+        sortBy: p.sortBy || "created_at",
+        sortOrder: p.sortOrder || "DESC",
+        supplier_invoice_number: p.supplier_invoice_number || undefined,
+        received_at_from: p.received_at_from || undefined,
+        received_at_to: p.received_at_to || undefined,
+        po_number: p.po_number || undefined,
+        supplier_name: p.supplier_name || undefined,
+        warehouse_name: p.warehouse_name || undefined,
+        total_received_quantity: p.total_received_quantity || undefined,
+        total_received_quantity_op: p.total_received_quantity_op || undefined,
+        total_received_quantity_to: p.total_received_quantity_to || undefined,
+        total_accepted_quantity: p.total_accepted_quantity || undefined,
+        total_accepted_quantity_op: p.total_accepted_quantity_op || undefined,
+        total_accepted_quantity_to: p.total_accepted_quantity_to || undefined,
+      });
+      const result = response?.result || response;
+      return {
+        data: result?.data || [],
+        meta: result?.meta || { total: 0, page: p.page, pages: 0, limit: p.limit },
+      };
+    },
+    [tableKey]
+  );
+
+  const handleApproveConfirm = async () => {
+    if (!poInwardToApprove) return;
+    setApproving(true);
+    try {
+      await poInwardService.approvePOInward(poInwardToApprove.id);
+      setTableKey((prev) => prev + 1);
+      setShowApproveDialog(false);
+      setPoInwardToApprove(null);
+      toast.success("PO Inward approved successfully. Stock and inventory ledger have been updated.");
+    } catch (error) {
+      console.error("Approve error:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to approve PO Inward");
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const sidebarContent = useMemo(() => {
+    if (loadingRecord) {
+      return (
+        <div className="flex min-h-[200px] items-center justify-center">
+          <span className="text-muted-foreground">Loading...</span>
+        </div>
+      );
+    }
+    if (!selectedPOInward) return null;
+    const p = selectedPOInward;
+    const statusVariant = getStatusVariant(p.status);
+    return (
+      <div className="pr-1 space-y-3">
+        <p className="font-semibold">{p.purchaseOrder?.po_number || "-"}</p>
+        <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+          {p.status}
+        </Badge>
+        <p className="text-xs text-muted-foreground">
+          Received At: {p.received_at ? new Date(p.received_at).toLocaleString() : "-"}
+        </p>
+        <hr className="border-border" />
+        <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
+        <p className="text-sm">{p.supplier?.supplier_name || "-"}</p>
+        {p.supplier?.supplier_code && <p className="text-xs text-muted-foreground">Code: {p.supplier.supplier_code}</p>}
+        <p className="text-xs font-semibold text-muted-foreground mt-2 block">Warehouse</p>
+        <p className="text-sm">{p.warehouse?.name || "-"}</p>
+        {p.supplier_invoice_number && (
+          <p className="text-xs text-muted-foreground">Invoice: {p.supplier_invoice_number}</p>
+        )}
+        {p.receivedBy && <p className="text-xs text-muted-foreground">Received by: {p.receivedBy?.name}</p>}
+        {p.items && p.items.length > 0 && (
+          <div className="mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Items ({p.items.length})</p>
+            <div className="mt-1 overflow-hidden rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Received</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Accepted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.items.map((item, index) => (
+                    <tr key={item.id || index} className="border-t border-border">
+                      <td className="px-2 py-1.5">{item.product?.product_name || "-"}</td>
+                      <td className="px-2 py-1.5 text-right">{item.received_quantity}</td>
+                      <td className="px-2 py-1.5 text-right">{item.accepted_quantity}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-2 flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
+              <span>Total Received</span>
+              <span className="font-semibold">{p.total_received_quantity ?? p.items.reduce((s, i) => s + (i.received_quantity || 0), 0)}</span>
+            </div>
+            <div className="flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
+              <span>Total Accepted</span>
+              <span className="font-semibold">{p.total_accepted_quantity ?? p.items.reduce((s, i) => s + (i.accepted_quantity || 0), 0)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }, [loadingRecord, selectedPOInward]);
+
+  return (
+    <ProtectedRoute>
+      <ListingPageContainer
+        title="PO Inwards (Goods Receipt)"
+        addButtonLabel={currentPerm.can_create ? "Create Receipt" : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push("/po-inwards/add") : undefined}
+        exportButtonLabel="Export"
+        onExportClick={handleExport}
+        exportDisabled={exporting}
+      >
+        <PaginatedTable
+          key={tableKey}
+          columns={columns}
+          fetcher={fetcher}
+          moduleKey="po-inwards"
+          height="calc(100vh - 200px)"
+          showSearch={false}
+          showPagination={false}
+          onTotalChange={setTotalCount}
+          columnFilterValues={columnFilterValues}
+          onColumnFilterChange={handleColumnFilterChange}
+          filterParams={{ q: undefined, ...filterParams }}
+          onRowClick={(row) => handleOpenSidebar(row.id)}
+          page={page}
+          limit={limit}
+          q={q}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          onQChange={setQ}
+          onSortChange={setSort}
+        />
+        <PaginationControls
+          page={page - 1}
+          rowsPerPage={limit}
+          totalCount={totalCount}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          rowsPerPageOptions={[20, 50, 100, 200]}
+        />
+      </ListingPageContainer>
+
+      <DetailsSidebar
+        open={sidebarOpen}
+        onClose={handleCloseSidebar}
+        title="PO Inward Details"
+      >
+        {sidebarContent}
+      </DetailsSidebar>
+
+      <AlertDialog open={showApproveDialog} onOpenChange={(open) => { if (!open) { setShowApproveDialog(false); setPoInwardToApprove(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve PO Inward</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to approve this PO Inward (Goods Receipt)? Stock and inventory ledger will be updated. This action cannot be undone.
+              {poInwardToApprove && (
+                <span className="mt-2 block text-muted-foreground">
+                  PO: {poInwardToApprove.purchaseOrder?.po_number}. Warehouse: {poInwardToApprove.warehouse?.name}.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={approving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleApproveConfirm} disabled={approving} loading={approving}>
+              Approve
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </ProtectedRoute>
+  );
+}
