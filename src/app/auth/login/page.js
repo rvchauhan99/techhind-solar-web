@@ -59,7 +59,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const loginRes = await apiClient.post("/auth/login", { email, password });
+      const loginBody = { email, password };
+      if (process.env.NEXT_PUBLIC_TENANT_KEY) {
+        loginBody.tenant_key = process.env.NEXT_PUBLIC_TENANT_KEY;
+      }
+      const loginRes = await apiClient.post("/auth/login", loginBody);
 
       if (loginRes.data.status === false) {
         setError(loginRes?.data?.message || "Invalid credentials");
