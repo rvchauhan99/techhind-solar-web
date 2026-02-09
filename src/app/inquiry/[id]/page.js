@@ -65,6 +65,7 @@ const STATUS_COLUMNS = {
         title: "Under Discussion",
         color: "#28a745",
     },
+    Converted: { id: "converted", title: "Converted", color: "#6c757d" },
 };
 
 
@@ -387,6 +388,7 @@ function InquiryDetailsContent() {
             "Site Visit Done": "warning",
             Quotation: "success",
             "Under Discussion": "primary",
+            Converted: "default",
         };
         return statusColors[status] || "default";
     };
