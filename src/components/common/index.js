@@ -19,6 +19,7 @@ export { default as Loader } from "./Loader";
 export { default as PaginatedList } from "./PaginatedList";
 export { default as PaginatedTable } from "./PaginatedTable";
 export { default as PaginationControls } from "./PaginationControls";
+export { default as PhoneField } from "./PhoneField";
 export { default as ProtectedRoute } from "./ProtectedRoute";
 export { default as SearchInput } from "./SearchInput";
 export { default as Select, MenuItem } from "./Select";

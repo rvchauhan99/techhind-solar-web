@@ -24,6 +24,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
+import LoadingButton from "@/components/common/LoadingButton";
 import challanService from "@/services/challanService";
 import companyService from "@/services/companyService";
 import moment from "moment";
@@ -428,15 +429,13 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
 
             {/* Submit Button */}
             <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1 }}>
-                <Button
+                <LoadingButton
                     type="submit"
-                    variant="contained"
-                    color="primary"
-                    startIcon={loading ? <CircularProgress size={20} /> : <SaveIcon />}
-                    disabled={loading || items.length === 0}
+                    loading={loading}
+                    disabled={items.length === 0}
                 >
-                    {loading ? "Saving..." : "Save Challan"}
-                </Button>
+                    Save Challan
+                </LoadingButton>
             </Box>
         </Box>
     );
