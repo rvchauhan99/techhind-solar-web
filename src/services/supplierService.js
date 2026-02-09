@@ -3,6 +3,9 @@ import apiClient from "./apiClient";
 export const getSuppliers = (params = {}) =>
   apiClient.get("/supplier", { params }).then((r) => r.data);
 
+export const getNextSupplierCode = () =>
+  apiClient.get("/supplier/next-supplier-code").then((r) => r.data?.result?.supplier_code ?? "");
+
 export const exportSuppliers = (params = {}) =>
   apiClient.get("/supplier/export", { params, responseType: "blob" }).then((r) => r.data);
 
@@ -18,5 +21,5 @@ export const updateSupplier = (id, payload) =>
 export const deleteSupplier = (id) =>
   apiClient.delete(`/supplier/${id}`).then((r) => r.data);
 
-export default { getSuppliers, exportSuppliers, createSupplier, getSupplierById, updateSupplier, deleteSupplier };
+export default { getSuppliers, getNextSupplierCode, exportSuppliers, createSupplier, getSupplierById, updateSupplier, deleteSupplier };
 

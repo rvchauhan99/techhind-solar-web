@@ -120,6 +120,7 @@ const STATUS_OPTIONS = [
   { value: "Site Visit Done", label: "Site Visit Done" },
   { value: "Quotation", label: "Quotation" },
   { value: "Under Discussion", label: "Under Discussion" },
+  { value: "Converted", label: "Converted" },
 ];
 
 export default function ListView({ onRefresh, showAssignment = false, filterParams = {} }) {
@@ -423,7 +424,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
   };
 
   const getStatusColor = (status) => {
-    const m = { New: "error", Connected: "info", "Site Visit Done": "warning", Quotation: "warning", "Under Discussion": "primary" };
+    const m = { New: "error", Connected: "info", "Site Visit Done": "warning", Quotation: "warning", "Under Discussion": "primary", Converted: "success" };
     return m[status] || "default";
   };
 

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Checkbox from "@/components/common/Checkbox";
 import { IconDotsVertical, IconEdit, IconTrash, IconFileTypePdf, IconFileDescription, IconCheck, IconX } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -52,6 +53,8 @@ const COLUMN_FILTER_KEYS = [
   "total_project_value_op",
   "total_project_value_to",
   "is_approved",
+  "status",
+  "include_converted",
   "user_name",
   "user_name_op",
   "branch_name",
@@ -72,6 +75,13 @@ const COLUMN_FILTER_KEYS = [
 const IS_APPROVED_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
+];
+
+const QUOTATION_STATUS_OPTIONS = [
+  { value: "Draft", label: "Draft" },
+  { value: "Sent", label: "Sent" },
+  { value: "Converted", label: "Converted" },
+  { value: "Not Selected", label: "Not Selected" },
 ];
 
 export default function QuotationList() {
@@ -329,6 +339,14 @@ export default function QuotationList() {
         ),
       },
       {
+        field: "status",
+        label: "Status",
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: QUOTATION_STATUS_OPTIONS,
+        render: (row) => row.status || "Draft",
+      },
+      {
         field: "user_name",
         label: "Created By",
         filterType: "text",
@@ -493,6 +511,15 @@ export default function QuotationList() {
         exportDisabled={exporting}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <div className="flex items-center gap-4 py-1">
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <Checkbox
+                checked={filters?.include_converted === "true" || filters?.include_converted === true}
+                onCheckedChange={(checked) => setFilter("include_converted", checked ? "true" : null)}
+              />
+              <span>Show converted</span>
+            </label>
+          </div>
           <PaginatedTable
             key={reloadTrigger}
             columns={columns}

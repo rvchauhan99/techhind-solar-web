@@ -1137,6 +1137,37 @@ function OrderViewPageContent() {
                                 <Typography variant="body2" color="text.secondary" mt={2}>Discom:</Typography>
                                 <Typography variant="body1" fontWeight="bold">{orderData?.discom_name || "N/A"}</Typography>
                             </Box>
+                            {orderData?.bom_snapshot?.length > 0 && (
+                                <>
+                                    <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, mt: 2 }}>
+                                        Scope (BOM)
+                                    </Typography>
+                                    <Box mt={1} mb={2} sx={{ overflowX: "auto" }}>
+                                        <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {orderData.bom_snapshot.map((line, idx) => (
+                                                    <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                                        <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_type_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_make_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </Box>
+                                </>
+                            )}
                             <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, }}>
                                 Payment Details
                             </Typography>

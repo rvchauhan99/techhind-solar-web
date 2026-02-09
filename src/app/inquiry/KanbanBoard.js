@@ -59,6 +59,7 @@ const STATUS_COLUMNS = {
     title: "Under Discussion",
     color: "#28a745",
   },
+  Converted: { id: "converted", title: "Converted", color: "#6c757d" },
 };
 
 // Map column ID to status name

@@ -248,17 +248,30 @@ export default function OrderForm({
         }
     }, [defaultValues]);
 
-    // Auto-populate solar_panel_id and inverter_id from quotationData prop
+    // Auto-populate solar_panel_id and inverter_id from quotationData (prefer bom_snapshot, fallback to panel_product/inverter_product)
     useEffect(() => {
         if (quotationData && formData.quotation_id) {
+            let panelId = null;
+            let inverterId = null;
+            if (Array.isArray(quotationData.bom_snapshot) && quotationData.bom_snapshot.length > 0) {
+                const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "_");
+                for (const line of quotationData.bom_snapshot) {
+                    const t = norm(line.product_snapshot?.product_type_name);
+                    if (t === "panel" && panelId == null) panelId = line.product_id;
+                    if (t === "inverter" && inverterId == null) inverterId = line.product_id;
+                    if (panelId != null && inverterId != null) break;
+                }
+            }
+            const solar_panel_id = panelId != null ? Number(panelId) : (quotationData.panel_product ? Number(quotationData.panel_product) : undefined);
+            const inverter_id = inverterId != null ? Number(inverterId) : (quotationData.inverter_product ? Number(quotationData.inverter_product) : undefined);
             setFormData(prev => ({
                 ...prev,
                 capacity: quotationData.project_capacity ? Number(quotationData.project_capacity) : prev.capacity,
                 project_cost: quotationData.project_cost ? Number(quotationData.project_cost) : prev.project_cost,
                 project_scheme_id: quotationData.project_scheme_id ? Number(quotationData.project_scheme_id) : prev.project_scheme_id,
                 order_type_id: quotationData.order_type_id ? Number(quotationData.order_type_id) : prev.order_type_id,
-                solar_panel_id: quotationData.panel_product ? Number(quotationData.panel_product) : prev.solar_panel_id,
-                inverter_id: quotationData.inverter_product ? Number(quotationData.inverter_product) : prev.inverter_id,
+                solar_panel_id: solar_panel_id ?? prev.solar_panel_id,
+                inverter_id: inverter_id ?? prev.inverter_id,
             }));
         }
     }, [quotationData, formData.quotation_id]);
