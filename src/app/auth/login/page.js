@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import apiClient from "@/services/apiClient";
 import { setTokens, setStoredProfile } from "@/lib/authStorage";
@@ -17,9 +17,18 @@ import {
   IconEyeOff,
   IconSolarElectricity,
 } from "@tabler/icons-react";
+function getSafeReturnUrl(searchParams) {
+  const returnUrl = searchParams?.get("returnUrl");
+  if (!returnUrl || typeof returnUrl !== "string") return "/home";
+  const path = returnUrl.trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/auth")) return "/home";
+  return path;
+}
+
 export default function LoginPage() {
   const { user, setUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,9 +58,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      router.replace("/home");
+      router.replace(getSafeReturnUrl(searchParams));
     }
-  }, [user, router]);
+  }, [user, router, searchParams]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -92,7 +101,7 @@ export default function LoginPage() {
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
       setError(err.response?.data?.message || "Invalid credentials");
     } finally {
@@ -131,7 +140,7 @@ export default function LoginPage() {
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
       setError(err.response?.data?.message || "Invalid code");
     } finally {
@@ -176,14 +185,15 @@ export default function LoginPage() {
   };
 
   const handleTwoFactorSetupComplete = async () => {
+    const redirectTo = getSafeReturnUrl(searchParams);
     try {
       const profileRes = await apiClient.get("/auth/profile");
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      router.push(redirectTo);
     } catch (e) {
-      router.push("/home");
+      router.push(redirectTo);
     }
   };
 

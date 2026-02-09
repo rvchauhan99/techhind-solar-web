@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
     Grid,
     MenuItem,
     Typography,
@@ -16,6 +15,8 @@ import mastersService from "@/services/mastersService";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import Loader from "@/components/common/Loader";
 import { COMPACT_FORM_SPACING, FORM_PADDING } from "@/utils/formConstants";
 
@@ -937,20 +938,18 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             {!hideActions && (
                 <FormActions>
                     {onCancel && (
-                        <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
-                    <Button
+                    <LoadingButton
                         type="submit"
                         form="product-form"
-                        variant="contained"
-                        color="primary"
-                        disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        loading={loading}
+                        className="min-w-[120px]"
                     >
-                        {loading ? "Saving..." : defaultValues?.id ? "Update" : "Add"}
-                    </Button>
+                        {defaultValues?.id ? "Update" : "Add"}
+                    </LoadingButton>
                 </FormActions>
             )}
         </FormContainer>

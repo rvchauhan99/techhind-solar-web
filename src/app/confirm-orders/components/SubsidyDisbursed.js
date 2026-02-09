@@ -157,7 +157,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
             <div className="mt-4 flex flex-col gap-2">
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                <Button type="submit" size="sm" variant="success" loading={submitting} disabled={isCompleted || isReadOnly}>
+                <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>
                     {isCompleted ? "Update" : "Save"}
                 </Button>
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { getAccessToken } from "@/lib/authStorage";
 import Sidebar from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
 import { IconMenu2, IconX } from "@tabler/icons-react";
@@ -40,12 +41,10 @@ export default function DashboardLayout({ children }) {
   };
 
   useEffect(() => {
-    const hasToken =
-      typeof window !== "undefined" &&
-      (localStorage.getItem("auth_token") ||
-        document.cookie.includes("auth_token="));
+    const hasToken = typeof window !== "undefined" && !!getAccessToken();
     if (!user && !hasToken && !pathname?.startsWith("/auth") && pathname !== "/") {
-      router.push("/auth/login");
+      const returnUrl = pathname ? `?returnUrl=${encodeURIComponent(pathname)}` : "";
+      router.push(`/auth/login${returnUrl}`);
       return;
     }
     setIsCheckingAuth(false);

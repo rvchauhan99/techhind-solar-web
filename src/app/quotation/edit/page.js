@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -43,6 +44,11 @@ function EditQuotationContent() {
     } catch (err) {
       console.error("Failed to load quotation", err);
       setServerError("Failed to load quotation");
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to load quotation";
+      toast.error(message);
     } finally {
       setLoadingData(false);
     }
@@ -52,7 +58,12 @@ function EditQuotationContent() {
     setLoading(true);
     setServerError(null);
     try {
-      await quotationService.updateQuotation(id, payload);
+      const res = await quotationService.updateQuotation(id, payload);
+      const message =
+        res?.data?.message ||
+        res?.message ||
+        "Quotation updated successfully";
+      toast.success(message);
       router.push("/quotation");
     } catch (err) {
       const errorMessage =
@@ -60,6 +71,11 @@ function EditQuotationContent() {
         err.message ||
         "Failed to update quotation";
       setServerError(errorMessage);
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to update quotation";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

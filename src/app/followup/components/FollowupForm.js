@@ -10,6 +10,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import LoadingButton from "@/components/common/LoadingButton";
 import { cn } from "@/lib/utils";
 
 const inquiryStatusOptions = [
@@ -344,9 +345,9 @@ export default function FollowupForm({
             Cancel
           </Button>
         )}
-        <Button type="submit" form="followup-form" disabled={loading}>
+        <LoadingButton type="submit" form="followup-form" loading={loading}>
           {defaultValues?.id ? "Update" : "Create"}
-        </Button>
+        </LoadingButton>
       </FormActions>
     </FormContainer>
   );

@@ -17,10 +17,21 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import quotationService from "@/services/quotationService";
-import apiClient, { resolveDocumentUrl } from "@/services/apiClient";
+import apiClient from "@/services/apiClient";
 import moment from "moment";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Number to words converter for Indian currency
 const numberToWords = (num) => {
@@ -79,12 +90,23 @@ export default function QuotationDetail() {
     const [pdfUrl, setPdfUrl] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+    const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false);
+    const [actionId, setActionId] = useState(null);
 
     useEffect(() => {
         if (id) {
             loadQuotation();
         }
     }, [id]);
+
+    useEffect(() => {
+        return () => {
+            if (pdfUrl?.startsWith?.("blob:")) {
+                URL.revokeObjectURL(pdfUrl);
+            }
+        };
+    }, [pdfUrl]);
 
     const loadQuotation = async () => {
         setLoading(true);
@@ -106,11 +128,13 @@ export default function QuotationDetail() {
     const generatePdf = async () => {
         setPdfLoading(true);
         try {
-            const response = await quotationService.pdfGenerate(id);
-            const pdfPath = response.result?.path;
-            if (pdfPath) {
-                setPdfUrl(resolveDocumentUrl(pdfPath));
-            }
+            const blob = await quotationService.pdfGenerate(id);
+            if (!(blob instanceof Blob)) throw new Error("Expected blob");
+            const blobUrl = URL.createObjectURL(blob);
+            setPdfUrl((prev) => {
+                if (prev?.startsWith?.("blob:")) URL.revokeObjectURL(prev);
+                return blobUrl;
+            });
         } catch (err) {
             console.error("Failed to generate PDF:", err);
         } finally {
@@ -135,32 +159,69 @@ export default function QuotationDetail() {
         }
     };
 
-    const handleDownload = async () => {
-        if (pdfUrl) {
-            try {
-                const response = await apiClient.get(pdfUrl, { responseType: "blob" });
-                const blob = response.data;
-                const blobUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = blobUrl;
-                link.download = `quotation-${quotation?.quotation_number || id}.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                window.URL.revokeObjectURL(blobUrl);
-            } catch (err) {
-                console.error("Failed to download PDF:", err);
-                window.open(pdfUrl, "_blank");
-            }
+    const handleDownload = () => {
+        if (!pdfUrl) return;
+        if (pdfUrl.startsWith("blob:")) {
+            const link = document.createElement("a");
+            link.href = pdfUrl;
+            link.download = `quotation-${quotation?.quotation_number || id}.pdf`;
+            link.click();
+            return;
+        }
+        apiClient.get(pdfUrl, { responseType: "blob" }).then((response) => {
+            const blob = response.data;
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = `quotation-${quotation?.quotation_number || id}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        }).catch((err) => {
+            console.error("Failed to download PDF:", err);
+            window.open(pdfUrl, "_blank");
+        });
+    };
+
+    const handleApproveClick = () => {
+        setApproveDialogOpen(true);
+    };
+
+    const handleApproveConfirm = async () => {
+        if (!id) return;
+        setActionId(id);
+        try {
+            await quotationService.approveQuotation(id);
+            setQuotation((prev) => (prev ? { ...prev, is_approved: true } : null));
+            setApproveDialogOpen(false);
+            toast.success("Quotation approved");
+        } catch (err) {
+            console.error("Failed to approve quotation", err);
+            toast.error(err.response?.data?.message || "Failed to approve quotation");
+        } finally {
+            setActionId(null);
         }
     };
 
-    const handleDecline = () => {
-        alert("Decline functionality coming soon!");
+    const handleUnapproveClick = () => {
+        setUnapproveDialogOpen(true);
     };
 
-    const handleAccept = () => {
-        alert("Accept functionality coming soon!");
+    const handleUnapproveConfirm = async () => {
+        if (!id) return;
+        setActionId(id);
+        try {
+            await quotationService.unapproveQuotation(id);
+            setQuotation((prev) => (prev ? { ...prev, is_approved: false } : null));
+            setUnapproveDialogOpen(false);
+            toast.success("Quotation unapproved");
+        } catch (err) {
+            console.error("Failed to unapprove quotation", err);
+            toast.error(err.response?.data?.message || "Failed to unapprove quotation");
+        } finally {
+            setActionId(null);
+        }
     };
 
     const formatDate = (date) => {
@@ -265,34 +326,36 @@ export default function QuotationDetail() {
                         >
                             <DownloadIcon fontSize="small" />
                         </IconButton>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<CloseIcon sx={{ fontSize: 16 }} />}
-                            onClick={handleDecline}
-                            sx={{ 
-                                bgcolor: "#f44336",
-                                textTransform: "none",
-                                px: 2,
-                                "&:hover": { bgcolor: "#d32f2f" }
-                            }}
-                        >
-                            Decline
-                        </Button>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
-                            onClick={handleAccept}
-                            sx={{ 
-                                bgcolor: "#4caf50",
-                                textTransform: "none",
-                                px: 2,
-                                "&:hover": { bgcolor: "#388e3c" }
-                            }}
-                        >
-                            Accept
-                        </Button>
+                        {!quotation?.is_approved && (
+                            <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
+                                onClick={handleApproveClick}
+                                sx={{
+                                    bgcolor: "#4caf50",
+                                    textTransform: "none",
+                                    px: 2,
+                                    "&:hover": { bgcolor: "#388e3c" },
+                                }}
+                            >
+                                Approve
+                            </Button>
+                        )}
+                        {quotation?.is_approved && (
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<CloseIcon sx={{ fontSize: 16 }} />}
+                                onClick={handleUnapproveClick}
+                                sx={{
+                                    textTransform: "none",
+                                    px: 2,
+                                }}
+                            >
+                                Unapprove
+                            </Button>
+                        )}
                     </Box>
                 </Box>
 
@@ -440,6 +503,40 @@ export default function QuotationDetail() {
                     )}
                 </Box>
             </Box>
+
+            <AlertDialog open={approveDialogOpen} onOpenChange={(open) => { if (!open) setApproveDialogOpen(false); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Approve Quotation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to approve this quotation? Only one quotation per inquiry can be approved.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleApproveConfirm} disabled={!!actionId} loading={!!actionId}>
+                            Approve
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={unapproveDialogOpen} onOpenChange={(open) => { if (!open) setUnapproveDialogOpen(false); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Unapprove Quotation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to unapprove this quotation?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleUnapproveConfirm} disabled={!!actionId} loading={!!actionId}>
+                            Unapprove
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </ProtectedRoute>
     );
 }

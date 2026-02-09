@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
     Grid,
     Typography,
     MenuItem,
@@ -29,6 +28,8 @@ import supplierService from "@/services/supplierService";
 import companyService from "@/services/companyService";
 import purchaseOrderService from "@/services/purchaseOrderService";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
@@ -1015,19 +1016,17 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 {/* Sticky Action Buttons */}
                 <FormActions>
                     {onCancel && (
-                        <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
-                    <Button
+                    <LoadingButton
                         type="submit"
-                        variant="contained"
-                        color="primary"
-                        disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        loading={loading}
+                        className="min-w-[120px]"
                     >
-                        {loading ? <CircularProgress size={23} /> : defaultValues?.id ? "Update" : "Create"}
-                    </Button>
+                        {defaultValues?.id ? "Update" : "Create"}
+                    </LoadingButton>
                 </FormActions>
             </FormContainer>
 

@@ -182,7 +182,6 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                     <Button
                         type="submit"
                         size="sm"
-                        variant="success"
                         loading={submitting}
                         disabled={isCompleted || isReadOnly}
                     >

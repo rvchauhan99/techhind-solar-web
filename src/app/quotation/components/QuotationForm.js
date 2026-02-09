@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
     Box,
     Grid,
-    Button,
     MenuItem,
     Typography,
     FormControlLabel,
@@ -20,6 +19,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
+import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import {
     COMPACT_FORM_SPACING,
@@ -28,7 +28,9 @@ import {
 import mastersService, { getDefaultState } from "@/services/mastersService";
 import quotationService from "@/services/quotationService";
 import { useAuth } from "@/hooks/useAuth";
-import { validatePhone, validateEmail, formatPhone } from "@/utils/validators";
+import { validatePhone, validateEmail, formatPhone, validateE164Phone } from "@/utils/validators";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 
 export default function QuotationForm({
     defaultValues = {},
@@ -371,9 +373,9 @@ export default function QuotationForm({
         // Ensure value is never undefined - convert to empty string for controlled inputs
         const normalizedValue = type === "checkbox" ? checked : (value === undefined ? "" : value);
         
-        // Real-time validation for phone numbers
+        // Real-time validation for phone numbers (E.164) and email
         if (name === "mobile_number" && normalizedValue && normalizedValue.trim() !== "") {
-            const phoneValidation = validatePhone(normalizedValue);
+            const phoneValidation = validateE164Phone(normalizedValue, { required: true });
             if (!phoneValidation.isValid) {
                 setErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
             } else {
@@ -438,8 +440,8 @@ export default function QuotationForm({
         if (!formData.mobile_number) {
             validationErrors.mobile_number = "Mobile Number is required";
         } else {
-            // Validate mobile_number format
-            const phoneValidation = validatePhone(formData.mobile_number);
+            // Validate mobile_number format (E.164)
+            const phoneValidation = validateE164Phone(formData.mobile_number, { required: true });
             if (!phoneValidation.isValid) {
                 validationErrors.mobile_number = phoneValidation.message;
             }
@@ -878,11 +880,11 @@ export default function QuotationForm({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input
+                        <PhoneField
                             fullWidth
-                            label="Mobile Number"
                             name="mobile_number"
-                            value={formData.mobile_number}
+                            label="Mobile Number"
+                            value={formData.mobile_number ?? ""}
                             onChange={handleChange}
                             required
                             error={!!errors.mobile_number}
@@ -2147,13 +2149,21 @@ export default function QuotationForm({
 
             <FormActions>
                 {onCancel && (
-                    <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onCancel}
+                        disabled={loading || loadingOptions}
+                    >
                         Cancel
                     </Button>
                 )}
-                <Button type="submit" variant="contained" disabled={loading || loadingOptions}>
-                    {loading ? "Saving..." : "Submit"}
-                </Button>
+                <LoadingButton
+                    type="submit"
+                    loading={loading || loadingOptions}
+                >
+                    Submit
+                </LoadingButton>
             </FormActions>
         </Box>
         </FormContainer>

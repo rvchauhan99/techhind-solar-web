@@ -4,14 +4,13 @@ import { useState, useEffect } from "react";
 import {
     Box,
     Grid,
-    Button,
     Alert,
-    CircularProgress,
     TextField,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
+import LoadingButton from "@/components/common/LoadingButton";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
@@ -229,14 +228,13 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
                     )}
 
                     {/* Submit Button */}
-                    <Button
+                    <LoadingButton
                         type="submit"
-                        variant="contained"
-                        disabled={submitting || isCompleted || isReadOnly}
-                        startIcon={submitting && <CircularProgress size={20} />}
+                        loading={submitting}
+                        disabled={isCompleted || isReadOnly}
                     >
-                        {submitting ? "Saving..." : isCompleted ? "Update" : "Save"}
-                    </Button>
+                        {isCompleted ? "Update" : "Save"}
+                    </LoadingButton>
                 </Grid>
             </Grid>
         </Box>

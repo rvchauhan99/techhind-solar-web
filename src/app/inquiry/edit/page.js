@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { toast } from "sonner";
 import InquiryForm from "../components/InquiryForm";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -25,6 +26,7 @@ function InquiryEditContent() {
 
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -36,6 +38,11 @@ function InquiryEditContent() {
         setFormData(payload || {});
       } catch (e) {
         console.error("Failed to load inquiry", e);
+        const message =
+          e?.response?.data?.message ||
+          e?.message ||
+          "Failed to load inquiry";
+        toast.error(message);
         setFormData({});
       } finally {
         setLoading(false);
@@ -46,10 +53,23 @@ function InquiryEditContent() {
 
   const handleSubmit = async (data) => {
     try {
-      await inquiryService.updateInquiry(id, data);
+      setSubmitting(true);
+      const res = await inquiryService.updateInquiry(id, data);
+      const message =
+        res?.data?.message ||
+        res?.message ||
+        "Inquiry updated successfully";
+      toast.success(message);
       router.push("/inquiry");
     } catch (e) {
       console.error("Failed to update inquiry", e);
+      const message =
+        e?.response?.data?.message ||
+        e?.message ||
+        "Failed to update inquiry";
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -60,7 +80,7 @@ function InquiryEditContent() {
       <InquiryForm
         defaultValues={formData}
         onSubmit={handleSubmit}
-        loading={false}
+        loading={submitting}
       />
     </AddEditPageShell>
   );
