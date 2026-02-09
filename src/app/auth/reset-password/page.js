@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import authService from "@/services/authService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,20 +71,23 @@ function ResetPasswordPageContent() {
       );
 
       if (res.status === false) {
-        setError(res.message || "Failed to reset password");
+        const msg = res.message || "Failed to reset password";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
-      setSuccess("Password reset successfully! Redirecting to login...");
+      const successMsg = "Password reset successfully! Redirecting to login...";
+      setSuccess(successMsg);
+      toastSuccess(successMsg);
 
       setTimeout(() => {
         router.push("/auth/login");
       }, 2000);
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to reset password. Please try again."
-      );
+      const msg = err.response?.data?.message || "Failed to reset password. Please try again.";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }

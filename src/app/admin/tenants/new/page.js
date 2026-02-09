@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function AdminTenantNewPage() {
   const router = useRouter();
@@ -66,13 +67,16 @@ export default function AdminTenantNewPage() {
       }
       const res = await adminAxios.post("/admin/tenants", payload);
       const created = res?.data?.result ?? res?.data;
+      toastSuccess(res?.data?.message || "Tenant created successfully");
       if (created?.id) {
         router.push(`/admin/tenants/${created.id}`);
       } else {
         router.push("/admin/tenants");
       }
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to create tenant");
+      const msg = err.response?.data?.message || err.message || "Failed to create tenant";
+      setError(msg);
+      toastError(msg);
     } finally {
       setSubmitting(false);
     }

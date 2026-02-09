@@ -11,6 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import mastersService from "@/services/mastersService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 export default function Fabrication({
@@ -51,6 +52,7 @@ export default function Fabrication({
             setUsers(response?.result?.data || response?.data || []);
         } catch (err) {
             console.error("Failed to fetch users:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to load users");
         }
     }, []);
 
@@ -177,10 +179,13 @@ export default function Fabrication({
             await orderService.updateOrder(orderId, payload);
 
             setSuccessMsg(successMessage);
+            toastSuccess(successMessage);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { IconUpload } from "@tabler/icons-react";
 import mastersService, { getDefaultState } from "@/services/mastersService";
 import orderService from "@/services/orderService";
+import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
 
 export default function OrderForm({
@@ -796,14 +797,31 @@ export default function OrderForm({
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <span>{typeof formData[key] === "string" ? "Current File" : formData[key].name}</span>
                                         {typeof formData[key] === "string" && (
-                                            <a
-                                                href={resolveDocumentUrl(formData[key])}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-primary hover:underline text-xs"
-                                            >
-                                                (View)
-                                            </a>
+                                            defaultValues?.documentIds?.[key] ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            const url = await orderDocumentsService.getDocumentUrl(defaultValues.documentIds[key]);
+                                                            if (url) window.open(url, "_blank");
+                                                        } catch (e) {
+                                                            console.error("Failed to get document URL", e);
+                                                        }
+                                                    }}
+                                                    className="text-primary hover:underline text-xs"
+                                                >
+                                                    (View)
+                                                </button>
+                                            ) : (
+                                                <a
+                                                    href={resolveDocumentUrl(formData[key])}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline text-xs"
+                                                >
+                                                    (View)
+                                                </a>
+                                            )
                                         )}
                                     </div>
                                 )}

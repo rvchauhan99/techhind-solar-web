@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import StatusBadge from "./components/StatusBadge";
 import ModeBadge from "./components/ModeBadge";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { IconPlus, IconEye, IconPencil, IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
 
 export default function AdminTenantsPage() {
@@ -47,7 +48,9 @@ export default function AdminTenantsPage() {
       const list = res?.data?.result ?? res?.data ?? [];
       setTenants(Array.isArray(list) ? list : []);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to load tenants");
+      const msg = err.response?.data?.message || err.message || "Failed to load tenants";
+      setError(msg);
+      toastError(msg);
       setTenants([]);
     } finally {
       setLoading(false);
@@ -71,10 +74,13 @@ export default function AdminTenantsPage() {
       if (action === "status") {
         await adminAxios.patch(`/admin/tenants/${tenant.id}`, { status: newStatus });
       }
+      toastSuccess("Tenant updated successfully");
       setConfirmDialog({ open: false, tenant: null, action: null });
       await fetchTenants();
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Action failed");
+      const msg = err.response?.data?.message || err.message || "Action failed";
+      setError(msg);
+      toastError(msg);
     } finally {
       setActionLoading(null);
     }

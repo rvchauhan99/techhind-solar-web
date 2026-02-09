@@ -51,6 +51,11 @@ export const create = (payload, files = {}) => {
     }).then((r) => r.data);
 };
 
+/** Get signed URL for site survey document/photo by bucket key. Returns url string. */
+export const getDocumentUrl = (path) =>
+    apiClient.get('/site-survey/document-url', { params: { path } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
 export default {
     create,
+    getDocumentUrl,
 };

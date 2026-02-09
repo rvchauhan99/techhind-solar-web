@@ -28,6 +28,10 @@ const orderPaymentsService = {
     // Delete payment
     deletePayment: (id) =>
         apiClient.delete(`/order-payments/${id}`).then((r) => r.data),
+
+    /** Get signed URL for receipt file (bucket). Returns url string. */
+    getReceiptUrl: (id) =>
+        apiClient.get(`/order-payments/${id}/receipt-url`).then((r) => r.data?.result?.url ?? r.data?.url ?? null),
 };
 
 export default orderPaymentsService;

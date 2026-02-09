@@ -27,6 +27,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import LoadingButton from "@/components/common/LoadingButton";
 import challanService from "@/services/challanService";
 import companyService from "@/services/companyService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 export default function NewChallanForm({ orderId, orderData, onChallanCreated }) {
@@ -80,7 +81,9 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
             }
         } catch (err) {
             console.error("Failed to fetch initial data:", err);
-            setError(err.message || "Failed to load data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to load data";
+            setError(errMsg);
+            toastError(errMsg);
         }
     }, [orderId]);
 
@@ -132,7 +135,9 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
         const quantity = parseInt(productForm.quantity) || 0;
 
         if (serialArray.length !== quantity) {
-            setError(`Serial count (${serialArray.length}) must match quantity (${quantity})`);
+            const msg = `Serial count (${serialArray.length}) must match quantity (${quantity})`;
+            setError(msg);
+            toastError(msg);
             return false;
         }
 
@@ -144,13 +149,17 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
 
         // Validation
         if (!productForm.product_id || !productForm.quantity) {
-            setError("Product and quantity are required");
+            const msg = "Product and quantity are required";
+            setError(msg);
+            toastError(msg);
             return;
         }
 
         // Check for duplicate
         if (items.some(item => item.product_id === productForm.product_id)) {
-            setError("This product is already added");
+            const msg = "This product is already added";
+            setError(msg);
+            toastError(msg);
             return;
         }
 
@@ -201,7 +210,9 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
             const validationErrors = {};
 
             if (items.length === 0) {
-                setError("At least one item is required");
+                const msg = "At least one item is required";
+                setError(msg);
+                toastError(msg);
                 setLoading(false);
                 return;
             }
@@ -233,7 +244,9 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
                 delete payload.current_stage_key;
             }
             await challanService.createChallan(payload);
-            setSuccess("Challan created successfully!");
+            const msg = "Challan created successfully!";
+            setSuccess(msg);
+            toastSuccess(msg);
 
             // Reset form
             setFormData({
@@ -247,7 +260,9 @@ export default function NewChallanForm({ orderId, orderData, onChallanCreated })
             if (onChallanCreated) onChallanCreated();
         } catch (err) {
             console.error("Failed to create challan:", err);
-            setError(err?.response?.data?.message || "Failed to create challan");
+            const errMsg = err?.response?.data?.message || "Failed to create challan";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setLoading(false);
         }

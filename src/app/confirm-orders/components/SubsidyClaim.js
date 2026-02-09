@@ -11,6 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 
@@ -93,11 +94,15 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
             }
             await orderService.updateOrder(orderId, payload);
 
-            setSuccessMsg("Subsidy Claim stage completed successfully!");
+            const msg = "Subsidy Claim stage completed successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save subsidy claim details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }

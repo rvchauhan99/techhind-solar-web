@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import authService from "@/services/authService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,21 +47,23 @@ export default function ForgotPasswordPage() {
       const res = await authService.sendPasswordResetOtp(email);
 
       if (res.status === false) {
-        setError(res.message || "Failed to send OTP");
+        const msg = res.message || "Failed to send OTP";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
-      setSuccess(
-        "If the email exists, a password reset OTP has been sent to your email."
-      );
+      const successMsg = "If the email exists, a password reset OTP has been sent to your email.";
+      setSuccess(successMsg);
+      toastSuccess(successMsg);
 
       setTimeout(() => {
         router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`);
       }, 2000);
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to send OTP. Please try again."
-      );
+      const msg = err.response?.data?.message || "Failed to send OTP. Please try again.";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }

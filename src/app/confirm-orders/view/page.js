@@ -43,6 +43,7 @@ import NetMeterInstalled from "../components/NetMeterInstalled";
 import SubsidyClaim from "../components/SubsidyClaim";
 import SubsidyDisbursed from "../components/SubsidyDisbursed";
 import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
+import { toastError } from "@/utils/toast";
 
 
 // --- Constants ---
@@ -176,7 +177,9 @@ function ConfirmedOrderViewPageContent() {
             setError(null);
         } catch (err) {
             console.error("Failed to fetch order details:", err);
-            setError(err.message || "Failed to load order data");
+            const msg = err?.response?.data?.message || err?.message || "Failed to load order data";
+            setError(msg);
+            toastError(msg);
         } finally {
             setLoading(false);
         }

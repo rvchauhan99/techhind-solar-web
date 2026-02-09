@@ -5,6 +5,7 @@ import { Box, Paper, Typography, CircularProgress, Alert } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import challanService from "@/services/challanService";
+import { toastError } from "@/utils/toast";
 
 const PRODUCT_TYPE_LABELS = {
     structure: "Structure",
@@ -39,7 +40,9 @@ export default function DeliveryStatusCards({ orderId }) {
             setDeliveryStatus(response.result?.status || {});
         } catch (err) {
             console.error("Failed to fetch delivery status:", err);
-            setError(err?.response?.data?.message || "Failed to load delivery status");
+            const msg = err?.response?.data?.message || "Failed to load delivery status";
+            setError(msg);
+            toastError(msg);
         } finally {
             setLoading(false);
         }

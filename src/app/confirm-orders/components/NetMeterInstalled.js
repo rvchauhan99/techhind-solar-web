@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import mastersService from "@/services/mastersService";
-import { resolveDocumentUrl } from "@/services/apiClient";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 export default function NetMeterInstalledForm({ orderId, orderData, orderDocuments, onSuccess }) {
@@ -48,6 +48,7 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
             setUsers(response?.result?.data || response?.data || []);
         } catch (err) {
             console.error("Failed to fetch users:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to load users");
         }
     }, []);
 
@@ -187,11 +188,15 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
                 await orderDocumentsService.createOrderDocument(docFormData);
             }
 
-            setSuccessMsg("Net Meter Installed stage completed successfully!");
+            const msg = "Net Meter Installed stage completed successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save net meter installed details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
@@ -264,7 +269,14 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                onClick={() => window.open(resolveDocumentUrl(existingDocument.document_path), "_blank")}
+                                onClick={async () => {
+                                    try {
+                                        const url = await orderDocumentsService.getDocumentUrl(existingDocument.id);
+                                        if (url) window.open(url, "_blank");
+                                    } catch (e) {
+                                        console.error("Failed to get document URL", e);
+                                    }
+                                }}
                             >
                                 <VisibilityIcon className="size-4 mr-1" />
                                 View
