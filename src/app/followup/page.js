@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { IconPhoneCall, IconFileDescription } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -133,11 +134,13 @@ export default function FollowupPage() {
     setServerError(null);
     try {
       await followupService.createFollowup(payload);
+      toastSuccess("Followup created successfully");
       handleCloseModal();
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Failed to create followup";
       setServerError(errorMessage);
+      toastError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import Loader from "@/components/common/Loader";
 import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function Planner({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
@@ -87,6 +88,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             setWarehouses(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to fetch warehouses:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to load warehouses");
         } finally {
             setLoading(false);
         }
@@ -149,12 +151,16 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             }
             await orderService.updateOrder(orderId, payload);
 
-            setSuccessMsg("Planner details saved successfully!");
+            const msg = "Planner details saved successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             lastSyncedOrderIdRef.current = null;
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save planner details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }

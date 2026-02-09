@@ -82,11 +82,16 @@ export const updateInquiryDocument = async (id, payload) => {
 
 export const deleteInquiryDocument = (id) => apiClient.delete(`/inquiry-documents/${id}`).then((r) => r.data);
 
+/** Get signed URL for viewing/downloading document (bucket). Returns url string. */
+export const getDocumentUrl = (id) =>
+  apiClient.get(`/inquiry-documents/${id}/url`).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
 export default {
   listInquiryDocuments,
   getInquiryDocumentById,
   createInquiryDocument,
   updateInquiryDocument,
   deleteInquiryDocument,
+  getDocumentUrl,
 };
 

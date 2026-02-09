@@ -20,6 +20,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 
 export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
@@ -102,11 +103,15 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
             }
             await orderService.updateOrder(orderId, payload);
 
-            setSuccessMsg("Estimate details saved successfully!");
+            const msg = "Estimate details saved successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save estimate details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
@@ -150,13 +155,17 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
                 estimate_amount: 0,
             };
             await orderService.updateOrder(orderId, payload);
-            setSuccessMsg("Estimate completed. Order moved to Planner.");
+            const msg = "Estimate completed. Order moved to Planner.";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             setConfirmDialogOpen(false);
             setZeroAmountEstimate(false);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to complete zero-amount estimate:", err);
-            setError(err.message || "Failed to complete zero-amount estimate");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to complete zero-amount estimate";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmittingZeroAmount(false);
         }

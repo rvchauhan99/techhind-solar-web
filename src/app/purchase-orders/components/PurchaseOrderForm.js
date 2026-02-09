@@ -27,6 +27,7 @@ import productService from "@/services/productService";
 import supplierService from "@/services/supplierService";
 import companyService from "@/services/companyService";
 import purchaseOrderService from "@/services/purchaseOrderService";
+import { toastError } from "@/utils/toast";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -530,7 +531,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             setAttachmentToDelete(null);
         } catch (error) {
             console.error("Error deleting attachment:", error);
-            alert("Failed to delete attachment");
+            toastError(error?.response?.data?.message || "Failed to delete attachment");
         } finally {
             setDeletingAttachment(false);
         }
@@ -544,11 +545,11 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 // Open signed URL in new tab (token-based access to private file)
                 window.open(url, "_blank");
             } else {
-                alert("Failed to get download URL");
+                toastError("Failed to get download URL");
             }
         } catch (error) {
             console.error("Error downloading attachment:", error);
-            alert("Failed to download attachment");
+            toastError(error?.response?.data?.message || "Failed to download attachment");
         }
     };
 

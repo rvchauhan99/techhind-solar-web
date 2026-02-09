@@ -56,7 +56,9 @@ function EditStockTransferContent() {
       setDefaultValues(transformedData);
     } catch (error) {
       console.error("Error fetching stock transfer:", error);
-      setServerError("Failed to load stock transfer");
+      const msg = error?.response?.data?.message || "Failed to load stock transfer";
+      setServerError(msg);
+      toast.error(msg);
     } finally {
       setLoadingRecord(false);
     }

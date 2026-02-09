@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { toast } from "sonner";
+import { toastSuccess, toastError } from "@/utils/toast";
 import OrderForm from "../components/OrderForm";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -92,6 +93,7 @@ function AddOrderContent() {
                 console.error("Failed to fetch inquiry/quotation data", err);
                 const errorMessage = err.response?.data?.message || err.message || "Failed to load data";
                 setServerError(errorMessage);
+                toastError(errorMessage);
             } finally {
                 setFetchingData(false);
             }
@@ -154,6 +156,8 @@ function AddOrderContent() {
             // Create order first
             const res = await orderService.createOrder(orderData);
             const orderId = res?.result?.id || res?.id;
+            const successMsg = res?.data?.message || res?.result?.message || "Order created successfully";
+            toastSuccess(successMsg);
             console.log("✅ New Order Created:", res);
 
             // Upload documents if any
@@ -192,6 +196,7 @@ function AddOrderContent() {
             console.error("❌ Failed to create order", err);
             const errorMessage = err.response?.data?.message || err.message || "Failed to create order";
             setServerError(errorMessage);
+            toastError(errorMessage);
         } finally {
             setLoading(false);
         }

@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import ModeBadge from "../../components/ModeBadge";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function AdminTenantEditPage() {
   const params = useParams();
@@ -52,7 +53,11 @@ export default function AdminTenantEditPage() {
           setMode(t.mode);
         }
       } catch (err) {
-        if (!cancelled) setError(err.response?.data?.message || err.message || "Failed to load tenant");
+        if (!cancelled) {
+          const msg = err.response?.data?.message || err.message || "Failed to load tenant";
+          setError(msg);
+          toastError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -70,11 +75,14 @@ export default function AdminTenantEditPage() {
         payload.mode = mode;
       }
       await adminAxios.patch(`/admin/tenants/${id}`, payload);
+      toastSuccess("Tenant updated successfully");
       setTenant((prev) => (prev ? { ...prev, status, mode } : null));
       if (payload.mode === "dedicated") setConfirmUpgrade(false);
       if (payload.status === "suspended") setConfirmSuspend(false);
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Update failed");
+      const msg = err.response?.data?.message || err.message || "Update failed";
+      setError(msg);
+      toastError(msg);
     } finally {
       setSubmitting(false);
     }

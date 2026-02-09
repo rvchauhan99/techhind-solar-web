@@ -101,4 +101,8 @@ export const uploadMasterCsv = async (model, file) => {
   };
 };
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getConstants, getDefaultState, downloadSampleCsv, uploadMasterCsv };
+/** Get signed URL for master file (bucket). Returns url string. */
+export const getFileUrl = (model, id) =>
+  apiClient.get(`/masters/${id}/file-url`, { params: { model } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getConstants, getDefaultState, downloadSampleCsv, uploadMasterCsv, getFileUrl };

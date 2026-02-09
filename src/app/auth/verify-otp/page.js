@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import authService from "@/services/authService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Loader from "@/components/common/Loader";
@@ -48,18 +49,20 @@ function VerifyOtpPageContent() {
       const res = await authService.verifyPasswordResetOtp(email, otp);
 
       if (res.status === false) {
-        setError(res.message || "Invalid or expired OTP");
+        const msg = res.message || "Invalid or expired OTP";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
+      toastSuccess("OTP verified. Redirecting to reset password...");
       router.push(
         `/auth/reset-password?email=${encodeURIComponent(email)}&otp=${encodeURIComponent(otp)}`
       );
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Invalid or expired OTP. Please try again."
-      );
+      const msg = err.response?.data?.message || "Invalid or expired OTP. Please try again.";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -70,10 +73,11 @@ function VerifyOtpPageContent() {
     setLoading(true);
     try {
       await authService.sendPasswordResetOtp(email);
+      toastSuccess("OTP resent to your email");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to resend OTP. Please try again."
-      );
+      const msg = err.response?.data?.message || "Failed to resend OTP. Please try again.";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }

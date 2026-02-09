@@ -166,11 +166,16 @@ export const create = (payload, files = {}) => {
   }).then((r) => r.data);
 };
 
+/** Get signed URL for site visit document/photo by bucket key. Returns url string. */
+export const getDocumentUrl = (path) =>
+  apiClient.get('/site-visit/document-url', { params: { path } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
 export default {
   getList,
   exportSiteVisits,
   create,
   getRoofTypes,
   getInquiries,
+  getDocumentUrl,
 };
 

@@ -8,6 +8,7 @@ import Loader from "@/components/common/Loader";
 import OrderForm from "../components/OrderForm";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import orderService from "@/services/orderService";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function EditOrderPage() {
     return (
@@ -48,19 +49,23 @@ function EditOrderPageContent() {
                 const order = orderRes?.result || orderRes;
                 const documents = docsRes?.result?.data || docsRes?.data || [];
 
-                // Map documents to the specific keys expected by OrderForm
+                // Map documents to the specific keys expected by OrderForm (path and id for bucket URL)
                 const documentMap = {};
+                const documentIds = {};
                 documents.forEach(doc => {
                     if (doc.doc_type) {
                         documentMap[doc.doc_type] = doc.document_path;
+                        documentIds[doc.doc_type] = doc.id;
                     }
                 });
 
-                setOrderData({ ...order, ...documentMap });
+                setOrderData({ ...order, ...documentMap, documentIds });
                 setError(null);
             } catch (err) {
                 console.error("Failed to fetch order data:", err);
-                setError(err.message || "Failed to load order data");
+                const msg = err?.response?.data?.message || err?.message || "Failed to load order data";
+                setError(msg);
+                toastError(msg);
             } finally {
                 setLoading(false);
             }
@@ -84,6 +89,7 @@ function EditOrderPageContent() {
             ];
 
             const orderUpdates = { ...formData };
+            delete orderUpdates.documentIds; // not sent to API
             const filesToUpload = [];
 
             documentTypes.forEach(doc => {
@@ -113,12 +119,15 @@ function EditOrderPageContent() {
                     await orderDocumentsService.createOrderDocument(uploadData);
                 } catch (uploadErr) {
                     console.error(`Failed to upload ${item.label}:`, uploadErr);
+                    toastError(uploadErr?.response?.data?.message || `Failed to upload ${item.label}`);
                 }
             }
 
+            toastSuccess("Order updated successfully");
             router.push("/order");
         } catch (err) {
             console.error("Failed to update order:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to update order");
             throw err;
         } finally {
             setSubmitting(false);

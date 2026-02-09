@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import mastersService from "@/services/mastersService";
-import { resolveDocumentUrl } from "@/services/apiClient";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import MasterForm from "./components/MasterForm";
@@ -187,32 +186,25 @@ export default function MastersPage() {
                             render: (row) => {
                                 const value = row[field.name];
                                 if (!value) return '';
-
-                                const fileExt = value.split('.').pop()?.toLowerCase();
-                                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(fileExt);
-                                const fileUrl = resolveDocumentUrl(value);
-                                if (isImage) {
-                                    return (
-                                        <img
-                                            src={fileUrl}
-                                            alt="Document"
-                                            style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'contain', cursor: 'pointer' }}
-                                            onClick={() => window.open(fileUrl, '_blank')}
-                                        />
-                                    );
-                                } else {
-                                    return (
-                                        <ThemeButton
-                                            size="sm"
-                                            variant="outline"
-                                            asChild
-                                        >
-                                            <a href={fileUrl} download target="_blank" rel="noopener noreferrer">
-                                                Download
-                                            </a>
-                                        </ThemeButton>
-                                    );
-                                }
+                                const modelName = master?.model_name;
+                                if (!modelName) return value;
+                                return (
+                                    <ThemeButton
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={async () => {
+                                            try {
+                                                const url = await mastersService.getFileUrl(modelName, row.id);
+                                                if (url) window.open(url, '_blank');
+                                            } catch (e) {
+                                                console.error('Failed to get file URL', e);
+                                                toastError(e?.response?.data?.message || "Failed to get file URL");
+                                            }
+                                        }}
+                                    >
+                                        View
+                                    </ThemeButton>
+                                );
                             }
                         });
                     } else {

@@ -18,6 +18,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import moment from "moment";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import challanService from "@/services/challanService";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function PreviousChallans({ orderId, onEdit }) {
     const [menuAnchor, setMenuAnchor] = useState(null);
@@ -52,9 +53,10 @@ export default function PreviousChallans({ orderId, onEdit }) {
             try {
                 await challanService.deleteChallan(menuChallanId);
                 setReloadTrigger(prev => prev + 1);
+                toastSuccess("Challan deleted successfully");
             } catch (err) {
                 console.error("Failed to delete challan:", err);
-                alert("Failed to delete challan");
+                toastError(err?.response?.data?.message || "Failed to delete challan");
             }
         }
         handleMenuClose();

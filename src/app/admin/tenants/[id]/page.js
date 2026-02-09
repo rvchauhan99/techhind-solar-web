@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import StatusBadge from "../components/StatusBadge";
 import ModeBadge from "../components/ModeBadge";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function AdminTenantDetailsPage() {
   const params = useParams();
@@ -40,7 +41,11 @@ export default function AdminTenantDetailsPage() {
         const res = await adminAxios.get(`/admin/tenants/${id}`);
         if (!cancelled) setTenant(res?.data?.result ?? res?.data);
       } catch (err) {
-        if (!cancelled) setError(err.response?.data?.message || err.message || "Failed to load tenant");
+        if (!cancelled) {
+          const msg = err.response?.data?.message || err.message || "Failed to load tenant";
+          setError(msg);
+          toastError(msg);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -68,9 +73,12 @@ export default function AdminTenantDetailsPage() {
     setActionLoading(true);
     try {
       await adminAxios.patch(`/admin/tenants/${id}`, { status: newStatus });
+      toastSuccess("Tenant status updated");
       setTenant((prev) => (prev ? { ...prev, status: newStatus } : null));
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Update failed");
+      const msg = err.response?.data?.message || err.message || "Update failed";
+      setError(msg);
+      toastError(msg);
     } finally {
       setActionLoading(false);
     }

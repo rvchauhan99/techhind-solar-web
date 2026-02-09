@@ -154,7 +154,7 @@ export default function PurchaseOrderPage() {
       setSidebarOpen(true);
     } catch (error) {
       console.error("Error fetching purchase order:", error);
-      alert("Failed to load purchase order");
+      toast.error(error?.response?.data?.message || "Failed to load purchase order");
     } finally {
       setLoadingRecord(false);
     }

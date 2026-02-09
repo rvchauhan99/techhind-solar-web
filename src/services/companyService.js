@@ -69,6 +69,12 @@ export const deleteCompanyImage = (imageType) =>
     .post("/company/images/delete", { imageType })
     .then((r) => r.data);
 
+/** Get signed URL for company image (bucket). Returns url string. */
+export const getImageUrl = (imageType) =>
+  apiClient
+    .get(`/company/images/${imageType}/url`)
+    .then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
 export default {
   getCompanyProfile,
   updateCompanyProfile,
@@ -89,5 +95,6 @@ export default {
   setWarehouseManagers,
   uploadCompanyImage,
   deleteCompanyImage,
+  getImageUrl,
 };
 

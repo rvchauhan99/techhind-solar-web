@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import apiClient from "@/services/apiClient";
 import { setTokens, setStoredProfile } from "@/lib/authStorage";
 import TwoFactorSetup from "@/components/auth/TwoFactorSetup";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -75,7 +76,9 @@ export default function LoginPage() {
       const loginRes = await apiClient.post("/auth/login", loginBody);
 
       if (loginRes.data.status === false) {
-        setError(loginRes?.data?.message || "Invalid credentials");
+        const msg = loginRes?.data?.message || "Invalid credentials";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
@@ -101,9 +104,12 @@ export default function LoginPage() {
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
+      toastSuccess("Login successful");
       router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid credentials");
+      const msg = err.response?.data?.message || "Invalid credentials";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -121,7 +127,9 @@ export default function LoginPage() {
       });
 
       if (res.data.status === false) {
-        setError(res?.data?.message || "Invalid code");
+        const msg = res?.data?.message || "Invalid code";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
@@ -136,13 +144,16 @@ export default function LoginPage() {
         return;
       }
 
+      toastSuccess("Login successful");
       const profileRes = await apiClient.get("/auth/profile");
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
       router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid code");
+      const msg = err.response?.data?.message || "Invalid code";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -171,6 +182,7 @@ export default function LoginPage() {
       });
 
       setCpSuccess("Password changed successfully.");
+      toastSuccess("Password changed successfully.");
       try {
         localStorage.removeItem("requirePasswordChange");
       } catch (e) {}
@@ -178,7 +190,9 @@ export default function LoginPage() {
       setRequirePasswordChange(false);
       setSetupTwoFactor(true);
     } catch (err) {
-      setCpError(err.response?.data?.message || "Could not change password");
+      const msg = err.response?.data?.message || "Could not change password";
+      setCpError(msg);
+      toastError(msg);
     } finally {
       setCpLoading(false);
     }
