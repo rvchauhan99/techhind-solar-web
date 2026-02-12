@@ -256,7 +256,8 @@ export default function OrderForm({
             if (Array.isArray(quotationData.bom_snapshot) && quotationData.bom_snapshot.length > 0) {
                 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "_");
                 for (const line of quotationData.bom_snapshot) {
-                    const t = norm(line.product_snapshot?.product_type_name);
+                    const p = line.product_snapshot || line;
+                    const t = norm(p?.product_type_name);
                     if (t === "panel" && panelId == null) panelId = line.product_id;
                     if (t === "inverter" && inverterId == null) inverterId = line.product_id;
                     if (panelId != null && inverterId != null) break;

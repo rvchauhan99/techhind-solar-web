@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import mastersService from "@/services/mastersService";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -27,7 +27,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { toastSuccess, toastError } from "@/utils/toast";
+
+const VISIBILITY_OPTIONS = [
+    { value: "active", label: "Yes" },
+    { value: "inactive", label: "No" },
+    { value: "all", label: "All" },
+];
+const BOOLEAN_OPTIONS = [
+    { value: "true", label: "Yes" },
+    { value: "false", label: "No" },
+];
 
 export default function MastersPage() {
     const { modulePermissions, currentModuleId } = useAuth();
@@ -44,8 +55,6 @@ export default function MastersPage() {
     const [submitting, setSubmitting] = useState(false);
     const [serverError, setServerError] = useState(null);
     const [tableKey, setTableKey] = useState(0); // Key to force table re-render
-    const [page, setPage] = useState(0);
-    const [limit, setLimit] = useState(20);
     const [totalCount, setTotalCount] = useState(0);
     const [masterSearchQuery, setMasterSearchQuery] = useState(""); // Search query for filtering masters
     const [highlightedIndex, setHighlightedIndex] = useState(-1); // Index of highlighted master in filtered list
@@ -55,6 +64,22 @@ export default function MastersPage() {
     // Upload CSV state
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
+
+    const masterFilterKeys = useMemo(() => {
+        const keys = ["visibility"];
+        fields.forEach((f) => {
+            if (["id", "password"].includes(f.name) || f.isFileUpload) return;
+            keys.push(f.name);
+            const type = (f.type || "").toUpperCase();
+            if (["INTEGER", "BIGINT", "DECIMAL", "FLOAT", "DOUBLE", "NUMERIC", "DATE", "DATEONLY", "TIMESTAMP"].includes(type)) {
+                keys.push(f.name + "_op");
+                keys.push(f.name + "_to");
+            }
+        });
+        return keys;
+    }, [fields]);
+    const listingState = useListingQueryState({ defaultLimit: 20, filterKeys: masterFilterKeys });
+    const { page, limit, filters, setPage, setLimit, setFilter } = listingState;
 
     // Delete confirmation
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -88,8 +113,8 @@ export default function MastersPage() {
 
     // Reset pagination when master selection changes
     useEffect(() => {
-        setPage(0);
-    }, [master?.id, master?.model_name]);
+        setPage(1);
+    }, [master?.id, master?.model_name, setPage]);
 
     // Handle keyboard navigation
     const handleKeyDown = (e) => {
@@ -144,6 +169,17 @@ export default function MastersPage() {
     const columns = useMemo(() => {
         const cols = [];
 
+        // Status column with visibility filter (Yes / No / All)
+        cols.push({
+            field: "_status",
+            label: "Status",
+            sortable: false,
+            filterType: "select",
+            filterKey: "visibility",
+            filterOptions: VISIBILITY_OPTIONS,
+            render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+        });
+
         // Add columns from fields (skip id, password, and internal fields)
         const skipFields = ['id', 'password', 'created_at', 'updated_at', 'deleted_at'];
         fields.forEach((field) => {
@@ -165,13 +201,15 @@ export default function MastersPage() {
                     cols.push({
                         field: field.name,
                         label: label,
+                        sortable: false,
+                        filterType: "text",
+                        filterKey: field.name,
+                        defaultFilterOperator: "contains",
                         render: (row) => {
-                            // Use _display suffix if available, otherwise fallback to ID
                             const displayValue = row[`${field.name}_display`];
                             if (displayValue !== null && displayValue !== undefined) {
                                 return String(displayValue);
                             }
-                            // Fallback to ID if display value not available
                             const value = row[field.name];
                             return value !== null && value !== undefined ? String(value) : '';
                         }
@@ -208,17 +246,41 @@ export default function MastersPage() {
                             }
                         });
                     } else {
-                        cols.push({
+                        const type = (field.type || 'STRING').toUpperCase();
+                        const col = {
                             field: field.name,
                             label: field.name.charAt(0).toUpperCase() + field.name.slice(1).replace(/_/g, ' '),
+                            sortable: false,
                             render: (row) => {
                                 const value = row[field.name];
                                 if (value === null || value === undefined) return '';
-                                if (field.type === 'BOOLEAN') return value ? 'Yes' : 'No';
-                                if (field.type === 'DATE') return new Date(value).toLocaleDateString();
+                                if (type === 'BOOLEAN') return value ? 'Yes' : 'No';
+                                if (['DATE', 'DATEONLY', 'TIMESTAMP'].includes(type)) return new Date(value).toLocaleDateString();
                                 return String(value);
                             }
-                        });
+                        };
+                        if (type === 'BOOLEAN') {
+                            col.filterType = 'select';
+                            col.filterKey = field.name;
+                            col.filterOptions = BOOLEAN_OPTIONS;
+                        } else if (['INTEGER', 'BIGINT', 'DECIMAL', 'FLOAT', 'DOUBLE', 'NUMERIC'].includes(type)) {
+                            col.filterType = 'number';
+                            col.filterKey = field.name;
+                            col.operatorKey = field.name + '_op';
+                            col.filterKeyTo = field.name + '_to';
+                            col.defaultFilterOperator = 'equals';
+                        } else if (['DATE', 'DATEONLY', 'TIMESTAMP'].includes(type)) {
+                            col.filterType = 'date';
+                            col.filterKey = field.name;
+                            col.operatorKey = field.name + '_op';
+                            col.filterKeyTo = field.name + '_to';
+                            col.defaultFilterOperator = 'equals';
+                        } else {
+                            col.filterType = 'text';
+                            col.filterKey = field.name;
+                            col.defaultFilterOperator = 'contains';
+                        }
+                        cols.push(col);
                     }
                 }
             }
@@ -271,16 +333,31 @@ export default function MastersPage() {
     // Fetcher function for PaginatedTable
     const fetcher = useMemo(() => {
         if (!master.model_name) return null;
-        return async ({ page, limit, q }) => {
-            const response = await mastersService.getList(master.model_name, { page, limit, q });
-            // Return in format expected by PaginatedTable
+        return async (params) => {
+            const { page: p, limit: l, q } = params || {};
+            const response = await mastersService.getList(master.model_name, {
+                page: p,
+                limit: l,
+                q: q || undefined,
+                ...params,
+            });
             const result = response.result || response;
             return {
                 data: result.data || [],
-                meta: result.meta || { total: 0, page, pages: 0, limit }
+                meta: result.meta || { total: 0, page: p, pages: 0, limit: l }
             };
         };
-    }, [master.model_name, tableKey]); // Include tableKey to force refresh when it changes
+    }, [master.model_name, tableKey]);
+
+    const filterParams = useMemo(
+        () => ({ ...filters, visibility: filters?.visibility || "active" }),
+        [filters]
+    );
+    const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+    const handleColumnFilterChange = useCallback(
+        (key, value) => setFilter(key, value),
+        [setFilter]
+    );
 
     const handleOpenAddModal = () => {
         setShowAddModal(true);
@@ -471,7 +548,7 @@ export default function MastersPage() {
                             <>
                                 <div className="flex justify-between items-center mb-2 flex-shrink-0">
                                     <h2 className="text-xl font-semibold">{master.name} Master</h2>
-                                    <div className="flex gap-2 flex-wrap">
+                                    <div className="flex gap-2 flex-wrap items-center">
                                         <ThemeButton
                                             size="sm"
                                             variant="outline"
@@ -570,21 +647,24 @@ export default function MastersPage() {
                                             moduleKey={master.model_name}
                                             columns={columns}
                                             fetcher={fetcher}
-                                            initialLimit={20}
+                                            initialLimit={limit}
                                             showPagination={false}
                                             onTotalChange={setTotalCount}
-                                            page={page + 1}
+                                            page={page}
                                             limit={limit}
-                                            onPageChange={(zeroBased) => setPage(zeroBased)}
-                                            onRowsPerPageChange={(newLimit) => { setLimit(newLimit); setPage(0); }}
+                                            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+                                            onRowsPerPageChange={(newLimit) => { setLimit(newLimit); setPage(1); }}
+                                            filterParams={filterParams}
+                                            columnFilterValues={columnFilterValues}
+                                            onColumnFilterChange={handleColumnFilterChange}
                                             height={calculatePaginatedTableHeight()}
                                         />
                                         <PaginationControls
-                                            page={page}
+                                            page={page - 1}
                                             rowsPerPage={limit}
                                             totalCount={totalCount}
-                                            onPageChange={setPage}
-                                            onRowsPerPageChange={(newLimit) => { setLimit(newLimit); setPage(0); }}
+                                            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+                                            onRowsPerPageChange={(newLimit) => { setLimit(newLimit); setPage(1); }}
                                             rowsPerPageOptions={[20, 50, 100, 200]}
                                         />
                                     </>

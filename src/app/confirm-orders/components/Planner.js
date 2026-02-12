@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Box, Typography, Alert, Paper, Stack } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -27,8 +27,6 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         planned_priority: "Medium",
         planned_warehouse_id: "",
         planned_remarks: "",
-        planned_solar_panel_qty: "",
-        planned_inverter_qty: "",
         planned_has_structure: true,
         planned_has_solar_panel: true,
         planned_has_inverter: true,
@@ -45,9 +43,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const lastSyncedOrderIdRef = useRef(null);
-    const solarPanelQtyRef = useRef(null);
-    const inverterQtyRef = useRef(null);
+    // Local, UI-only planning state for BOM lines. Each entry mirrors one line
+    // from orderData.bom_snapshot and adds a `planned` flag. Currently we do
+    // not persist this back to the API; it's for operator visibility and
+    // future extension (e.g. planner_bom_plan JSON on the order).
+    const [bomPlan, setBomPlan] = useState([]);
 
     useEffect(() => {
         fetchWarehouses();
@@ -57,10 +57,6 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     // user input when the parent re-renders and passes a new orderData reference.
     useEffect(() => {
         if (!orderData?.id) return;
-        const orderIdToSync = String(orderData.id);
-        if (lastSyncedOrderIdRef.current === orderIdToSync) return;
-        lastSyncedOrderIdRef.current = orderIdToSync;
-
         const plannerCompleted = orderData.stages?.planner === "completed";
         const defaultChecked = (val) => (plannerCompleted ? (val ?? true) : true);
 
@@ -69,8 +65,6 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             planned_priority: orderData.planned_priority || "Medium",
             planned_warehouse_id: orderData.planned_warehouse_id || "",
             planned_remarks: orderData.planned_remarks || "",
-            planned_solar_panel_qty: orderData.planned_solar_panel_qty ?? "",
-            planned_inverter_qty: orderData.planned_inverter_qty ?? "",
             planned_has_structure: defaultChecked(orderData.planned_has_structure),
             planned_has_solar_panel: defaultChecked(orderData.planned_has_solar_panel),
             planned_has_inverter: defaultChecked(orderData.planned_has_inverter),
@@ -79,6 +73,29 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             planned_has_earthing_kit: defaultChecked(orderData.planned_has_earthing_kit),
             planned_has_cables: defaultChecked(orderData.planned_has_cables),
         });
+
+        // Build BOM planning snapshot from orderData.bom_snapshot. This is
+        // local UI state; we will persist only planned quantities back to the API.
+        if (Array.isArray(orderData.bom_snapshot)) {
+            const qty = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+            setBomPlan(
+                orderData.bom_snapshot.map((line, index) => ({
+                    // retain the original line for reference
+                    ...line,
+                    // stable key for React rendering
+                    __rowKey: `${orderData.id}-${index}-${line.product_id ?? "unknown"}`,
+                    // mark as part of the current planning scope
+                    planned: true,
+                    // editable planned quantity (defaults from planned_qty or quantity)
+                    planned_qty:
+                        line.planned_qty != null && line.planned_qty !== ""
+                            ? qty(line.planned_qty)
+                            : qty(line.quantity),
+                }))
+            );
+        } else {
+            setBomPlan([]);
+        }
     }, [orderData]);
 
     const fetchWarehouses = async () => {
@@ -114,20 +131,44 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         setError(null);
         setSuccessMsg(null);
 
-        const solarQty = (solarPanelQtyRef.current?.value ?? "").trim();
-        const inverterQty = (inverterQtyRef.current?.value ?? "").trim();
-
         try {
             const newFieldErrors = {};
             if (!formData.planned_delivery_date) newFieldErrors.planned_delivery_date = "Required";
             if (!formData.planned_priority) newFieldErrors.planned_priority = "Required";
             if (!formData.planned_warehouse_id) newFieldErrors.planned_warehouse_id = "Required";
-            if (!solarQty) newFieldErrors.planned_solar_panel_qty = "Required";
-            if (!inverterQty) newFieldErrors.planned_inverter_qty = "Required";
+
+            // Soft validation: require at least one BOM line to remain in scope
+            // when a BOM snapshot exists. This does not block legacy orders
+            // with no BOM attached.
+            if (Array.isArray(orderData?.bom_snapshot) && orderData.bom_snapshot.length > 0) {
+                const anyPlanned = bomPlan.some((line) => line.planned);
+                if (!anyPlanned) {
+                    newFieldErrors.bomPlan = "Select at least one BOM item for planning.";
+                }
+            }
 
             if (Object.keys(newFieldErrors).length > 0) {
                 setFieldErrors(newFieldErrors);
                 return;
+            }
+
+            // Build updated BOM snapshot with edited planned_qty values.
+            let updatedBomSnapshot = orderData.bom_snapshot;
+            if (Array.isArray(bomPlan) && bomPlan.length > 0) {
+                updatedBomSnapshot = bomPlan.map((line) => {
+                    const { __rowKey, planned, ...rest } = line;
+                    const qty = (n, fallback) => {
+                        if (n === "" || n == null) return fallback;
+                        const num = Number(n);
+                        return Number.isNaN(num) ? fallback : num;
+                    };
+                    const baseQuantity = qty(rest.quantity, 0);
+                    const plannedQty = qty(rest.planned_qty, baseQuantity);
+                    return {
+                        ...rest,
+                        planned_qty: plannedQty,
+                    };
+                });
             }
 
             const updatedStages = {
@@ -138,8 +179,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
             const payload = {
                 ...formData,
-                planned_solar_panel_qty: solarQty,
-                planned_inverter_qty: inverterQty,
+                bom_snapshot: updatedBomSnapshot,
                 stages: updatedStages,
                 planner_completed_at: new Date().toISOString(),
                 current_stage_key: "delivery",
@@ -154,7 +194,6 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             const msg = "Planner details saved successfully!";
             setSuccessMsg(msg);
             toastSuccess(msg);
-            lastSyncedOrderIdRef.current = null;
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save planner details:", err);
@@ -168,29 +207,25 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
     const isCompleted = orderData?.stages?.planner === "completed";
 
-    // Materials table rows: productType, description, qtyField (for editable qty), status, and checkbox field name.
-    // All material checkboxes default to checked (initial state and orderData sync use ?? true).
-    const materialsRows = [
-        {
-            name: "planned_has_solar_panel",
-            productType: "Solar Panel",
-            description: orderData?.solar_panel_description || orderData?.solar_panel_name || "N/A",
-            qtyField: "planned_solar_panel_qty",
-            status: formData.planned_has_solar_panel,
-        },
-        {
-            name: "planned_has_inverter",
-            productType: "Inverter",
-            description: orderData?.inverter_description || orderData?.inverter_name || "N/A",
-            qtyField: "planned_inverter_qty",
-            status: formData.planned_has_inverter,
-        },
-        { name: "planned_has_structure", productType: "Structure", description: "Structure", qtyField: null, status: formData.planned_has_structure },
-        { name: "planned_has_acdb", productType: "ACDB", description: "ACDB", qtyField: null, status: formData.planned_has_acdb },
-        { name: "planned_has_dcdb", productType: "DCDB", description: "DCDB", qtyField: null, status: formData.planned_has_dcdb },
-        { name: "planned_has_earthing_kit", productType: "Earthing Kit", description: "Earthing Kit", qtyField: null, status: formData.planned_has_earthing_kit },
-        { name: "planned_has_cables", productType: "Cables", description: "Cables", qtyField: null, status: formData.planned_has_cables },
-    ];
+    // Toggle handler for BOM planning checkbox. This only updates local UI
+    // state and does not affect the persisted order yet.
+    const handleBomToggle = (rowKey, checked) => {
+        setBomPlan((prev) =>
+            prev.map((line) =>
+                line.__rowKey === rowKey
+                    ? { ...line, planned: checked }
+                    : line
+            )
+        );
+        // Clear soft validation error once user interacts.
+        if (fieldErrors.bomPlan) {
+            setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.bomPlan;
+                return next;
+            });
+        }
+    };
 
     const StatusItem = ({ label, isDone }) => (
         <Stack alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 80 }}>
@@ -280,85 +315,96 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     </FormSection>
 
                     <FormSection title="Materials for planning / delivery">
-                        <div className="overflow-x-auto rounded-lg border border-border">
-                            <table className="w-full text-sm border-collapse">
-                                <thead>
-                                    <tr className="bg-muted/50 border-b border-border">
-                                        <th className="text-left font-semibold p-2 w-12"></th>
-                                        <th className="text-left font-semibold p-2">Product type</th>
-                                        <th className="text-left font-semibold p-2">Description</th>
-                                        <th className="text-left font-semibold p-2 w-24">Qty</th>
-                                        <th className="text-left font-semibold p-2 w-20">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {materialsRows.map((row) => (
-                                        <tr key={row.name} className="border-b border-border last:border-b-0 hover:bg-muted/30">
-                                            <td className="p-2">
-                                                <input
-                                                    type="checkbox"
-                                                    name={row.name}
-                                                    checked={row.status}
-                                                    onChange={(e) => handleInputChange({ target: { name: row.name, checked: e.target.checked } })}
-                                                    className="size-4 rounded border-input border bg-background accent-primary cursor-pointer"
-                                                    disabled={isCompleted || isReadOnly}
-                                                />
-                                            </td>
-                                            <td className="p-2">{row.productType}</td>
-                                            <td className="p-2">{row.description}</td>
-                                            <td className="p-2">
-                                                {row.qtyField === "planned_solar_panel_qty" ? (
-                                                    <div>
-                                                        <input
-                                                            ref={solarPanelQtyRef}
-                                                            key={`qty-${orderData?.id ?? "new"}-solar`}
-                                                            type="number"
-                                                            name="planned_solar_panel_qty"
-                                                            defaultValue={String(formData.planned_solar_panel_qty ?? "")}
-                                                            min={0}
-                                                            inputMode="numeric"
-                                                            aria-invalid={!!fieldErrors.planned_solar_panel_qty}
-                                                            disabled={isCompleted || isReadOnly}
-                                                            className={`h-9 w-full max-w-[80px] min-w-0 rounded-lg border bg-white px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring border-input ${fieldErrors.planned_solar_panel_qty ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                                                        />
-                                                        {fieldErrors.planned_solar_panel_qty && (
-                                                            <p className="mt-0.5 text-xs text-destructive">{fieldErrors.planned_solar_panel_qty}</p>
-                                                        )}
-                                                    </div>
-                                                ) : row.qtyField === "planned_inverter_qty" ? (
-                                                    <div>
-                                                        <input
-                                                            ref={inverterQtyRef}
-                                                            key={`qty-${orderData?.id ?? "new"}-inverter`}
-                                                            type="number"
-                                                            name="planned_inverter_qty"
-                                                            defaultValue={String(formData.planned_inverter_qty ?? "")}
-                                                            min={0}
-                                                            inputMode="numeric"
-                                                            aria-invalid={!!fieldErrors.planned_inverter_qty}
-                                                            disabled={isCompleted || isReadOnly}
-                                                            className={`h-9 w-full max-w-[80px] min-w-0 rounded-lg border bg-white px-2.5 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring border-input ${fieldErrors.planned_inverter_qty ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                                                        />
-                                                        {fieldErrors.planned_inverter_qty && (
-                                                            <p className="mt-0.5 text-xs text-destructive">{fieldErrors.planned_inverter_qty}</p>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    "—"
-                                                )}
-                                            </td>
-                                            <td className="p-2">
-                                                {row.status ? (
-                                                    <CheckCircleIcon color="success" sx={{ fontSize: 20 }} />
-                                                ) : (
-                                                    <CancelIcon color="error" sx={{ fontSize: 20 }} />
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        {Array.isArray(orderData?.bom_snapshot) && orderData.bom_snapshot.length > 0 ? (
+                            <>
+                                <div className="overflow-x-auto rounded-lg border border-border">
+                                    <table className="w-full text-xs sm:text-sm border-collapse">
+                                        <thead>
+                                            <tr className="bg-muted/50 border-b border-border">
+                                                <th className="text-left font-semibold p-2 w-10"></th>
+                                                <th className="text-left font-semibold p-2 min-w-[140px]">Product</th>
+                                                <th className="text-left font-semibold p-2 min-w-[110px]">Type</th>
+                                                <th className="text-left font-semibold p-2 min-w-[110px]">Make</th>
+                                                <th className="text-right font-semibold p-2 w-24">Planned Qty</th>
+                                                <th className="text-right font-semibold p-2 w-20">Shipped</th>
+                                                <th className="text-right font-semibold p-2 w-20">Pending</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {bomPlan.map((line) => {
+                                                const p = line.product_snapshot || line;
+                                                const productName = p?.product_name ?? "-";
+                                                const typeName = p?.product_type_name ?? "-";
+                                                const makeName = p?.product_make_name ?? "-";
+                                                const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+                                                const plannedQty = qtyNum(line.planned_qty ?? line.quantity);
+                                                const shippedQty = qtyNum(line.shipped_qty);
+                                                const returnedQty = qtyNum(line.returned_qty);
+                                                const pendingQty = plannedQty - shippedQty + returnedQty;
+                                                const isFullyShipped = Number(pendingQty) <= 0;
+
+                                                return (
+                                                    <tr
+                                                        key={line.__rowKey}
+                                                        className={`border-b border-border last:border-b-0 ${
+                                                            isFullyShipped ? "bg-muted/40" : "hover:bg-muted/30"
+                                                        }`}
+                                                    >
+                                                        <td className="p-2 align-middle">
+                                                            <input
+                                                                type="checkbox"
+                                                                name={`bom_${line.__rowKey}`}
+                                                                checked={line.planned}
+                                                                onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
+                                                                className="size-4 rounded border-input border bg-background accent-primary cursor-pointer"
+                                                                disabled={isCompleted || isReadOnly || isFullyShipped}
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 align-middle">{productName}</td>
+                                                        <td className="p-2 align-middle">{typeName}</td>
+                                                        <td className="p-2 align-middle">{makeName}</td>
+                                                        <td className="p-2 text-right align-middle">
+                                                            <input
+                                                                type="number"
+                                                                min={0}
+                                                                value={line.planned_qty ?? ""}
+                                                                onChange={(e) =>
+                                                                    setBomPlan((prev) =>
+                                                                        prev.map((row) =>
+                                                                            row.__rowKey === line.__rowKey
+                                                                                ? {
+                                                                                    ...row,
+                                                                                    planned_qty:
+                                                                                        e.target.value === ""
+                                                                                            ? ""
+                                                                                            : Number(e.target.value),
+                                                                                }
+                                                                                : row
+                                                                        )
+                                                                    )
+                                                                }
+                                                                disabled={isCompleted || isReadOnly}
+                                                                className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
+                                                            />
+                                                        </td>
+                                                        <td className="p-2 text-right align-middle">{shippedQty}</td>
+                                                        <td className="p-2 text-right align-middle">{pendingQty}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {fieldErrors.bomPlan && (
+                                    <p className="mt-1 text-xs text-destructive">{fieldErrors.bomPlan}</p>
+                                )}
+                            </>
+                        ) : (
+                            <Alert severity="info" sx={{ mt: 1 }}>
+                                No BOM snapshot is available for this order. Materials scope will be based on the
+                                high-level planner flags and quantities only.
+                            </Alert>
+                        )}
                     </FormSection>
 
                     <div className="mt-4 flex flex-col gap-2">

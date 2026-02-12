@@ -18,7 +18,6 @@ import {
     IconButton,
     Tooltip,
 } from "@mui/material";
-import PhoneIcon from "@mui/icons-material/Phone";
 import HomeIcon from "@mui/icons-material/Home";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -37,6 +36,7 @@ import ChallanTabs from "./components/ChallanTabs";
 import NewChallanForm from "./components/NewChallanForm";
 import PreviousChallans from "./components/PreviousChallans";
 import Fabrication from "../components/Fabrication";
+import AssignFabricatorAndInstaller from "@/app/confirm-orders/components/AssignFabricatorAndInstaller";
 import Installation from "../components/Installation";
 import NetMeterApplyTabs from "./components/NetMeterApplyTabs";
 import NetMeterInstalled from "../components/NetMeterInstalled";
@@ -44,6 +44,7 @@ import SubsidyClaim from "../components/SubsidyClaim";
 import SubsidyDisbursed from "../components/SubsidyDisbursed";
 import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
 import { toastError } from "@/utils/toast";
+import CustomerProjectDetails from "./components/CustomerProjectDetails";
 
 
 // --- Constants ---
@@ -53,6 +54,7 @@ const STAGES = [
     { key: "estimate_paid", label: "Estimate Paid" },
     { key: "planner", label: "Planner" },
     { key: "delivery", label: "Delivery" },
+    { key: "assign_fabricator_and_installer", label: "Assign Fabricator & Installer" },
     { key: "fabrication", label: "Fabrication" },
     { key: "installation", label: "Installation" },
     { key: "netmeter_apply", label: "Netmeter Apply" },
@@ -203,7 +205,8 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const calculateOrderDetailHeight = () => {
-        return `calc(100vh - 170px)`;
+        // Slightly taller panels to better use vertical space on large screens
+        return `calc(100vh - 140px)`;
     };
 
     if (loading) {
@@ -226,6 +229,7 @@ function ConfirmedOrderViewPageContent() {
         estimate_paid: "locked",
         planner: "locked",
         delivery: "locked",
+        assign_fabricator_and_installer: "locked",
         fabrication: "locked",
         installation: "locked",
         netmeter_apply: "locked",
@@ -248,75 +252,8 @@ function ConfirmedOrderViewPageContent() {
             <Grid container spacing={1}>
                 {/* Left Sidebar - Details */}
                 <Grid size={2.5}>
-                    <Paper sx={{ p: 2, height: calculateOrderDetailHeight(), overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
-                        <div className={COMPACT_SECTION_HEADER_CLASS}>Customer Details</div>
-                        <Box mt={2} mb={2}>
-                            <Typography variant="body2" color="text.secondary">Order No:</Typography>
-                            <Typography variant="body1" color="primary" fontWeight="bold">
-                                {orderData?.order_number || "N/A"}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" mt={2}>Name:</Typography>
-                            <Typography variant="body1" color="primary" fontWeight="bold">
-                                {orderData?.customer_name || "N/A"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Mobile No:</Typography>
-                            <Typography variant="body1" display="flex" alignItems="center" gap={0.5}>
-                                <PhoneIcon fontSize="small" color="primary" />
-                                {orderData?.mobile_number || "N/A"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Address:</Typography>
-                            <Typography variant="body1">{orderData?.address || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Reference:</Typography>
-                            <Typography variant="body1">{orderData?.reference_from || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Channel Partner:</Typography>
-                            <Typography variant="body1">{orderData?.channel_partner_name || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Handled By:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.handled_by_name || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Branch:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.branch_name || "N/A"}</Typography>
-                        </Box>
-
-                        <div className={COMPACT_SECTION_HEADER_CLASS}>Project Details</div>
-                        <Box mt={2} mb={2}>
-                            <Typography variant="body2" color="text.secondary">Order Date:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                {orderData?.order_date ? moment(orderData.order_date).format("DD-MM-YYYY") : "N/A"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Consumer No:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.consumer_no || "N/A"}</Typography>
-
-                            <Grid container spacing={2} mt={1}>
-                                <Grid size={6}>
-                                    <Typography variant="body2" color="text.secondary">Capacity:</Typography>
-                                    <Typography variant="body1" fontWeight="bold">{orderData?.capacity || "N/A"}</Typography>
-                                </Grid>
-                                <Grid size={6}>
-                                    <Typography variant="body2" color="text.secondary">Order Type:</Typography>
-                                    <Chip label={orderData?.order_type_name || "New"} color="success" size="small" />
-                                </Grid>
-                            </Grid>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Scheme:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.project_scheme_name || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Application:</Typography>
-                            <Typography variant="body1">{orderData?.application_no || "N/A"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Registration Date:</Typography>
-                            <Typography variant="body1">
-                                {orderData?.date_of_registration_gov ? moment(orderData.date_of_registration_gov).format("DD-MM-YYYY") : "N/A"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Discom:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.discom_name || "N/A"}</Typography>
-                        </Box>
+                    <Paper sx={{ p: 1.5, height: calculateOrderDetailHeight(), overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
+                        <CustomerProjectDetails orderData={orderData} />
 
                         {orderData?.bom_snapshot?.length > 0 && (
                             <>
@@ -333,15 +270,18 @@ function ConfirmedOrderViewPageContent() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {orderData.bom_snapshot.map((line, idx) => (
-                                                <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                                                    <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                                    <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_name ?? "-"}</td>
-                                                    <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_type_name ?? "-"}</td>
-                                                    <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_make_name ?? "-"}</td>
-                                                    <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
-                                                </tr>
-                                            ))}
+                                            {orderData.bom_snapshot.map((line, idx) => {
+                                                const p = line.product_snapshot || line;
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                                        <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
+                                                        <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </Box>
@@ -470,21 +410,24 @@ function ConfirmedOrderViewPageContent() {
                                 </Box>
                             </TabPanel>
                             <TabPanel value={tabValue} index={4}>
-                                <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
+                                <AssignFabricatorAndInstaller orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
                             </TabPanel>
                             <TabPanel value={tabValue} index={5}>
-                                <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
+                                <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
                             </TabPanel>
                             <TabPanel value={tabValue} index={6}>
-                                <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} />
+                                <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
                             </TabPanel>
                             <TabPanel value={tabValue} index={7}>
-                                <NetMeterInstalled orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} />
+                                <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} />
                             </TabPanel>
                             <TabPanel value={tabValue} index={8}>
-                                <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
+                                <NetMeterInstalled orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} />
                             </TabPanel>
                             <TabPanel value={tabValue} index={9}>
+                                <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
+                            </TabPanel>
+                            <TabPanel value={tabValue} index={10}>
                                 <SubsidyDisbursed orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
                             </TabPanel>
                         </div>

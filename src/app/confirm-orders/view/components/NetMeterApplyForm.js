@@ -5,7 +5,7 @@ import {
     Box,
     Grid,
     Alert,
-    TextField,
+    Button,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Input from "@/components/common/Input";
@@ -152,7 +152,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const isReadOnly = readOnly;
 
     return (
-        <Box component="form" onSubmit={handleSubmit} sx={{ height: "calc(100vh - 380px)", overflowY: "auto", p: 2 }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
             <Grid container spacing={3}>
                 {/* Netmeter Applied On */}
                 <Grid item size={6}>

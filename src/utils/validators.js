@@ -33,6 +33,19 @@ export const validateGSTIN = (gstin) => {
 };
 
 /**
+ * Derives PAN from a valid Indian GSTIN (chars 3-12 of the 15-char GSTIN).
+ * @param {string} gstin - GSTIN to derive from
+ * @returns {string|null} - The 10-char PAN if GSTIN is valid, otherwise null
+ */
+export const derivePanFromGstin = (gstin) => {
+  if (!gstin || typeof gstin !== "string") return null;
+  const normalized = gstin.trim().toUpperCase().replace(/\s/g, "");
+  if (normalized.length !== 15) return null;
+  if (!validateGSTIN(gstin).isValid) return null;
+  return normalized.slice(2, 12);
+};
+
+/**
  * Validates PAN (Permanent Account Number)
  * Format: 10 characters - [A-Z]{5}[0-9]{4}[A-Z]{1}
  * Example: ABCDE1234F

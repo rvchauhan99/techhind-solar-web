@@ -153,6 +153,11 @@ function AddOrderContent() {
             delete orderData.cancelled_cheque;
             delete orderData.customer_sign;
 
+            // Ensure quotation_id is sent when creating from quotation (for bom_snapshot carry-forward)
+            if (quotationData?.id && !orderData.quotation_id) {
+                orderData.quotation_id = quotationData.id;
+            }
+
             // Create order first
             const res = await orderService.createOrder(orderData);
             const orderId = res?.result?.id || res?.id;
@@ -292,7 +297,8 @@ function AddOrderContent() {
             if (Array.isArray(quotationData.bom_snapshot) && quotationData.bom_snapshot.length > 0) {
                 const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "_");
                 for (const line of quotationData.bom_snapshot) {
-                    const t = norm(line.product_snapshot?.product_type_name);
+                    const p = line.product_snapshot || line;
+                    const t = norm(p?.product_type_name);
                     if (t === "panel" && panelId == null) panelId = line.product_id;
                     if (t === "inverter" && inverterId == null) inverterId = line.product_id;
                     if (panelId != null && inverterId != null) break;
@@ -334,15 +340,18 @@ function AddOrderContent() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {quotationData.bom_snapshot.map((line, idx) => (
-                                            <tr key={idx} className="border-b border-border/50">
-                                                <td className="py-1 pr-2">{idx + 1}</td>
-                                                <td className="py-1 pr-2">{line.product_snapshot?.product_name ?? "-"}</td>
-                                                <td className="py-1 pr-2">{line.product_snapshot?.product_type_name ?? "-"}</td>
-                                                <td className="py-1 pr-2">{line.product_snapshot?.product_make_name ?? "-"}</td>
-                                                <td className="py-1 pr-2">{line.quantity ?? "-"}</td>
-                                            </tr>
-                                        ))}
+                                        {quotationData.bom_snapshot.map((line, idx) => {
+                                            const p = line.product_snapshot || line;
+                                            return (
+                                                <tr key={idx} className="border-b border-border/50">
+                                                    <td className="py-1 pr-2">{idx + 1}</td>
+                                                    <td className="py-1 pr-2">{p?.product_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{p?.product_type_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{p?.product_make_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{line.quantity ?? "-"}</td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

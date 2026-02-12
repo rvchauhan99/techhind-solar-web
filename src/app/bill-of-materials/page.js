@@ -38,6 +38,13 @@ const COLUMN_FILTER_KEYS = [
   "name_op",
   "description",
   "description_op",
+  "visibility",
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "active", label: "Yes" },
+  { value: "inactive", label: "No" },
+  { value: "all", label: "All" },
 ];
 
 export default function BillOfMaterialPage() {
@@ -91,6 +98,7 @@ export default function BillOfMaterialPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      exportParams.visibility = filters.visibility || "active";
       const blob = await billOfMaterialService.exportBillOfMaterials(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -197,6 +205,15 @@ export default function BillOfMaterialPage() {
   const columns = useMemo(
     () => [
       {
+        field: "_status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "visibility",
+        filterOptions: VISIBILITY_OPTIONS,
+        render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+      },
+      {
         field: "code",
         label: "Code",
         sortable: true,
@@ -291,6 +308,7 @@ export default function BillOfMaterialPage() {
         name_op: p.name_op || undefined,
         description: p.description || undefined,
         description_op: p.description_op || undefined,
+        visibility: p.visibility || "active",
       });
       const result = response?.result || response;
       return {

@@ -61,11 +61,18 @@ const COLUMN_FILTER_KEYS = [
   "min_stock_quantity_op",
   "min_stock_quantity_to",
   "is_active",
+  "visibility",
 ];
 
 const IS_ACTIVE_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "active", label: "Yes" },
+  { value: "inactive", label: "No" },
+  { value: "all", label: "All" },
 ];
 
 export default function ProductPage() {
@@ -146,6 +153,7 @@ export default function ProductPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      exportParams.visibility = filters.visibility || "active";
       const blob = await productService.exportProducts(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -174,6 +182,15 @@ export default function ProductPage() {
 
   const columns = useMemo(
     () => [
+      {
+        field: "_status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "visibility",
+        filterOptions: VISIBILITY_OPTIONS,
+        render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+      },
       {
         field: "product_type_name",
         label: "Product Type",
@@ -372,6 +389,7 @@ export default function ProductPage() {
         min_stock_quantity_op: p.min_stock_quantity_op || undefined,
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
         is_active: p.is_active !== undefined && p.is_active !== "" ? p.is_active : undefined,
+        visibility: p.visibility || "active",
       });
       const result = response.result || response;
       return {

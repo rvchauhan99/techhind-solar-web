@@ -36,6 +36,7 @@ const STAGES = [
     { key: "estimate_paid", label: "Estimate Paid" },
     { key: "planner", label: "Planner" },
     { key: "delivery", label: "Delivery" },
+    { key: "assign_fabricator_and_installer", label: "Assign Fabricator & Installer" },
     { key: "fabrication", label: "Fabrication" },
     { key: "installation", label: "Installation" },
     { key: "netmeter_apply", label: "Netmeter Apply" },
@@ -219,7 +220,7 @@ export default function ListView() {
         );
     };
 
-    const calculateHeight = () => `calc(100vh - 125px)`;
+    const calculateHeight = () => `calc(100vh - 90px)`;
 
     return (
         <Box sx={{ width: "100%" }}>

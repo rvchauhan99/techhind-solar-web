@@ -16,6 +16,7 @@ import {
   validatePincode,
   formatPhone,
   formatToUpperCase,
+  derivePanFromGstin,
 } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 
@@ -190,7 +191,18 @@ export default function SupplierForm({
         processedValue = value;
       }
     }
-    setFormData((prev) => ({ ...prev, [name]: processedValue }));
+    if (name === "gstin") {
+      const newGstin = processedValue;
+      const isGstinEmpty = !newGstin || newGstin.trim() === "";
+      const derivedPan = isGstinEmpty ? null : derivePanFromGstin(newGstin);
+      setFormData((prev) => ({
+        ...prev,
+        gstin: newGstin,
+        pan_number: isGstinEmpty ? "" : (derivedPan != null ? derivedPan : prev.pan_number),
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: processedValue }));
+    }
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
