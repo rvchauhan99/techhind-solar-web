@@ -24,4 +24,37 @@ export const getSolarPanels = () =>
 export const getInverters = () =>
     apiClient.get("/order/inverters").then((r) => r.data);
 
-export default { getOrders, exportOrders, createOrder, getOrderById, updateOrder, deleteOrder, getSolarPanels, getInverters };
+export const getPendingDeliveryOrders = () =>
+    apiClient.get("/order/pending-delivery").then((r) => r.data);
+
+export const getDeliveryExecutionOrders = (params = {}) =>
+    apiClient.get("/order/delivery-execution", { params }).then((r) => r.data);
+
+export const getFabricationByOrderId = (orderId) =>
+    apiClient.get(`/order/${orderId}/fabrication`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
+export const saveFabrication = (orderId, payload) =>
+    apiClient.put(`/order/${orderId}/fabrication`, payload).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
+export const getInstallationByOrderId = (orderId) =>
+    apiClient.get(`/order/${orderId}/installation`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
+export const saveInstallation = (orderId, payload) =>
+    apiClient.put(`/order/${orderId}/installation`, payload).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
+export default {
+    getOrders,
+    exportOrders,
+    createOrder,
+    getOrderById,
+    updateOrder,
+    deleteOrder,
+    getSolarPanels,
+    getInverters,
+    getPendingDeliveryOrders,
+    getDeliveryExecutionOrders,
+    getFabricationByOrderId,
+    saveFabrication,
+    getInstallationByOrderId,
+    saveInstallation,
+};

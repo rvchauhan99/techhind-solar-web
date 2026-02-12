@@ -1154,15 +1154,18 @@ function OrderViewPageContent() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {orderData.bom_snapshot.map((line, idx) => (
-                                                    <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                                                        <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_type_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.product_snapshot?.product_make_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
-                                                    </tr>
-                                                ))}
+                                                {orderData.bom_snapshot.map((line, idx) => {
+                                                    const p = line.product_snapshot || line;
+                                                    return (
+                                                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                                            <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </Box>

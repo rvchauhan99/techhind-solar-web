@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress } from "@mui/material";
+import { Box, CircularProgress } from "@mui/material";
 import { Button } from "@/components/ui/button";
-import { IconEye, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import {
   AlertDialog,
@@ -24,6 +24,14 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import ModuleForm from "./components/ModuleForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 
 const COLUMN_FILTER_KEYS = [
   "id",
@@ -421,126 +429,76 @@ export default function ModuleMasterPage() {
       </ListingPageContainer>
 
       {/* Add Module Modal */}
-      <Dialog
-        open={showAddModal}
-        onClose={handleCloseAddModal}
-        maxWidth="md"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column'
-            }
-          }
-        }}
-      >
-        <DialogTitle>
-          Add Module
-          <Button
-            type="button"
-            aria-label="close"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute right-2 top-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleCloseAddModal}
-          >
-            <IconX className="size-4" />
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, overflowY: 'auto', flex: 1 }}>
-          <ModuleForm
-            ref={addFormRef}
-            onSubmit={handleSubmit}
-            loading={submitting}
-            parentOptions={parentOptions}
-            serverError={serverError}
-            onClearServerError={() => setServerError(null)}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 1 }}>
-          <Button type="button" onClick={handleCloseAddModal} variant="outline" size="sm">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            loading={submitting}
-            onClick={() => {
-              if (addFormRef.current) {
-                addFormRef.current.requestSubmit();
-              }
-            }}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Module Modal */}
-      <Dialog
-        open={showEditModal}
-        onClose={handleCloseEditModal}
-        maxWidth="md"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column'
-            }
-          }
-        }}
-      >
-        <DialogTitle>
-          Edit Module
-          <Button
-            type="button"
-            aria-label="close"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute right-2 top-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleCloseEditModal}
-          >
-            <IconX className="size-4" />
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, overflowY: 'auto', flex: 1 }}>
-          {loadingRecord ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-              <CircularProgress />
-            </Box>
-          ) : (
+      <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
+        <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
+          <DialogHeader>
+            <DialogTitle>Add Module</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <ModuleForm
-              ref={editFormRef}
-              defaultValues={selectedRecord}
+              ref={addFormRef}
               onSubmit={handleSubmit}
               loading={submitting}
               parentOptions={parentOptions}
               serverError={serverError}
               onClearServerError={() => setServerError(null)}
             />
+          </div>
+          <DialogFooter className="pt-4">
+            <Button variant="outline" size="sm" type="button" onClick={handleCloseAddModal}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              loading={submitting}
+              type="button"
+              onClick={() => addFormRef.current?.requestSubmit?.()}
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Module Modal */}
+      <Dialog open={showEditModal} onOpenChange={(open) => !open && handleCloseEditModal()}>
+        <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
+          <DialogHeader>
+            <DialogTitle>Edit Module</DialogTitle>
+          </DialogHeader>
+          {loadingRecord ? (
+            <div className="flex min-h-[200px] items-center justify-center">
+              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <ModuleForm
+                  ref={editFormRef}
+                  defaultValues={selectedRecord}
+                  onSubmit={handleSubmit}
+                  loading={submitting}
+                  parentOptions={parentOptions}
+                  serverError={serverError}
+                  onClearServerError={() => setServerError(null)}
+                />
+              </div>
+              <DialogFooter className="pt-4">
+                <Button variant="outline" size="sm" type="button" onClick={handleCloseEditModal}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  loading={submitting}
+                  type="button"
+                  onClick={() => editFormRef.current?.requestSubmit?.()}
+                >
+                  Update
+                </Button>
+              </DialogFooter>
+            </>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 1 }}>
-          <Button type="button" onClick={handleCloseEditModal} variant="outline" size="sm">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            loading={submitting}
-            onClick={() => {
-              if (editFormRef.current) {
-                editFormRef.current.requestSubmit();
-              }
-            }}
-          >
-            Update
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -149,17 +149,17 @@ const UserForm = forwardRef(function UserForm({
           flexDirection: "column", 
           height: "100%",
           width: "100%",
-          maxWidth: "800px",
-          mx: "auto", // Center horizontally
+          maxWidth: "760px",
+          mx: "auto",
         }}
       >
         <Box sx={{ 
           display: "grid", 
-          gap: 2, 
+          gap: 1.5, 
           flex: 1, 
           overflowY: "auto", 
           pr: 1, 
-          pt: 2,
+          pt: 1,
           width: "100%",
         }}>
           <Input

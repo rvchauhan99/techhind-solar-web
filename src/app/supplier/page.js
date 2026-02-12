@@ -47,11 +47,18 @@ const COLUMN_FILTER_KEYS = [
   "gstin",
   "gstin_op",
   "is_active",
+  "visibility",
 ];
 
 const IS_ACTIVE_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "active", label: "Yes" },
+  { value: "inactive", label: "No" },
+  { value: "all", label: "All" },
 ];
 
 export default function SupplierPage() {
@@ -92,6 +99,7 @@ export default function SupplierPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      exportParams.visibility = filters.visibility || "active";
       const blob = await supplierService.exportSuppliers(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -152,6 +160,15 @@ export default function SupplierPage() {
 
   const columns = useMemo(
     () => [
+      {
+        field: "_status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "visibility",
+        filterOptions: VISIBILITY_OPTIONS,
+        render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+      },
       {
         field: "supplier_code",
         label: "Supplier Code",
@@ -303,6 +320,7 @@ export default function SupplierPage() {
         state_name: state_name || undefined,
         gstin: gstin || undefined,
         is_active: is_active !== undefined && is_active !== "" ? is_active : undefined,
+        visibility: params.visibility || "active",
       });
       const result = response.result || response;
       return {
@@ -434,7 +452,7 @@ export default function SupplierPage() {
           fetcher={fetcher}
           moduleKey="supplier"
           height="calc(100vh - 200px)"
-          showSearch={true}
+          showSearch={false}
           showPagination={false}
           onTotalChange={setTotalCount}
           columnFilterValues={columnFilterValues}

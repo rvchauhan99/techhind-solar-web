@@ -50,11 +50,18 @@ const COLUMN_FILTER_KEYS = [
   "system_warranty",
   "system_warranty_op",
   "is_locked",
+  "visibility",
 ];
 
 const IS_LOCKED_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
+];
+
+const VISIBILITY_OPTIONS = [
+  { value: "active", label: "Yes" },
+  { value: "inactive", label: "No" },
+  { value: "all", label: "All" },
 ];
 
 export default function ProjectPricePage() {
@@ -108,6 +115,7 @@ export default function ProjectPricePage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      exportParams.visibility = filters.visibility || "active";
       const blob = await projectPriceService.exportProjectPrices(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -215,6 +223,15 @@ export default function ProjectPricePage() {
 
   const columns = useMemo(
     () => [
+      {
+        field: "_status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "visibility",
+        filterOptions: VISIBILITY_OPTIONS,
+        render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+      },
       {
         field: "state_name",
         label: "State",
@@ -360,6 +377,7 @@ export default function ProjectPricePage() {
         total_project_value_to: p.total_project_value_to || undefined,
         system_warranty: p.system_warranty || undefined,
         is_locked: p.is_locked !== undefined && p.is_locked !== "" ? p.is_locked : undefined,
+        visibility: p.visibility || "active",
       });
       const result = response?.result || response;
       return {
