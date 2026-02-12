@@ -33,11 +33,17 @@ const COLUMN_FILTER_KEYS = [
   "can_read",
   "can_update",
   "can_delete",
+  "listing_criteria",
 ];
 
 const YES_NO_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
+];
+
+const LISTING_CRITERIA_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "my_team", label: "My Team" },
 ];
 
 export default function RoleModuleListPage() {
@@ -80,6 +86,10 @@ export default function RoleModuleListPage() {
         can_read: p.can_read !== undefined && p.can_read !== "" ? p.can_read : undefined,
         can_update: p.can_update !== undefined && p.can_update !== "" ? p.can_update : undefined,
         can_delete: p.can_delete !== undefined && p.can_delete !== "" ? p.can_delete : undefined,
+        listing_criteria:
+          p.listing_criteria !== undefined && p.listing_criteria !== ""
+            ? p.listing_criteria
+            : undefined,
         sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "ASC",
       });
@@ -152,6 +162,15 @@ export default function RoleModuleListPage() {
         filterKey: "can_delete",
         filterOptions: YES_NO_OPTIONS,
         render: (row) => (row.can_delete ? "Yes" : "No"),
+      },
+      {
+        field: "listing_criteria",
+        label: "Listing Criteria",
+        sortable: false,
+        filterType: "select",
+        filterKey: "listing_criteria",
+        filterOptions: LISTING_CRITERIA_OPTIONS,
+        render: (row) => (row.listing_criteria === "my_team" ? "My Team" : "All"),
       },
       {
         field: "actions",

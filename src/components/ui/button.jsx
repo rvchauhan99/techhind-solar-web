@@ -63,18 +63,18 @@ export function Button({
   const resolvedVariant = variant === "contained" ? "default" : variant;
 
   const content = loading ? (
-    <>
+    <span className="inline-flex items-center justify-center gap-1.5">
       <IconLoader2 className="size-4 animate-spin shrink-0" aria-hidden />
       {children != null && children !== "" ? (
         <span className="ml-1.5">{children}</span>
       ) : null}
-    </>
+    </span>
   ) : (
-    <>
+    <span className="inline-flex items-center justify-center gap-1.5">
       {startIcon ? <span className="-ml-0.5 shrink-0 [&>svg]:size-4" data-icon="inline-start">{startIcon}</span> : null}
       {children}
       {endIcon ? <span className="-mr-0.5 shrink-0 [&>svg]:size-4" data-icon="inline-end">{endIcon}</span> : null}
-    </>
+    </span>
   );
 
   return (

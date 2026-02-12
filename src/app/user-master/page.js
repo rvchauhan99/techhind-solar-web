@@ -55,6 +55,7 @@ export default function UserListPage() {
   };
 
   const [roles, setRoles] = useState([]);
+  const [managers, setManagers] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -101,6 +102,15 @@ export default function UserListPage() {
       })
       .catch(() => setRoles([]))
       .finally(() => setLoadingRoles(false));
+
+    userService
+      .listUserMasters({ status: "active", limit: 1000, page: 1, sortBy: "name", sortOrder: "ASC" })
+      .then((res) => {
+        const result = res?.result || res;
+        const data = result?.data || [];
+        setManagers(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setManagers([]));
   }, []);
 
   const handleOpenSidebar = useCallback(async (id) => {
@@ -199,6 +209,12 @@ export default function UserListPage() {
         filterKey: "role_name",
         defaultFilterOperator: "contains",
         render: (row) => row.role?.name || "-",
+      },
+      {
+        field: "manager",
+        label: "Manager",
+        sortable: false,
+        render: (row) => row.manager?.name || "-",
       },
       {
         field: "first_login",
@@ -429,6 +445,7 @@ export default function UserListPage() {
         <hr className="border-border" />
         <p className="text-xs font-semibold text-muted-foreground">Details</p>
         <p className="text-sm">Status: {u.status || "-"}</p>
+        <p className="text-sm">Manager: {u.manager?.name || "-"}</p>
         <p className="text-sm">Phone: {u.mobile_number || "-"}</p>
         <p className="text-sm">First Login: {u.first_login ? "Yes" : "No"}</p>
         {u.address && <p className="text-sm text-muted-foreground">{u.address}</p>}
@@ -451,6 +468,12 @@ export default function UserListPage() {
       </div>
     );
   }, [loadingRecord, selectedRecord, currentPerm?.can_update]);
+
+  const editManagers = useMemo(() => {
+    const selectedId = Number(selectedRecord?.id);
+    if (!selectedId) return managers;
+    return managers.filter((manager) => Number(manager.id) !== selectedId);
+  }, [managers, selectedRecord?.id]);
 
   return (
     <ProtectedRoute>
@@ -514,6 +537,7 @@ export default function UserListPage() {
             onSubmit={handleSubmit}
             loading={submitting}
             roles={roles}
+            managers={managers}
             serverError={serverError}
             onClearServerError={() => setServerError(null)}
           />
@@ -551,6 +575,7 @@ export default function UserListPage() {
                   onSubmit={handleSubmit}
                   loading={submitting}
                   roles={roles}
+                  managers={editManagers}
                   serverError={serverError}
                   onClearServerError={() => setServerError(null)}
                 />
