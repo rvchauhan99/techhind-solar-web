@@ -160,11 +160,13 @@ export default function AssignFabricatorAndInstaller({
                 [currentStage]: "completed",
                 [nextStage]: "pending",
             };
+            const isSamePerson = formData.fabricator_installer_are_same;
+            const sharedAssigneeId = formData.fabricator_installer_id || null;
             const payload = {
-                fabricator_installer_are_same: formData.fabricator_installer_are_same,
-                fabricator_installer_id: formData.fabricator_installer_id || null,
-                fabricator_id: formData.fabricator_id || null,
-                installer_id: formData.installer_id || null,
+                fabricator_installer_are_same: isSamePerson,
+                fabricator_installer_id: sharedAssigneeId,
+                fabricator_id: isSamePerson ? sharedAssigneeId : (formData.fabricator_id || null),
+                installer_id: isSamePerson ? sharedAssigneeId : (formData.installer_id || null),
                 fabrication_due_date: formData.fabrication_due_date,
                 installation_due_date: formData.installation_due_date,
                 fabrication_remarks: formData.fabrication_remarks,

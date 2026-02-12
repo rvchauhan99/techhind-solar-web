@@ -21,6 +21,7 @@ function LoadingState() {
 
 function EditUserContent() {
   const [roles, setRoles] = useState([]);
+  const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [serverError, setServerError] = useState(null);
   const [defaultValues, setDefaultValues] = useState(null);
@@ -36,7 +37,20 @@ function EditUserContent() {
         setRoles(data);
       })
       .catch(() => setRoles([]));
-  }, []);
+
+    userService
+      .listUserMasters({ status: "active", limit: 1000, page: 1, sortBy: "name", sortOrder: "ASC" })
+      .then((res) => {
+        const result = res?.result || res;
+        const data = result?.data || [];
+        const currentId = Number(id);
+        const filtered = Array.isArray(data)
+          ? data.filter((user) => Number(user.id) !== currentId)
+          : [];
+        setManagers(filtered);
+      })
+      .catch(() => setManagers([]));
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -72,6 +86,7 @@ function EditUserContent() {
           onSubmit={handleSubmit}
           loading={loading}
           roles={roles}
+          managers={managers}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
         />
