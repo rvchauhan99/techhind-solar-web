@@ -53,30 +53,44 @@ export function Button({
   loading = false,
   children,
   disabled,
+  startIcon,
+  endIcon,
+  fullWidth,
   ...props
 }) {
   const Comp = asChild ? Slot.Root : "button";
   const isDisabled = disabled ?? loading;
+  const resolvedVariant = variant === "contained" ? "default" : variant;
+
+  const content = loading ? (
+    <>
+      <IconLoader2 className="size-4 animate-spin shrink-0" aria-hidden />
+      {children != null && children !== "" ? (
+        <span className="ml-1.5">{children}</span>
+      ) : null}
+    </>
+  ) : (
+    <>
+      {startIcon ? <span className="-ml-0.5 shrink-0 [&>svg]:size-4" data-icon="inline-start">{startIcon}</span> : null}
+      {children}
+      {endIcon ? <span className="-mr-0.5 shrink-0 [&>svg]:size-4" data-icon="inline-end">{endIcon}</span> : null}
+    </>
+  );
+
   return (
     <Comp
       {...props}
       data-slot="button"
-      data-variant={variant}
+      data-variant={resolvedVariant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({ variant: resolvedVariant, size, className }),
+        fullWidth && "w-full"
+      )}
       disabled={isDisabled}
       aria-busy={loading}
     >
-      {loading ? (
-        <>
-          <IconLoader2 className="size-4 animate-spin shrink-0" aria-hidden />
-          {children != null && children !== "" ? (
-            <span className="ml-1.5">{children}</span>
-          ) : null}
-        </>
-      ) : (
-        children
-      )}
+      {content}
     </Comp>
   );
 }
