@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 
 export default function AddUserPage() {
   const [roles, setRoles] = useState([]);
+  const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
   const router = useRouter();
@@ -22,6 +23,15 @@ export default function AddUserPage() {
         setRoles(data);
       })
       .catch(() => setRoles([]));
+
+    userService
+      .listUserMasters({ status: "active", limit: 1000, page: 1, sortBy: "name", sortOrder: "ASC" })
+      .then((res) => {
+        const result = res?.result || res;
+        const data = result?.data || [];
+        setManagers(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setManagers([]));
   }, []);
 
   const handleSubmit = async (payload) => {
@@ -43,6 +53,7 @@ export default function AddUserPage() {
           onSubmit={handleSubmit}
           loading={loading}
           roles={roles}
+          managers={managers}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
         />

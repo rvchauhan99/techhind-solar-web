@@ -61,6 +61,10 @@ export default function RoleModuleViewById() {
             <Typography>
               <strong>Can Delete:</strong> {item.can_delete ? "Yes" : "No"}
             </Typography>
+            <Typography>
+              <strong>Listing Criteria:</strong>{" "}
+              {item.listing_criteria === "my_team" ? "My Team" : "All"}
+            </Typography>
           </div>
         ) : (
           <div>Loading...</div>

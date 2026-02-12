@@ -189,6 +189,30 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 delete payload.stages;
                 delete payload.current_stage_key;
             }
+
+            const projectCost = Number(orderData?.project_cost) || 0;
+            const discount = Number(orderData?.discount) || 0;
+            const payableAmount = Math.max(projectCost - discount, 0);
+            const totalPaid = Number(orderData?.total_paid) || 0;
+            const fallbackOutstanding = Math.max(payableAmount - totalPaid, 0);
+            const outstandingAmount = Math.max(
+                Number(orderData?.outstanding_balance ?? fallbackOutstanding) || 0,
+                0
+            );
+            const outstandingPercent =
+                payableAmount > 0 ? (outstandingAmount / payableAmount) * 100 : 0;
+
+            if (outstandingPercent > 50) {
+                const shouldProceed = window.confirm(
+                    `Outstanding payment is ${outstandingPercent.toFixed(2)}% (Rs. ${outstandingAmount.toLocaleString(
+                        "en-IN"
+                    )}) of payable amount. Do you want to continue saving planner details?`
+                );
+                if (!shouldProceed) {
+                    return;
+                }
+            }
+
             await orderService.updateOrder(orderId, payload);
 
             const msg = "Planner details saved successfully!";

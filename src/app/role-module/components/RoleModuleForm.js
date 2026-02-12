@@ -24,6 +24,7 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
     can_read: false,
     can_update: false,
     can_delete: false,
+    listing_criteria: "my_team",
   };
 
   const [formData, setFormData] = useState({ ...base, ...(defaultValues || {}) });
@@ -72,6 +73,20 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
         <Select labelId="module-label" name="module_id" value={formData.module_id ?? ""} label="Module" onChange={handleChange} required>
           <MenuItem value="">Select Module</MenuItem>
           {modules.map((m) => (<MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>))}
+        </Select>
+      </FormControl>
+
+      <FormControl>
+        <InputLabel id="listing-criteria-label">Listing Criteria</InputLabel>
+        <Select
+          labelId="listing-criteria-label"
+          name="listing_criteria"
+          value={formData.listing_criteria ?? "my_team"}
+          label="Listing Criteria"
+          onChange={handleChange}
+        >
+          <MenuItem value="all">All</MenuItem>
+          <MenuItem value="my_team">My Team</MenuItem>
         </Select>
       </FormControl>
 

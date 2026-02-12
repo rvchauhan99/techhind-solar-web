@@ -17,6 +17,7 @@ const UserForm = forwardRef(function UserForm({
   onSubmit,
   loading,
   roles = [],
+  managers = [],
   serverError = null,
   onClearServerError = () => {},
   viewMode = false, // If true, all inputs are disabled
@@ -26,6 +27,7 @@ const UserForm = forwardRef(function UserForm({
     name: "",
     email: "",
     role_id: null,
+    manager_id: "",
     status: "active",
   };
 
@@ -49,7 +51,7 @@ const UserForm = forwardRef(function UserForm({
       defaultValues &&
       (defaultValues.id || Object.keys(defaultValues).length)
     ) {
-      setFormData({ ...base, ...defaultValues });
+      setFormData({ ...base, ...contactDefaults, ...defaultValues });
     }
   }, [defaultValues?.id]);
 
@@ -227,6 +229,21 @@ const UserForm = forwardRef(function UserForm({
             {roles.map((r) => (
               <MenuItem key={r.id} value={r.id}>
                 {r.name}
+              </MenuItem>
+            ))}
+          </Select>
+
+          <Select
+            name="manager_id"
+            label="Manager"
+            value={formData.manager_id ?? ""}
+            onChange={handleChange}
+            disabled={viewMode}
+          >
+            <MenuItem value="">Select Manager</MenuItem>
+            {managers.map((m) => (
+              <MenuItem key={m.id} value={m.id}>
+                {m.name}
               </MenuItem>
             ))}
           </Select>
