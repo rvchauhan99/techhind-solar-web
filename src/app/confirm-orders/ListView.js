@@ -71,6 +71,11 @@ export default function ListView() {
         handleMenuClose();
     };
 
+    const openConfirmOrderView = useCallback((orderId) => {
+        if (!orderId) return;
+        router.push(`/confirm-orders/view?id=${orderId}`);
+    }, [router]);
+
     const fetchData = useCallback(async (params) => {
         return await confirmOrdersService.getConfirmedOrders(params);
     }, []);
@@ -130,12 +135,14 @@ export default function ListView() {
         return (
             <Paper
                 elevation={0}
+                onClick={() => openConfirmOrderView(row.id)}
                 sx={{
                     position: "relative",
                     border: "1px solid #e0e0e0",
                     borderTop: '3px solid #ff9800', // Orange bar at top
                     borderRadius: '4px 4px 1px 1px',
                     overflow: "hidden",
+                    cursor: "pointer",
                     transition: '0.2s',
                     '&:hover': {
                         borderColor: '#1976d2',
@@ -150,7 +157,7 @@ export default function ListView() {
                         suffix={` : ${row.customer_name?.toUpperCase() || "-"}`}
                         variant="subtitle2"
                         sx={{ mr: 2, fontSize: "0.88rem" }}
-                        onClick={() => handleOpenDetails(row)}
+                        onClick={() => openConfirmOrderView(row.id)}
                     />
                     <Chip label="New" size="small" sx={{ bgcolor: "#4caf50", color: "#fff", height: 18, fontSize: "0.58rem", mr: 1, borderRadius: '3px' }} />
                     <Chip label={row.solar_panel_name || "PANEL N/A"} size="small" sx={{ bgcolor: "#1976d2", color: "#fff", height: 18, fontSize: "0.58rem", mr: 1, borderRadius: '3px' }} />
@@ -159,17 +166,20 @@ export default function ListView() {
                         {row.project_scheme_name}
                     </Typography>
 
-                    <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}>
-                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
+                    <Box
+                        sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Upload" onClick={() => router.push(`/order/view?id=${row.id}&tab=5`)}>
+                        <IconButton size="small" title="Upload" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=5`)}>
                             <UploadFileIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
+                        <IconButton size="small" title="Details" onClick={() => openConfirmOrderView(row.id)}>
                             <VisibilityIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
+                        <IconButton size="small" title="Remarks" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=4`)}>
                             <CommentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
@@ -276,15 +286,15 @@ export default function ListView() {
                 open={Boolean(menuAnchor)}
                 onClose={handleMenuClose}
             >
-                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
                     <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Add Payment</ListItemText>
                 </MenuItem>
-                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=4`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=4`); handleMenuClose(); }}>
                     <ListItemIcon><CommentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Remarks</ListItemText>
                 </MenuItem>
-                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=5`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=5`); handleMenuClose(); }}>
                     <ListItemIcon><UploadFileIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Upload Documents</ListItemText>
                 </MenuItem>

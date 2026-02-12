@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     Box,
     Typography,
@@ -141,7 +141,6 @@ export default function ConfirmedOrderViewPage() {
 
 function ConfirmedOrderViewPageContent() {
     const router = useRouter();
-    const pathname = usePathname();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
 
@@ -151,12 +150,6 @@ function ConfirmedOrderViewPageContent() {
     const [orderDocuments, setOrderDocuments] = useState([]);
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [tabValue, setTabValue] = useState(0);
-
-    useEffect(() => {
-        if (pathname === "/confirm-orders/view") {
-            router.replace("/confirm-orders");
-        }
-    }, [pathname, router]);
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -215,14 +208,6 @@ function ConfirmedOrderViewPageContent() {
         // Slightly taller panels to better use vertical space on large screens
         return `calc(100vh - 140px)`;
     };
-
-    if (pathname === "/confirm-orders/view") {
-        return (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-                <CircularProgress />
-            </Box>
-        );
-    }
 
     if (loading) {
         return (
