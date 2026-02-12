@@ -24,11 +24,13 @@ import {
 import { useRouter } from "next/navigation";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
-import DetailsSidebar from "@/components/common/DetailsSidebar";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
+import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
+import { toastError } from "@/utils/toast";
 
 const statusVariantMap = {
   pending: "secondary",
@@ -143,6 +145,26 @@ export default function ListView({
     setSelectedRecord(null);
   }, []);
 
+  const handlePrintOrder = useCallback(async (resolvedOrder) => {
+    try {
+      const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+      const blob = file?.blob || file;
+      const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+      if (!blob) throw new Error("PDF download failed");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+      toastError(msg);
+    }
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -156,7 +178,7 @@ export default function ListView({
           <Button
             type="button"
             variant="link"
-            className="p-0 h-auto text-left font-normal hover:font-semibold"
+            className={`${ORDER_LINK_CLASS} p-0 h-auto text-left font-semibold`}
             onClick={() => router.push(`/order/view?id=${row.id}`)}
           >
             {row.pui_number || "-"}
@@ -301,40 +323,6 @@ export default function ListView({
     [handleOpenSidebar, router, getStatusVariant]
   );
 
-  const sidebarContent = useMemo(() => {
-    if (!selectedRecord) return null;
-    const r = selectedRecord;
-    return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">{r.pui_number || r.order_number || r.id}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Status</p>
-        <p className="text-sm">{r.status ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Order Date</p>
-        <p className="text-sm">{formatDate(r.order_date) ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Customer</p>
-        <p className="text-sm">{r.customer_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Mobile</p>
-        <p className="text-sm">{r.mobile_number ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Capacity</p>
-        <p className="text-sm">{r.capacity != null ? `${r.capacity} kW` : "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Project Cost</p>
-        <p className="text-sm">
-          {r.project_cost != null ? `₹${Number(r.project_cost).toLocaleString()}` : "-"}
-        </p>
-        <p className="text-xs font-semibold text-muted-foreground">Project Scheme</p>
-        <p className="text-sm">{r.project_scheme_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Branch</p>
-        <p className="text-sm">{r.branch_name ?? "-"}</p>
-        {r.order_remarks && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground">Remarks</p>
-            <p className="text-sm">{r.order_remarks}</p>
-          </>
-        )}
-      </div>
-    );
-  }, [selectedRecord]);
-
   const tableHeight = "calc(100vh - 150px)";
 
   return (
@@ -395,9 +383,14 @@ export default function ListView({
         />
       </div>
 
-      <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Order Details">
-        {sidebarContent}
-      </DetailsSidebar>
+      <OrderDetailsDrawer
+        open={sidebarOpen}
+        onClose={handleCloseSidebar}
+        order={selectedRecord}
+        onPrint={handlePrintOrder}
+        showPrint
+        showDeliverySnapshot
+      />
     </Container>
   );
 }

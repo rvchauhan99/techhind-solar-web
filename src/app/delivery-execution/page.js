@@ -7,17 +7,24 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Divider,
   Drawer,
   MenuItem,
   Paper,
-  Stack,
   TextField,
   Typography,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
+import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import {
+  compactAddress,
+  formatCurrency,
+  formatDate,
+  formatKw,
+  getPrimaryPhone,
+} from "@/utils/orderFormatters";
 
 const COLUMNS = [
   { key: "pending", title: "Pending", headerBg: "#dc2626", chipBg: "#b91c1c" },
@@ -38,52 +45,6 @@ const priorityColor = (priority) => {
   if (p.includes("medium")) return "warning";
   if (p.includes("low")) return "success";
   return "default";
-};
-
-const formatDate = (value) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
-};
-
-const formatCurrency = (value) => {
-  const n = Number(value);
-  if (Number.isNaN(n)) return "Rs. 0";
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(n);
-};
-
-const formatKw = (value) => {
-  const n = Number(value);
-  if (Number.isNaN(n)) return "0.00";
-  return n.toFixed(2);
-};
-
-const getPrimaryPhone = (order) => order?.mobile_number || order?.phone_no || "-";
-
-const compactAddress = (order) => {
-  const parts = [
-    order?.address,
-    order?.landmark_area,
-    order?.taluka,
-    order?.district,
-    order?.pin_code,
-  ].filter((v) => v && String(v).trim() !== "");
-  return parts.length ? parts.join(", ") : "-";
-};
-
-const safeValue = (value) => {
-  if (value == null) return "-";
-  const v = String(value).trim();
-  return v === "" ? "-" : v;
 };
 
 const toDateTime = (value, fallback) => {
@@ -208,6 +169,26 @@ export default function DeliveryExecutionPage() {
 
   const handleCloseDetails = () => {
     setDetailsOpen(false);
+  };
+
+  const handlePrintOrder = async (resolvedOrder) => {
+    try {
+      const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+      const blob = file?.blob || file;
+      const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+      if (!blob) throw new Error("PDF download failed");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+      toastError(msg);
+    }
   };
 
   const renderActions = (statusKey, order) => {
@@ -403,9 +384,7 @@ export default function DeliveryExecutionPage() {
                       }}
                     >
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-                        <Typography variant="body2" fontWeight={700} title={o.order_number || "-"}>
-                          {o.order_number || "-"}
-                        </Typography>
+                        <OrderNumberLink value={o.order_number || "-"} onClick={() => handleOpenDetails(o)} />
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                           <Chip
                             size="small"
@@ -603,93 +582,14 @@ export default function DeliveryExecutionPage() {
         </Box>
       </Drawer>
 
-      <Drawer anchor="right" open={detailsOpen} onClose={handleCloseDetails}>
-        <Box sx={{ width: { xs: 340, sm: 420 }, p: 2 }}>
-          <Typography variant="h6" sx={{ mb: 0.5 }}>
-            Order Details
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {safeValue(selectedOrder?.order_number)}
-          </Typography>
-
-          <Divider sx={{ my: 1.5 }} />
-
-          <Stack spacing={1.5}>
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-                Customer Details
-              </Typography>
-              <Typography variant="body2">Name: {safeValue(selectedOrder?.customer_name)}</Typography>
-              <Typography variant="body2">Contact: {safeValue(getPrimaryPhone(selectedOrder || {}))}</Typography>
-              <Typography variant="body2">
-                Address: {safeValue(selectedOrder ? compactAddress(selectedOrder) : "-")}
-              </Typography>
-              <Typography variant="body2">Reference: {safeValue(selectedOrder?.reference_from)}</Typography>
-              <Typography variant="body2">
-                Channel Partner: {safeValue(selectedOrder?.channel_partner_name)}
-              </Typography>
-              <Typography variant="body2">Handled By: {safeValue(selectedOrder?.handled_by_name)}</Typography>
-              <Typography variant="body2">Branch: {safeValue(selectedOrder?.branch_name)}</Typography>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-                Project Details
-              </Typography>
-              <Typography variant="body2">Order Date: {formatDate(selectedOrder?.order_date)}</Typography>
-              <Typography variant="body2">Consumer No: {safeValue(selectedOrder?.consumer_no)}</Typography>
-              <Typography variant="body2">Capacity: {safeValue(selectedOrder?.capacity)}</Typography>
-              <Typography variant="body2">Scheme: {safeValue(selectedOrder?.project_scheme_name)}</Typography>
-              <Typography variant="body2">Discom: {safeValue(selectedOrder?.discom_name)}</Typography>
-              <Typography variant="body2">
-                Delivery Date: {formatDate(selectedOrder?.planned_delivery_date)}
-              </Typography>
-              <Typography variant="body2">Warehouse: {safeValue(selectedOrder?.planned_warehouse_name)}</Typography>
-              <Typography variant="body2">Panel: {safeValue(selectedOrder?.solar_panel_name)}</Typography>
-              <Typography variant="body2">Inverter: {safeValue(selectedOrder?.inverter_name)}</Typography>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-                Payment Details
-              </Typography>
-              <Typography variant="body2">Payment Type: {safeValue(selectedOrder?.payment_type)}</Typography>
-              <Typography variant="body2">
-                Project Cost: {formatCurrency(selectedOrder?.project_cost)}
-              </Typography>
-              <Typography variant="body2">Discount: {formatCurrency(selectedOrder?.discount)}</Typography>
-              <Typography variant="body2">Payable: {formatCurrency(selectedOrder?.payable_cost)}</Typography>
-              <Typography variant="body2">Paid: {formatCurrency(selectedOrder?.total_paid)}</Typography>
-              <Typography variant="body2" sx={{ color: "error.main", fontWeight: 700 }}>
-                Outstanding: {formatCurrency(selectedOrder?.outstanding_balance)}
-              </Typography>
-            </Box>
-
-            <Divider />
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-                Delivery Snapshot
-              </Typography>
-              <Typography variant="body2">
-                Status: {safeValue(selectedOrder?.delivery_status || "pending")}
-              </Typography>
-              <Typography variant="body2">
-                Shipped: {safeValue(selectedOrder?.total_shipped)} / {safeValue(selectedOrder?.total_required)}
-              </Typography>
-              <Typography variant="body2">Pending Qty: {safeValue(selectedOrder?.total_pending)}</Typography>
-              <Typography variant="body2">
-                Last Challan: {formatDate(selectedOrder?.last_challan_date)}
-              </Typography>
-              <Typography variant="body2">Challan Count: {safeValue(selectedOrder?.challan_count)}</Typography>
-            </Box>
-          </Stack>
-        </Box>
-      </Drawer>
+      <OrderDetailsDrawer
+        open={detailsOpen}
+        onClose={handleCloseDetails}
+        order={selectedOrder}
+        onPrint={handlePrintOrder}
+        showPrint
+        showDeliverySnapshot
+      />
     </Box>
   );
 }
