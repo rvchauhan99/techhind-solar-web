@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Paper, Typography, Box, Grid, Chip, Tooltip } from "@mui/material";
+import IconButton from "@mui/material/IconButton";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
 import closedOrdersService from "@/services/closedOrdersService";
+import orderService from "@/services/orderService";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import OrderNumberLink from "@/components/common/OrderNumberLink";
+import { toastError } from "@/utils/toast";
 
 const STAGES = [
   { key: "estimate_generated", label: "Estimate Generated" },
@@ -27,9 +33,41 @@ const STAGES = [
 
 export default function ListView() {
   const router = useRouter();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const fetchData = useCallback(async (params) => {
     return await closedOrdersService.getClosedOrders(params);
+  }, []);
+
+  const handleOpenDetails = useCallback((row) => {
+    setSelectedOrder(row);
+    setDetailsOpen(true);
+  }, []);
+
+  const handleCloseDetails = useCallback(() => {
+    setDetailsOpen(false);
+    setSelectedOrder(null);
+  }, []);
+
+  const handlePrintOrder = useCallback(async (resolvedOrder) => {
+    try {
+      const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+      const blob = file?.blob || file;
+      const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+      if (!blob) throw new Error("PDF download failed");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+      toastError(msg);
+    }
   }, []);
 
   const getStageIcon = (status) => {
@@ -95,21 +133,13 @@ export default function ListView() {
             borderBottom: "1px solid #f0f0f0",
           }}
         >
-          <Typography
+          <OrderNumberLink
+            value={row.order_number || "-"}
+            suffix={` : ${row.customer_name?.toUpperCase() || "-"}`}
             variant="subtitle2"
-            component="span"
-            sx={{
-              color: "#1976d2",
-              fontWeight: "bold",
-              mr: 2,
-              fontSize: "0.88rem",
-              cursor: "pointer",
-              "&:hover": { textDecoration: "underline" },
-            }}
+            sx={{ mr: 2, fontSize: "0.88rem" }}
             onClick={() => router.push(`/closed-orders/view?id=${row.id}`)}
-          >
-            {row.order_number} : {row.customer_name?.toUpperCase()}
-          </Typography>
+          />
           <Chip
             label="Closed"
             size="small"
@@ -152,6 +182,11 @@ export default function ListView() {
           >
             {row.project_scheme_name}
           </Typography>
+          <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.2 }}>
+            <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
+              <VisibilityIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
         </Box>
 
         {/* Details Grid */}
@@ -269,6 +304,14 @@ export default function ListView() {
         defaultSortBy="order_date"
         defaultSortOrder="DESC"
         height={calculateHeight()}
+      />
+      <OrderDetailsDrawer
+        open={detailsOpen}
+        onClose={handleCloseDetails}
+        order={selectedOrder}
+        onPrint={handlePrintOrder}
+        showPrint
+        showDeliverySnapshot
       />
     </Box>
   );

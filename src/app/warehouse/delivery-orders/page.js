@@ -14,6 +14,8 @@ import {
     Alert,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
+import OrderNumberLink from "@/components/common/OrderNumberLink";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 
@@ -43,6 +45,8 @@ export default function WarehouseDeliveryOrdersPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [orders, setOrders] = useState([]);
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
     const router = useRouter();
 
     useEffect(() => {
@@ -72,6 +76,36 @@ export default function WarehouseDeliveryOrdersPage() {
 
     const handleCreateChallan = (orderId) => {
         router.push(`/delivery-challans/new?order_id=${orderId}`);
+    };
+
+    const handleOpenDetails = (order) => {
+        setSelectedOrder(order);
+        setDetailsOpen(true);
+    };
+
+    const handleCloseDetails = () => {
+        setDetailsOpen(false);
+        setSelectedOrder(null);
+    };
+
+    const handlePrintOrder = async (resolvedOrder) => {
+        try {
+            const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+            const blob = file?.blob || file;
+            const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+            if (!blob) throw new Error("PDF download failed");
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+            toastError(msg);
+        }
     };
 
     const groupedByPriority = orders.reduce((acc, o) => {
@@ -126,9 +160,12 @@ export default function WarehouseDeliveryOrdersPage() {
                                                 variant="outlined"
                                                 sx={{ p: 1, display: "flex", flexDirection: "column", gap: 0.5 }}
                                             >
-                                                <Typography variant="body2" fontWeight={600}>
-                                                    {o.order_number}
-                                                </Typography>
+                                                <OrderNumberLink
+                                                    value={o.order_number || "-"}
+                                                    variant="body2"
+                                                    fontWeight={600}
+                                                    onClick={() => handleOpenDetails(o)}
+                                                />
                                                 <Typography variant="caption">
                                                     {o.customer_name || "-"}
                                                 </Typography>
@@ -156,10 +193,10 @@ export default function WarehouseDeliveryOrdersPage() {
                                                 <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
                                                     <Button
                                                         size="small"
-                                                        variant="outlined"
-                                                        onClick={() => router.push(`/confirm-orders/view?id=${o.id}`)}
+                                                        variant="text"
+                                                        onClick={() => handleOpenDetails(o)}
                                                     >
-                                                        View
+                                                        Details
                                                     </Button>
                                                     <Button
                                                         size="small"
@@ -199,7 +236,12 @@ export default function WarehouseDeliveryOrdersPage() {
                                     <Grid item xs={12} key={o.id}>
                                         <Box sx={{ display: "flex", alignItems: "center", py: 0.5, borderTop: "1px solid #eee" }}>
                                             <Box sx={{ flex: 3 }}>
-                                                <Typography variant="body2" fontWeight={600}>{o.order_number}</Typography>
+                                                <OrderNumberLink
+                                                    value={o.order_number || "-"}
+                                                    variant="body2"
+                                                    fontWeight={600}
+                                                    onClick={() => handleOpenDetails(o)}
+                                                />
                                                 <Typography variant="caption" color="text.secondary">
                                                     Capacity {o.capacity || "-"} • Rs. {o.project_cost || 0}
                                                 </Typography>
@@ -241,10 +283,10 @@ export default function WarehouseDeliveryOrdersPage() {
                                             <Box sx={{ flex: 1.5, display: "flex", gap: 1, justifyContent: "flex-end" }}>
                                                 <Button
                                                     size="small"
-                                                    variant="outlined"
-                                                    onClick={() => router.push(`/confirm-orders/view?id=${o.id}`)}
+                                                    variant="text"
+                                                    onClick={() => handleOpenDetails(o)}
                                                 >
-                                                    View
+                                                    Details
                                                 </Button>
                                                 <Button
                                                     size="small"
@@ -262,6 +304,14 @@ export default function WarehouseDeliveryOrdersPage() {
                     )}
                 </>
             )}
+            <OrderDetailsDrawer
+                open={detailsOpen}
+                onClose={handleCloseDetails}
+                order={selectedOrder}
+                onPrint={handlePrintOrder}
+                showPrint
+                showDeliverySnapshot
+            />
         </Box>
     );
 }

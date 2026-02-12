@@ -30,6 +30,10 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
 import confirmOrdersService from "@/services/confirmOrdersService";
+import orderService from "@/services/orderService";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import OrderNumberLink from "@/components/common/OrderNumberLink";
+import { toastError } from "@/utils/toast";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -49,6 +53,8 @@ export default function ListView() {
     const router = useRouter();
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [menuOrderId, setMenuOrderId] = useState(null);
+    const [detailsOpen, setDetailsOpen] = useState(false);
+    const [selectedOrder, setSelectedOrder] = useState(null);
 
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
@@ -65,8 +71,43 @@ export default function ListView() {
         handleMenuClose();
     };
 
+    const openConfirmOrderView = useCallback((orderId) => {
+        if (!orderId) return;
+        router.push(`/confirm-orders/view?id=${orderId}`);
+    }, [router]);
+
     const fetchData = useCallback(async (params) => {
         return await confirmOrdersService.getConfirmedOrders(params);
+    }, []);
+
+    const handleOpenDetails = useCallback((row) => {
+        setSelectedOrder(row);
+        setDetailsOpen(true);
+    }, []);
+
+    const handleCloseDetails = useCallback(() => {
+        setDetailsOpen(false);
+        setSelectedOrder(null);
+    }, []);
+
+    const handlePrintOrder = useCallback(async (resolvedOrder) => {
+        try {
+            const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+            const blob = file?.blob || file;
+            const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+            if (!blob) throw new Error("PDF download failed");
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+            toastError(msg);
+        }
     }, []);
 
     const getStageIcon = (status) => {
@@ -94,12 +135,14 @@ export default function ListView() {
         return (
             <Paper
                 elevation={0}
+                onClick={() => openConfirmOrderView(row.id)}
                 sx={{
                     position: "relative",
                     border: "1px solid #e0e0e0",
                     borderTop: '3px solid #ff9800', // Orange bar at top
                     borderRadius: '4px 4px 1px 1px',
                     overflow: "hidden",
+                    cursor: "pointer",
                     transition: '0.2s',
                     '&:hover': {
                         borderColor: '#1976d2',
@@ -109,14 +152,13 @@ export default function ListView() {
             >
                 {/* Header Row */}
                 <Box sx={{ bgcolor: "#fff", p: 0.6, px: 2, display: "flex", alignItems: "center", borderBottom: "1px solid #f0f0f0" }}>
-                    <Typography
+                    <OrderNumberLink
+                        value={row.order_number || "-"}
+                        suffix={` : ${row.customer_name?.toUpperCase() || "-"}`}
                         variant="subtitle2"
-                        component="span"
-                        sx={{ color: "#1976d2", fontWeight: "bold", mr: 2, fontSize: '0.88rem', cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
-                        onClick={() => router.push(`/confirm-orders/view?id=${row.id}`)}
-                    >
-                        {row.order_number} : {row.customer_name?.toUpperCase()}
-                    </Typography>
+                        sx={{ mr: 2, fontSize: "0.88rem" }}
+                        onClick={() => openConfirmOrderView(row.id)}
+                    />
                     <Chip label="New" size="small" sx={{ bgcolor: "#4caf50", color: "#fff", height: 18, fontSize: "0.58rem", mr: 1, borderRadius: '3px' }} />
                     <Chip label={row.solar_panel_name || "PANEL N/A"} size="small" sx={{ bgcolor: "#1976d2", color: "#fff", height: 18, fontSize: "0.58rem", mr: 1, borderRadius: '3px' }} />
                     <Chip label={row.inverter_name || "INVERTER N/A"} size="small" sx={{ bgcolor: "#9c27b0", color: "#fff", height: 18, fontSize: "0.58rem", mr: 1, borderRadius: '3px' }} />
@@ -124,12 +166,18 @@ export default function ListView() {
                         {row.project_scheme_name}
                     </Typography>
 
-                    <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}>
-                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
+                    <Box
+                        sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Upload" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=4`)}>
+                        <IconButton size="small" title="Upload" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=5`)}>
                             <UploadFileIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <IconButton size="small" title="Details" onClick={() => openConfirmOrderView(row.id)}>
+                            <VisibilityIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton size="small" title="Remarks" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=4`)}>
                             <CommentIcon sx={{ fontSize: 16 }} />
@@ -238,7 +286,7 @@ export default function ListView() {
                 open={Boolean(menuAnchor)}
                 onClose={handleMenuClose}
             >
-                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
                     <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Add Payment</ListItemText>
                 </MenuItem>
@@ -255,6 +303,14 @@ export default function ListView() {
                     <ListItemText>Edit</ListItemText>
                 </MenuItem>
             </Menu>
+            <OrderDetailsDrawer
+                open={detailsOpen}
+                onClose={handleCloseDetails}
+                order={selectedOrder}
+                onPrint={handlePrintOrder}
+                showPrint
+                showDeliverySnapshot
+            />
         </Box>
     );
 }

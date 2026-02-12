@@ -23,13 +23,9 @@ function NewDeliveryChallanContent() {
         try {
             await challanService.createChallan(payload);
             toast.success("Delivery challan created successfully");
-            // Navigate back to order view if order_id was provided, otherwise to challan list
+            // Navigate to delivery challans list after creation
             setTimeout(() => {
-                if (payload.order_id) {
-                    router.push(`/confirm-orders/view?id=${payload.order_id}`);
-                } else {
-                    router.push("/delivery-challans");
-                }
+                router.push("/delivery-challans");
             }, 1000);
         } catch (err) {
             const errorMessage =

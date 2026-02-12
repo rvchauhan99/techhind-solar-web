@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import {
     Paper,
     IconButton,
@@ -9,26 +9,26 @@ import {
     ListItemIcon,
     ListItemText,
     Typography,
-    Box,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
+import PrintIcon from "@mui/icons-material/Print";
 import moment from "moment";
 import PaginatedTable from "@/components/common/PaginatedTable";
-import DetailsSidebar from "@/components/common/DetailsSidebar";
+import ChallanDetailsDrawer from "@/components/common/ChallanDetailsDrawer";
 import challanService from "@/services/challanService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { printChallanById } from "@/utils/challanPrintUtils";
 
 export default function PreviousChallans({ orderId, onEdit }) {
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [menuChallanId, setMenuChallanId] = useState(null);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [selectedChallan, setSelectedChallan] = useState(null);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [detailError, setDetailError] = useState(null);
+    const [selectedChallanId, setSelectedChallanId] = useState(null);
+    const [printingId, setPrintingId] = useState(null);
 
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
@@ -45,23 +45,9 @@ export default function PreviousChallans({ orderId, onEdit }) {
             handleMenuClose();
             return;
         }
+        setSelectedChallanId(menuChallanId);
         setSidebarOpen(true);
-        setDetailLoading(true);
-        setDetailError(null);
-        setSelectedChallan(null);
-        try {
-            const response = await challanService.getChallanById(menuChallanId);
-            const result = response?.result ?? response;
-            setSelectedChallan(result);
-        } catch (error) {
-            console.error("Failed to load challan details:", error);
-            setDetailError(
-                error?.response?.data?.message || error.message || "Failed to load challan details"
-            );
-        } finally {
-            setDetailLoading(false);
-            handleMenuClose();
-        }
+        handleMenuClose();
     };
 
     const handleEdit = () => {
@@ -69,6 +55,21 @@ export default function PreviousChallans({ orderId, onEdit }) {
             onEdit(menuChallanId);
         }
         handleMenuClose();
+    };
+
+    const handlePrint = async (challanIdFromAction = null) => {
+        const targetId = challanIdFromAction || menuChallanId;
+        if (!targetId) {
+            handleMenuClose();
+            return;
+        }
+        setPrintingId(targetId);
+        try {
+            await printChallanById(targetId);
+        } finally {
+            setPrintingId(null);
+            handleMenuClose();
+        }
     };
 
     const handleDelete = async () => {
@@ -154,94 +155,6 @@ export default function PreviousChallans({ orderId, onEdit }) {
         },
     ];
 
-    const sidebarContent = useMemo(() => {
-        if (detailLoading) {
-            return (
-                <div className="flex min-h-[160px] items-center justify-center text-sm text-muted-foreground">
-                    Loading challan…
-                </div>
-            );
-        }
-        if (detailError) {
-            return <div className="text-sm text-destructive">{detailError}</div>;
-        }
-        if (!selectedChallan) return null;
-
-        const c = selectedChallan;
-        const order = c.order || {};
-        const warehouse = c.warehouse || {};
-        const items = Array.isArray(c.items) ? c.items : [];
-
-        return (
-            <div className="pr-1 space-y-3 text-sm">
-                <div>
-                    <p className="font-semibold">{c.challan_no || c.id}</p>
-                    <p className="text-xs text-muted-foreground">
-                        {formatDate(c.challan_date) || "-"}
-                    </p>
-                </div>
-
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Order</p>
-                    <p>{order.order_number || "-"}</p>
-                    <p className="text-xs text-muted-foreground">
-                        {order.customer_name || ""}{" "}
-                        {order.capacity != null ? `• ${order.capacity} kW` : ""}
-                    </p>
-                </div>
-
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
-                    <p>{warehouse.name || "-"}</p>
-                </div>
-
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Transporter</p>
-                    <p>{c.transporter || "-"}</p>
-                </div>
-
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Items</p>
-                    {items.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No items</p>
-                    ) : (
-                        <div className="max-h-56 overflow-y-auto border rounded-md border-border">
-                            <table className="w-full text-xs">
-                                <thead>
-                                    <tr className="border-b border-border bg-muted/40">
-                                        <th className="px-2 py-1 text-left font-semibold">Product</th>
-                                        <th className="px-2 py-1 text-right font-semibold">Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.map((it, idx) => (
-                                        <tr key={idx} className="border-b border-border last:border-b-0">
-                                            <td className="px-2 py-1">
-                                                {(it.product_snapshot || it)?.product_name ?? "-"}
-                                            </td>
-                                            <td className="px-2 py-1 text-right">
-                                                {it.quantity ?? 0}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Audit</p>
-                    <p>
-                        Created By: {c.created_by_name || c.created_by || "-"}
-                    </p>
-                    <p>Created On: {formatDate(c.created_at) || "-"}</p>
-                    <p>Updated On: {formatDate(c.updated_at) || "-"}</p>
-                </div>
-            </div>
-        );
-    }, [detailLoading, detailError, selectedChallan]);
-
     return (
         <>
             <PaginatedTable
@@ -270,6 +183,12 @@ export default function PreviousChallans({ orderId, onEdit }) {
                     </ListItemIcon>
                     <ListItemText>Edit</ListItemText>
                 </MenuItem>
+                <MenuItem onClick={() => handlePrint()}>
+                    <ListItemIcon>
+                        <PrintIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>Print</ListItemText>
+                </MenuItem>
                 <MenuItem onClick={handleDelete}>
                     <ListItemIcon>
                         <DeleteIcon fontSize="small" />
@@ -278,13 +197,15 @@ export default function PreviousChallans({ orderId, onEdit }) {
                 </MenuItem>
             </Menu>
 
-            <DetailsSidebar
+            <ChallanDetailsDrawer
                 open={sidebarOpen}
-                onClose={() => setSidebarOpen(false)}
+                onClose={() => {
+                    setSidebarOpen(false);
+                    setSelectedChallanId(null);
+                }}
+                challanId={selectedChallanId}
                 title="Challan Details"
-            >
-                {sidebarContent}
-            </DetailsSidebar>
+            />
         </>
     );
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Grid,
     Typography,
     MenuItem,
     Alert,
@@ -16,26 +15,22 @@ import {
     TableRow,
     Paper,
     Chip,
-    Divider,
-    Card,
-    CardContent,
     FormControlLabel,
     Checkbox,
     FormHelperText,
     CircularProgress,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteIcon from "@mui/icons-material/Delete";
 import purchaseOrderService from "@/services/purchaseOrderService";
 import companyService from "@/services/companyService";
 import { toastError } from "@/utils/toast";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
+import FormGrid from "@/components/common/FormGrid";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
-import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
+import { FORM_PADDING } from "@/utils/formConstants";
 
 // Helper function to check if an item requires serial tracking
 const isSerialItem = (item) => {
@@ -445,120 +440,100 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                     </Alert>
                 )}
 
-                {/* Header Section */}
-                <Card sx={{ mb: 1 }}>
-                    <CardContent>
-                        <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                            <Typography variant="subtitle1" fontWeight={600}>Receipt Information</Typography>
-                        </Box>
-                        <Grid container spacing={COMPACT_FORM_SPACING}>
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <Select
-                                    name="purchase_order_id"
-                                    label="Purchase Order"
-                                    value={formData.purchase_order_id}
-                                    onChange={handleChange}
-                                    disabled={!!(defaultValues && defaultValues.id)}
-                                    required
-                                    error={!!errors.purchase_order_id}
-                                    helperText={errors.purchase_order_id}
-                                >
-                                    <MenuItem value="">-- Select --</MenuItem>
-                                    {purchaseOrders.map((po) => (
-                                        <MenuItem key={po.id} value={po.id}>
-                                            {po.po_number} - {po.supplier?.supplier_name || ""}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </Grid>
+                <div className="w-full mb-2">
+                    <FormGrid cols={2} className="lg:grid-cols-4">
+                        <Select
+                            name="purchase_order_id"
+                            label="Purchase Order"
+                            value={formData.purchase_order_id}
+                            onChange={handleChange}
+                            disabled={!!(defaultValues && defaultValues.id)}
+                            required
+                            error={!!errors.purchase_order_id}
+                            helperText={errors.purchase_order_id}
+                        >
+                            <MenuItem value="">-- Select --</MenuItem>
+                            {purchaseOrders.map((po) => (
+                                <MenuItem key={po.id} value={po.id}>
+                                    {po.po_number} - {po.supplier?.supplier_name || ""}
+                                </MenuItem>
+                            ))}
+                        </Select>
 
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <Select
-                                    name="warehouse_id"
-                                    label="Warehouse"
-                                    value={formData.warehouse_id}
-                                    onChange={handleChange}
-                                    required
-                                    error={!!errors.warehouse_id}
-                                    helperText={errors.warehouse_id}
-                                >
-                                    <MenuItem value="">-- Select --</MenuItem>
-                                    {warehouses.map((warehouse) => (
-                                        <MenuItem key={warehouse.id} value={warehouse.id}>
-                                            {warehouse.name}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </Grid>
+                        <Select
+                            name="warehouse_id"
+                            label="Warehouse"
+                            value={formData.warehouse_id}
+                            onChange={handleChange}
+                            required
+                            error={!!errors.warehouse_id}
+                            helperText={errors.warehouse_id}
+                        >
+                            <MenuItem value="">-- Select --</MenuItem>
+                            {warehouses.map((warehouse) => (
+                                <MenuItem key={warehouse.id} value={warehouse.id}>
+                                    {warehouse.name}
+                                </MenuItem>
+                            ))}
+                        </Select>
 
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <DateField
-                                    name="received_at"
-                                    label="Received Date"
-                                    value={formData.received_at}
-                                    onChange={handleChange}
-                                    required
-                                    error={!!errors.received_at}
-                                    helperText={errors.received_at}
-                                    maxDate={new Date().toISOString().split("T")[0]}
-                                />
-                            </Grid>
+                        <DateField
+                            name="received_at"
+                            label="Received Date"
+                            value={formData.received_at}
+                            onChange={handleChange}
+                            required
+                            error={!!errors.received_at}
+                            helperText={errors.received_at}
+                            maxDate={new Date().toISOString().split("T")[0]}
+                        />
 
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <Input
-                                    fullWidth
-                                    name="supplier_invoice_number"
-                                    label="Supplier Invoice Number"
-                                    value={formData.supplier_invoice_number}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
+                        <Input
+                            fullWidth
+                            name="supplier_invoice_number"
+                            label="Supplier Invoice Number"
+                            value={formData.supplier_invoice_number}
+                            onChange={handleChange}
+                        />
 
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <DateField
-                                    name="supplier_invoice_date"
-                                    label="Supplier Invoice Date"
-                                    value={formData.supplier_invoice_date}
-                                    onChange={handleChange}
-                                    error={!!errors.supplier_invoice_date}
-                                    helperText={errors.supplier_invoice_date}
-                                />
-                            </Grid>
+                        <DateField
+                            name="supplier_invoice_date"
+                            label="Supplier Invoice Date"
+                            value={formData.supplier_invoice_date}
+                            onChange={handleChange}
+                            error={!!errors.supplier_invoice_date}
+                            helperText={errors.supplier_invoice_date}
+                        />
 
-                            <Grid item size={{ xs: 12, md: 4 }}>
-                                <FormControlLabel
-                                    control={
-                                        <Checkbox
-                                            name="inspection_required"
-                                            checked={formData.inspection_required}
-                                            onChange={handleChange}
-                                        />
-                                    }
-                                    label="Inspection Required"
-                                />
-                            </Grid>
+                        <div className="flex items-end h-full">
+                            <FormControlLabel
+                                control={
+                                    <Checkbox
+                                        name="inspection_required"
+                                        checked={formData.inspection_required}
+                                        onChange={handleChange}
+                                    />
+                                }
+                                label="Inspection Required"
+                            />
+                        </div>
 
-                            <Grid item size={12}>
-                                <Input
-                                    fullWidth
-                                    name="remarks"
-                                    label="Remarks"
-                                    value={formData.remarks}
-                                    onChange={handleChange}
-                                    multiline
-                                    rows={2}
-                                />
-                            </Grid>
-                        </Grid>
-                    </CardContent>
-                </Card>
+                        <div className="md:col-span-2 lg:col-span-4">
+                            <Input
+                                fullWidth
+                                name="remarks"
+                                label="Remarks"
+                                value={formData.remarks}
+                                onChange={handleChange}
+                                multiline
+                                rows={2}
+                            />
+                        </div>
+                    </FormGrid>
+                </div>
 
                 {/* Items Section */}
-                <Card data-items-section>
-                    <CardContent>
-                        <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                            <Typography variant="subtitle1" fontWeight={600}>Receipt Items</Typography>
-                        </Box>
+                <div data-items-section>
                         {errors.items && (
                             <Alert severity="error" sx={{ mb: 1 }}>
                                 {errors.items}
@@ -566,7 +541,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                         )}
 
                         {formData.items.length > 0 ? (
-                            <TableContainer component={Paper} sx={{ mt: 1 }}>
+                            <TableContainer component={Paper} sx={{ mt: 0.5 }}>
                                 <Table size="small">
                                     <TableHead>
                                         <TableRow>
@@ -708,49 +683,44 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                 Select a Purchase Order to load items
                             </Alert>
                         )}
-                    </CardContent>
-                </Card>
+                </div>
 
                 {/* Summary Section */}
                 {formData.items.length > 0 && (
-                    <Card sx={{ mt: 1 }}>
-                        <CardContent>
-                            <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                                <Typography variant="subtitle1" fontWeight={600}>Receipt Summary</Typography>
-                            </Box>
-                            <Grid container spacing={COMPACT_FORM_SPACING}>
-                                <Grid item size={{ xs: 12, md: 4 }}>
-                                    <Typography variant="body2" color="text.secondary">Total Received Quantity</Typography>
-                                    <Typography variant="h6">
-                                        {formData.items.reduce((sum, item) => sum + (parseInt(item.received_quantity) || 0), 0)}
-                                    </Typography>
-                                </Grid>
-                                <Grid item size={{ xs: 12, md: 4 }}>
-                                    <Typography variant="body2" color="text.secondary">Total Accepted Quantity</Typography>
-                                    <Typography variant="h6" color="success.main">
-                                        {formData.items.reduce((sum, item) => sum + (parseInt(item.accepted_quantity) || 0), 0)}
-                                    </Typography>
-                                </Grid>
-                                <Grid item size={{ xs: 12, md: 4 }}>
-                                    <Typography variant="body2" color="text.secondary">Total Rejected Quantity</Typography>
-                                    <Typography variant="h6" color="error.main">
-                                        {formData.items.reduce((sum, item) => sum + (parseInt(item.rejected_quantity) || 0), 0)}
-                                    </Typography>
-                                </Grid>
-                            </Grid>
-                        </CardContent>
-                    </Card>
+                    <Paper sx={{ mt: 1, p: 1 }}>
+                        <FormGrid cols={2} className="lg:grid-cols-4">
+                            <div>
+                                <Typography variant="body2" color="text.secondary">Total Received Quantity</Typography>
+                                <Typography variant="h6">
+                                    {formData.items.reduce((sum, item) => sum + (parseInt(item.received_quantity) || 0), 0)}
+                                </Typography>
+                            </div>
+                            <div>
+                                <Typography variant="body2" color="text.secondary">Total Accepted Quantity</Typography>
+                                <Typography variant="h6" color="success.main">
+                                    {formData.items.reduce((sum, item) => sum + (parseInt(item.accepted_quantity) || 0), 0)}
+                                </Typography>
+                            </div>
+                            <div>
+                                <Typography variant="body2" color="text.secondary">Total Rejected Quantity</Typography>
+                                <Typography variant="h6" color="error.main">
+                                    {formData.items.reduce((sum, item) => sum + (parseInt(item.rejected_quantity) || 0), 0)}
+                                </Typography>
+                            </div>
+                        </FormGrid>
+                    </Paper>
                 )}
                 </Box>
 
                 <FormActions>
                     {onCancel && (
-                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
                     <LoadingButton
                         type="submit"
+                        size="sm"
                         loading={loading}
                         className="min-w-[120px]"
                     >
