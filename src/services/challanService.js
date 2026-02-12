@@ -24,6 +24,18 @@ export const getQuotationProducts = (orderId) =>
 export const getDeliveryStatus = (orderId) =>
     apiClient.get("/challan/delivery-status", { params: { order_id: orderId } }).then((r) => r.data);
 
+export const downloadChallanPDF = (id) =>
+    apiClient
+        .get(`/challan/${id}/pdf`, { responseType: "blob" })
+        .then((r) => {
+            const disposition = r.headers?.["content-disposition"] || "";
+            const match = disposition.match(/filename="?([^"]+)"?/i);
+            return {
+                blob: r.data,
+                filename: match?.[1] || `delivery-challan-${id}.pdf`,
+            };
+        });
+
 export default {
     getChallans,
     getChallanById,
@@ -33,4 +45,5 @@ export default {
     getNextChallanNumber,
     getQuotationProducts,
     getDeliveryStatus,
+    downloadChallanPDF,
 };
