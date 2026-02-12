@@ -31,7 +31,7 @@ import {
 import { IconCircleCheck, IconEye, IconPencil } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import { formatDate } from "@/utils/dataTableUtils";
+import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 
 const COLUMN_FILTER_KEYS = [
   "po_number",
@@ -343,58 +343,117 @@ export default function POInwardPage() {
     if (!selectedPOInward) return null;
     const p = selectedPOInward;
     const statusVariant = getStatusVariant(p.status);
+    const txt = (v) => (v === null || v === undefined || v === "" ? "-" : String(v));
+    const dt = (v) => (v ? new Date(v).toLocaleString() : "-");
+    const qty = (v) => (v === null || v === undefined ? "-" : v);
+
     return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">{p.purchaseOrder?.po_number || "-"}</p>
-        <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
-          {p.status}
-        </Badge>
-        <p className="text-xs text-muted-foreground">
-          Received At: {p.received_at ? new Date(p.received_at).toLocaleString() : "-"}
-        </p>
-        <hr className="border-border" />
-        <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
-        <p className="text-sm">{p.supplier?.supplier_name || "-"}</p>
-        {p.supplier?.supplier_code && <p className="text-xs text-muted-foreground">Code: {p.supplier.supplier_code}</p>}
-        <p className="text-xs font-semibold text-muted-foreground mt-2 block">Warehouse</p>
-        <p className="text-sm">{p.warehouse?.name || "-"}</p>
-        {p.supplier_invoice_number && (
-          <p className="text-xs text-muted-foreground">Invoice: {p.supplier_invoice_number}</p>
-        )}
-        {p.receivedBy && <p className="text-xs text-muted-foreground">Received by: {p.receivedBy?.name}</p>}
-        {p.items && p.items.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-muted-foreground">Items ({p.items.length})</p>
-            <div className="mt-1 overflow-hidden rounded-md border border-border">
-              <table className="w-full text-sm">
+      <div className="pr-1 space-y-4">
+        <div className="space-y-1">
+          <p className="font-semibold text-base">{txt(p.purchaseOrder?.po_number)}</p>
+          <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+            {txt(p.status)}
+          </Badge>
+          <p className="text-xs text-muted-foreground">
+            PO Date: {formatDate(p.purchaseOrder?.po_date)} · Due: {formatDate(p.purchaseOrder?.due_date)}
+          </p>
+          <p className="text-xs text-muted-foreground">Received At: {dt(p.received_at)}</p>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
+          <p className="text-sm">{txt(p.supplier?.supplier_name)}</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Code</span><span>{txt(p.supplier?.supplier_code)}</span>
+            <span className="text-muted-foreground">GSTIN</span><span>{txt(p.supplier?.gstin)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
+          <p className="text-sm">{txt(p.warehouse?.name)}</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Address</span><span>{txt(p.warehouse?.address)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Invoice & Receipt</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Invoice No</span><span>{txt(p.supplier_invoice_number)}</span>
+            <span className="text-muted-foreground">Invoice Date</span><span>{formatDate(p.supplier_invoice_date)}</span>
+            <span className="text-muted-foreground">Receipt Type</span><span>{txt(p.receipt_type)}</span>
+            <span className="text-muted-foreground">Inspection</span><span>{p.inspection_required ? "Required" : "Not Required"}</span>
+            <span className="text-muted-foreground">Received By</span><span>{txt(p.receivedBy?.name || p.received_by)}</span>
+            <span className="text-muted-foreground">Receiver Email</span><span className="break-all">{txt(p.receivedBy?.email)}</span>
+          </div>
+          <div className="text-xs">
+            <p className="text-muted-foreground">Remarks</p>
+            <p className="text-sm">{txt(p.remarks)}</p>
+          </div>
+        </div>
+
+        {Array.isArray(p.items) && p.items.length > 0 && (
+          <div className="rounded-md border border-border overflow-hidden">
+            <div className="px-3 py-2 bg-muted/40">
+              <p className="text-xs font-semibold text-muted-foreground">Items ({p.items.length})</p>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-xs">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-semibold">Product</th>
-                    <th className="px-2 py-1.5 text-right font-semibold">Received</th>
-                    <th className="px-2 py-1.5 text-right font-semibold">Accepted</th>
+                    <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-right font-semibold">Ordered</th>
+                    <th className="px-2 py-1 text-right font-semibold">Received</th>
+                    <th className="px-2 py-1 text-right font-semibold">Accepted</th>
+                    <th className="px-2 py-1 text-right font-semibold">Rejected</th>
+                    <th className="px-2 py-1 text-right font-semibold">Rate</th>
+                    <th className="px-2 py-1 text-right font-semibold">GST%</th>
+                    <th className="px-2 py-1 text-right font-semibold">Taxable</th>
+                    <th className="px-2 py-1 text-right font-semibold">Total</th>
+                    <th className="px-2 py-1 text-left font-semibold">Tracking</th>
                   </tr>
                 </thead>
                 <tbody>
                   {p.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
-                      <td className="px-2 py-1.5">{item.product?.product_name || "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{item.received_quantity}</td>
-                      <td className="px-2 py-1.5 text-right">{item.accepted_quantity}</td>
+                      <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.ordered_quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.received_quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.accepted_quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.rejected_quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.rate || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{txt(item.gst_percent)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.taxable_amount || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.total_amount || 0)}</td>
+                      <td className="px-2 py-1.5">
+                        {txt(item.tracking_type)}
+                        {Array.isArray(item.serials) && item.serials.length > 0 ? ` (${item.serials.length} serials)` : ""}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="mt-2 flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
-              <span>Total Received</span>
-              <span className="font-semibold">{p.total_received_quantity ?? p.items.reduce((s, i) => s + (i.received_quantity || 0), 0)}</span>
-            </div>
-            <div className="flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
-              <span>Total Accepted</span>
-              <span className="font-semibold">{p.total_accepted_quantity ?? p.items.reduce((s, i) => s + (i.accepted_quantity || 0), 0)}</span>
-            </div>
           </div>
         )}
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Receipt Totals</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Total Received</span><span className="font-semibold">{qty(p.total_received_quantity)}</span>
+            <span className="text-muted-foreground">Total Accepted</span><span className="font-semibold">{qty(p.total_accepted_quantity)}</span>
+            <span className="text-muted-foreground">Total Rejected</span><span className="font-semibold">{qty(p.total_rejected_quantity)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Audit</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Inward ID</span><span>{txt(p.id)}</span>
+            <span className="text-muted-foreground">Created At</span><span>{dt(p.created_at)}</span>
+          </div>
+        </div>
       </div>
     );
   }, [loadingRecord, selectedPOInward]);
