@@ -7,6 +7,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import mastersService, { getDefaultState } from "@/services/mastersService";
+import { getNextSupplierCode } from "@/services/supplierService";
 import {
   validateGSTIN,
   validatePAN,
@@ -15,6 +16,7 @@ import {
   validatePincode,
   formatPhone,
   formatToUpperCase,
+  derivePanFromGstin,
 } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +50,7 @@ export default function SupplierForm({
     states: [],
   });
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [loadingNextCode, setLoadingNextCode] = useState(false);
 
   useEffect(() => {
     if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -67,6 +70,28 @@ export default function SupplierForm({
       });
     }
   }, [defaultValues]);
+
+  useEffect(() => {
+    const isAdd = !defaultValues?.id;
+    const noCode = !defaultValues?.supplier_code || String(defaultValues?.supplier_code || "").trim() === "";
+    if (isAdd && noCode) {
+      getNextSupplierCode()
+        .then((code) => {
+          if (code) setFormData((prev) => ({ ...prev, supplier_code: code }));
+        })
+        .catch(() => {});
+    }
+  }, [defaultValues?.id, defaultValues?.supplier_code]);
+
+  const handleGenerateCode = () => {
+    setLoadingNextCode(true);
+    getNextSupplierCode()
+      .then((code) => {
+        if (code) setFormData((prev) => ({ ...prev, supplier_code: code }));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingNextCode(false));
+  };
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -166,7 +191,18 @@ export default function SupplierForm({
         processedValue = value;
       }
     }
-    setFormData((prev) => ({ ...prev, [name]: processedValue }));
+    if (name === "gstin") {
+      const newGstin = processedValue;
+      const isGstinEmpty = !newGstin || newGstin.trim() === "";
+      const derivedPan = isGstinEmpty ? null : derivePanFromGstin(newGstin);
+      setFormData((prev) => ({
+        ...prev,
+        gstin: newGstin,
+        pan_number: isGstinEmpty ? "" : (derivedPan != null ? derivedPan : prev.pan_number),
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: processedValue }));
+    }
     if (errors[name]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -277,16 +313,36 @@ export default function SupplierForm({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input
-              fullWidth
-              name="supplier_code"
-              label="Supplier Code"
-              value={formData.supplier_code}
-              onChange={handleChange}
-              required
-              error={!!errors.supplier_code}
-              helperText={errors.supplier_code}
-            />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Input
+                  fullWidth
+                  name="supplier_code"
+                  label="Supplier Code"
+                  value={formData.supplier_code}
+                  onChange={handleChange}
+                  required
+                  error={!!errors.supplier_code}
+                  helperText={errors.supplier_code}
+                />
+                {!defaultValues?.id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateCode}
+                    disabled={loadingNextCode}
+                    className="shrink-0 self-end"
+                  >
+                    {loadingNextCode ? (
+                      <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent block" />
+                    ) : (
+                      "Generate"
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
             <Input
               fullWidth
               name="supplier_name"

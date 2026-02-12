@@ -13,7 +13,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
-import { resolveDocumentUrl } from "@/services/apiClient";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuccess }) {
     const pathname = usePathname();
@@ -85,12 +85,16 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                 await orderDocumentsService.createOrderDocument(docFormData);
             }
 
-            setSuccessMsg("Order marked as paid successfully!");
+            const msg = "Order marked as paid successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             setFile(null);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to mark order as paid:", err);
-            setError(err.message || "Failed to update status");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to update status";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
@@ -160,15 +164,16 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                asChild
+                                onClick={async () => {
+                                    try {
+                                        const url = await orderDocumentsService.getDocumentUrl(receiptDoc.id);
+                                        if (url) window.open(url, "_blank");
+                                    } catch (e) {
+                                        console.error("Failed to get document URL", e);
+                                    }
+                                }}
                             >
-                                <a
-                                    href={resolveDocumentUrl(receiptDoc.document_path)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    View
-                                </a>
+                                View
                             </Button>
                         )}
                     </div>
@@ -182,7 +187,6 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                     <Button
                         type="submit"
                         size="sm"
-                        variant="success"
                         loading={submitting}
                         disabled={isCompleted || isReadOnly}
                     >

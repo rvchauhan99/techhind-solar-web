@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Box,
     Grid,
-    Button,
     MenuItem,
     Typography,
     FormControlLabel,
@@ -20,6 +19,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
+import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import {
     COMPACT_FORM_SPACING,
@@ -28,7 +28,24 @@ import {
 import mastersService, { getDefaultState } from "@/services/mastersService";
 import quotationService from "@/services/quotationService";
 import { useAuth } from "@/hooks/useAuth";
-import { validatePhone, validateEmail, formatPhone } from "@/utils/validators";
+import { validatePhone, validateEmail, formatPhone, validateE164Phone } from "@/utils/validators";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
+
+/** Section key, product type name(s) for display_order lookup, and title. typeNames match productType.name.toLowerCase(). */
+const TECHNICAL_SECTIONS = [
+    { key: 'structure', typeNames: ['structure'], title: 'Structure' },
+    { key: 'panel', typeNames: ['panel'], title: 'Panel' },
+    { key: 'inverter', typeNames: ['inverter'], title: 'Inverter' },
+    { key: 'battery', typeNames: ['battery'], title: 'Battery' },
+    { key: 'hybridInverter', typeNames: ['hybrid inverter'], title: 'Hybrid Inverter' },
+    { key: 'acdb', typeNames: ['acdb'], title: 'ACDB' },
+    { key: 'dcdb', typeNames: ['dcdb'], title: 'DCDB' },
+    { key: 'cable', typeNames: ['ac cable', 'dc cable'], title: 'Cable' },
+    { key: 'earthing', typeNames: ['earthing'], title: 'Earthing' },
+    { key: 'la', typeNames: ['la'], title: 'LA (Lightning Arrester)' },
+    { key: 'additionalDescriptions', typeNames: [], title: 'Additional Descriptions' },
+];
 
 export default function QuotationForm({
     defaultValues = {},
@@ -225,6 +242,643 @@ export default function QuotationForm({
         bgcolor: 'background.paper',
     };
 
+    const sortedTechnicalSections = useMemo(() => {
+        const products = options.products || [];
+        const typeOrderMap = {};
+        products.forEach((p) => {
+            const name = p.productType?.name?.toLowerCase();
+            if (name != null && p.productType?.display_order != null) {
+                const order = Number(p.productType.display_order);
+                if (typeOrderMap[name] === undefined || order < typeOrderMap[name]) {
+                    typeOrderMap[name] = order;
+                }
+            }
+        });
+        const fallbackOrder = 999;
+        return [...TECHNICAL_SECTIONS].sort((a, b) => {
+            const orderA = a.typeNames.length === 0
+                ? Number.POSITIVE_INFINITY
+                : Math.min(...a.typeNames.map((t) => typeOrderMap[t] ?? fallbackOrder));
+            const orderB = b.typeNames.length === 0
+                ? Number.POSITIVE_INFINITY
+                : Math.min(...b.typeNames.map((t) => typeOrderMap[t] ?? fallbackOrder));
+            return orderA - orderB;
+        });
+    }, [options.products]);
+
+    const getSectionContent = (key) => {
+        switch (key) {
+            case 'structure':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="structure_product"
+                                label="Product"
+                                value={formData.structure_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    let material = findProduct?.properties?.structure?.material ?? "";
+                                    setFormData({
+                                        ...formData,
+                                        structure_material: material,
+                                        structure_product: e.target.value
+                                    })
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'structure').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Height"
+                                name="structure_height"
+                                value={formData.structure_height}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Material"
+                                name="structure_material"
+                                value={formData.structure_material}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                    </Grid>
+                );
+            case 'panel':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="panel_product"
+                                label="Product"
+                                value={formData.panel_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        panel_product: e.target.value,
+                                        panel_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        panel_size: findProduct?.capacity ?? "",
+                                        panel_type: findProduct?.properties?.panel?.type ?? "",
+                                        panel_warranty: findProduct?.properties?.panel?.warranty ?? "",
+                                        panel_performance_warranty: findProduct?.properties?.panel?.performance_warranty ?? "",
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'panel').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Size"
+                                name="panel_size"
+                                value={formData.panel_size}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                type="number"
+                                label="Quantity"
+                                name="panel_quantity"
+                                value={formData.panel_quantity}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === formData.panel_product)
+                                    setFormData({
+                                        ...formData,
+                                        panel_quantity: e.target.value,
+                                        project_capacity: (((findProduct?.capacity ?? 0) * (e.target.value ?? 0)) / 1000).toFixed(2)
+                                    });
+                                }}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Autocomplete
+                                multiple
+                                size="small"
+                                options={options.productMakes.filter((m) => m.productTypeName === "panel")}
+                                getOptionLabel={(option) => option.name || ""}
+                                value={options.productMakes.filter((m) => formData.panel_make_ids.includes(m.id))}
+                                onChange={(e, newValue) => handleAutocompleteChange("panel_make_ids", newValue.map((v) => v.id))}
+                                renderInput={(params) => <Input {...params} label="Panel Make" />}
+                                renderTags={(value, getTagProps) =>
+                                    value.map((option, index) => {
+                                        const { key, ...tagProps } = getTagProps({ index });
+                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                    })
+                                }
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Type"
+                                name="panel_type"
+                                value={formData.panel_type}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Warranty"
+                                name="panel_warranty"
+                                value={formData.panel_warranty}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Performance Warranty"
+                                name="panel_performance_warranty"
+                                value={formData.panel_performance_warranty}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                    </Grid>
+                );
+            case 'inverter':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="inverter_product"
+                                label="Product"
+                                value={formData.inverter_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        inverter_product: e.target.value,
+                                        inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        inverter_size: findProduct?.capacity ?? "",
+                                        inverter_warranty: findProduct?.properties?.inverter?.warranty ?? "",
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'inverter').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Size"
+                                name="inverter_size"
+                                value={formData.inverter_size}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                type="number"
+                                label="Quantity"
+                                name="inverter_quantity"
+                                value={formData.inverter_quantity}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Autocomplete
+                                multiple
+                                size="small"
+                                options={options.productMakes.filter((m) => m.productTypeName === "inverter")}
+                                getOptionLabel={(option) => option.name || ""}
+                                value={options.productMakes.filter((m) => formData.inverter_make_ids.includes(m.id))}
+                                onChange={(e, newValue) => handleAutocompleteChange("inverter_make_ids", newValue.map((v) => v.id))}
+                                renderInput={(params) => <Input {...params} label="Inverter Make" />}
+                                renderTags={(value, getTagProps) =>
+                                    value.map((option, index) => {
+                                        const { key, ...tagProps } = getTagProps({ index });
+                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                    })
+                                }
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Warranty"
+                                name="inverter_warranty"
+                                value={formData.inverter_warranty}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                    </Grid>
+                );
+            case 'battery':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="battery_product"
+                                label="Product"
+                                value={formData.battery_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        battery_product: e.target.value,
+                                        battery_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        battery_size: findProduct?.capacity ?? "",
+                                        battery_type: findProduct?.properties?.battery?.type ?? "",
+                                        battery_warranty: findProduct?.properties?.battery?.warranty ?? "",
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'battery').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Size"
+                                name="battery_size"
+                                value={formData.battery_size}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                type="number"
+                                label="Quantity"
+                                name="battery_quantity"
+                                value={formData.battery_quantity}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Autocomplete
+                                multiple
+                                size="small"
+                                options={options.productMakes.filter((m) => m.productTypeName === "battery")}
+                                getOptionLabel={(option) => option.name || ""}
+                                value={options.productMakes.filter((m) => formData.battery_make_ids.includes(m.id))}
+                                onChange={(e, newValue) => handleAutocompleteChange("battery_make_ids", newValue.map((v) => v.id))}
+                                renderInput={(params) => <Input {...params} label="Battery Make" />}
+                                renderTags={(value, getTagProps) =>
+                                    value.map((option, index) => {
+                                        const { key, ...tagProps } = getTagProps({ index });
+                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                    })
+                                }
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Type"
+                                name="battery_type"
+                                value={formData.battery_type}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input
+                                fullWidth
+                                label="Warranty"
+                                name="battery_warranty"
+                                value={formData.battery_warranty}
+                                onChange={handleChange}
+                            />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Battery Description Text" name="battery_description_text" value={formData.battery_description_text} onChange={handleChange} multiline rows={2} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'hybridInverter':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="hybrid_inverter_product"
+                                label="Product"
+                                value={formData.hybrid_inverter_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        hybrid_inverter_product: e.target.value,
+                                        hybrid_inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        hybrid_inverter_size: findProduct?.capacity ?? "",
+                                        hybrid_inverter_warranty: findProduct?.properties?.hybrid_inverter?.warranty ?? "",
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'hybrid inverter').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Size" name="hybrid_inverter_size" value={formData.hybrid_inverter_size} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth type="number" label="Quantity" name="hybrid_inverter_quantity" value={formData.hybrid_inverter_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "hybrid_inverter")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.hybrid_inverter_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("hybrid_inverter_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="Hybrid Inverter Make" />} renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                })
+                            } />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Warranty" name="hybrid_inverter_warranty" value={formData.hybrid_inverter_warranty} onChange={handleChange} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'acdb':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="acdb_product"
+                                label="Product"
+                                value={formData.acdb_product || ""}
+                                onChange={handleChange}
+                                disabled={formData.project_price_id}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'acdb').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Quantity" name="acdb_quantity" value={formData.acdb_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Description" name="acdb_description" value={formData.acdb_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'dcdb':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Select
+                                fullWidth
+                                name="dcdb_product"
+                                label="Product"
+                                value={formData.dcdb_product || ""}
+                                onChange={handleChange}
+                                disabled={formData.project_price_id}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'dcdb').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Quantity" name="dcdb_quantity" value={formData.dcdb_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 4 }}>
+                            <Input fullWidth label="Description" name="dcdb_description" value={formData.dcdb_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'cable':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                fullWidth
+                                name="cable_ac_product"
+                                label="Ac Cable"
+                                value={formData.cable_ac_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        cable_ac_product: e.target.value,
+                                        cable_ac_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'ac cable').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="AC Quantity" name="cable_ac_quantity" value={formData.cable_ac_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "ac cable")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.cable_ac_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("cable_ac_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="AC Make" />} renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                })
+                            } />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="AC Description" name="cable_ac_description" value={formData.cable_ac_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                fullWidth
+                                name="cable_dc_product"
+                                label="Product"
+                                value={formData.cable_dc_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        cable_dc_product: e.target.value,
+                                        cable_dc_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'dc cable').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="DC Quantity" name="cable_dc_quantity" value={formData.cable_dc_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "dc cable")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.cable_dc_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("cable_dc_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="DC Make" />} renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                })
+                            } />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="DC Description" name="cable_dc_description" value={formData.cable_dc_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'earthing':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                fullWidth
+                                name="earthing_product"
+                                label="Product"
+                                value={formData.earthing_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        earthing_product: e.target.value,
+                                        earthing_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'earthing').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="Quantity" name="earthing_quantity" value={formData.earthing_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "earthing")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.earthing_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("earthing_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="Earthing Make" />} renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                })
+                            } />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="Description" name="earthing_description" value={formData.earthing_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'la':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                fullWidth
+                                name="la_product"
+                                label="Product"
+                                value={formData.la_product || ""}
+                                disabled={formData.project_price_id}
+                                onChange={(e) => {
+                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    setFormData({
+                                        ...formData,
+                                        la_product: e.target.value,
+                                        la_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                    });
+                                }}
+                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'la').map((product) => (
+                                    <MenuItem key={product.id} value={product.id}>
+                                        {product.product_name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="Quantity" name="la_quantity" value={formData.la_quantity} onChange={handleChange} />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "la")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.la_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("la_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="LA Make" />} renderTags={(value, getTagProps) =>
+                                value.map((option, index) => {
+                                    const { key, ...tagProps } = getTagProps({ index });
+                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
+                                })
+                            } />
+                        </Grid>
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input fullWidth label="Description" name="la_description" value={formData.la_description} onChange={handleChange} multiline rows={1} />
+                        </Grid>
+                    </Grid>
+                );
+            case 'additionalDescriptions':
+                return (
+                    <Grid container spacing={COMPACT_FORM_SPACING}>
+                        <Grid item size={{ xs: 12, md: 6 }}>
+                            <Input fullWidth label="MIS Description" name="mis_description" value={formData.mis_description} onChange={handleChange} multiline rows={2} />
+                        </Grid>
+                    </Grid>
+                );
+            default:
+                return null;
+        }
+    };
+
     useEffect(() => {
         const fetchprojectPrice = async () => {
             try {
@@ -249,10 +903,16 @@ export default function QuotationForm({
         const fetchProducts = async () => {
             try {
                 const productsOpt = await quotationService.getAllProducts();
-                console.log("products:", productsOpt.result)
+                const list = [...(productsOpt.result || [])];
+                list.sort((a, b) => {
+                    const orderA = a.productType?.display_order != null ? Number(a.productType.display_order) : Number.MAX_SAFE_INTEGER;
+                    const orderB = b.productType?.display_order != null ? Number(b.productType.display_order) : Number.MAX_SAFE_INTEGER;
+                    if (orderA !== orderB) return orderA - orderB;
+                    return (a.product_name || '').localeCompare(b.product_name || '');
+                });
                 setOptions((prev) => ({
                     ...prev,
-                    products: productsOpt.result || [],
+                    products: list,
                 }));
             } catch (error) {
                 console.error("Error fetching products:", error);
@@ -371,9 +1031,9 @@ export default function QuotationForm({
         // Ensure value is never undefined - convert to empty string for controlled inputs
         const normalizedValue = type === "checkbox" ? checked : (value === undefined ? "" : value);
         
-        // Real-time validation for phone numbers
+        // Real-time validation for phone numbers (E.164) and email
         if (name === "mobile_number" && normalizedValue && normalizedValue.trim() !== "") {
-            const phoneValidation = validatePhone(normalizedValue);
+            const phoneValidation = validateE164Phone(normalizedValue, { required: true });
             if (!phoneValidation.isValid) {
                 setErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
             } else {
@@ -438,8 +1098,8 @@ export default function QuotationForm({
         if (!formData.mobile_number) {
             validationErrors.mobile_number = "Mobile Number is required";
         } else {
-            // Validate mobile_number format
-            const phoneValidation = validatePhone(formData.mobile_number);
+            // Validate mobile_number format (E.164)
+            const phoneValidation = validateE164Phone(formData.mobile_number, { required: true });
             if (!phoneValidation.isValid) {
                 validationErrors.mobile_number = phoneValidation.message;
             }
@@ -878,11 +1538,11 @@ export default function QuotationForm({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input
+                        <PhoneField
                             fullWidth
-                            label="Mobile Number"
                             name="mobile_number"
-                            value={formData.mobile_number}
+                            label="Mobile Number"
+                            value={formData.mobile_number ?? ""}
                             onChange={handleChange}
                             required
                             error={!!errors.mobile_number}
@@ -997,721 +1657,21 @@ export default function QuotationForm({
                     <Typography variant="subtitle1" fontWeight={600}>Technical Details</Typography>
                 </Box>
 
-            {/* Structure */}
-            <Accordion
-                expanded={expandedAccordions.structure}
-                onChange={handleAccordionChange('structure')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Structure</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="structure_product"
-                                label="Product"
-                                value={formData.structure_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    let material = findProduct?.properties?.structure?.material ?? "";
-                                    setFormData({
-                                        ...formData,
-                                        structure_material: material,
-                                        structure_product: e.target.value
-                                    })
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'structure').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Height"
-                                name="structure_height"
-                                value={formData.structure_height}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Material"
-                                name="structure_material"
-                                value={formData.structure_material}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Panel */}
-            <Accordion
-                expanded={expandedAccordions.panel}
-                onChange={handleAccordionChange('panel')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Panel</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="panel_product"
-                                label="Product"
-                                value={formData.panel_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        panel_product: e.target.value,
-                                        panel_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                        panel_size: findProduct?.capacity ?? "",
-                                        panel_type: findProduct?.properties?.panel?.type ?? "",
-                                        panel_warranty: findProduct?.properties?.panel?.warranty ?? "",
-                                        panel_performance_warranty: findProduct?.properties?.panel?.performance_warranty ?? "",
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'panel').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Size"
-                                name="panel_size"
-                                value={formData.panel_size}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                type="number"
-                                label="Quantity"
-                                name="panel_quantity"
-                                value={formData.panel_quantity}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === formData.panel_product)
-                                    setFormData({
-                                        ...formData,
-                                        panel_quantity: e.target.value,
-                                        project_capacity: (((findProduct?.capacity ?? 0) * (e.target.value ?? 0)) / 1000).toFixed(2)
-                                    });
-                                }}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Autocomplete
-                                multiple
-                                size="small"
-                                options={options.productMakes.filter((m) => m.productTypeName === "panel")}
-                                getOptionLabel={(option) => option.name || ""}
-                                value={options.productMakes.filter((m) => formData.panel_make_ids.includes(m.id))}
-                                onChange={(e, newValue) => handleAutocompleteChange("panel_make_ids", newValue.map((v) => v.id))}
-                                renderInput={(params) => <Input {...params} label="Panel Make" />}
-                                renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => {
-                                        const { key, ...tagProps } = getTagProps({ index });
-                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                    })
-                                }
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Type"
-                                name="panel_type"
-                                value={formData.panel_type}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Warranty"
-                                name="panel_warranty"
-                                value={formData.panel_warranty}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Performance Warranty"
-                                name="panel_performance_warranty"
-                                value={formData.panel_performance_warranty}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Inverter */}
-            <Accordion
-                expanded={expandedAccordions.inverter}
-                onChange={handleAccordionChange('inverter')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Inverter</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="inverter_product"
-                                label="Product"
-                                value={formData.inverter_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        inverter_product: e.target.value,
-                                        inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                        inverter_size: findProduct?.capacity ?? "",
-                                        inverter_warranty: findProduct?.properties?.inverter?.warranty ?? "",
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'inverter').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Size"
-                                name="inverter_size"
-                                value={formData.inverter_size}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                type="number"
-                                label="Quantity"
-                                name="inverter_quantity"
-                                value={formData.inverter_quantity}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Autocomplete
-                                multiple
-                                size="small"
-                                options={options.productMakes.filter((m) => m.productTypeName === "inverter")}
-                                getOptionLabel={(option) => option.name || ""}
-                                value={options.productMakes.filter((m) => formData.inverter_make_ids.includes(m.id))}
-                                onChange={(e, newValue) => handleAutocompleteChange("inverter_make_ids", newValue.map((v) => v.id))}
-                                renderInput={(params) => <Input {...params} label="Inverter Make" />}
-                                renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => {
-                                        const { key, ...tagProps } = getTagProps({ index });
-                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                    })
-                                }
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Warranty"
-                                name="inverter_warranty"
-                                value={formData.inverter_warranty}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Battery */}
-            <Accordion
-                expanded={expandedAccordions.battery}
-                onChange={handleAccordionChange('battery')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Battery</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="battery_product"
-                                label="Product"
-                                value={formData.battery_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        battery_product: e.target.value,
-                                        battery_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                        battery_size: findProduct?.capacity ?? "",
-                                        battery_type: findProduct?.properties?.battery?.type ?? "",
-                                        battery_warranty: findProduct?.properties?.battery?.warranty ?? "",
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'battery').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Size"
-                                name="battery_size"
-                                value={formData.battery_size}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                type="number"
-                                label="Quantity"
-                                name="battery_quantity"
-                                value={formData.battery_quantity}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Autocomplete
-                                multiple
-                                size="small"
-                                options={options.productMakes.filter((m) => m.productTypeName === "battery")}
-                                getOptionLabel={(option) => option.name || ""}
-                                value={options.productMakes.filter((m) => formData.battery_make_ids.includes(m.id))}
-                                onChange={(e, newValue) => handleAutocompleteChange("battery_make_ids", newValue.map((v) => v.id))}
-                                renderInput={(params) => <Input {...params} label="Battery Make" />}
-                                renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => {
-                                        const { key, ...tagProps } = getTagProps({ index });
-                                        return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                    })
-                                }
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Type"
-                                name="battery_type"
-                                value={formData.battery_type}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input
-                                fullWidth
-                                label="Warranty"
-                                name="battery_warranty"
-                                value={formData.battery_warranty}
-                                onChange={handleChange}
-                            />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Battery Description Text" name="battery_description_text" value={formData.battery_description_text} onChange={handleChange} multiline rows={2} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Hybrid Inverter */}
-            <Accordion
-                expanded={expandedAccordions.hybridInverter}
-                onChange={handleAccordionChange('hybridInverter')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Hybrid Inverter</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="hybrid_inverter_product"
-                                label="Product"
-                                value={formData.hybrid_inverter_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        hybrid_inverter_product: e.target.value,
-                                        hybrid_inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                        hybrid_inverter_size: findProduct?.capacity ?? "",
-                                        hybrid_inverter_warranty: findProduct?.properties?.hybrid_inverter?.warranty ?? "",
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'hybrid inverter').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Size" name="hybrid_inverter_size" value={formData.hybrid_inverter_size} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth type="number" label="Quantity" name="hybrid_inverter_quantity" value={formData.hybrid_inverter_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "hybrid_inverter")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.hybrid_inverter_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("hybrid_inverter_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="Hybrid Inverter Make" />} renderTags={(value, getTagProps) =>
-                                value.map((option, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                })
-                            } />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Warranty" name="hybrid_inverter_warranty" value={formData.hybrid_inverter_warranty} onChange={handleChange} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* ACDB */}
-            <Accordion
-                expanded={expandedAccordions.acdb}
-                onChange={handleAccordionChange('acdb')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>ACDB</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="acdb_product"
-                                label="Product"
-                                value={formData.acdb_product || ""}
-                                onChange={handleChange}
-                                disabled={formData.project_price_id}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'acdb').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Quantity" name="acdb_quantity" value={formData.acdb_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Description" name="acdb_description" value={formData.acdb_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* DCDB */}
-            <Accordion
-                expanded={expandedAccordions.dcdb}
-                onChange={handleAccordionChange('dcdb')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>DCDB</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Select
-                                fullWidth
-                                name="dcdb_product"
-                                label="Product"
-                                value={formData.dcdb_product || ""}
-                                onChange={handleChange}
-                                disabled={formData.project_price_id}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'dcdb').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Quantity" name="dcdb_quantity" value={formData.dcdb_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 4 }}>
-                            <Input fullWidth label="Description" name="dcdb_description" value={formData.dcdb_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Cable */}
-            <Accordion
-                expanded={expandedAccordions.cable}
-                onChange={handleAccordionChange('cable')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Cable</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
-                                fullWidth
-                                name="cable_ac_product"
-                                label="Ac Cable"
-                                value={formData.cable_ac_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        cable_ac_product: e.target.value,
-                                        cable_ac_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'ac cable').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="AC Quantity" name="cable_ac_quantity" value={formData.cable_ac_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "ac cable")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.cable_ac_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("cable_ac_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="AC Make" />} renderTags={(value, getTagProps) =>
-                                value.map((option, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                })
-                            } />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="AC Description" name="cable_ac_description" value={formData.cable_ac_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
-                                fullWidth
-                                name="cable_dc_product"
-                                label="Product"
-                                value={formData.cable_dc_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        cable_dc_product: e.target.value,
-                                        cable_dc_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'dc cable').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="DC Quantity" name="cable_dc_quantity" value={formData.cable_dc_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "dc cable")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.cable_dc_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("cable_dc_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="DC Make" />} renderTags={(value, getTagProps) =>
-                                value.map((option, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                })
-                            } />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="DC Description" name="cable_dc_description" value={formData.cable_dc_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* Earthing */}
-            <Accordion
-                expanded={expandedAccordions.earthing}
-                onChange={handleAccordionChange('earthing')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Earthing</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
-                                fullWidth
-                                name="earthing_product"
-                                label="Product"
-                                value={formData.earthing_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        earthing_product: e.target.value,
-                                        earthing_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'earthing').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="Quantity" name="earthing_quantity" value={formData.earthing_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "earthing")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.earthing_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("earthing_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="Earthing Make" />} renderTags={(value, getTagProps) =>
-                                value.map((option, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                })
-                            } />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="Description" name="earthing_description" value={formData.earthing_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* LA (Lightning Arrester) */}
-            <Accordion
-                expanded={expandedAccordions.la}
-                onChange={handleAccordionChange('la')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>LA (Lightning Arrester)</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
-                                fullWidth
-                                name="la_product"
-                                label="Product"
-                                value={formData.la_product || ""}
-                                disabled={formData.project_price_id}
-                                onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    setFormData({
-                                        ...formData,
-                                        la_product: e.target.value,
-                                        la_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    });
-                                }}
-                                sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.products.filter(p => (p.productType.name.toLowerCase()) === 'la').map((product) => (
-                                    <MenuItem key={product.id} value={product.id}>
-                                        {product.product_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="Quantity" name="la_quantity" value={formData.la_quantity} onChange={handleChange} />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Autocomplete multiple size="small" options={options.productMakes.filter((m) => m.productTypeName === "la")} getOptionLabel={(option) => option.name || ""} value={options.productMakes.filter((m) => formData.la_make_ids.includes(m.id))} onChange={(e, newValue) => handleAutocompleteChange("la_make_ids", newValue.map((v) => v.id))} renderInput={(params) => <Input {...params} label="LA Make" />} renderTags={(value, getTagProps) =>
-                                value.map((option, index) => {
-                                    const { key, ...tagProps } = getTagProps({ index });
-                                    return <Chip key={option.id} label={option.name} size="small" {...tagProps} />;
-                                })
-                            } />
-                        </Grid>
-                        <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input fullWidth label="Description" name="la_description" value={formData.la_description} onChange={handleChange} multiline rows={1} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
-
-            {/* MIS and Battery Description */}
-            <Accordion
-                expanded={expandedAccordions.additionalDescriptions}
-                onChange={handleAccordionChange('additionalDescriptions')}
-                sx={accordionStyles}
-            >
-                <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                    <Typography variant="subtitle2" fontWeight={600}>Additional Descriptions</Typography>
-                </AccordionSummary>
-                <AccordionDetails sx={accordionDetailsStyles}>
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 6 }}>
-                            <Input fullWidth label="MIS Description" name="mis_description" value={formData.mis_description} onChange={handleChange} multiline rows={2} />
-                        </Grid>
-                    </Grid>
-                </AccordionDetails>
-            </Accordion>
+            {sortedTechnicalSections.map((section) => (
+                <Accordion
+                    key={section.key}
+                    expanded={expandedAccordions[section.key]}
+                    onChange={handleAccordionChange(section.key)}
+                    sx={accordionStyles}
+                >
+                    <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
+                        <Typography variant="subtitle2" fontWeight={600}>{section.title}</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={accordionDetailsStyles}>
+                        {getSectionContent(section.key)}
+                    </AccordionDetails>
+                </Accordion>
+            ))}
 
             {/* Project Price Details */}
             <Box sx={COMPACT_SECTION_HEADER_STYLE}>
@@ -2147,13 +2107,21 @@ export default function QuotationForm({
 
             <FormActions>
                 {onCancel && (
-                    <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onCancel}
+                        disabled={loading || loadingOptions}
+                    >
                         Cancel
                     </Button>
                 )}
-                <Button type="submit" variant="contained" disabled={loading || loadingOptions}>
-                    {loading ? "Saving..." : "Submit"}
-                </Button>
+                <LoadingButton
+                    type="submit"
+                    loading={loading || loadingOptions}
+                >
+                    Submit
+                </LoadingButton>
             </FormActions>
         </Box>
         </FormContainer>

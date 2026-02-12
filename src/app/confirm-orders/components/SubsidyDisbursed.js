@@ -11,6 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 
@@ -89,11 +90,15 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
             }
             await orderService.updateOrder(orderId, payload);
 
-            setSuccessMsg("Subsidy Disbursed stage completed successfully!");
+            const msg = "Subsidy Disbursed stage completed successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save subsidy disbursed details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
@@ -157,7 +162,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
             <div className="mt-4 flex flex-col gap-2">
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                <Button type="submit" size="sm" variant="success" loading={submitting} disabled={isCompleted || isReadOnly}>
+                <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>
                     {isCompleted ? "Update" : "Save"}
                 </Button>
             </div>

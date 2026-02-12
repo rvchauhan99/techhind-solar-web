@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
     Grid,
     MenuItem,
     Typography,
@@ -16,8 +15,34 @@ import mastersService from "@/services/mastersService";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import Loader from "@/components/common/Loader";
 import { COMPACT_FORM_SPACING, FORM_PADDING } from "@/utils/formConstants";
+
+/**
+ * Build product name for Panel type: Make PanelType Technology Capacity WP
+ * e.g. "ADANI DCR TOPCON 11 WP"
+ */
+function getPanelProductName(formData, options) {
+    if (!options?.productTypes?.length) return "";
+    const selectedType = options.productTypes.find((t) => String(t.id) === String(formData.product_type_id));
+    const selectedTypeName = selectedType?.name?.toLowerCase() ?? "";
+    if (selectedTypeName !== "panel") return "";
+
+    const makeName = (options.productMakes?.find((m) => String(m.id) === String(formData.product_make_id))?.name ?? "").trim();
+    const techOpt = options.panelTechnologies?.find((p) => String(p.id) === String(formData.panel_technology_id));
+    const techLabel = (techOpt?.label ?? techOpt?.name ?? "").trim();
+    const panelType = String(formData.panel_type ?? "").trim();
+    const capacity = formData.capacity != null && formData.capacity !== "" ? String(formData.capacity).trim() : "";
+
+    const parts = [];
+    if (makeName) parts.push(makeName);
+    if (panelType) parts.push(panelType);
+    if (techLabel) parts.push(techLabel);
+    if (capacity) parts.push(`${capacity} WP`);
+    return parts.join(" ");
+}
 
 export default function ProductForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null, hideActions = false }) {
     const [formData, setFormData] = useState({
@@ -39,11 +64,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         material: "",
         // panel_size: "",
         panel_type: "",
-        panel_warranty: "",
-        panel_performance_warranty: "",
+        panel_technology_id: "",
         // extra_size: "",
         extra_type: "",
         extra_warranty: "",
+        additional_type: "",
+        additional_warranty: "",
+        additional_performance_warranty: "",
         ac_quantity: "",
         ac_description: "",
         dc_quantity: "",
@@ -57,6 +84,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         productTypes: [],
         productMakes: [],
         measurementUnits: [],
+        panelTechnologies: [],
     });
     const [loadingOptions, setLoadingOptions] = useState(false);
 
@@ -84,6 +112,15 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             let ac_description = "";
             let dc_quantity = "";
             let dc_description = "";
+            const additional_type = defaultValues.properties?.additional?.type ?? "";
+            const additional_warranty =
+                defaultValues.properties?.additional?.warranty ??
+                defaultValues.properties?.panel?.warranty ??
+                "";
+            const additional_performance_warranty =
+                defaultValues.properties?.additional?.performance_warranty ??
+                defaultValues.properties?.panel?.performance_warranty ??
+                "";
             // if (typeName === "cable" && defaultValues.properties?.cable) {
             //     const props = defaultValues.properties.cable;
 
@@ -120,11 +157,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 warranty: defaultValues.properties?.structure?.warranty ?? "",
                 // panel_size: defaultValues.properties?.panel?.size ?? "",
                 panel_type: defaultValues.properties?.panel?.type ?? "",
-                panel_warranty: defaultValues.properties?.panel?.warranty ?? "",
-                panel_performance_warranty: defaultValues.properties?.panel?.performance_warranty ?? "",
+                panel_technology_id: defaultValues.properties?.panel?.panel_technology_id ?? "",
                 // extra_size,
                 extra_type,
                 extra_warranty,
+                additional_type,
+                additional_warranty,
+                additional_performance_warranty,
                 ac_quantity,
                 ac_description,
                 dc_quantity,
@@ -138,20 +177,23 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         const loadOptions = async () => {
             setLoadingOptions(true);
             try {
-                const [productTypesRes, measurementUnitsRes] = await Promise.all([
+                const [productTypesRes, measurementUnitsRes, panelTechnologiesRes] = await Promise.all([
                     mastersService.getReferenceOptions("product_type.model"),
                     mastersService.getReferenceOptions("measurement_unit.model"),
+                    mastersService.getReferenceOptions("panel_technology.model"),
                 ]);
 
                 // Handle response structure - same as MasterForm
                 // API returns { result: [...] } or direct array
                 const productTypesData = productTypesRes?.result || productTypesRes?.data || productTypesRes || [];
                 const measurementUnitsData = measurementUnitsRes?.result || measurementUnitsRes?.data || measurementUnitsRes || [];
+                const panelTechnologiesData = panelTechnologiesRes?.result || panelTechnologiesRes?.data || panelTechnologiesRes || [];
 
                 setOptions({
                     productTypes: Array.isArray(productTypesData) ? productTypesData : [],
                     productMakes: [], // Will be loaded when product_type_id is selected
                     measurementUnits: Array.isArray(measurementUnitsData) ? measurementUnitsData : [],
+                    panelTechnologies: Array.isArray(panelTechnologiesData) ? panelTechnologiesData : [],
                 });
             } catch (err) {
                 console.error("Failed to load reference options", err);
@@ -195,6 +237,23 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         loadProductMakes();
     }, [formData.product_type_id, defaultValues?.product_type_id]);
 
+    // Auto-generate product name for Panel type from Make, Panel Type, Panel Technology, Capacity
+    useEffect(() => {
+        const generatedName = getPanelProductName(formData, options);
+        if (generatedName) {
+            setFormData((prev) => ({ ...prev, product_name: generatedName }));
+        }
+    }, [
+        formData.product_type_id,
+        formData.product_make_id,
+        formData.panel_type,
+        formData.panel_technology_id,
+        formData.capacity,
+        options.productTypes,
+        options.productMakes,
+        options.panelTechnologies,
+    ]);
+
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
 
@@ -229,6 +288,10 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         e.preventDefault();
 
         // Validate required fields
+        const selectedType = options.productTypes.find(
+            (type) => String(type.id) === String(formData.product_type_id)
+        );
+        const selectedTypeName = selectedType?.name?.toLowerCase() ?? "";
         const validationErrors = {};
         if (!formData.product_type_id) validationErrors.product_type_id = "Product Type is required";
         if (!formData.product_make_id) validationErrors.product_make_id = "Product Make is required";
@@ -252,6 +315,14 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         }
         if (formData.min_stock_quantity && Number(formData.min_stock_quantity) < 0) {
             validationErrors.min_stock_quantity = "Min Stock Quantity cannot be negative";
+        }
+        if (selectedTypeName === "panel") {
+            const panelTypeValue = formData.panel_type?.toUpperCase();
+            if (!panelTypeValue) {
+                validationErrors.panel_type = "Panel Type is required";
+            } else if (!["DCR", "NON DCR"].includes(panelTypeValue)) {
+                validationErrors.panel_type = "Panel Type must be DCR or NON DCR";
+            }
         }
 
         // Validate tracking_type
@@ -297,60 +368,53 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         };
 
         // Add properties based on product type
-        const selectedType = options.productTypes.find(t => t.id === formData.product_type_id);
-        if (selectedType && selectedType.name.toLowerCase() === 'structure') {
-            payload.properties = {
-                structure: {
-                    material: formData.material,
-                    warranty: formData.extra_warranty
-                }
+        const payloadProperties = {};
+        if (selectedTypeName === "structure") {
+            payloadProperties.structure = {
+                material: formData.material,
+                warranty: formData.extra_warranty
             };
-        } else if (selectedType && selectedType.name.toLowerCase() === 'panel') {
-            payload.properties = {
-                panel: {
-                    // size: formData.panel_size ? Number(formData.panel_size) : null,
-                    type: formData.panel_type,
-                    warranty: formData.panel_warranty,
-                    performance_warranty: formData.panel_performance_warranty
-                }
+        } else if (selectedTypeName === "panel") {
+            payloadProperties.panel = {
+                // size: formData.panel_size ? Number(formData.panel_size) : null,
+                type: formData.panel_type,
+                panel_technology_id: formData.panel_technology_id ? Number(formData.panel_technology_id) : null,
             };
         }
-        const typeName = selectedType?.name?.toLowerCase().replace(/\s+/g, "_");
+        const typeName = selectedTypeName.replace(/\s+/g, "_");
         // Build properties object based on product type
         if (["inverter", "hybrid_inverter", "earthing", "acdb", "dcdb", "la"].includes(typeName)) {
-            payload.properties = {
-                [typeName]: {
-                    // size: formData.extra_size ? Number(formData.extra_size) : null,
-                    warranty: formData.extra_warranty || null
-                }
+            payloadProperties[typeName] = {
+                // size: formData.extra_size ? Number(formData.extra_size) : null,
+                warranty: formData.extra_warranty || null
             };
         }
 
         else if (typeName === "battery") {
-            payload.properties = {
-                battery: {
-                    // size: formData.extra_size ? Number(formData.extra_size) : null,
-                    type: formData.extra_type || null,
-                    warranty: formData.extra_warranty || null
-                }
+            payloadProperties.battery = {
+                // size: formData.extra_size ? Number(formData.extra_size) : null,
+                type: formData.extra_type || null,
+                warranty: formData.extra_warranty || null
             };
         } else if (typeName == "ac_cable") {
-            payload.properties = {
-                ac_cable: {
-                    ac_quantity: formData.ac_quantity ? Number(formData.ac_quantity) : null,
-                    warranty: formData.extra_warranty || null
-                }
-
-            }
+            payloadProperties.ac_cable = {
+                ac_quantity: formData.ac_quantity ? Number(formData.ac_quantity) : null,
+                warranty: formData.extra_warranty || null
+            };
         } else if (typeName == "dc_cable") {
-            payload.properties = {
-                dc_cable: {
-                    dc_quantity: formData.dc_quantity ? Number(formData.dc_quantity) : null,
-                    warranty: formData.extra_warranty || null
-                }
-
-            }
+            payloadProperties.dc_cable = {
+                dc_quantity: formData.dc_quantity ? Number(formData.dc_quantity) : null,
+                warranty: formData.extra_warranty || null
+            };
         }
+
+        payloadProperties.additional = {
+            type: formData.additional_type || null,
+            warranty: formData.additional_warranty || null,
+            performance_warranty: formData.additional_performance_warranty || null
+        };
+
+        payload.properties = payloadProperties;
 
         // else if (typeName === "cable") {
         //     payload.properties = {
@@ -370,11 +434,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         delete payload.material;
         // delete payload.panel_size;
         delete payload.panel_type;
-        delete payload.panel_warranty;
-        delete payload.panel_performance_warranty;
+        delete payload.panel_technology_id;
         // delete payload.extra_size;
         delete payload.extra_type;
         delete payload.extra_warranty;
+        delete payload.additional_type;
+        delete payload.additional_warranty;
+        delete payload.additional_performance_warranty;
         delete payload.ac_quantity;
         delete payload.ac_description;
         delete payload.dc_quantity;
@@ -392,6 +458,11 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             </div>
         );
     }
+
+    const selectedType = options.productTypes.find(
+        (type) => String(type.id) === String(formData.product_type_id)
+    );
+    const selectedTypeName = selectedType?.name?.toLowerCase() ?? "";
 
     return (
         <FormContainer>
@@ -445,6 +516,60 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         </Select>
                     </Grid>
 
+                    {/* Panel Type (Panel Only) */}
+                    {selectedTypeName === "panel" && (
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                name="panel_type"
+                                label="Panel Type"
+                                value={formData.panel_type}
+                                onChange={handleChange}
+                                required
+                                error={!!errors.panel_type}
+                                helperText={errors.panel_type}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                <MenuItem value="DCR">DCR</MenuItem>
+                                <MenuItem value="NON DCR">NON DCR</MenuItem>
+                            </Select>
+                        </Grid>
+                    )}
+
+                    {/* Product Technology (Panel Only) */}
+                    {selectedTypeName === "panel" && (
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Select
+                                name="panel_technology_id"
+                                label="Product Technology"
+                                value={formData.panel_technology_id}
+                                onChange={handleChange}
+                                error={!!errors.panel_technology_id}
+                                helperText={errors.panel_technology_id}
+                            >
+                                <MenuItem value="">-- Select --</MenuItem>
+                                {options.panelTechnologies.map((opt) => (
+                                    <MenuItem key={opt.id} value={opt.id}>
+                                        {opt.label ?? opt.name ?? opt.id}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </Grid>
+                    )}
+
+                    {/* Capacity */}
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="capacity"
+                            label="Capacity"
+                            type="number"
+                            value={formData.capacity}
+                            onChange={handleChange}
+                            inputProps={{ min: 0, step: 0.01 }}
+                            error={!!errors.capacity}
+                            helperText={errors.capacity}
+                        />
+                    </Grid>
+
                     {/* Product Name */}
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input
@@ -489,20 +614,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 </MenuItem>
                             ))}
                         </Select>
-                    </Grid>
-
-                    {/* Capacity */}
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input
-                            name="capacity"
-                            label="Capacity"
-                            type="number"
-                            value={formData.capacity}
-                            onChange={handleChange}
-                            inputProps={{ min: 0, step: 0.01 }}
-                            error={!!errors.capacity}
-                            helperText={errors.capacity}
-                        />
                     </Grid>
 
                     {/* Tracking Type */}
@@ -665,13 +776,46 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         />
                     </Grid>
 
-                    {/* Additional Details Section (Only for Structure) */}
-                    {options.productTypes.find(t => t.id === formData.product_type_id)?.name.toLowerCase() === 'structure' && (
+                    {/* Additional Details Section (All Products) */}
+                    <Grid item size={12}>
+                        <Divider sx={{ my: 2 }}>
+                            <Typography variant="subtitle1" fontWeight="bold">
+                                Additional Details
+                            </Typography>
+                        </Divider>
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="additional_type"
+                            label="Type"
+                            value={formData.additional_type}
+                            onChange={handleChange}
+                        />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="additional_warranty"
+                            label="Warranty"
+                            value={formData.additional_warranty}
+                            onChange={handleChange}
+                        />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="additional_performance_warranty"
+                            label="Performance Warranty"
+                            value={formData.additional_performance_warranty}
+                            onChange={handleChange}
+                        />
+                    </Grid>
+
+                    {/* Structure Details */}
+                    {selectedTypeName === "structure" && (
                         <>
                             <Grid item size={12}>
                                 <Divider sx={{ my: 2 }}>
                                     <Typography variant="subtitle1" fontWeight="bold">
-                                        Additional Details
+                                        Structure Details
                                     </Typography>
                                 </Divider>
                             </Grid>
@@ -694,62 +838,15 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         </>
                     )}
 
-                    {/* Additional Details Section (Only for Panel) */}
-                    {options.productTypes.find(t => t.id === formData.product_type_id)?.name.toLowerCase() === 'panel' && (
-                        <>
-                            <Grid item size={12}>
-                                <Divider sx={{ my: 2 }}>
-                                    <Typography variant="subtitle1" fontWeight="bold">
-                                        Additional Details
-                                    </Typography>
-                                </Divider>
-                            </Grid>
-                            {/* <Grid item size={{ xs: 12, md: 3 }}>
-                            <Input
-                                name="panel_size"
-                                label="Size"
-                                type="number"
-                                value={formData.panel_size}
-                                onChange={handleChange}
-                                inputProps={{ min: 0 }}
-                            />
-                        </Grid> */}
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="panel_type"
-                                    label="Type"
-                                    value={formData.panel_type}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="panel_warranty"
-                                    label="Warranty"
-                                    value={formData.panel_warranty}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="panel_performance_warranty"
-                                    label="Performance Warranty"
-                                    value={formData.panel_performance_warranty}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
-                        </>
-                    )}
-
-                    {/* Additional Details for Inverter & Hybrid Inverter */}
+                    {/* Inverter/Hybrid/Earthing/ACDB/DCDB/LA Details */}
                     {["inverter", "hybrid inverter", "earthing", "acdb", "dcdb", "la"].includes(
-                        options.productTypes.find(t => t.id === formData.product_type_id)?.name?.toLowerCase()
+                        selectedTypeName
                     ) && (
                             <>
                                 <Grid item size={12}>
                                     <Divider sx={{ my: 2 }}>
                                         <Typography variant="subtitle1" fontWeight="bold">
-                                            Additional Details
+                                            Type Details
                                         </Typography>
                                     </Divider>
                                 </Grid>
@@ -775,13 +872,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             </>
                         )}
 
-                    {/* Additional Details for Battery */}
-                    {options.productTypes.find(t => t.id === formData.product_type_id)?.name?.toLowerCase() === "battery" && (
+                    {/* Battery Details */}
+                    {selectedTypeName === "battery" && (
                         <>
                             <Grid item size={12}>
                                 <Divider sx={{ my: 2 }}>
                                     <Typography variant="subtitle1" fontWeight="bold">
-                                        Additional Details
+                                        Battery Details
                                     </Typography>
                                 </Divider>
                             </Grid>
@@ -816,13 +913,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         </>
                     )}
 
-                    {/* Additional Details for Ac Cable */}
-                    {options.productTypes.find(t => t.id === formData.product_type_id)?.name?.toLowerCase() === "ac cable" && (
+                    {/* AC Cable Details */}
+                    {selectedTypeName === "ac cable" && (
                         <>
                             <Grid item size={12}>
                                 <Divider sx={{ my: 2 }}>
                                     <Typography variant="subtitle1" fontWeight="bold">
-                                        Additional Details
+                                        AC Cable Details
                                     </Typography>
                                 </Divider>
                             </Grid>
@@ -873,13 +970,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         </>
                     )}
 
-                    {/* Additional Details for Dc Cable */}
-                    {options.productTypes.find(t => t.id === formData.product_type_id)?.name?.toLowerCase() === "dc cable" && (
+                    {/* DC Cable Details */}
+                    {selectedTypeName === "dc cable" && (
                         <>
                             <Grid item size={12}>
                                 <Divider sx={{ my: 2 }}>
                                     <Typography variant="subtitle1" fontWeight="bold">
-                                        Additional Details
+                                        DC Cable Details
                                     </Typography>
                                 </Divider>
                             </Grid>
@@ -937,20 +1034,18 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             {!hideActions && (
                 <FormActions>
                     {onCancel && (
-                        <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
-                    <Button
+                    <LoadingButton
                         type="submit"
                         form="product-form"
-                        variant="contained"
-                        color="primary"
-                        disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        loading={loading}
+                        className="min-w-[120px]"
                     >
-                        {loading ? "Saving..." : defaultValues?.id ? "Update" : "Add"}
-                    </Button>
+                        {defaultValues?.id ? "Update" : "Add"}
+                    </LoadingButton>
                 </FormActions>
             )}
         </FormContainer>

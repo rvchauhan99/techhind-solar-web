@@ -33,6 +33,19 @@ export const validateGSTIN = (gstin) => {
 };
 
 /**
+ * Derives PAN from a valid Indian GSTIN (chars 3-12 of the 15-char GSTIN).
+ * @param {string} gstin - GSTIN to derive from
+ * @returns {string|null} - The 10-char PAN if GSTIN is valid, otherwise null
+ */
+export const derivePanFromGstin = (gstin) => {
+  if (!gstin || typeof gstin !== "string") return null;
+  const normalized = gstin.trim().toUpperCase().replace(/\s/g, "");
+  if (normalized.length !== 15) return null;
+  if (!validateGSTIN(gstin).isValid) return null;
+  return normalized.slice(2, 12);
+};
+
+/**
  * Validates PAN (Permanent Account Number)
  * Format: 10 characters - [A-Z]{5}[0-9]{4}[A-Z]{1}
  * Example: ABCDE1234F
@@ -88,10 +101,9 @@ export const validateEmail = (email) => {
 };
 
 /**
- * Validates phone number (Indian format)
- * Accepts: 10 digits, optional +91 prefix, spaces and dashes allowed
- * Examples: 9876543210, +91 9876543210, 98765-43210
- * 
+ * Validates phone number in Indian format.
+ * Kept for backward compatibility for fields that still expect a 10‑digit Indian mobile.
+ *
  * @param {string} phone - Phone number to validate
  * @returns {object} - { isValid: boolean, message: string }
  */
@@ -112,6 +124,40 @@ export const validatePhone = (phone) => {
 
   if (!phonePattern.test(cleaned)) {
     return { isValid: false, message: "Phone number must start with 6, 7, 8, or 9" };
+  }
+
+  return { isValid: true, message: "" };
+};
+
+/**
+ * Validates phone number in international E.164 format.
+ * Accepts: + followed by 2–15 digits, no leading zero after +.
+ * Examples: +918123456789, +14155552671
+ *
+ * @param {string} phone - Phone number to validate
+ * @param {object} [options]
+ * @param {boolean} [options.required=false] - Whether the field is required
+ * @returns {object} - { isValid: boolean, message: string }
+ */
+export const validateE164Phone = (phone, { required = false } = {}) => {
+  const raw = (phone ?? "").trim();
+
+  if (!raw) {
+    if (required) {
+      return { isValid: false, message: "Mobile number is required" };
+    }
+    return { isValid: true, message: "" };
+  }
+
+  // Remove spaces and hyphens for validation, but keep leading +
+  const cleaned = raw.replace(/[\s-]/g, "");
+
+  const pattern = /^\+[1-9]\d{1,14}$/;
+  if (!pattern.test(cleaned)) {
+    return {
+      isValid: false,
+      message: "Enter a valid mobile number with country code (e.g. +918123456789)",
+    };
   }
 
   return { isValid: true, message: "" };

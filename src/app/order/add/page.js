@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { toast } from "sonner";
+import { toastSuccess, toastError } from "@/utils/toast";
 import OrderForm from "../components/OrderForm";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -92,6 +93,7 @@ function AddOrderContent() {
                 console.error("Failed to fetch inquiry/quotation data", err);
                 const errorMessage = err.response?.data?.message || err.message || "Failed to load data";
                 setServerError(errorMessage);
+                toastError(errorMessage);
             } finally {
                 setFetchingData(false);
             }
@@ -151,9 +153,16 @@ function AddOrderContent() {
             delete orderData.cancelled_cheque;
             delete orderData.customer_sign;
 
+            // Ensure quotation_id is sent when creating from quotation (for bom_snapshot carry-forward)
+            if (quotationData?.id && !orderData.quotation_id) {
+                orderData.quotation_id = quotationData.id;
+            }
+
             // Create order first
             const res = await orderService.createOrder(orderData);
             const orderId = res?.result?.id || res?.id;
+            const successMsg = res?.data?.message || res?.result?.message || "Order created successfully";
+            toastSuccess(successMsg);
             console.log("✅ New Order Created:", res);
 
             // Upload documents if any
@@ -192,6 +201,7 @@ function AddOrderContent() {
             console.error("❌ Failed to create order", err);
             const errorMessage = err.response?.data?.message || err.message || "Failed to create order";
             setServerError(errorMessage);
+            toastError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -281,8 +291,21 @@ function AddOrderContent() {
             if (quotationData.project_scheme_id) defaults.project_scheme_id = Number(quotationData.project_scheme_id);
             if (quotationData.project_capacity) defaults.capacity = Number(quotationData.project_capacity);
             if (quotationData.project_cost) defaults.project_cost = Number(quotationData.project_cost);
-            if (quotationData.panel_product) defaults.solar_panel_id = Number(quotationData.panel_product);
-            if (quotationData.inverter_product) defaults.inverter_id = Number(quotationData.inverter_product);
+            // Prefer panel/inverter from bom_snapshot, fallback to legacy panel_product/inverter_product
+            let panelId = null;
+            let inverterId = null;
+            if (Array.isArray(quotationData.bom_snapshot) && quotationData.bom_snapshot.length > 0) {
+                const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "_");
+                for (const line of quotationData.bom_snapshot) {
+                    const p = line.product_snapshot || line;
+                    const t = norm(p?.product_type_name);
+                    if (t === "panel" && panelId == null) panelId = line.product_id;
+                    if (t === "inverter" && inverterId == null) inverterId = line.product_id;
+                    if (panelId != null && inverterId != null) break;
+                }
+            }
+            defaults.solar_panel_id = panelId != null ? Number(panelId) : (quotationData.panel_product ? Number(quotationData.panel_product) : defaults.solar_panel_id);
+            defaults.inverter_id = inverterId != null ? Number(inverterId) : (quotationData.inverter_product ? Number(quotationData.inverter_product) : defaults.inverter_id);
 
             // Override discom and payment from quotation if available
             if (quotationData.discom_id) defaults.discom_id = Number(quotationData.discom_id);
@@ -301,15 +324,49 @@ function AddOrderContent() {
                     <Loader />
                 </div>
             ) : (
-                <OrderForm
-                    defaultValues={defaultValues}
-                    quotationData={quotationData}
-                    onSubmit={handleSubmit}
-                    onCancel={() => router.push("/order")}
-                    loading={loading}
-                    serverError={serverError}
-                    onClearServerError={() => setServerError(null)}
-                />
+                <>
+                    {quotationData?.bom_snapshot?.length > 0 && (
+                        <div className="mb-4 rounded-lg border bg-muted/30 p-3 text-sm">
+                            <div className="font-semibold mb-2">Order scope (BOM from quotation)</div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="py-1.5 pr-2">#</th>
+                                            <th className="py-1.5 pr-2">Product</th>
+                                            <th className="py-1.5 pr-2">Type</th>
+                                            <th className="py-1.5 pr-2">Make</th>
+                                            <th className="py-1.5 pr-2">Qty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {quotationData.bom_snapshot.map((line, idx) => {
+                                            const p = line.product_snapshot || line;
+                                            return (
+                                                <tr key={idx} className="border-b border-border/50">
+                                                    <td className="py-1 pr-2">{idx + 1}</td>
+                                                    <td className="py-1 pr-2">{p?.product_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{p?.product_type_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{p?.product_make_name ?? "-"}</td>
+                                                    <td className="py-1 pr-2">{line.quantity ?? "-"}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                    <OrderForm
+                        defaultValues={defaultValues}
+                        quotationData={quotationData}
+                        onSubmit={handleSubmit}
+                        onCancel={() => router.push("/order")}
+                        loading={loading}
+                        serverError={serverError}
+                        onClearServerError={() => setServerError(null)}
+                    />
+                </>
             )}
             <AlertDialog
                 open={confirmNoApprovedOpen}

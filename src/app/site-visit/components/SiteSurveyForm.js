@@ -29,6 +29,8 @@ import {
 } from "@mui/material";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
+import { Button as ActionButton } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import DeleteIcon from "@mui/icons-material/Delete";
 import siteVisitService from "@/services/siteVisitService";
@@ -885,13 +887,13 @@ export default function SiteSurveyForm({
                 <Grid size={12}>
                     <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end", mt: 3 }}>
                         {onCancel && (
-                            <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                            <ActionButton type="button" variant="outline" onClick={onCancel} disabled={loading}>
                                 Cancel
-                            </Button>
+                            </ActionButton>
                         )}
-                        <Button type="submit" variant="contained" disabled={loading}>
-                            {loading ? <CircularProgress size={24} /> : "Add"}
-                        </Button>
+                        <LoadingButton type="submit" loading={loading} className="min-w-[120px]">
+                            Add
+                        </LoadingButton>
                     </Box>
                 </Grid>
             </Grid>

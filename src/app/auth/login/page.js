@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import apiClient from "@/services/apiClient";
 import { setTokens, setStoredProfile } from "@/lib/authStorage";
 import TwoFactorSetup from "@/components/auth/TwoFactorSetup";
+import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,9 +18,18 @@ import {
   IconEyeOff,
   IconSolarElectricity,
 } from "@tabler/icons-react";
+function getSafeReturnUrl(searchParams) {
+  const returnUrl = searchParams?.get("returnUrl");
+  if (!returnUrl || typeof returnUrl !== "string") return "/home";
+  const path = returnUrl.trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/auth")) return "/home";
+  return path;
+}
+
 export default function LoginPage() {
   const { user, setUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -49,9 +59,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      router.replace("/home");
+      router.replace(getSafeReturnUrl(searchParams));
     }
-  }, [user, router]);
+  }, [user, router, searchParams]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -59,10 +69,16 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const loginRes = await apiClient.post("/auth/login", { email, password });
+      const loginBody = { email, password };
+      if (process.env.NEXT_PUBLIC_TENANT_KEY) {
+        loginBody.tenant_key = process.env.NEXT_PUBLIC_TENANT_KEY;
+      }
+      const loginRes = await apiClient.post("/auth/login", loginBody);
 
       if (loginRes.data.status === false) {
-        setError(loginRes?.data?.message || "Invalid credentials");
+        const msg = loginRes?.data?.message || "Invalid credentials";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
@@ -88,9 +104,12 @@ export default function LoginPage() {
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      toastSuccess("Login successful");
+      router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid credentials");
+      const msg = err.response?.data?.message || "Invalid credentials";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -108,7 +127,9 @@ export default function LoginPage() {
       });
 
       if (res.data.status === false) {
-        setError(res?.data?.message || "Invalid code");
+        const msg = res?.data?.message || "Invalid code";
+        setError(msg);
+        toastError(msg);
         return;
       }
 
@@ -123,13 +144,16 @@ export default function LoginPage() {
         return;
       }
 
+      toastSuccess("Login successful");
       const profileRes = await apiClient.get("/auth/profile");
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      router.push(getSafeReturnUrl(searchParams));
     } catch (err) {
-      setError(err.response?.data?.message || "Invalid code");
+      const msg = err.response?.data?.message || "Invalid code";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -158,6 +182,7 @@ export default function LoginPage() {
       });
 
       setCpSuccess("Password changed successfully.");
+      toastSuccess("Password changed successfully.");
       try {
         localStorage.removeItem("requirePasswordChange");
       } catch (e) {}
@@ -165,21 +190,24 @@ export default function LoginPage() {
       setRequirePasswordChange(false);
       setSetupTwoFactor(true);
     } catch (err) {
-      setCpError(err.response?.data?.message || "Could not change password");
+      const msg = err.response?.data?.message || "Could not change password";
+      setCpError(msg);
+      toastError(msg);
     } finally {
       setCpLoading(false);
     }
   };
 
   const handleTwoFactorSetupComplete = async () => {
+    const redirectTo = getSafeReturnUrl(searchParams);
     try {
       const profileRes = await apiClient.get("/auth/profile");
       const profile = profileRes.data.result;
       setUser(profile);
       setStoredProfile(profile);
-      router.push("/home");
+      router.push(redirectTo);
     } catch (e) {
-      router.push("/home");
+      router.push(redirectTo);
     }
   };
 

@@ -20,6 +20,8 @@ import {
 } from "@mui/material";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
+import { Button as ActionButton } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import siteVisitService from "@/services/siteVisitService";
 import userService from "@/services/userMasterService";
 
@@ -989,19 +991,13 @@ export default function SiteVisitForm({
             />
             <Box sx={{ display: "flex", gap: 2 }}>
               {onCancel && (
-                <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                <ActionButton type="button" variant="outline" onClick={onCancel} disabled={loading}>
                   Cancel
-                </Button>
+                </ActionButton>
               )}
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-                sx={{ minWidth: 120 }}
-              >
-                {loading ? <CircularProgress size={24} /> : "Add"}
-              </Button>
+              <LoadingButton type="submit" loading={loading} className="min-w-[120px]">
+                Add
+              </LoadingButton>
             </Box>
           </Box>
         </Grid>

@@ -26,8 +26,8 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import mastersService from "@/services/mastersService";
 import companyService from "@/services/companyService";
-import { resolveDocumentUrl } from "@/services/apiClient";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 
@@ -146,13 +146,13 @@ function RegistrationForm({ orderData, orderId }) {
             }
 
             setSuccess(true);
-            // Redirect to order list page after successful save
-            // setTimeout(() => {
+            toastSuccess("Registration details saved successfully");
             router.push('/order');
-            // }, 1000);
         } catch (err) {
             console.error("Failed to save registration details:", err);
-            setErrors({ submit: err.message || "Failed to save registration details" });
+            const msg = err?.response?.data?.message || err?.message || "Failed to save registration details";
+            setErrors({ submit: msg });
+            toastError(msg);
         } finally {
             setLoading(false);
         }
@@ -418,7 +418,7 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
             }
 
             setSuccess(true);
-            // Reset form (keep single company bank account selected if only one)
+            toastSuccess("Payment saved successfully");
             const defaultCompanyAccount = companyBankAccounts.length === 1 ? String(companyBankAccounts[0].id) : "";
             setFormData({
                 order_id: orderId,
@@ -431,10 +431,8 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
                 payment_remarks: "",
             });
             setReceiptFile(null);
-            setFileInputKey(Date.now()); // Reset file input
-            setSuccess(true);
+            setFileInputKey(Date.now());
 
-            // Refresh payment total in parent
             if (onPaymentSaved) {
                 onPaymentSaved();
             }
@@ -442,7 +440,9 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             console.error("Failed to save payment:", err);
-            setErrors({ submit: err.message || "Failed to save payment" });
+            const msg = err?.response?.data?.message || err?.message || "Failed to save payment";
+            setErrors({ submit: msg });
+            toastError(msg);
         } finally {
             setLoading(false);
         }
@@ -676,10 +676,13 @@ function RemarksForm({ orderData, orderId }) {
             setError(null);
             await orderService.updateOrder(orderId, { order_remarks: remarks });
             setSuccess(true);
+            toastSuccess("Remarks saved successfully");
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             console.error("Failed to save remarks:", err);
-            setError(err.message || "Failed to save remarks");
+            const msg = err?.response?.data?.message || err?.message || "Failed to save remarks";
+            setError(msg);
+            toastError(msg);
         } finally {
             setLoading(false);
         }
@@ -777,14 +780,16 @@ function UploadDocumentsForm({ orderId }) {
             await orderDocumentsService.createOrderDocument(uploadFormData);
 
             setSuccess(true);
-            // Reset form
+            toastSuccess("Document uploaded successfully");
             setFormData({ doc_type: "", remarks: "" });
             setDocumentFile(null);
-            setFileInputKey(Date.now()); // Reset file input
+            setFileInputKey(Date.now());
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             console.error("Failed to upload document:", err);
-            setErrors({ submit: err.message || "Failed to upload document" });
+            const msg = err?.response?.data?.message || err?.message || "Failed to upload document";
+            setErrors({ submit: msg });
+            toastError(msg);
         } finally {
             setLoading(false);
         }
@@ -922,7 +927,9 @@ function OrderViewPageContent() {
                 setError(null);
             } catch (err) {
                 console.error("Failed to fetch order:", err);
-                setError(err.message || "Failed to load order data");
+                const msg = err?.response?.data?.message || err?.message || "Failed to load order data";
+                setError(msg);
+                toastError(msg);
             } finally {
                 setLoading(false);
             }
@@ -1007,24 +1014,24 @@ function OrderViewPageContent() {
         {
             id: "actions",
             label: "Actions",
-            render: (row) => {
-                const fileUrl = resolveDocumentUrl(row.document_path);
-
-                return (
-                    <Box display="flex" gap={1}>
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            href={fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            View Document
-                        </Button>
-                        {/* <Chip label="Delete" size="small" clickable /> */}
-                    </Box>
-                );
-            },
+            render: (row) => (
+                <Box display="flex" gap={1}>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={async () => {
+                            try {
+                                const url = await orderDocumentsService.getDocumentUrl(row.id);
+                                if (url) window.open(url, "_blank");
+                            } catch (e) {
+                                console.error("Failed to get document URL", e);
+                            }
+                        }}
+                    >
+                        View Document
+                    </Button>
+                </Box>
+            ),
         },
     ];
     const calculateInquiryDetailsHeight = () => {
@@ -1130,6 +1137,40 @@ function OrderViewPageContent() {
                                 <Typography variant="body2" color="text.secondary" mt={2}>Discom:</Typography>
                                 <Typography variant="body1" fontWeight="bold">{orderData?.discom_name || "N/A"}</Typography>
                             </Box>
+                            {orderData?.bom_snapshot?.length > 0 && (
+                                <>
+                                    <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, mt: 2 }}>
+                                        Scope (BOM)
+                                    </Typography>
+                                    <Box mt={1} mb={2} sx={{ overflowX: "auto" }}>
+                                        <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
+                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {orderData.bom_snapshot.map((line, idx) => {
+                                                    const p = line.product_snapshot || line;
+                                                    return (
+                                                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                                            <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
+                                                            <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </Box>
+                                </>
+                            )}
                             <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, }}>
                                 Payment Details
                             </Typography>

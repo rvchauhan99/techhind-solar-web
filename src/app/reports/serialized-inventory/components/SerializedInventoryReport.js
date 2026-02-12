@@ -25,6 +25,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import DownloadIcon from "@mui/icons-material/Download";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import serializedInventoryService from "@/services/serializedInventoryService";
+import { toastError } from "@/utils/toast";
 import SerialLedgerDialog from "./SerialLedgerDialog";
 import PaginationControls from "@/components/common/PaginationControls";
 
@@ -88,7 +89,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
       await serializedInventoryService.exportReport(params, format);
     } catch (err) {
       console.error("Failed to export report", err);
-      alert("Failed to export report. Please try again.");
+      toastError(err?.response?.data?.message || "Failed to export report. Please try again.");
     }
   };
 

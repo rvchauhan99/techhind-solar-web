@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import QuotationForm from "../components/QuotationForm";
@@ -42,7 +43,12 @@ function AddQuotationContent() {
     setLoading(true);
     setServerError(null);
     try {
-      await quotationService.createQuotation(payload);
+      const res = await quotationService.createQuotation(payload);
+      const message =
+        res?.data?.message ||
+        res?.message ||
+        "Quotation created successfully";
+      toast.success(message);
       router.push("/quotation");
     } catch (err) {
       setServerError(
@@ -50,6 +56,11 @@ function AddQuotationContent() {
           err.message ||
           "Failed to create quotation"
       );
+      const message =
+        err.response?.data?.message ||
+        err.message ||
+        "Failed to create quotation";
+      toast.error(message);
     } finally {
       setLoading(false);
     }

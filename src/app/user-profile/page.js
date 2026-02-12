@@ -6,6 +6,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
+import { toastError } from '@/utils/toast';
 
 export default function UserProfilePage() {
   const [tab, setTab] = useState(0);
@@ -34,8 +35,14 @@ export default function UserProfilePage() {
   };
 
   const handleUpload = () => {
-    if (!docType || docType === '-- Select --') return alert('Please select a document type');
-    if (!selectedFile) return alert('Please choose a file to upload');
+    if (!docType || docType === '-- Select --') {
+      toastError('Please select a document type');
+      return;
+    }
+    if (!selectedFile) {
+      toastError('Please choose a file to upload');
+      return;
+    }
 
     // client-side placeholder: append to local documents array
     const newDoc = {

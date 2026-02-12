@@ -9,7 +9,8 @@ import {
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
-import { validatePhone, validateEmail, formatPhone } from "@/utils/validators";
+import PhoneField from "@/components/common/PhoneField";
+import { validateE164Phone, validateEmail } from "@/utils/validators";
 
 const UserForm = forwardRef(function UserForm({
   defaultValues = null,
@@ -69,7 +70,7 @@ const UserForm = forwardRef(function UserForm({
         });
       }
     } else if (name === "mobile_number" && value && value.trim() !== "") {
-      const phoneValidation = validatePhone(value);
+      const phoneValidation = validateE164Phone(value, { required: false });
       if (!phoneValidation.isValid) {
         setErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
       } else {
@@ -88,18 +89,6 @@ const UserForm = forwardRef(function UserForm({
     }
     
     setFormData((s) => ({ ...s, [name]: value }));
-  };
-
-  const handleBlur = (e) => {
-    const { name, value } = e.target;
-    // Format phone number on blur
-    if (name === "mobile_number" && value && value.trim() !== "") {
-      const formatted = formatPhone(value);
-      setFormData((prev) => ({
-        ...prev,
-        [name]: formatted,
-      }));
-    }
   };
 
   // first_login is managed by backend only; UI should not change it
@@ -121,9 +110,9 @@ const UserForm = forwardRef(function UserForm({
       }
     }
     
-    // Validate mobile_number (optional)
+    // Validate mobile_number (optional, international E.164)
     if (formData.mobile_number && formData.mobile_number.trim() !== "") {
-      const phoneValidation = validatePhone(formData.mobile_number);
+      const phoneValidation = validateE164Phone(formData.mobile_number, { required: false });
       if (!phoneValidation.isValid) {
         validationErrors.mobile_number = phoneValidation.message;
       }
@@ -160,17 +149,17 @@ const UserForm = forwardRef(function UserForm({
           flexDirection: "column", 
           height: "100%",
           width: "100%",
-          maxWidth: "800px",
-          mx: "auto", // Center horizontally
+          maxWidth: "760px",
+          mx: "auto",
         }}
       >
         <Box sx={{ 
           display: "grid", 
-          gap: 2, 
+          gap: 1.5, 
           flex: 1, 
           overflowY: "auto", 
           pr: 1, 
-          pt: 2,
+          pt: 1,
           width: "100%",
         }}>
           <Input
@@ -193,12 +182,11 @@ const UserForm = forwardRef(function UserForm({
             helperText={errors.email}
           />
 
-          <Input
+          <PhoneField
             name="mobile_number"
             label="Mobile Number"
             value={formData.mobile_number || ""}
             onChange={handleChange}
-            onBlur={handleBlur}
             disabled={viewMode}
             error={!!errors.mobile_number}
             helperText={errors.mobile_number}

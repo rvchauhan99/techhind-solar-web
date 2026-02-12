@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { toast } from "sonner";
+import { toastSuccess, toastError } from "@/utils/toast";
 import dynamic from "next/dynamic";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -9,7 +10,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import siteVisitService from "@/services/siteVisitService";
-import { resolveDocumentUrl } from "@/services/apiClient";
+import BucketImage from "@/components/common/BucketImage";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import {
   Dialog,
@@ -296,18 +297,12 @@ export default function SiteVisitPage() {
         render: (row) => {
           const photo = row.site_visit_visit_photo;
           if (!photo) return "-";
-          const fileUrl = resolveDocumentUrl(photo);
           return (
-            <img
-              src={fileUrl}
+            <BucketImage
+              path={photo}
+              getUrl={siteVisitService.getDocumentUrl}
               alt="Visit Photo"
-              style={{
-                maxWidth: "80px",
-                maxHeight: "80px",
-                objectFit: "contain",
-                cursor: "pointer",
-              }}
-              onClick={() => window.open(fileUrl, "_blank")}
+              sx={{ maxWidth: "80px", maxHeight: "80px" }}
             />
           );
         },
@@ -409,12 +404,13 @@ export default function SiteVisitPage() {
     setServerError(null);
     try {
       await siteVisitService.create(formData, files);
+      toastSuccess("Site visit created successfully");
       handleCloseAddModal();
       setServerError(null);
     } catch (error) {
-      setServerError(
-        error.response?.data?.message || error.message || "An error occurred while creating the site visit"
-      );
+      const msg = error.response?.data?.message || error.message || "An error occurred while creating the site visit";
+      setServerError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -426,12 +422,13 @@ export default function SiteVisitPage() {
     try {
       const siteSurveyService = (await import("@/services/siteSurveyService")).default;
       await siteSurveyService.create(formData, files);
+      toastSuccess("Site survey created successfully");
       handleCloseSurveyModal();
       setServerError(null);
     } catch (error) {
-      setServerError(
-        error.response?.data?.message || error.message || "An error occurred while creating the site survey"
-      );
+      const msg = error.response?.data?.message || error.message || "An error occurred while creating the site survey";
+      setServerError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }

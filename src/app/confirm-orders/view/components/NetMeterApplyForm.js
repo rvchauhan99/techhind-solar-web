@@ -4,17 +4,16 @@ import { useState, useEffect } from "react";
 import {
     Box,
     Grid,
-    Button,
     Alert,
-    CircularProgress,
-    TextField,
+    Button,
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
+import LoadingButton from "@/components/common/LoadingButton";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
-import { resolveDocumentUrl } from "@/services/apiClient";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, onSuccess, readOnly = false }) {
@@ -135,11 +134,15 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
                 await orderDocumentsService.createOrderDocument(docFormData);
             }
 
-            setSuccessMsg("Net Meter Apply stage completed successfully!");
+            const msg = "Net Meter Apply stage completed successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
             if (onSuccess) onSuccess();
         } catch (err) {
             console.error("Failed to save net meter apply details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
@@ -149,7 +152,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const isReadOnly = readOnly;
 
     return (
-        <Box component="form" onSubmit={handleSubmit} sx={{ height: "calc(100vh - 380px)", overflowY: "auto", p: 2 }}>
+        <Box component="form" onSubmit={handleSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
             <Grid container spacing={3}>
                 {/* Netmeter Applied On */}
                 <Grid item size={6}>
@@ -194,7 +197,14 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
                             variant="outlined"
                             size="small"
                             startIcon={<VisibilityIcon />}
-                            onClick={() => window.open(resolveDocumentUrl(existingDocument.document_path), "_blank")}
+                            onClick={async () => {
+                                try {
+                                    const url = await orderDocumentsService.getDocumentUrl(existingDocument.id);
+                                    if (url) window.open(url, "_blank");
+                                } catch (e) {
+                                    console.error("Failed to get document URL", e);
+                                }
+                            }}
                         >
                             View
                         </Button>
@@ -229,14 +239,13 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
                     )}
 
                     {/* Submit Button */}
-                    <Button
+                    <LoadingButton
                         type="submit"
-                        variant="contained"
-                        disabled={submitting || isCompleted || isReadOnly}
-                        startIcon={submitting && <CircularProgress size={20} />}
+                        loading={submitting}
+                        disabled={isCompleted || isReadOnly}
                     >
-                        {submitting ? "Saving..." : isCompleted ? "Update" : "Save"}
-                    </Button>
+                        {isCompleted ? "Update" : "Save"}
+                    </LoadingButton>
                 </Grid>
             </Grid>
         </Box>

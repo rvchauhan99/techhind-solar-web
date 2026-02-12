@@ -57,9 +57,9 @@ import { DIALOG_FORM_SMALL, DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 // import AppLayout from "@/components/layout/AppLayout";
 import companyService from "@/services/companyService";
 import userMasterService from "@/services/userMasterService";
-import { resolveDocumentUrl } from "@/services/apiClient";
 import { getReferenceOptions, getDefaultState } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function CompanyProfilePage() {
     const [company, setCompany] = useState(null);
@@ -90,6 +90,7 @@ export default function CompanyProfilePage() {
     const [allUsers, setAllUsers] = useState([]);
     const [managersSelectedIds, setManagersSelectedIds] = useState([]);
     const [activeTab, setActiveTab] = useState(0);
+    const [imageUrls, setImageUrls] = useState({ logo: null, header: null, footer: null, stamp: null });
     const [formData, setFormData] = useState({
         company_name: "",
         company_code: "",
@@ -158,9 +159,25 @@ export default function CompanyProfilePage() {
                 company_website: companyData.company_website || "",
             });
             setError("");
+            // Fetch signed URLs for bucket-stored images (skip legacy paths starting with /)
+            setImageUrls({ logo: null, header: null, footer: null, stamp: null });
+            const types = ["logo", "header", "footer", "stamp"];
+            for (const type of types) {
+                const path = companyData[type];
+                if (path && typeof path === "string" && !path.startsWith("/")) {
+                    try {
+                        const url = await companyService.getImageUrl(type);
+                        if (url) setImageUrls((prev) => ({ ...prev, [type]: url }));
+                    } catch (e) {
+                        console.error(`Failed to get ${type} URL`, e);
+                    }
+                }
+            }
         } catch (err) {
             console.error("Error loading company profile:", err);
-            setError("Failed to load company profile");
+            const msg = err?.response?.data?.message || "Failed to load company profile";
+            setError(msg);
+            toastError(msg);
         } finally {
             setLoading(false);
         }
@@ -173,6 +190,7 @@ export default function CompanyProfilePage() {
             setBankAccounts(Array.isArray(accounts) ? accounts : []);
         } catch (err) {
             console.error("Error loading bank accounts:", err);
+            toastError(err?.response?.data?.message || "Failed to load bank accounts");
         }
     };
 
@@ -185,6 +203,7 @@ export default function CompanyProfilePage() {
             setBranchesLoaded(true);
         } catch (err) {
             console.error("Error loading branches:", err);
+            toastError(err?.response?.data?.message || "Failed to load branches");
         }
     };
 
@@ -197,6 +216,7 @@ export default function CompanyProfilePage() {
             setWarehousesLoaded(true);
         } catch (err) {
             console.error("Error loading warehouses:", err);
+            toastError(err?.response?.data?.message || "Failed to load warehouses");
         }
     };
 
@@ -209,6 +229,7 @@ export default function CompanyProfilePage() {
             setStates(Array.isArray(statesData) ? statesData : []);
         } catch (err) {
             console.error("Error loading states:", err);
+            toastError(err?.response?.data?.message || "Failed to load states");
             setStates([]);
         }
     };
@@ -326,15 +347,19 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setErrors({});
 
-            await companyService.updateCompanyProfile(formData);
-            setSuccess("Company profile updated successfully");
+            const res = await companyService.updateCompanyProfile(formData);
+            const msg = res?.data?.message || res?.result?.message || "Company profile updated successfully";
+            setSuccess(msg);
+            toastSuccess(msg);
             setEditMode(false);
             if (typeof onSuccess === "function") onSuccess();
             await loadCompanyProfile();
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error updating company profile:", err);
-            setError(err.response?.data?.message || "Failed to update company profile");
+            const msg = err.response?.data?.message || "Failed to update company profile";
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -353,13 +378,17 @@ export default function CompanyProfilePage() {
                 return;
             }
 
+            let msg;
             if (editingBankAccount) {
-                await companyService.updateBankAccount(editingBankAccount.id, bankFormData);
-                setSuccess("Bank account updated successfully");
+                const res = await companyService.updateBankAccount(editingBankAccount.id, bankFormData);
+                msg = res?.data?.message || res?.result?.message || "Bank account updated successfully";
+                setSuccess(msg);
             } else {
-                await companyService.createBankAccount(bankFormData);
-                setSuccess("Bank account created successfully");
+                const res = await companyService.createBankAccount(bankFormData);
+                msg = res?.data?.message || res?.result?.message || "Bank account created successfully";
+                setSuccess(msg);
             }
+            toastSuccess(msg);
             setBankDialogOpen(false);
             setEditingBankAccount(null);
             setBankFormData({
@@ -375,7 +404,9 @@ export default function CompanyProfilePage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error saving bank account:", err);
-            setError(err.response?.data?.message || "Failed to save bank account");
+            const msg = err.response?.data?.message || "Failed to save bank account";
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -407,13 +438,17 @@ export default function CompanyProfilePage() {
 
         if (!confirm("Are you sure you want to deactivate this bank account?")) return;
         try {
-            await companyService.deleteBankAccount(id);
-            setSuccess("Bank account deactivated successfully");
+            const res = await companyService.deleteBankAccount(id);
+            const msg = res?.data?.message || res?.result?.message || "Bank account deactivated successfully";
+            setSuccess(msg);
+            toastSuccess(msg);
             await loadBankAccounts();
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error deactivating bank account:", err);
-            setError(err.response?.data?.message || "Failed to deactivate bank account");
+            const msg = err.response?.data?.message || "Failed to deactivate bank account";
+            setError(msg);
+            toastError(msg);
         }
     };
 
@@ -562,13 +597,17 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setBranchErrors({});
 
+            let msg;
             if (editingBranch) {
-                await companyService.updateBranch(editingBranch.id, branchFormData);
-                setSuccess("Branch updated successfully");
+                const res = await companyService.updateBranch(editingBranch.id, branchFormData);
+                msg = res?.data?.message || res?.result?.message || "Branch updated successfully";
+                setSuccess(msg);
             } else {
-                await companyService.createBranch(branchFormData);
-                setSuccess("Branch created successfully");
+                const res = await companyService.createBranch(branchFormData);
+                msg = res?.data?.message || res?.result?.message || "Branch created successfully";
+                setSuccess(msg);
             }
+            toastSuccess(msg);
             setBranchDialogOpen(false);
             setEditingBranch(null);
             setBranchFormData({
@@ -584,7 +623,9 @@ export default function CompanyProfilePage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error saving branch:", err);
-            setError(err.response?.data?.message || "Failed to save branch");
+            const msg = err.response?.data?.message || "Failed to save branch";
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -608,19 +649,25 @@ export default function CompanyProfilePage() {
     const handleDeleteBranch = async (id) => {
         const branch = branches.find((b) => b.id === id);
         if (branch?.is_default) {
-            setError("Cannot delete the default branch. Please set another branch as default first.");
+            const msg = "Cannot delete the default branch. Please set another branch as default first.";
+            setError(msg);
+            toastError(msg);
             setTimeout(() => setError(""), 5000);
             return;
         }
         if (!confirm("Are you sure you want to deactivate this branch?")) return;
         try {
-            await companyService.deleteBranch(id);
-            setSuccess("Branch deactivated successfully");
+            const res = await companyService.deleteBranch(id);
+            const msg = res?.data?.message || res?.result?.message || "Branch deactivated successfully";
+            setSuccess(msg);
+            toastSuccess(msg);
             await loadBranches(true); // Force reload after deactivate
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error deactivating branch:", err);
-            setError(err.response?.data?.message || "Failed to deactivate branch");
+            const msg = err.response?.data?.message || "Failed to deactivate branch";
+            setError(msg);
+            toastError(msg);
         }
     };
 
@@ -755,13 +802,17 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setWarehouseErrors({});
 
+            let msg;
             if (editingWarehouse) {
-                await companyService.updateWarehouse(editingWarehouse.id, warehouseFormData);
-                setSuccess("Warehouse updated successfully");
+                const res = await companyService.updateWarehouse(editingWarehouse.id, warehouseFormData);
+                msg = res?.data?.message || res?.result?.message || "Warehouse updated successfully";
+                setSuccess(msg);
             } else {
-                await companyService.createWarehouse(warehouseFormData);
-                setSuccess("Warehouse created successfully");
+                const res = await companyService.createWarehouse(warehouseFormData);
+                msg = res?.data?.message || res?.result?.message || "Warehouse created successfully";
+                setSuccess(msg);
             }
+            toastSuccess(msg);
             setWarehouseDialogOpen(false);
             setEditingWarehouse(null);
             setWarehouseFormData({
@@ -778,7 +829,9 @@ export default function CompanyProfilePage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error saving warehouse:", err);
-            setError(err.response?.data?.message || "Failed to save warehouse");
+            const msg = err.response?.data?.message || "Failed to save warehouse";
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -803,13 +856,17 @@ export default function CompanyProfilePage() {
     const handleDeleteWarehouse = async (id) => {
         if (!confirm("Are you sure you want to deactivate this warehouse?")) return;
         try {
-            await companyService.deleteWarehouse(id);
-            setSuccess("Warehouse deactivated successfully");
+            const res = await companyService.deleteWarehouse(id);
+            const msg = res?.data?.message || res?.result?.message || "Warehouse deactivated successfully";
+            setSuccess(msg);
+            toastSuccess(msg);
             await loadWarehouses(true); // Force reload after deactivate
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error deactivating warehouse:", err);
-            setError(err.response?.data?.message || "Failed to deactivate warehouse");
+            const msg = err.response?.data?.message || "Failed to deactivate warehouse";
+            setError(msg);
+            toastError(msg);
         }
     };
 
@@ -832,7 +889,9 @@ export default function CompanyProfilePage() {
             setAllUsers(Array.isArray(usersList) ? usersList : []);
         } catch (err) {
             console.error("Error loading warehouse managers:", err);
-            setError(err.response?.data?.message || "Failed to load managers");
+            const msg = err.response?.data?.message || "Failed to load managers";
+            setError(msg);
+            toastError(msg);
         } finally {
             setWarehouseManagersLoading(false);
         }
@@ -857,14 +916,18 @@ export default function CompanyProfilePage() {
         try {
             setSaving(true);
             setError("");
-            await companyService.setWarehouseManagers(managersDialogWarehouse.id, managersSelectedIds);
-            setSuccess("Warehouse managers updated");
+            const res = await companyService.setWarehouseManagers(managersDialogWarehouse.id, managersSelectedIds);
+            const msg = res?.data?.message || res?.result?.message || "Warehouse managers updated";
+            setSuccess(msg);
+            toastSuccess(msg);
             setTimeout(() => setSuccess(""), 3000);
             await loadWarehouses(true);
             handleCloseManagersDialog();
         } catch (err) {
             console.error("Error saving warehouse managers:", err);
-            setError(err.response?.data?.message || "Failed to save warehouse managers");
+            const msg = err.response?.data?.message || "Failed to save warehouse managers";
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -916,15 +979,14 @@ export default function CompanyProfilePage() {
         setWarehouseErrors({});
     };
 
-    // Image Handlers
-    const getImageUrl = (imagePath) => {
-        if (!imagePath) return null;
-        return resolveDocumentUrl(imagePath);
-    };
+    // Image Handlers: use signed URLs fetched when profile loads (imageUrls state)
+    const getImageUrl = (imageType) => imageUrls[imageType] ?? null;
 
     const handleImageUpload = async (imageType, file) => {
         if (!file) {
-            setError("Please select an image file");
+            const msg = "Please select an image file";
+            setError(msg);
+            toastError(msg);
             return;
         }
 
@@ -934,14 +996,18 @@ export default function CompanyProfilePage() {
             setSuccess("");
 
             const response = await companyService.uploadCompanyImage(imageType, file);
-            setSuccess(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} uploaded successfully`);
+            const msg = response?.data?.message || response?.result?.message || `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} uploaded successfully`;
+            setSuccess(msg);
+            toastSuccess(msg);
 
             // Reload company profile to get updated images
             await loadCompanyProfile();
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error(`Error uploading ${imageType}:`, err);
-            setError(err.response?.data?.message || `Failed to upload ${imageType}`);
+            const msg = err.response?.data?.message || `Failed to upload ${imageType}`;
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -955,15 +1021,19 @@ export default function CompanyProfilePage() {
             setError("");
             setSuccess("");
 
-            await companyService.deleteCompanyImage(imageType);
-            setSuccess(`${imageType.charAt(0).toUpperCase() + imageType.slice(1)} deleted successfully`);
+            const res = await companyService.deleteCompanyImage(imageType);
+            const msg = res?.data?.message || res?.result?.message || `${imageType.charAt(0).toUpperCase() + imageType.slice(1)} deleted successfully`;
+            setSuccess(msg);
+            toastSuccess(msg);
 
             // Reload company profile to get updated images
             await loadCompanyProfile();
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error(`Error deleting ${imageType}:`, err);
-            setError(err.response?.data?.message || `Failed to delete ${imageType}`);
+            const msg = err.response?.data?.message || `Failed to delete ${imageType}`;
+            setError(msg);
+            toastError(msg);
         } finally {
             setSaving(false);
         }
@@ -1052,7 +1122,7 @@ export default function CompanyProfilePage() {
                                         }}
                                     >
                                         <img
-                                            src={getImageUrl(company.logo)}
+                                            src={getImageUrl("logo")}
                                             alt="Company Logo"
                                             style={{
                                                 maxWidth: "100px",
@@ -1487,7 +1557,7 @@ export default function CompanyProfilePage() {
                                                             }}
                                                         >
                                                             <img
-                                                                src={getImageUrl(company.logo)}
+                                                                src={getImageUrl("logo")}
                                                                 alt="Company Logo"
                                                                 style={{
                                                                     maxWidth: "100%",
@@ -1555,7 +1625,7 @@ export default function CompanyProfilePage() {
                                                             }}
                                                         >
                                                             <img
-                                                                src={getImageUrl(company.header)}
+                                                                src={getImageUrl("header")}
                                                                 alt="Header"
                                                                 style={{
                                                                     maxWidth: "100%",
@@ -1626,7 +1696,7 @@ export default function CompanyProfilePage() {
                                                             }}
                                                         >
                                                             <img
-                                                                src={getImageUrl(company.footer)}
+                                                                src={getImageUrl("footer")}
                                                                 alt="Footer"
                                                                 style={{
                                                                     maxWidth: "100%",
@@ -1697,7 +1767,7 @@ export default function CompanyProfilePage() {
                                                             }}
                                                         >
                                                             <img
-                                                                src={getImageUrl(company.stamp)}
+                                                                src={getImageUrl("stamp")}
                                                                 alt="Stamp"
                                                                 style={{
                                                                     maxWidth: "100%",

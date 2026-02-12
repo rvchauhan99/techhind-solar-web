@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { IconUpload } from "@tabler/icons-react";
 import mastersService, { getDefaultState } from "@/services/mastersService";
 import orderService from "@/services/orderService";
+import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
 
 export default function OrderForm({
@@ -247,17 +248,31 @@ export default function OrderForm({
         }
     }, [defaultValues]);
 
-    // Auto-populate solar_panel_id and inverter_id from quotationData prop
+    // Auto-populate solar_panel_id and inverter_id from quotationData (prefer bom_snapshot, fallback to panel_product/inverter_product)
     useEffect(() => {
         if (quotationData && formData.quotation_id) {
+            let panelId = null;
+            let inverterId = null;
+            if (Array.isArray(quotationData.bom_snapshot) && quotationData.bom_snapshot.length > 0) {
+                const norm = (s) => (s || "").toLowerCase().replace(/\s+/g, "_");
+                for (const line of quotationData.bom_snapshot) {
+                    const p = line.product_snapshot || line;
+                    const t = norm(p?.product_type_name);
+                    if (t === "panel" && panelId == null) panelId = line.product_id;
+                    if (t === "inverter" && inverterId == null) inverterId = line.product_id;
+                    if (panelId != null && inverterId != null) break;
+                }
+            }
+            const solar_panel_id = panelId != null ? Number(panelId) : (quotationData.panel_product ? Number(quotationData.panel_product) : undefined);
+            const inverter_id = inverterId != null ? Number(inverterId) : (quotationData.inverter_product ? Number(quotationData.inverter_product) : undefined);
             setFormData(prev => ({
                 ...prev,
                 capacity: quotationData.project_capacity ? Number(quotationData.project_capacity) : prev.capacity,
                 project_cost: quotationData.project_cost ? Number(quotationData.project_cost) : prev.project_cost,
                 project_scheme_id: quotationData.project_scheme_id ? Number(quotationData.project_scheme_id) : prev.project_scheme_id,
                 order_type_id: quotationData.order_type_id ? Number(quotationData.order_type_id) : prev.order_type_id,
-                solar_panel_id: quotationData.panel_product ? Number(quotationData.panel_product) : prev.solar_panel_id,
-                inverter_id: quotationData.inverter_product ? Number(quotationData.inverter_product) : prev.inverter_id,
+                solar_panel_id: solar_panel_id ?? prev.solar_panel_id,
+                inverter_id: inverter_id ?? prev.inverter_id,
             }));
         }
     }, [quotationData, formData.quotation_id]);
@@ -796,14 +811,31 @@ export default function OrderForm({
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <span>{typeof formData[key] === "string" ? "Current File" : formData[key].name}</span>
                                         {typeof formData[key] === "string" && (
-                                            <a
-                                                href={resolveDocumentUrl(formData[key])}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-primary hover:underline text-xs"
-                                            >
-                                                (View)
-                                            </a>
+                                            defaultValues?.documentIds?.[key] ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        try {
+                                                            const url = await orderDocumentsService.getDocumentUrl(defaultValues.documentIds[key]);
+                                                            if (url) window.open(url, "_blank");
+                                                        } catch (e) {
+                                                            console.error("Failed to get document URL", e);
+                                                        }
+                                                    }}
+                                                    className="text-primary hover:underline text-xs"
+                                                >
+                                                    (View)
+                                                </button>
+                                            ) : (
+                                                <a
+                                                    href={resolveDocumentUrl(formData[key])}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline text-xs"
+                                                >
+                                                    (View)
+                                                </a>
+                                            )
                                         )}
                                     </div>
                                 )}

@@ -42,10 +42,11 @@ import followupService from "@/services/followupService";
 import inquiryDocumentsService from "@/services/inquiryDocumentsService";
 import siteVisitService from "@/services/siteVisitService";
 import quotationService from "@/services/quotationService";
-import { resolveDocumentUrl } from "@/services/apiClient";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import BucketImage from "@/components/common/BucketImage";
 import FollowupForm from "@/app/followup/components/FollowupForm";
 import DocumentUploadForm from "../components/DocumentUploadForm";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
 // Status color mapping (same as KanbanBoard)
@@ -64,6 +65,7 @@ const STATUS_COLUMNS = {
         title: "Under Discussion",
         color: "#28a745",
     },
+    Converted: { id: "converted", title: "Converted", color: "#6c757d" },
 };
 
 
@@ -141,6 +143,7 @@ function InquiryDetailsContent() {
             } catch (err) {
                 if (fetchingRef.current === requestId) {
                     console.error("Failed to load inquiry", err);
+                    toastError(err?.response?.data?.message || err?.message || "Failed to load inquiry");
                 }
             } finally {
                 // Only update loading and reset if this is still the current request
@@ -203,12 +206,13 @@ function InquiryDetailsContent() {
         setServerError(null);
         try {
             await followupService.createFollowup(payload);
+            toastSuccess("Followup created successfully");
             handleCloseModal();
-            // Trigger table reload
             setReloadTrigger((prev) => prev + 1);
         } catch (err) {
             const errorMessage = err.response?.data?.message || err.message || "Failed to create followup";
             setServerError(errorMessage);
+            toastError(errorMessage);
         } finally {
             setFollowupLoading(false);
         }
@@ -219,13 +223,11 @@ function InquiryDetailsContent() {
         setDocumentServerError(null);
         try {
             await inquiryDocumentsService.createInquiryDocument(payload);
-            // Only close modal on success
+            toastSuccess("Document uploaded successfully");
             setDocumentModalOpen(false);
             setDocumentServerError(null);
-            // Trigger document table reload
             setDocumentReloadTrigger((prev) => prev + 1);
         } catch (err) {
-            // Extract error message from response - check multiple possible locations
             let errorMessage = "Failed to upload document";
 
             if (err.response) {
@@ -254,10 +256,8 @@ function InquiryDetailsContent() {
                 errorMessage = err.message;
             }
 
-            // Set error state - this will prevent modal from closing
             setDocumentServerError(errorMessage);
-            // DO NOT close modal on error - keep it open so user can see the error
-            // Modal will remain open because we're not calling handleCloseDocumentModal()
+            toastError(errorMessage);
         } finally {
             setDocumentLoading(false);
         }
@@ -388,6 +388,7 @@ function InquiryDetailsContent() {
             "Site Visit Done": "warning",
             Quotation: "success",
             "Under Discussion": "primary",
+            Converted: "default",
         };
         return statusColors[status] || "default";
     };
@@ -910,18 +911,10 @@ function InquiryDetailsContent() {
                                                     render: (row) => {
                                                         if (!row.site_visit_visit_photo) return "-";
                                                         return (
-                                                            <Box
-                                                                component="img"
-                                                                src={resolveDocumentUrl(row.site_visit_visit_photo)}
+                                                            <BucketImage
+                                                                path={row.site_visit_visit_photo}
+                                                                getUrl={siteVisitService.getDocumentUrl}
                                                                 alt="Visit Photo"
-                                                                sx={{
-                                                                    width: 50,
-                                                                    height: 50,
-                                                                    objectFit: "cover",
-                                                                    borderRadius: 1,
-                                                                    cursor: "pointer",
-                                                                }}
-                                                                onClick={() => window.open(resolveDocumentUrl(row.site_visit_visit_photo), '_blank')}
                                                             />
                                                         );
                                                     },
@@ -1061,14 +1054,18 @@ function InquiryDetailsContent() {
                                                     label: "Document",
                                                     render: (row) => {
                                                         if (!row.document_path) return "-";
-                                                        const fileUrl = resolveDocumentUrl(row.document_path);
                                                         return (
                                                             <Button
                                                                 variant="outlined"
                                                                 size="small"
-                                                                href={fileUrl}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const url = await inquiryDocumentsService.getDocumentUrl(row.id);
+                                                                        if (url) window.open(url, "_blank");
+                                                                    } catch (e) {
+                                                                        console.error("Failed to get document URL", e);
+                                                                    }
+                                                                }}
                                                             >
                                                                 View Document
                                                             </Button>

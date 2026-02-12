@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
     Grid,
     Typography,
     MenuItem,
@@ -28,6 +27,8 @@ import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
 
 export default function StockAdjustmentForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null }) {
@@ -425,19 +426,17 @@ export default function StockAdjustmentForm({ defaultValues = {}, onSubmit, load
 
             <FormActions>
                 {onCancel && (
-                    <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                    <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
                         Cancel
                     </Button>
                 )}
-                <Button
+                <LoadingButton
                     type="submit"
-                    variant="contained"
-                    color="primary"
-                    disabled={loading}
-                    sx={{ minWidth: 120 }}
+                    loading={loading}
+                    className="min-w-[120px]"
                 >
-                    {loading ? <CircularProgress size={23} /> : "Create"}
-                </Button>
+                    Create
+                </LoadingButton>
             </FormActions>
         </FormContainer>
     );

@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Box,
-    Button,
-    Grid,
     Typography,
     MenuItem,
     Alert,
@@ -28,11 +26,15 @@ import productService from "@/services/productService";
 import supplierService from "@/services/supplierService";
 import companyService from "@/services/companyService";
 import purchaseOrderService from "@/services/purchaseOrderService";
+import { toastError } from "@/utils/toast";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
-import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
+import FormSection from "@/components/common/FormSection";
+import FormGrid from "@/components/common/FormGrid";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -84,6 +86,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     const [attachmentToDelete, setAttachmentToDelete] = useState(null);
     const [deletingAttachment, setDeletingAttachment] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState([]);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -529,7 +532,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             setAttachmentToDelete(null);
         } catch (error) {
             console.error("Error deleting attachment:", error);
-            alert("Failed to delete attachment");
+            toastError(error?.response?.data?.message || "Failed to delete attachment");
         } finally {
             setDeletingAttachment(false);
         }
@@ -543,11 +546,11 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 // Open signed URL in new tab (token-based access to private file)
                 window.open(url, "_blank");
             } else {
-                alert("Failed to get download URL");
+                toastError("Failed to get download URL");
             }
         } catch (error) {
             console.error("Error downloading attachment:", error);
-            alert("Failed to download attachment");
+            toastError(error?.response?.data?.message || "Failed to download attachment");
         }
     };
 
@@ -570,17 +573,17 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     const totals = calculateTotals();
 
     return (
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box>
             <FormContainer>
-                <Box sx={{ p: 1.5 }}>
+                <form id="purchase-order-form" onSubmit={handleSubmit} className="mx-auto ml-2 pr-1 max-w-full" noValidate>
                     {serverError && (
-                        <Alert severity="error" sx={{ mb: 1.5 }} onClose={onClearServerError}>
+                        <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {serverError}
                         </Alert>
                     )}
 
-                    <Grid container spacing={COMPACT_FORM_SPACING}>
-                        <Grid item size={{ xs: 12, md: 4 }}>
+                    <div className="w-full">
+                        <FormGrid cols={2} className="lg:grid-cols-4">
                             <DateField
                                 name="po_date"
                                 label="PO Date"
@@ -590,9 +593,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 error={!!errors.po_date}
                                 helperText={errors.po_date}
                             />
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <DateField
                                 name="due_date"
                                 label="Due Date"
@@ -603,9 +603,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 helperText={errors.due_date}
                                 minDate={formData.po_date || undefined}
                             />
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Select
                                 name="supplier_id"
                                 label="Supplier"
@@ -622,9 +619,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     </MenuItem>
                                 ))}
                             </Select>
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Select
                                 name="bill_to_id"
                                 label="Bill To (Company)"
@@ -641,9 +635,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     </MenuItem>
                                 ))}
                             </Select>
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Select
                                 name="ship_to_id"
                                 label="Ship To (Warehouse)"
@@ -660,374 +651,353 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     </MenuItem>
                                 ))}
                             </Select>
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Input
                                 name="payment_terms"
                                 label="Payment Terms"
                                 value={formData.payment_terms}
                                 onChange={handleChange}
                             />
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Input
                                 name="delivery_terms"
                                 label="Delivery Terms"
                                 value={formData.delivery_terms}
                                 onChange={handleChange}
                             />
-                        </Grid>
-
-                        <Grid item size={{ xs: 12, md: 4 }}>
                             <Input
                                 name="dispatch_terms"
                                 label="Dispatch Terms"
                                 value={formData.dispatch_terms}
                                 onChange={handleChange}
                             />
-                        </Grid>
+                            <div className="md:col-span-2 lg:col-span-4">
+                                <Input
+                                    name="remarks"
+                                    label="Remarks"
+                                    value={formData.remarks}
+                                    onChange={handleChange}
+                                    multiline
+                                    rows={2}
+                                />
+                            </div>
+                        </FormGrid>
+                    </div>
 
-                        <Grid item size={12}>
-                            <Input
-                                name="remarks"
-                                label="Remarks"
-                                value={formData.remarks}
-                                onChange={handleChange}
-                                multiline
-                                rows={2}
-                            />
-                        </Grid>
+                    <FormSection title="Items" className="mt-2" data-items-section>
+                        {errors.items && (
+                            <Alert severity="error" sx={{ mb: 1 }}>
+                                {errors.items}
+                            </Alert>
+                        )}
 
-                        <Grid item size={12} data-items-section>
-                            <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                                <Typography variant="subtitle1" fontWeight={600}>Items</Typography>
-                            </Box>
-                            {errors.items && (
-                                <Alert severity="error" sx={{ mb: 1.5 }}>
-                                    {errors.items}
-                                </Alert>
-                            )}
-
-                            {/* Add Item Form */}
-                            <Paper sx={{ p: 1.5, mb: 1.5 }}>
-                                <Grid container spacing={COMPACT_FORM_SPACING} alignItems="center">
-                                    <Grid item size={{ xs: 12, md: 3 }}>
-                                        <Select
-                                            name="product_id"
-                                            label="Product"
-                                            value={currentItem.product_id}
-                                            onChange={handleItemChange}
-                                            error={!!itemErrors.product_id}
-                                            helperText={itemErrors.product_id}
-                                            required
-                                        >
-                                            <MenuItem value="">-- Select --</MenuItem>
-                                            {options.products.map((product) => (
-                                                <MenuItem key={product.id} value={product.id}>
-                                                    {product.product_name}
-                                                </MenuItem>
-                                            ))}
-                                        </Select>
-                                    </Grid>
-
-                                    <Grid item size={{ xs: 12, md: 2 }}>
-                                        <Input
-                                            name="hsn_code"
-                                            label="HSN Code"
-                                            value={currentItem.hsn_code}
-                                            onChange={handleItemChange}
-                                            error={!!itemErrors.hsn_code}
-                                            helperText={itemErrors.hsn_code}
-                                        />
-                                    </Grid>
-
-                                    <Grid item size={{ xs: 12, md: 2 }}>
-                                        <Input
-                                            name="rate"
-                                            label="Rate"
-                                            type="number"
-                                            value={currentItem.rate}
-                                            onChange={handleItemChange}
-                                            inputProps={{ min: 0, step: 0.01 }}
-                                            error={!!itemErrors.rate}
-                                            helperText={itemErrors.rate}
-                                            required
-                                        />
-                                    </Grid>
-
-                                    <Grid item size={{ xs: 12, md: 2 }}>
-                                        <Input
-                                            name="quantity"
-                                            label="Quantity"
-                                            type="number"
-                                            value={currentItem.quantity}
-                                            onChange={handleItemChange}
-                                            inputProps={{ min: 1 }}
-                                            error={!!itemErrors.quantity}
-                                            helperText={itemErrors.quantity}
-                                            required
-                                        />
-                                    </Grid>
-
-                                    <Grid item size={{ xs: 12, md: 2 }}>
-                                        <Input
-                                            name="gst_percent"
-                                            label="GST %"
-                                            type="number"
-                                            value={currentItem.gst_percent}
-                                            onChange={handleItemChange}
-                                            inputProps={{ min: 0, step: 0.01, max: 100 }}
-                                            error={!!itemErrors.gst_percent}
-                                            helperText={itemErrors.gst_percent}
-                                            required
-                                        />
-                                    </Grid>
-
-                                    <Grid item size={{ xs: 12, md: 1 }}>
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<AddIcon />}
-                                            onClick={handleAddItem}
-                                            fullWidth
-                                        >
-                                            Add
-                                        </Button>
-                                    </Grid>
-                                </Grid>
-                            </Paper>
-
-                            {/* Items Table with Price Details */}
-                            {formData.items.length > 0 && (
-                                <TableContainer component={Paper}>
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableCell>Product</TableCell>
-                                                <TableCell>HSN Code</TableCell>
-                                                <TableCell align="right">Rate</TableCell>
-                                                <TableCell align="right">Quantity</TableCell>
-                                                <TableCell align="right">GST %</TableCell>
-                                                <TableCell align="right">Taxable Amount</TableCell>
-                                                <TableCell align="right">GST Amount</TableCell>
-                                                <TableCell align="right">Total Amount</TableCell>
-                                                <TableCell>Actions</TableCell>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {formData.items.map((item, index) => {
-                                                const product = options.products.find((p) => p.id === item.product_id);
-                                                const itemTaxable = item.rate * item.quantity;
-                                                const itemGst = (itemTaxable * item.gst_percent) / 100;
-                                                const itemTotal = itemTaxable + itemGst;
-                                                const rowErrors = tableItemErrors[index] || {};
-                                                const hasRowError = Object.keys(rowErrors).length > 0;
-
-                                                return (
-                                                    <TableRow 
-                                                        key={index}
-                                                        sx={{
-                                                            bgcolor: hasRowError ? "error.light" : "inherit",
-                                                            "&:hover": {
-                                                                bgcolor: hasRowError ? "error.light" : "action.hover",
-                                                            },
-                                                        }}
-                                                    >
-                                                        <TableCell>
-                                                            {product?.product_name || <Typography color="error" variant="caption">- Select Product -</Typography>}
-                                                            {rowErrors.product_id && (
-                                                                <Typography variant="caption" color="error" display="block">
-                                                                    {rowErrors.product_id}
-                                                                </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>{item.hsn_code || "-"}</TableCell>
-                                                        <TableCell align="right">
-                                                            {item.rate > 0 ? `₹${parseFloat(item.rate).toFixed(2)}` : <Typography color="error" variant="caption">Invalid</Typography>}
-                                                            {rowErrors.rate && (
-                                                                <Typography variant="caption" color="error" display="block">
-                                                                    {rowErrors.rate}
-                                                                </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            {item.quantity > 0 ? item.quantity : <Typography color="error" variant="caption">Invalid</Typography>}
-                                                            {rowErrors.quantity && (
-                                                                <Typography variant="caption" color="error" display="block">
-                                                                    {rowErrors.quantity}
-                                                                </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            {item.gst_percent >= 0 && item.gst_percent <= 100 ? `${item.gst_percent}%` : <Typography color="error" variant="caption">Invalid</Typography>}
-                                                            {rowErrors.gst_percent && (
-                                                                <Typography variant="caption" color="error" display="block">
-                                                                    {rowErrors.gst_percent}
-                                                                </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell align="right">₹{itemTaxable.toFixed(2)}</TableCell>
-                                                        <TableCell align="right">₹{itemGst.toFixed(2)}</TableCell>
-                                                        <TableCell align="right"><strong>₹{itemTotal.toFixed(2)}</strong></TableCell>
-                                                        <TableCell>
-                                                            <IconButton
-                                                                size="small"
-                                                                color="error"
-                                                                onClick={() => handleRemoveItem(index)}
-                                                            >
-                                                                <DeleteIcon />
-                                                            </IconButton>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </TableContainer>
-                            )}
-
-                            {/* Totals Summary */}
-                            {formData.items.length > 0 && (
-                                <Paper sx={{ p: 1.5, mt: 1.5, bgcolor: "#f5f5f5" }}>
-                                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                        <Box sx={{ minWidth: 300 }}>
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                                <Typography variant="body1">Total Quantity:</Typography>
-                                                <Typography variant="body1" fontWeight="bold">{totals.total_quantity}</Typography>
-                                            </Box>
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                                <Typography variant="body1">Taxable Amount:</Typography>
-                                                <Typography variant="body1" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
-                                            </Box>
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                                <Typography variant="body1">Total GST Amount:</Typography>
-                                                <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
-                                            </Box>
-                                            <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1, display: "flex", justifyContent: "space-between" }}>
-                                                <Typography variant="h6">Grand Total:</Typography>
-                                                <Typography variant="h6" fontWeight="bold">₹{totals.grand_total.toFixed(2)}</Typography>
-                                            </Box>
-                                        </Box>
-                                    </Box>
-                                </Paper>
-                            )}
-                        </Grid>
-
-                        {/* Document Attachments Section */}
-                        <Grid item size={12}>
-                            <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                                <Typography variant="subtitle1" fontWeight={600}>Attachments</Typography>
-                            </Box>
-                            <Paper sx={{ p: 1.5 }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: "block" }}>
-                                    Files are stored privately. Access via time-limited signed URLs (tokens).
-                                </Typography>
-
-                                {/* Upload New Files */}
-                                <Box sx={{ mb: 1.5 }}>
+                        {/* Add Item Form */}
+                        <Paper sx={{ p: 1, mb: 1 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                                <Select
+                                    name="product_id"
+                                    label="Product"
+                                    value={currentItem.product_id}
+                                    onChange={handleItemChange}
+                                    error={!!itemErrors.product_id}
+                                    helperText={itemErrors.product_id}
+                                    required
+                                >
+                                    <MenuItem value="">-- Select --</MenuItem>
+                                    {options.products.map((product) => (
+                                        <MenuItem key={product.id} value={product.id}>
+                                            {product.product_name}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                                <Input
+                                    name="hsn_code"
+                                    label="HSN Code"
+                                    value={currentItem.hsn_code}
+                                    onChange={handleItemChange}
+                                    error={!!itemErrors.hsn_code}
+                                    helperText={itemErrors.hsn_code}
+                                />
+                                <Input
+                                    name="rate"
+                                    label="Rate"
+                                    type="number"
+                                    value={currentItem.rate}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                    error={!!itemErrors.rate}
+                                    helperText={itemErrors.rate}
+                                    required
+                                />
+                                <Input
+                                    name="quantity"
+                                    label="Quantity"
+                                    type="number"
+                                    value={currentItem.quantity}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 1 }}
+                                    error={!!itemErrors.quantity}
+                                    helperText={itemErrors.quantity}
+                                    required
+                                />
+                                <Input
+                                    name="gst_percent"
+                                    label="GST %"
+                                    type="number"
+                                    value={currentItem.gst_percent}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 0, step: 0.01, max: 100 }}
+                                    error={!!itemErrors.gst_percent}
+                                    helperText={itemErrors.gst_percent}
+                                    required
+                                />
+                                <div className="flex items-end">
                                     <Button
-                                        variant="outlined"
-                                        component="label"
-                                        startIcon={<CloudUploadIcon />}
-                                        disabled={loading}
+                                        type="button"
+                                        variant="default"
+                                        size="sm"
+                                        startIcon={<AddIcon />}
+                                        onClick={handleAddItem}
+                                        className="w-full lg:w-auto"
                                     >
-                                        Upload Documents
-                                        <input
-                                            type="file"
-                                            hidden
-                                            multiple
-                                            onChange={handleFileUpload}
-                                            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                                        />
+                                        Add
                                     </Button>
-                                </Box>
+                                </div>
+                            </div>
+                        </Paper>
 
-                                {/* New Files to Upload */}
-                                {uploadedFiles.length > 0 && (
-                                    <Box sx={{ mb: 1.5 }}>
-                                        <Typography variant="subtitle2" gutterBottom>New Files to Upload:</Typography>
-                                        {uploadedFiles.map((file, index) => (
-                                            <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                                                <AttachFileIcon fontSize="small" />
-                                                <Typography variant="body2" sx={{ flex: 1 }}>
-                                                    {file.name} ({formatFileSize(file.size)})
-                                                </Typography>
-                                                <IconButton
-                                                    size="small"
-                                                    color="error"
-                                                    onClick={() => handleRemoveUploadedFile(index)}
+                        {/* Items Table with Price Details */}
+                        {formData.items.length > 0 && (
+                            <TableContainer component={Paper}>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>Product</TableCell>
+                                            <TableCell>HSN Code</TableCell>
+                                            <TableCell align="right">Rate</TableCell>
+                                            <TableCell align="right">Quantity</TableCell>
+                                            <TableCell align="right">GST %</TableCell>
+                                            <TableCell align="right">Taxable Amount</TableCell>
+                                            <TableCell align="right">GST Amount</TableCell>
+                                            <TableCell align="right">Total Amount</TableCell>
+                                            <TableCell>Actions</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {formData.items.map((item, index) => {
+                                            const product = options.products.find((p) => p.id === item.product_id);
+                                            const itemTaxable = item.rate * item.quantity;
+                                            const itemGst = (itemTaxable * item.gst_percent) / 100;
+                                            const itemTotal = itemTaxable + itemGst;
+                                            const rowErrors = tableItemErrors[index] || {};
+                                            const hasRowError = Object.keys(rowErrors).length > 0;
+
+                                            return (
+                                                <TableRow
+                                                    key={index}
+                                                    sx={{
+                                                        bgcolor: hasRowError ? "error.light" : "inherit",
+                                                        "&:hover": {
+                                                            bgcolor: hasRowError ? "error.light" : "action.hover",
+                                                        },
+                                                    }}
                                                 >
-                                                    <DeleteIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
-                                        ))}
-                                    </Box>
-                                )}
-
-                                {/* Existing Attachments */}
-                                {attachments.length > 0 && (
-                                    <Box>
-                                        <Typography variant="subtitle2" gutterBottom>Existing Attachments:</Typography>
-                                        {attachments.map((attachment, index) => (
-                                            <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, p: 1, bgcolor: "#f9f9f9", borderRadius: 1 }}>
-                                                <AttachFileIcon fontSize="small" />
-                                                <Typography variant="body2" sx={{ flex: 1 }}>
-                                                    {attachment.filename} ({formatFileSize(attachment.size || 0)})
-                                                </Typography>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    {attachment.uploaded_at ? new Date(attachment.uploaded_at).toLocaleDateString() : ""}
-                                                </Typography>
-                                                {defaultValues?.id && (
-                                                    <>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleDownloadAttachment(defaultValues.id, index)}
-                                                            title="Download (Signed URL - Valid for 1 hour)"
-                                                        >
-                                                            <GetAppIcon fontSize="small" />
-                                                        </IconButton>
+                                                    <TableCell>
+                                                        {product?.product_name || <Typography color="error" variant="caption">- Select Product -</Typography>}
+                                                        {rowErrors.product_id && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.product_id}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>{item.hsn_code || "-"}</TableCell>
+                                                    <TableCell align="right">
+                                                        {item.rate > 0 ? `₹${parseFloat(item.rate).toFixed(2)}` : <Typography color="error" variant="caption">Invalid</Typography>}
+                                                        {rowErrors.rate && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.rate}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {item.quantity > 0 ? item.quantity : <Typography color="error" variant="caption">Invalid</Typography>}
+                                                        {rowErrors.quantity && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.quantity}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {item.gst_percent >= 0 && item.gst_percent <= 100 ? `${item.gst_percent}%` : <Typography color="error" variant="caption">Invalid</Typography>}
+                                                        {rowErrors.gst_percent && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.gst_percent}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">₹{itemTaxable.toFixed(2)}</TableCell>
+                                                    <TableCell align="right">₹{itemGst.toFixed(2)}</TableCell>
+                                                    <TableCell align="right"><strong>₹{itemTotal.toFixed(2)}</strong></TableCell>
+                                                    <TableCell>
                                                         <IconButton
                                                             size="small"
                                                             color="error"
-                                                            onClick={() => handleDeleteAttachmentClick(defaultValues.id, index)}
-                                                            title="Delete"
+                                                            onClick={() => handleRemoveItem(index)}
                                                         >
-                                                            <DeleteIcon fontSize="small" />
+                                                            <DeleteIcon />
                                                         </IconButton>
-                                                    </>
-                                                )}
-                                            </Box>
-                                        ))}
-                                    </Box>
-                                )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
 
-                                {attachments.length === 0 && uploadedFiles.length === 0 && (
-                                    <Typography variant="body2" color="text.secondary">
-                                        No attachments. Click "Upload Documents" to add files.
-                                    </Typography>
-                                )}
+                        {/* Totals Summary */}
+                        {formData.items.length > 0 && (
+                            <Paper sx={{ p: 1, mt: 1, bgcolor: "grey.100" }}>
+                                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                    <Box sx={{ minWidth: 300 }}>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                            <Typography variant="body1">Total Quantity:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">{totals.total_quantity}</Typography>
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                            <Typography variant="body1">Taxable Amount:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                            <Typography variant="body1">Total GST Amount:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                                        </Box>
+                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1, display: "flex", justifyContent: "space-between" }}>
+                                            <Typography variant="h6">Grand Total:</Typography>
+                                            <Typography variant="h6" fontWeight="bold">₹{totals.grand_total.toFixed(2)}</Typography>
+                                        </Box>
+                                    </Box>
+                                </Box>
                             </Paper>
-                        </Grid>
-                    </Grid>
-                </Box>
+                        )}
+                    </FormSection>
+
+                    <FormSection title="Attachments" className="mt-2">
+                        <Paper sx={{ p: 1 }}>
+                            <FormGrid cols={2} className="lg:grid-cols-4 mb-1">
+                                <div className="md:col-span-2 lg:col-span-3">
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                                        Files are stored privately. Access via time-limited signed URLs (tokens).
+                                    </Typography>
+                                </div>
+
+                                {/* Upload New Files */}
+                                <div className="flex items-end md:col-span-2 lg:col-span-1">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={loading}
+                                        startIcon={<CloudUploadIcon />}
+                                        type="button"
+                                        fullWidth
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        Upload Documents
+                                    </Button>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        hidden
+                                        multiple
+                                        disabled={loading}
+                                        onChange={handleFileUpload}
+                                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                    />
+                                </div>
+                            </FormGrid>
+
+                            {/* New Files to Upload */}
+                            {uploadedFiles.length > 0 && (
+                                <Box sx={{ mb: 1 }}>
+                                    <Typography variant="subtitle2" gutterBottom>New Files to Upload:</Typography>
+                                    {uploadedFiles.map((file, index) => (
+                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+                                            <AttachFileIcon fontSize="small" />
+                                            <Typography variant="body2" sx={{ flex: 1 }}>
+                                                {file.name} ({formatFileSize(file.size)})
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={() => handleRemoveUploadedFile(index)}
+                                            >
+                                                <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            )}
+
+                            {/* Existing Attachments */}
+                            {attachments.length > 0 && (
+                                <Box>
+                                    <Typography variant="subtitle2" gutterBottom>Existing Attachments:</Typography>
+                                    {attachments.map((attachment, index) => (
+                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, p: 1, bgcolor: "#f9f9f9", borderRadius: 1 }}>
+                                            <AttachFileIcon fontSize="small" />
+                                            <Typography variant="body2" sx={{ flex: 1 }}>
+                                                {attachment.filename} ({formatFileSize(attachment.size || 0)})
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {attachment.uploaded_at ? new Date(attachment.uploaded_at).toLocaleDateString() : ""}
+                                            </Typography>
+                                            {defaultValues?.id && (
+                                                <>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleDownloadAttachment(defaultValues.id, index)}
+                                                        title="Download (Signed URL - Valid for 1 hour)"
+                                                    >
+                                                        <GetAppIcon fontSize="small" />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        onClick={() => handleDeleteAttachmentClick(defaultValues.id, index)}
+                                                        title="Delete"
+                                                    >
+                                                        <DeleteIcon fontSize="small" />
+                                                    </IconButton>
+                                                </>
+                                            )}
+                                        </Box>
+                                    ))}
+                                </Box>
+                            )}
+
+                            {attachments.length === 0 && uploadedFiles.length === 0 && (
+                                <Typography variant="body2" color="text.secondary">
+                                    No attachments. Click "Upload Documents" to add files.
+                                </Typography>
+                            )}
+                        </Paper>
+                    </FormSection>
+                </form>
 
                 {/* Sticky Action Buttons */}
                 <FormActions>
                     {onCancel && (
-                        <Button variant="outlined" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
-                    <Button
+                    <LoadingButton
                         type="submit"
-                        variant="contained"
-                        color="primary"
-                        disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        form="purchase-order-form"
+                        size="sm"
+                        loading={loading}
+                        className="min-w-[120px]"
                     >
-                        {loading ? <CircularProgress size={23} /> : defaultValues?.id ? "Update" : "Create"}
-                    </Button>
+                        {defaultValues?.id ? "Update" : "Create"}
+                    </LoadingButton>
                 </FormActions>
             </FormContainer>
 

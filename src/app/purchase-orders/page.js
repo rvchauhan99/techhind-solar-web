@@ -32,7 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { DIALOG_FORM_SMALL } from "@/utils/formConstants";
 import PaginationControls from "@/components/common/PaginationControls";
-import { IconTrash, IconCircleCheck, IconEye, IconPencil } from "@tabler/icons-react";
+import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload } from "@tabler/icons-react";
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -84,6 +84,7 @@ export default function PurchaseOrderPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
+  const [attachmentLoadingIndex, setAttachmentLoadingIndex] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -154,7 +155,7 @@ export default function PurchaseOrderPage() {
       setSidebarOpen(true);
     } catch (error) {
       console.error("Error fetching purchase order:", error);
-      alert("Failed to load purchase order");
+      toast.error(error?.response?.data?.message || "Failed to load purchase order");
     } finally {
       setLoadingRecord(false);
     }
@@ -163,6 +164,25 @@ export default function PurchaseOrderPage() {
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedPO(null);
+    setAttachmentLoadingIndex(null);
+  }, []);
+
+  const handleOpenAttachment = useCallback(async (poId, attachmentIndex) => {
+    setAttachmentLoadingIndex(attachmentIndex);
+    try {
+      const response = await purchaseOrderService.getAttachmentUrl(poId, attachmentIndex);
+      const url = response?.result?.url || response?.url;
+      if (url) {
+        window.open(url, "_blank");
+      } else {
+        toast.error("Failed to get attachment URL");
+      }
+    } catch (error) {
+      console.error("Attachment open error:", error);
+      toast.error(error?.response?.data?.message || "Failed to open attachment");
+    } finally {
+      setAttachmentLoadingIndex(null);
+    }
   }, []);
 
   const columns = useMemo(
@@ -413,71 +433,185 @@ export default function PurchaseOrderPage() {
 
     const po = selectedPO;
     const statusVariant = po.status === "APPROVED" ? "default" : po.status === "DRAFT" ? "secondary" : "outline";
+    const text = (value) => {
+      if (value === null || value === undefined || value === "") return "-";
+      return String(value);
+    };
+
+    const dateTime = (value) => {
+      if (!value) return "-";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return "-";
+      return d.toLocaleString();
+    };
+
+    const attachmentFileName = (attachment) => {
+      if (attachment?.filename) return attachment.filename;
+      if (attachment?.path) {
+        const split = String(attachment.path).split("/");
+        return split[split.length - 1] || "attachment";
+      }
+      return "attachment";
+    };
+
     return (
-      <div className="pr-1 space-y-3">
-        <div>
-          <p className="font-semibold">{po.po_number}</p>
-          <Badge variant={statusVariant} className="mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold">
-            {po.status}
+      <div className="pr-1 space-y-4">
+        <div className="space-y-1">
+          <p className="font-semibold text-base">{text(po.po_number)}</p>
+          <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+            {text(po.status)}
           </Badge>
+          <p className="text-xs text-muted-foreground">
+            PO Date: {formatDate(po.po_date)} · Due: {formatDate(po.due_date)}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          PO Date: {formatDate(po.po_date)} · Due: {formatDate(po.due_date)}
-        </p>
-        <hr className="border-border" />
-        <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
-        <p className="text-sm">{po.supplier?.supplier_name || "-"}</p>
-        {po.supplier?.supplier_code && (
-          <p className="text-xs text-muted-foreground">Code: {po.supplier.supplier_code}</p>
-        )}
-        <p className="text-xs font-semibold text-muted-foreground mt-2 block">Ship To</p>
-        <p className="text-sm">{po.shipTo?.name || "-"}</p>
-        {(po.payment_terms || po.delivery_terms || po.dispatch_terms) && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-muted-foreground">Terms</p>
-            {po.payment_terms && <p className="text-sm">{po.payment_terms}</p>}
-            {po.delivery_terms && <p className="text-sm">{po.delivery_terms}</p>}
-            {po.dispatch_terms && <p className="text-sm">{po.dispatch_terms}</p>}
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
+          <p className="text-sm">{text(po.supplier?.supplier_name)}</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Code</span><span>{text(po.supplier?.supplier_code)}</span>
+            <span className="text-muted-foreground">Contact</span><span>{text(po.supplier?.contact_person)}</span>
+            <span className="text-muted-foreground">Phone</span><span>{text(po.supplier?.phone)}</span>
+            <span className="text-muted-foreground">Email</span><span className="break-all">{text(po.supplier?.email)}</span>
+            <span className="text-muted-foreground">GSTIN</span><span>{text(po.supplier?.gstin)}</span>
           </div>
-        )}
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Bill To</p>
+          <p className="text-sm">
+            {text(po.billTo?.company_name)} {po.billTo?.company_code ? `(${po.billTo.company_code})` : ""}
+          </p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Address</span><span>{text(po.billTo?.address)}</span>
+            <span className="text-muted-foreground">City/State</span><span>{text([po.billTo?.city, po.billTo?.state].filter(Boolean).join(", "))}</span>
+            <span className="text-muted-foreground">Contact</span><span>{text(po.billTo?.contact_number)}</span>
+            <span className="text-muted-foreground">Email</span><span className="break-all">{text(po.billTo?.company_email)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Ship To</p>
+          <p className="text-sm">{text(po.shipTo?.name)}</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Address</span><span>{text(po.shipTo?.address)}</span>
+            <span className="text-muted-foreground">Contact</span><span>{text(po.shipTo?.contact_person)}</span>
+            <span className="text-muted-foreground">Mobile</span><span>{text(po.shipTo?.mobile)}</span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Terms & Notes</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Payment</span><span>{text(po.payment_terms)}</span>
+            <span className="text-muted-foreground">Delivery</span><span>{text(po.delivery_terms)}</span>
+            <span className="text-muted-foreground">Dispatch</span><span>{text(po.dispatch_terms)}</span>
+            <span className="text-muted-foreground">Jurisdiction</span><span>{text(po.jurisdiction)}</span>
+          </div>
+          <div className="text-xs">
+            <p className="text-muted-foreground">Remarks</p>
+            <p className="text-sm">{text(po.remarks)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Financials</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
+            <span className="text-muted-foreground">Taxable Amount</span><span>{formatCurrency(po.taxable_amount || 0)}</span>
+            <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
+            <span className="text-muted-foreground">Grand Total</span><span className="font-semibold">{formatCurrency(po.grand_total || 0)}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Amount in words</p>
+          <p className="text-sm">{text(po.amount_in_words)}</p>
+        </div>
+
         {po.items && po.items.length > 0 && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-muted-foreground">Items ({po.items.length})</p>
-            <div className="mt-1 overflow-hidden rounded-md border border-border">
-              <table className="w-full text-sm">
+          <div className="rounded-md border border-border overflow-hidden">
+            <div className="px-3 py-2 bg-muted/40">
+              <p className="text-xs font-semibold text-muted-foreground">Items ({po.items.length})</p>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-xs">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="px-2 py-1.5 text-left font-semibold">Product</th>
-                    <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
-                    <th className="px-2 py-1.5 text-right font-semibold">Amount</th>
+                    <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-right font-semibold">HSN</th>
+                    <th className="px-2 py-1 text-right font-semibold">Rate</th>
+                    <th className="px-2 py-1 text-right font-semibold">Ord</th>
+                    <th className="px-2 py-1 text-right font-semibold">Rec</th>
+                    <th className="px-2 py-1 text-right font-semibold">Ret</th>
+                    <th className="px-2 py-1 text-right font-semibold">Rem</th>
+                    <th className="px-2 py-1 text-right font-semibold">GST%</th>
+                    <th className="px-2 py-1 text-right font-semibold">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {po.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
-                      <td className="px-2 py-1.5">{item.product?.product_name || "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{item.quantity}</td>
-                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.amount)}</td>
+                      <td className="px-2 py-1.5">{text(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.hsn_code || item.product?.hsn_ssn_code)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.rate || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.order_qty ?? item.quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.received_qty ?? item.received_quantity ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.returned_qty ?? item.returned_quantity ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.remaining_qty ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.gst_percent)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.amount || 0)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="mt-2 flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
-              <span>Grand Total</span>
-              <span className="font-semibold">{formatCurrency(po.grand_total)}</span>
+          </div>
+        )}
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Attachments</p>
+          {Array.isArray(po.attachments) && po.attachments.length > 0 ? (
+            <div className="space-y-2">
+              {po.attachments.map((attachment, index) => (
+                <div key={`${attachment.path || attachment.filename || "att"}-${index}`} className="flex items-start justify-between gap-2 rounded border border-border p-2">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{attachmentFileName(attachment)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Size: {attachment?.size ? `${Math.round((attachment.size / 1024) * 100) / 100} KB` : "-"} · Uploaded: {dateTime(attachment?.uploaded_at)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={attachmentLoadingIndex === index}
+                    loading={attachmentLoadingIndex === index}
+                    onClick={() => handleOpenAttachment(po.id, index)}
+                  >
+                    <IconDownload className="size-4" />
+                    Open
+                  </Button>
+                </div>
+              ))}
             </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No attachments</p>
+          )}
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Audit</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Created By</span><span>{text(po.createdBy?.name || po.created_by)}</span>
+            <span className="text-muted-foreground">Created At</span><span>{dateTime(po.created_at)}</span>
+            <span className="text-muted-foreground">Approved By</span><span>{text(po.approvedBy?.name || po.approved_by)}</span>
+            <span className="text-muted-foreground">Approved At</span><span>{dateTime(po.approved_at)}</span>
+            <span className="text-muted-foreground">Updated At</span><span>{dateTime(po.updated_at)}</span>
           </div>
-        )}
-        {po.remarks && (
-          <div className="mt-2">
-            <p className="text-xs font-semibold text-muted-foreground">Remarks</p>
-            <p className="text-sm">{po.remarks}</p>
-          </div>
-        )}
+        </div>
       </div>
     );
-  }, [loadingRecord, selectedPO]);
+  }, [loadingRecord, selectedPO, attachmentLoadingIndex, handleOpenAttachment]);
 
   return (
     <ProtectedRoute>

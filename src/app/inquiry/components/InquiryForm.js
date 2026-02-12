@@ -5,16 +5,17 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import mastersService from "@/services/mastersService";
 import companyService from "@/services/companyService";
-import { validatePhone, validateEmail, formatPhone } from "@/utils/validators";
+import { validatePhone, validateEmail, formatPhone, validateE164Phone } from "@/utils/validators";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import Checkbox from "@/components/common/Checkbox";
+import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
-import Loader from "@/components/common/Loader";
+import LoadingButton from "@/components/common/LoadingButton";
 
 export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const router = useRouter();
@@ -185,28 +186,32 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
             }
         }
 
-        // Validate phone numbers
-        if (name === "mobile_number" || name === "phone_no") {
-            if (value && value.trim() !== "") {
-                const phoneValidation = validatePhone(value);
-                if (!phoneValidation.isValid) {
-                    setErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
-                } else {
-                    setErrors((prev) => {
-                        const updated = { ...prev };
-                        delete updated[name];
-                        return updated;
-                    });
-                }
+    // Validate phone numbers
+    if (name === "mobile_number" || name === "phone_no") {
+        if (value && value.trim() !== "") {
+            // mobile_number uses international E.164; phone_no keeps legacy validation
+            const phoneValidation =
+                name === "mobile_number"
+                    ? validateE164Phone(value, { required: true })
+                    : validatePhone(value);
+            if (!phoneValidation.isValid) {
+                setErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
             } else {
-                // Clear error if field is empty
                 setErrors((prev) => {
                     const updated = { ...prev };
                     delete updated[name];
                     return updated;
                 });
             }
+        } else {
+            // Clear error if field is empty
+            setErrors((prev) => {
+                const updated = { ...prev };
+                delete updated[name];
+                return updated;
+            });
         }
+    }
 
         // Validate email
         if (name === "email_id") {
@@ -243,7 +248,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
 
     const handleBlur = (e) => {
         const { name, value } = e.target;
-        // Format phone numbers on blur
+        // Keep existing formatting for now (adds spacing for readability)
         if ((name === "mobile_number" || name === "phone_no") && value && value.trim() !== "") {
             const formatted = formatPhone(value);
             setFormData((prev) => ({
@@ -296,14 +301,14 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         if (!formData.mobile_number) {
             newErrors.mobile_number = "Mobile Number is required";
         } else {
-            // Validate mobile_number format
-            const phoneValidation = validatePhone(formData.mobile_number);
+            // Validate mobile_number format (international E.164)
+            const phoneValidation = validateE164Phone(formData.mobile_number, { required: true });
             if (!phoneValidation.isValid) {
                 newErrors.mobile_number = phoneValidation.message;
             }
         }
 
-        // Validate optional phone_no
+        // Validate optional phone_no (keeps legacy Indian format)
         if (formData.phone_no && formData.phone_no.trim() !== "") {
             const phoneValidation = validatePhone(formData.phone_no);
             if (!phoneValidation.isValid) {
@@ -334,8 +339,6 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         setErrors({});
         onSubmit(formData);
     };
-
-    if (loading) return <Loader />;
 
     return (
         <FormContainer>
@@ -444,7 +447,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             ))}
                         </Select>
                         <Input
-                            type="number"
+                            type="tel"
                             name="capacity"
                             label="Capacity (kW)"
                             value={formData.capacity ?? ""}
@@ -506,13 +509,11 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             helperText={errors.customer_name}
                             required
                         />
-                        <Input
-                            type="number"
+                        <PhoneField
                             name="mobile_number"
                             label="Mobile Number"
                             value={formData.mobile_number || ""}
                             onChange={handleChange}
-                            onBlur={handleBlur}
                             error={!!errors.mobile_number}
                             helperText={errors.mobile_number}
                             required
@@ -670,12 +671,24 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                 </FormSection>
             </form>
             <FormActions>
-                <Button variant="outline" size="sm" className="mr-2" onClick={() => router.push("/inquiry")}>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="mr-2"
+                    type="button"
+                    onClick={() => router.push("/inquiry")}
+                    disabled={loading}
+                >
                     Back
                 </Button>
-                <Button type="submit" form="inquiry-form" size="sm">
+                <LoadingButton
+                    type="submit"
+                    form="inquiry-form"
+                    size="sm"
+                    loading={loading}
+                >
                     {isEdit ? "Update" : "Save"}
-                </Button>
+                </LoadingButton>
             </FormActions>
         </FormContainer>
     );

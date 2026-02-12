@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Tabs, Tab, Paper } from "@mui/material";
+import { Box, Tabs, Tab } from "@mui/material";
 import { usePathname } from "next/navigation";
 import DeliveryStatusCards from "./DeliveryStatusCards";
 
@@ -23,45 +23,26 @@ export default function ChallanTabs({ orderId, orderData, NewChallanComponent, P
         setActiveTab(newValue);
     };
 
-    const handleChallanCreated = () => {
-        // Refresh delivery status cards
-        setRefreshKey(prev => prev + 1);
-
-        // Refresh order data to update pipeline stages
-        if (onRefresh) {
-            onRefresh();
-        }
-
-        // Redirect to fabrication tab (index 4 in parent tabs)
-        if (onTabChange) {
-            onTabChange(4);
-        }
-    };
-
     return (
         <Box>
             {/* Delivery Status Cards */}
             <DeliveryStatusCards orderId={orderId} key={refreshKey} />
 
-            {/* <Paper> */}
             <Tabs value={activeTab} onChange={handleTabChange}>
-                {!isReadOnly && <Tab label="New Challan" />}
-                <Tab label="Previous Challans" />
+                <Tab label="Challans" />
             </Tabs>
-            {/* </Paper> */}
-
-            {!isReadOnly && (
-                <TabPanel value={activeTab} index={0}>
-                    <NewChallanComponent
-                        orderId={orderId}
-                        orderData={orderData}
-                        onChallanCreated={handleChallanCreated}
-                    />
-                </TabPanel>
-            )}
-
-            <TabPanel value={activeTab} index={isReadOnly ? 0 : 1}>
-                <PreviousChallansComponent orderId={orderId} />
+            <TabPanel value={activeTab} index={0}>
+                <NewChallanComponent
+                    orderId={orderId}
+                    orderData={orderData}
+                    onChallanCreated={() => {
+                        // Refresh delivery status cards and order data when returning from challan page
+                        setRefreshKey(prev => prev + 1);
+                        if (onRefresh) {
+                            onRefresh();
+                        }
+                    }}
+                />
             </TabPanel>
         </Box>
     );

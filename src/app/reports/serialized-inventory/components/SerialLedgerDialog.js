@@ -24,6 +24,7 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import DownloadIcon from "@mui/icons-material/Download";
 import serializedInventoryService from "@/services/serializedInventoryService";
+import { toastError } from "@/utils/toast";
 
 export default function SerialLedgerDialog({ open, onClose, serialId, serialNumber }) {
   const [loading, setLoading] = useState(false);
@@ -48,7 +49,9 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
       setData(result);
     } catch (err) {
       console.error("Failed to load ledger data", err);
-      setError(err.response?.data?.message || "Failed to load ledger entries");
+      const msg = err.response?.data?.message || "Failed to load ledger entries";
+      setError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }

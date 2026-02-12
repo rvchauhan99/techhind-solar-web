@@ -43,6 +43,6 @@ export const getQuotationCountByInquiry = (inquiry_id) =>
     apiClient.get("/quotation/quotation-count-by-inquiry", { params: { inquiry_id } }).then((r) => r.data);
 
 export const pdfGenerate = (id) =>
-    apiClient.get(`/quotation/${id}/pdf`).then((r) => r.data);
+    apiClient.get(`/quotation/${id}/pdf`, { responseType: "blob" }).then((r) => r.data);
 
 export default { getQuotations, exportQuotations, createQuotation, getQuotationById, updateQuotation, deleteQuotation, approveQuotation, unapproveQuotation, getAllProjectPrices, getProjectPriceBomDetails, getAllProductMakes, getNextQuotationNumber, getAllProducts, getQuotationCountByInquiry, pdfGenerate };

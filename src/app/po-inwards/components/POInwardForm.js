@@ -3,12 +3,10 @@
 import { useState, useEffect } from "react";
 import {
     Box,
-    Button,
     Grid,
     Typography,
     MenuItem,
     Alert,
-    CircularProgress,
     IconButton,
     Table,
     TableBody,
@@ -24,15 +22,19 @@ import {
     FormControlLabel,
     Checkbox,
     FormHelperText,
+    CircularProgress,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import purchaseOrderService from "@/services/purchaseOrderService";
 import companyService from "@/services/companyService";
+import { toastError } from "@/utils/toast";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Button } from "@/components/ui/button";
+import LoadingButton from "@/components/common/LoadingButton";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
 
 // Helper function to check if an item requires serial tracking
@@ -251,13 +253,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
         // Check if we've reached the maximum (accepted_quantity)
         if (item.serials.length >= item.accepted_quantity) {
-            alert(`Maximum ${item.accepted_quantity} serial numbers allowed for accepted quantity`);
+            toastError(`Maximum ${item.accepted_quantity} serial numbers allowed for accepted quantity`);
             return;
         }
 
         // Check for duplicate serial
         if (item.serials.includes(serialNumber.trim())) {
-            alert("Serial number already added");
+            toastError("Serial number already added");
             return;
         }
 
@@ -743,19 +745,17 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
                 <FormActions>
                     {onCancel && (
-                        <Button type="button" variant="outlined" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
                             Cancel
                         </Button>
                     )}
-                    <Button
+                    <LoadingButton
                         type="submit"
-                        variant="contained"
-                        color="primary"
-                        disabled={loading}
-                        sx={{ minWidth: 120 }}
+                        loading={loading}
+                        className="min-w-[120px]"
                     >
-                        {loading ? <CircularProgress size={23} /> : defaultValues?.id ? "Update" : "Create Receipt"}
-                    </Button>
+                        {defaultValues?.id ? "Update" : "Create Receipt"}
+                    </LoadingButton>
                 </FormActions>
             </FormContainer>
         </Box>

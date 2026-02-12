@@ -1,334 +1,429 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Alert, Switch, FormControlLabel } from "@mui/material";
+import { useState, useEffect, useCallback } from "react";
+import { Box, Alert, Typography } from "@mui/material";
 import { usePathname } from "next/navigation";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
-import AutocompleteField from "@/components/common/AutocompleteField";
+import Select, { MenuItem } from "@/components/common/Select";
+import Checkbox from "@/components/common/Checkbox";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
+import BucketImage from "@/components/common/BucketImage";
 import orderService from "@/services/orderService";
-import mastersService from "@/services/mastersService";
+import orderDocumentsService from "@/services/orderDocumentsService";
+import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import {
+    FABRICATION_STRUCTURE_TYPES,
+    FABRICATION_STRUCTURE_MATERIALS,
+    FABRICATION_COATING_TYPES,
+    FABRICATION_TILT_ANGLES,
+    FABRICATION_HEIGHT_FROM_ROOF,
+    FABRICATION_LABOUR_CATEGORIES,
+    FABRICATION_IMAGE_KEYS,
+} from "@/utils/fabricationInstallationOptions";
+import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
 
-export default function Fabrication({
-    orderId,
-    orderData,
-    onSuccess,
-    currentStage = "fabrication",
-    nextStage = "installation",
-    completedAtField = "fabrication_completed_at",
-    successMessage = "Fabrication stage completed successfully!"
-}) {
+const DEFAULT_CHECKLIST = [
+    { id: "1", label: "Structure erected as per design", checked: false },
+    { id: "2", label: "Anchoring and fasteners verified", checked: false },
+    { id: "3", label: "Coating and finish as per spec", checked: false },
+];
+
+function getDocumentUrlById(id) {
+    return orderDocumentsService.getDocumentUrl(id);
+}
+
+export default function Fabrication({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isCompleted = orderData?.stages?.fabrication === "completed";
+    const canComplete = orderData?.stages?.planner === "completed" && !isCompleted && !isReadOnly;
+
     const [formData, setFormData] = useState({
-        fabricator_installer_are_same: true,
-        fabricator_installer_id: "",
-        fabricator_id: "",
-        installer_id: "",
-        fabrication_due_date: "",
-        installation_due_date: "",
-        fabrication_remarks: "",
+        fabrication_start_date: "",
+        fabrication_end_date: "",
+        structure_type: "",
+        structure_material: "",
+        coating_type: "",
+        tilt_angle: "",
+        height_from_roof: "",
+        labour_category: "",
+        labour_count: "",
+        remarks: "",
     });
-    const [users, setUsers] = useState([]);
-    const [selectedFabricatorInstaller, setSelectedFabricatorInstaller] = useState(null);
-    const [selectedFabricator, setSelectedFabricator] = useState(null);
-    const [selectedInstaller, setSelectedInstaller] = useState(null);
+    const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
+    const [images, setImages] = useState({});
+    const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const hasFetchedRef = useRef(false);
+    const [uploadingKey, setUploadingKey] = useState(null);
 
-    const fetchUsers = useCallback(async () => {
-        if (hasFetchedRef.current) return;
-        hasFetchedRef.current = true;
+    const loadFabrication = useCallback(async () => {
+        if (!orderId) return;
+        setLoading(true);
         try {
-            const response = await mastersService.getList("user.model");
-            setUsers(response?.result?.data || response?.data || []);
+            const data = await orderService.getFabricationByOrderId(orderId);
+            if (data) {
+                setFormData({
+                    fabrication_start_date: data.fabrication_start_date
+                        ? moment(data.fabrication_start_date).format("YYYY-MM-DD")
+                        : "",
+                    fabrication_end_date: data.fabrication_end_date
+                        ? moment(data.fabrication_end_date).format("YYYY-MM-DD")
+                        : "",
+                    structure_type: data.structure_type || "",
+                    structure_material: data.structure_material || "",
+                    coating_type: data.coating_type || "",
+                    tilt_angle: data.tilt_angle != null ? (FABRICATION_TILT_ANGLES.includes(`${data.tilt_angle}°`) ? `${data.tilt_angle}°` : String(data.tilt_angle)) : "",
+                    height_from_roof: data.height_from_roof != null ? (FABRICATION_HEIGHT_FROM_ROOF.includes(`${data.height_from_roof} mm`) ? `${data.height_from_roof} mm` : String(data.height_from_roof)) : "",
+                    labour_category: data.labour_category || "",
+                    labour_count: data.labour_count != null ? String(data.labour_count) : "",
+                    remarks: data.remarks || "",
+                });
+                setChecklist(
+                    Array.isArray(data.checklist) && data.checklist.length > 0
+                        ? data.checklist
+                        : DEFAULT_CHECKLIST
+                );
+                setImages(data.images && typeof data.images === "object" ? { ...data.images } : {});
+            } else {
+                setImages({});
+                setChecklist(DEFAULT_CHECKLIST);
+            }
         } catch (err) {
-            console.error("Failed to fetch users:", err);
+            console.error("Failed to load fabrication:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to load fabrication");
+        } finally {
+            setLoading(false);
         }
-    }, []);
+    }, [orderId]);
 
     useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
-
-    useEffect(() => {
-        if (orderData) {
-            setFormData({
-                fabricator_installer_are_same: orderData.fabricator_installer_are_same ?? true,
-                fabricator_installer_id: orderData.fabricator_installer_id || "",
-                fabricator_id: orderData.fabricator_id || "",
-                installer_id: orderData.installer_id || "",
-                fabrication_due_date: orderData.fabrication_due_date
-                    ? moment(orderData.fabrication_due_date).format("YYYY-MM-DD")
-                    : "",
-                installation_due_date: orderData.installation_due_date
-                    ? moment(orderData.installation_due_date).format("YYYY-MM-DD")
-                    : "",
-                fabrication_remarks: orderData.fabrication_remarks || "",
-            });
-        }
-    }, [orderData]);
-
-    useEffect(() => {
-        if (users.length > 0 && orderData) {
-            if (orderData.fabricator_installer_id) {
-                const user = users.find((u) => u.id == orderData.fabricator_installer_id);
-                setSelectedFabricatorInstaller(user || null);
-            }
-            if (orderData.fabricator_id) {
-                const user = users.find((u) => u.id == orderData.fabricator_id);
-                setSelectedFabricator(user || null);
-            }
-            if (orderData.installer_id) {
-                const user = users.find((u) => u.id == orderData.installer_id);
-                setSelectedInstaller(user || null);
-            }
-        }
-    }, [users, orderData]);
+        loadFabrication();
+    }, [loadFabrication]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
-        if (fieldErrors[name]) {
-            setFieldErrors((prev) => {
-                const next = { ...prev };
-                delete next[name];
-                return next;
-            });
+        if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: undefined }));
+    };
+
+    const handleChecklistChange = (id, checked) => {
+        setChecklist((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, checked } : item))
+        );
+    };
+
+    const handleImageUpload = async (key, file) => {
+        if (!file || !orderId) return;
+        setUploadingKey(key);
+        try {
+            const formData = new FormData();
+            formData.append("document", file);
+            formData.append("order_id", orderId);
+            formData.append("doc_type", `fabrication_${key}`);
+            formData.append("remarks", `Fabrication - ${key}`);
+            const res = await orderDocumentsService.createOrderDocument(formData);
+            const docId = res?.result?.id ?? res?.id;
+            if (docId) {
+                setImages((prev) => ({ ...prev, [key]: docId }));
+                toastSuccess("Image uploaded");
+            }
+        } catch (err) {
+            toastError(err?.response?.data?.message || err?.message || "Upload failed");
+        } finally {
+            setUploadingKey(null);
         }
     };
 
-    const handleToggleChange = (e) => {
-        const isChecked = e.target.checked;
-        setFormData((prev) => ({
-            ...prev,
-            fabricator_installer_are_same: isChecked,
-            fabricator_installer_id: isChecked ? prev.fabricator_installer_id : "",
-            fabricator_id: !isChecked ? prev.fabricator_id : "",
-            installer_id: !isChecked ? prev.installer_id : "",
-        }));
-        if (isChecked) {
-            setSelectedFabricator(null);
-            setSelectedInstaller(null);
-        } else {
-            setSelectedFabricatorInstaller(null);
+    const validate = () => {
+        const errs = {};
+        const requiredImages = FABRICATION_IMAGE_KEYS.filter((k) => k.required).map((k) => k.key);
+        for (const key of requiredImages) {
+            if (!images[key]) errs[`image_${key}`] = "Required";
         }
-        setFieldErrors((prev) => {
-            const next = { ...prev };
-            delete next.fabricator_installer_id;
-            delete next.fabricator_id;
-            delete next.installer_id;
-            return next;
-        });
+        setFieldErrors(errs);
+        return Object.keys(errs).length === 0;
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e, complete = false) => {
         e.preventDefault();
         if (isReadOnly) return;
+        if (complete && !canComplete) return;
+        if (complete && !validate()) return;
+
         setSubmitting(true);
         setError(null);
-        setFieldErrors({});
+        setFieldErrors((prev) => {
+            const next = { ...prev };
+            Object.keys(next).forEach((k) => k.startsWith("image_") && delete next[k]);
+            return next;
+        });
         setSuccessMsg(null);
 
         try {
-            const newFieldErrors = {};
-            if (formData.fabricator_installer_are_same) {
-                if (!formData.fabricator_installer_id) newFieldErrors.fabricator_installer_id = "Required";
-            } else {
-                if (!formData.fabricator_id) newFieldErrors.fabricator_id = "Required";
-                if (!formData.installer_id) newFieldErrors.installer_id = "Required";
-            }
-            if (!formData.fabrication_due_date) newFieldErrors.fabrication_due_date = "Required";
-            if (!formData.installation_due_date) newFieldErrors.installation_due_date = "Required";
-
-            if (Object.keys(newFieldErrors).length > 0) {
-                setFieldErrors(newFieldErrors);
-                return;
-            }
-
-            const updatedStages = {
-                ...(orderData?.stages || {}),
-                [currentStage]: "completed",
-                [nextStage]: "pending",
-            };
             const payload = {
-                fabricator_installer_are_same: formData.fabricator_installer_are_same,
-                fabricator_installer_id: formData.fabricator_installer_id || null,
-                fabricator_id: formData.fabricator_id || null,
-                installer_id: formData.installer_id || null,
-                fabrication_due_date: formData.fabrication_due_date,
-                installation_due_date: formData.installation_due_date,
-                fabrication_remarks: formData.fabrication_remarks,
-                stages: updatedStages,
-                [completedAtField]: new Date().toISOString(),
-                current_stage_key: nextStage,
+                ...formData,
+                labour_count: formData.labour_count ? parseInt(formData.labour_count, 10) : null,
+                tilt_angle: formData.tilt_angle ? parseFloat(String(formData.tilt_angle).replace(/[^\d.-]/g, "")) || null : null,
+                height_from_roof: formData.height_from_roof ? parseFloat(String(formData.height_from_roof).replace(/[^\d.-]/g, "")) || null : null,
+                checklist,
+                images,
+                complete,
             };
-            if (orderData?.stages?.[currentStage] === "completed") {
-                delete payload.stages;
-                delete payload.current_stage_key;
-            }
-            await orderService.updateOrder(orderId, payload);
-
-            setSuccessMsg(successMessage);
+            await orderService.saveFabrication(orderId, payload);
+            setSuccessMsg(complete ? "Fabrication stage completed successfully!" : "Fabrication saved.");
+            toastSuccess(complete ? "Fabrication stage completed successfully!" : "Saved.");
             if (onSuccess) onSuccess();
         } catch (err) {
-            console.error("Failed to save details:", err);
-            setError(err.message || "Failed to save data");
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save";
+            setError(errMsg);
+            toastError(errMsg);
         } finally {
             setSubmitting(false);
         }
     };
 
-    const isCompleted = orderData?.stages?.[currentStage] === "completed";
+    const disabled = isCompleted || isReadOnly;
+
+    if (loading) {
+        return (
+            <Box className="p-4">
+                <Typography color="text.secondary">Loading fabrication…</Typography>
+            </Box>
+        );
+    }
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-4">
-            <FormSection title="Fabrication & installation">
-                <div className="mb-3">
-                    <FormControlLabel
-                        control={
-                            <Switch
-                                checked={formData.fabricator_installer_are_same}
-                                onChange={handleToggleChange}
-                                color="primary"
-                                size="small"
-                                disabled={isCompleted || isReadOnly}
-                            />
-                        }
-                        label="Fabricator & Installer are the same person"
-                        sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.875rem" } }}
-                    />
-                </div>
+        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} className="p-4">
+            {orderData?.fabricator_id || orderData?.fabricator_installer_id ? (
+                <FormSection title="Fabricator (from assignment)">
+                    <Typography variant="body2" color="text.secondary">
+                        Fabricator is assigned in the &quot;Assign Fabricator &amp; Installer&quot; stage.
+                    </Typography>
+                </FormSection>
+            ) : null}
 
-                {formData.fabricator_installer_are_same ? (
-                    <FormGrid cols={2}>
-                        <AutocompleteField
-                            name="fabricator_installer_id"
-                            label="Fabricator/Installer"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
-                            value={selectedFabricatorInstaller}
-                            onChange={(event, newValue) => {
-                                setFormData((prev) => ({ ...prev, fabricator_installer_id: newValue?.id || "" }));
-                                setSelectedFabricatorInstaller(newValue);
-                                if (fieldErrors.fabricator_installer_id) {
-                                    setFieldErrors((prev) => {
-                                        const next = { ...prev };
-                                        delete next.fabricator_installer_id;
-                                        return next;
-                                    });
-                                }
-                            }}
-                            error={!!fieldErrors.fabricator_installer_id}
-                            helperText={fieldErrors.fabricator_installer_id}
-                            fullWidth
-                            required
-                            disabled={isCompleted || isReadOnly}
-                        />
-                    </FormGrid>
-                ) : (
-                    <FormGrid cols={2}>
-                        <AutocompleteField
-                            name="fabricator_id"
-                            label="Fabricator"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
-                            value={selectedFabricator}
-                            onChange={(event, newValue) => {
-                                setFormData((prev) => ({ ...prev, fabricator_id: newValue?.id || "" }));
-                                setSelectedFabricator(newValue);
-                                if (fieldErrors.fabricator_id) {
-                                    setFieldErrors((prev) => {
-                                        const next = { ...prev };
-                                        delete next.fabricator_id;
-                                        return next;
-                                    });
-                                }
-                            }}
-                            error={!!fieldErrors.fabricator_id}
-                            helperText={fieldErrors.fabricator_id}
-                            fullWidth
-                            required
-                            disabled={isCompleted || isReadOnly}
-                        />
-                        <AutocompleteField
-                            name="installer_id"
-                            label="Installer"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
-                            value={selectedInstaller}
-                            onChange={(event, newValue) => {
-                                setFormData((prev) => ({ ...prev, installer_id: newValue?.id || "" }));
-                                setSelectedInstaller(newValue);
-                                if (fieldErrors.installer_id) {
-                                    setFieldErrors((prev) => {
-                                        const next = { ...prev };
-                                        delete next.installer_id;
-                                        return next;
-                                    });
-                                }
-                            }}
-                            error={!!fieldErrors.installer_id}
-                            helperText={fieldErrors.installer_id}
-                            fullWidth
-                            required
-                            disabled={isCompleted || isReadOnly}
-                        />
-                    </FormGrid>
-                )}
-
-                <FormGrid cols={2} className="mt-3">
+            <FormSection title="Fabrication execution">
+                <FormGrid cols={2}>
                     <DateField
-                        name="fabrication_due_date"
-                        label="Fabrication Due Date"
-                        value={formData.fabrication_due_date}
+                        name="fabrication_start_date"
+                        label="Fabrication Start Date"
+                        value={formData.fabrication_start_date}
                         onChange={handleInputChange}
                         fullWidth
-                        disabled={isCompleted || isReadOnly}
-                        error={!!fieldErrors.fabrication_due_date}
-                        helperText={fieldErrors.fabrication_due_date}
-                        required
+                        disabled={disabled}
                     />
                     <DateField
-                        name="installation_due_date"
-                        label="Installation Due Date"
-                        value={formData.installation_due_date}
+                        name="fabrication_end_date"
+                        label="Fabrication End Date"
+                        value={formData.fabrication_end_date}
                         onChange={handleInputChange}
                         fullWidth
-                        disabled={isCompleted || isReadOnly}
-                        error={!!fieldErrors.installation_due_date}
-                        helperText={fieldErrors.installation_due_date}
-                        required
+                        disabled={disabled}
+                    />
+                    <Select
+                        name="structure_type"
+                        label="Structure Type"
+                        value={formData.structure_type}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_STRUCTURE_TYPES.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Select
+                        name="structure_material"
+                        label="Structure Material"
+                        value={formData.structure_material}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_STRUCTURE_MATERIALS.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Select
+                        name="coating_type"
+                        label="Coating Type"
+                        value={formData.coating_type}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_COATING_TYPES.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Select
+                        name="tilt_angle"
+                        label="Tilt Angle"
+                        value={formData.tilt_angle}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_TILT_ANGLES.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Select
+                        name="height_from_roof"
+                        label="Height from Roof (mm)"
+                        value={formData.height_from_roof}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_HEIGHT_FROM_ROOF.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Select
+                        name="labour_category"
+                        label="Labour Category"
+                        value={formData.labour_category}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
+                    >
+                        {FABRICATION_LABOUR_CATEGORIES.map((opt) => (
+                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+                        ))}
+                    </Select>
+                    <Input
+                        name="labour_count"
+                        label="Labour Count"
+                        type="number"
+                        value={formData.labour_count}
+                        onChange={handleInputChange}
+                        fullWidth
+                        disabled={disabled}
                     />
                 </FormGrid>
 
-                <div className="mt-3">
-                    <Input
-                        name="fabrication_remarks"
-                        label="Remarks"
-                        multiline
-                        rows={3}
-                        value={formData.fabrication_remarks}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={isCompleted || isReadOnly}
-                    />
-                </div>
+                <div className={COMPACT_SECTION_HEADER_CLASS}>Checklist</div>
+                <Box className="mt-1 mb-2">
+                    {checklist.map((item) => (
+                        <Checkbox
+                            key={item.id}
+                            name={`check_${item.id}`}
+                            label={item.label}
+                            checked={!!item.checked}
+                            onChange={(e) => handleChecklistChange(item.id, e.target.checked)}
+                            disabled={disabled}
+                        />
+                    ))}
+                </Box>
+
+                <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
+                <Box className="mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {FABRICATION_IMAGE_KEYS.map(({ key, label, required }) => (
+                        <Box key={key}>
+                            <Typography variant="body2" className="mb-1">
+                                {label}
+                                {required && <span className="text-destructive ml-0.5">*</span>}
+                            </Typography>
+                            {images[key] ? (
+                                <Box className="flex items-center gap-2">
+                                    <BucketImage
+                                        path={images[key]}
+                                        getUrl={getDocumentUrlById}
+                                        alt={label}
+                                    />
+                                    {!disabled && (
+                                        <label className="text-xs text-muted-foreground cursor-pointer">
+                                            Replace:{" "}
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                className="hidden"
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0];
+                                                    if (f) handleImageUpload(key, f);
+                                                    e.target.value = "";
+                                                }}
+                                            />
+                                            <span className="underline">Choose file</span>
+                                        </label>
+                                    )}
+                                </Box>
+                            ) : (
+                                !disabled && (
+                                    <label className="inline-block">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            disabled={uploadingKey === key}
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (f) handleImageUpload(key, f);
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                        <span className="inline-flex items-center h-9 px-2.5 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent">
+                                            {uploadingKey === key ? "Uploading…" : "Upload"}
+                                        </span>
+                                    </label>
+                                )
+                            )}
+                            {fieldErrors[`image_${key}`] && (
+                                <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
+                            )}
+                        </Box>
+                    ))}
+                </Box>
+
+                <Input
+                    name="remarks"
+                    label="Remarks"
+                    multiline
+                    rows={3}
+                    value={formData.remarks}
+                    onChange={handleInputChange}
+                    fullWidth
+                    disabled={disabled}
+                />
             </FormSection>
 
             <div className="mt-4 flex flex-col gap-2">
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                <Button type="submit" size="sm" variant="success" loading={submitting} disabled={isCompleted || isReadOnly}>
-                    {isCompleted ? "Update" : "Save"}
-                </Button>
+                <div className="flex gap-2 flex-wrap">
+                    <Button
+                        type="submit"
+                        size="sm"
+                        loading={submitting}
+                        disabled={disabled}
+                    >
+                        Save
+                    </Button>
+                    {canComplete && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="default"
+                            loading={submitting}
+                            onClick={(e) => handleSubmit(e, true)}
+                        >
+                            Complete Fabrication
+                        </Button>
+                    )}
+                </div>
+                {!canComplete && orderData?.stages?.planner !== "completed" && !isCompleted && (
+                    <Typography variant="caption" color="text.secondary">
+                        Complete the Planner stage to unlock Fabrication.
+                    </Typography>
+                )}
             </div>
         </Box>
     );

@@ -17,6 +17,7 @@ const Checkbox = forwardRef(function Checkbox(
     checked = false,
     indeterminate = false,
     onChange,
+    onCheckedChange,
     error = false,
     helperText = null,
     disabled = false,
@@ -41,6 +42,10 @@ const Checkbox = forwardRef(function Checkbox(
         target: { name, value: e.target.checked, checked: e.target.checked },
       };
       onChange(syntheticEvent);
+    }
+    // Support Radix/shadcn-style onCheckedChange(boolean) callback
+    if (onCheckedChange) {
+      onCheckedChange(e.target.checked);
     }
   };
 

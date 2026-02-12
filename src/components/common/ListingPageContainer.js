@@ -36,18 +36,25 @@ export default function ListingPageContainer({
   children,
 }) {
   return (
-    <Container className="flex flex-col gap-2 py-2 h-full min-h-0 max-w-[1536px] mx-auto">
-      <div className="flex flex-shrink-0 justify-between items-center">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <div className="flex items-center gap-2">
+    <Container className="flex flex-col gap-1.5 py-1.5 h-full min-h-0 max-w-[1536px] mx-auto">
+      <div className="flex flex-shrink-0 justify-between items-center gap-2">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <div className="flex items-center gap-1.5">
           {onExportClick && exportButtonLabel && (
-            <Button onClick={onExportClick} size="sm" variant="outline" className="gap-1.5" disabled={exportDisabled} loading={exportLoading}>
+            <Button
+              onClick={onExportClick}
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              disabled={exportDisabled}
+              loading={exportLoading}
+            >
               <IconDownload className="size-4" />
               {exportButtonLabel}
             </Button>
           )}
           {onAddClick && addButtonLabel && (
-            <Button onClick={onAddClick} size="sm" className="gap-1.5">
+            <Button onClick={onAddClick} size="sm" className="gap-1">
               <IconPlus className="size-4" />
               {addButtonLabel}
             </Button>
