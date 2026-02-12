@@ -18,9 +18,10 @@ import {
   CircularProgress,
   Alert,
 } from "@mui/material";
-import { useRouter } from "next/navigation";
 import deliveryReportService from "@/services/deliveryReportService";
 import companyService from "@/services/companyService";
+import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 
 const deliveryStatusColor = (status) => {
@@ -42,8 +43,8 @@ export default function DeliveryReportPage() {
   const [error, setError] = useState(null);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
-
-  const router = useRouter();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     const fetchWarehouses = async () => {
@@ -110,6 +111,45 @@ export default function DeliveryReportPage() {
     const d = new Date(val);
     if (Number.isNaN(d.getTime())) return val;
     return d.toLocaleString();
+  };
+
+  const handleOpenDetails = (row) => {
+    setSelectedOrder({
+      id: row.order_id,
+      order_number: row.order_number,
+      customer_name: row.customer_name,
+      planned_warehouse_name: row.warehouse_name,
+      delivery_status: row.delivery_status,
+      total_delivered_qty: row.total_delivered_qty,
+      order_status: row.order_status,
+      last_delivery_at: row.last_delivery_at,
+    });
+    setDetailsOpen(true);
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsOpen(false);
+    setSelectedOrder(null);
+  };
+
+  const handlePrintOrder = async (resolvedOrder) => {
+    try {
+      const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
+      const blob = file?.blob || file;
+      const filename = file?.filename || `order-${resolvedOrder?.order_number || resolvedOrder?.id}.pdf`;
+      if (!blob) throw new Error("PDF download failed");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
+      toastError(msg);
+    }
   };
 
   return (
@@ -240,10 +280,10 @@ export default function DeliveryReportPage() {
                       <TableCell align="right">
                         <Button
                           size="small"
-                          variant="outlined"
-                          onClick={() => router.push(`/confirm-orders/view?id=${row.order_id}`)}
+                          variant="text"
+                          onClick={() => handleOpenDetails(row)}
                         >
-                          View
+                          Details
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -272,6 +312,14 @@ export default function DeliveryReportPage() {
           </Box>
         </Paper>
       )}
+      <OrderDetailsDrawer
+        open={detailsOpen}
+        onClose={handleCloseDetails}
+        order={selectedOrder}
+        onPrint={handlePrintOrder}
+        showPrint
+        showDeliverySnapshot
+      />
     </Box>
   );
 }
