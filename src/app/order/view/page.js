@@ -643,6 +643,21 @@ function PreviousPaymentsTable({ orderId }) {
             field: "payment_remarks",
             render: (row) => row.payment_remarks || "-",
         },
+        {
+            id: "status",
+            label: "Status",
+            field: "status",
+            render: (row) => {
+                const label = row.status === "approved"
+                    ? "Approved"
+                    : row.status === "rejected"
+                        ? "Rejected"
+                        : "Pending";
+                const color =
+                    row.status === "approved" ? "success" : row.status === "rejected" ? "error" : "warning";
+                return <Chip label={label} color={color} size="small" />;
+            },
+        },
     ];
 
     return (

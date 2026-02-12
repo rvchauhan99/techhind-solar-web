@@ -32,6 +32,27 @@ const orderPaymentsService = {
     /** Get signed URL for receipt file (bucket). Returns url string. */
     getReceiptUrl: (id) =>
         apiClient.get(`/order-payments/${id}/receipt-url`).then((r) => r.data?.result?.url ?? r.data?.url ?? null),
+
+    // Approve payment
+    approvePayment: (id) =>
+        apiClient.post(`/order-payments/${id}/approve`).then((r) => r.data),
+
+    // Reject payment
+    rejectPayment: (id, rejection_reason) =>
+        apiClient.post(`/order-payments/${id}/reject`, { rejection_reason }).then((r) => r.data),
+
+    // Download payment receipt PDF
+    downloadReceiptPDF: (id) =>
+        apiClient
+            .get(`/order-payments/${id}/receipt-pdf`, { responseType: "blob" })
+            .then((r) => {
+                const disposition = r.headers?.["content-disposition"] || "";
+                const match = disposition.match(/filename="?([^"]+)"?/i);
+                return {
+                    blob: r.data,
+                    filename: match?.[1] || `payment-receipt-${id}.pdf`,
+                };
+            }),
 };
 
 export default orderPaymentsService;
