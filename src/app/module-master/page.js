@@ -195,8 +195,8 @@ export default function ModuleMasterPage() {
         page: p.page,
         limit: p.limit,
         q: p.q || undefined,
-        sortBy: p.sortBy || "sequence",
-        sortOrder: p.sortOrder || "ASC",
+        sortBy: p.sortBy || "id",
+        sortOrder: p.sortOrder || "DESC",
         id: p.id || undefined,
         name: p.name || undefined,
         name_op: p.name_op || undefined,
@@ -406,8 +406,8 @@ export default function ModuleMasterPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "sequence"}
-            sortOrder={sortOrder || "ASC"}
+            sortBy={sortBy || "id"}
+            sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
             onQChange={setQ}

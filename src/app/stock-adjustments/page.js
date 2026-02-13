@@ -318,7 +318,7 @@ export default function StockAdjustmentPage() {
         q: p.q || undefined,
         status: p.status || undefined,
         adjustment_type: p.adjustment_type || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         adjustment_number: p.adjustment_number || undefined,
         adjustment_date_from: p.adjustment_date_from || undefined,
@@ -478,8 +478,8 @@ export default function StockAdjustmentPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

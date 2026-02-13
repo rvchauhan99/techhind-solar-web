@@ -157,6 +157,8 @@ export default function DeliveryChallanListPage() {
                     fetcher={fetchChallans}
                     initialPage={1}
                     initialLimit={20}
+                    initialSortBy="id"
+                    initialSortOrder="desc"
                     height="calc(100vh - 210px)"
                     columnFilterValues={filters}
                     onColumnFilterChange={(key, value) =>

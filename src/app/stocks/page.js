@@ -1,19 +1,22 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import stockService from "@/services/stockService";
+import mastersService from "@/services/mastersService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { formatCurrency } from "@/utils/dataTableUtils";
 
 const COLUMN_FILTER_KEYS = [
   "product_name",
   "product_name_op",
+  "product_type_id",
   "warehouse_name",
   "warehouse_name_op",
   "quantity_on_hand",
@@ -53,6 +56,18 @@ export default function StockPage() {
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [productTypeOptions, setProductTypeOptions] = useState([]);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_type.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
+        setProductTypeOptions(options);
+      })
+      .catch(() => setProductTypeOptions([]));
+  }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -104,6 +119,15 @@ export default function StockPage() {
         render: (row) => row.product?.product_name || "-",
       },
       {
+        field: "product_type_name",
+        label: "Product Type",
+        sortable: false,
+        filterType: "select",
+        filterKey: "product_type_id",
+        filterOptions: productTypeOptions,
+        render: (row) => row.product_type_name || row.product?.productType?.name || "-",
+      },
+      {
         field: "warehouse",
         label: "Warehouse",
         sortable: false,
@@ -141,6 +165,12 @@ export default function StockPage() {
         filterKeyTo: "quantity_available_to",
         operatorKey: "quantity_available_op",
         defaultFilterOperator: "equals",
+      },
+      {
+        field: "stock_value",
+        label: "Stock Value",
+        sortable: false,
+        render: (row) => (row.stock_value != null ? formatCurrency(row.stock_value) : "-"),
       },
       {
         field: "tracking_type",
@@ -184,7 +214,7 @@ export default function StockPage() {
         },
       },
     ],
-    []
+    [productTypeOptions]
   );
 
   const fetcher = useMemo(
@@ -195,6 +225,7 @@ export default function StockPage() {
         limit: p.limit,
         warehouse_id: p.warehouse_id || undefined,
         product_id: p.product_id || undefined,
+        product_type_id: p.product_type_id || undefined,
         warehouse_name: p.warehouse_name || undefined,
         product_name: p.product_name || undefined,
         quantity_on_hand: p.quantity_on_hand || undefined,
@@ -211,7 +242,7 @@ export default function StockPage() {
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
         tracking_type: p.tracking_type || undefined,
         low_stock: p.low_stock !== undefined && p.low_stock !== "" ? p.low_stock : undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
       });
       const result = response?.result || response;
@@ -246,7 +277,7 @@ export default function StockPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "created_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

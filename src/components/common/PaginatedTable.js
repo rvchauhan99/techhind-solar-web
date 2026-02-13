@@ -137,14 +137,14 @@ export default function PaginatedTable({
   const [searchDisplayValue, setSearchDisplayValue] = React.useState(controlledQ ?? "");
   const searchDebounceRef = React.useRef(null);
   const [internalSortBy, setInternalSortBy] = React.useState(initialSortBy);
-  const [internalSortOrder, setInternalSortOrder] = React.useState(initialSortOrder || "asc");
+  const [internalSortOrder, setInternalSortOrder] = React.useState(initialSortOrder || "desc");
 
   const [localFilterValues, setLocalFilterValues] = React.useState(columnFilterValues);
 
   const page = isControlled ? Math.max(0, (controlledPage ?? 1) - 1) : internalPage;
   const rowsPerPage = isControlled ? (controlledLimit ?? initialLimit) : internalRowsPerPage;
   const sortBy = isControlled ? (controlledSortBy ?? null) : internalSortBy;
-  const sortOrder = isControlled ? (controlledSortOrder ?? "asc") : internalSortOrder;
+  const sortOrder = isControlled ? (controlledSortOrder ?? "desc") : internalSortOrder;
   const qDisplay = isControlled ? searchDisplayValue : query;
   const setQDisplay = isControlled && onControlledQChange
     ? (e) => {
@@ -381,7 +381,7 @@ export default function PaginatedTable({
       if (sortOrder === "asc") {
         const nextOrder = "desc";
         if (isControlled && onControlledSortChange) onControlledSortChange(field, nextOrder);
-        else setSortOrder(nextOrder);
+        else setInternalSortOrder(nextOrder);
       } else {
         if (isControlled && onControlledSortChange) onControlledSortChange(null, "asc");
         else {
@@ -390,10 +390,10 @@ export default function PaginatedTable({
         }
       }
     } else {
-      if (isControlled && onControlledSortChange) onControlledSortChange(field, "asc");
+      if (isControlled && onControlledSortChange) onControlledSortChange(field, "desc");
       else {
         setInternalSortBy(field);
-        setInternalSortOrder("asc");
+        setInternalSortOrder("desc");
       }
     }
   };

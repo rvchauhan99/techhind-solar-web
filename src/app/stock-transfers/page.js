@@ -299,7 +299,7 @@ export default function StockTransferPage() {
         limit: l,
         q: searchQ || undefined,
         status: statusFilter || undefined,
-        sortBy: sBy || "created_at",
+        sortBy: sBy || "id",
         sortOrder: sOrder || "DESC",
         transfer_number: transferNumber || undefined,
         transfer_date_from: transferDateFrom || undefined,
@@ -444,8 +444,8 @@ export default function StockTransferPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

@@ -308,7 +308,7 @@ export default function SupplierPage() {
         page: p,
         limit: l,
         q: searchQ || undefined,
-        sortBy: sBy || "created_at",
+        sortBy: sBy || "id",
         sortOrder: sOrder || "DESC",
         supplier_code: supplierCode || undefined,
         supplier_code_op: supplierCodeOp || undefined,
@@ -462,8 +462,8 @@ export default function SupplierPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

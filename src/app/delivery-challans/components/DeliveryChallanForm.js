@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import {
     Box,
     Grid,
@@ -19,7 +19,12 @@ import {
     CardContent,
     FormHelperText,
     CircularProgress,
+    Collapse,
+    TextField,
+    IconButton,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
@@ -71,6 +76,15 @@ export default function DeliveryChallanForm({
     const [errors, setErrors] = useState({});
     const [stockByProductId, setStockByProductId] = useState({});
     const [serialDrafts, setSerialDrafts] = useState({});
+    /** Available serials per BOM line index (for serial_required lines). Used to validate scan/add. */
+    const [availableSerialsByLineIndex, setAvailableSerialsByLineIndex] = useState({});
+    /** Serial drawer (expandable row): which line is expanded, values, errors */
+    const [expandedSerialLineIndex, setExpandedSerialLineIndex] = useState(null);
+    const [serialDrawerValues, setSerialDrawerValues] = useState([]);
+    const [serialDrawerError, setSerialDrawerError] = useState("");
+    const [serialDrawerFieldErrors, setSerialDrawerFieldErrors] = useState({});
+    const [serialDrawerValidating, setSerialDrawerValidating] = useState(null);
+    const serialInputRefs = useRef([]);
 
     // ── Build BOM lines from order data ────────────────────────────────
     const buildLinesFromOrder = (data, stockMap = stockByProductId) => {
@@ -137,7 +151,31 @@ export default function DeliveryChallanForm({
             }
             setStockByProductId(stockMap);
             setOrder(data);
-            setLines(buildLinesFromOrder(data, stockMap));
+            const newLines = buildLinesFromOrder(data, stockMap);
+            setLines(newLines);
+
+            // Load available serials for each serialized BOM line (for strict validation on add)
+            const warehouseId = data?.planned_warehouse_id;
+            if (warehouseId) {
+                const byIndex = {};
+                await Promise.all(
+                    newLines.map(async (line, index) => {
+                        if (!line.serial_required) return;
+                        try {
+                            const res = await stockService.getAvailableSerials(line.product_id, warehouseId);
+                            const list = res?.result ?? res ?? [];
+                            byIndex[index] = Array.isArray(list) ? list : [];
+                        } catch (e) {
+                            console.error("Failed to load available serials for line", index, e);
+                            byIndex[index] = [];
+                        }
+                    })
+                );
+                setAvailableSerialsByLineIndex(byIndex);
+            } else {
+                setAvailableSerialsByLineIndex({});
+            }
+
             // Clear order_id error when order is loaded
             setErrors((prev) => {
                 const next = { ...prev };
@@ -149,6 +187,7 @@ export default function DeliveryChallanForm({
             const msg = err?.response?.data?.message || err?.message || "Failed to load order";
             setOrder(null);
             setLines([]);
+            setAvailableSerialsByLineIndex({});
             toastError(msg);
         } finally {
             setInitialLoading(false);
@@ -206,6 +245,10 @@ export default function DeliveryChallanForm({
         let availableForLine = 0;
         const shipNowNum = Number(value) || 0;
 
+        if (expandedSerialLineIndex === index) {
+            closeSerialRowExpand();
+        }
+
         setLines((prev) =>
             prev.map((line, i) => {
                 if (i !== index) return line;
@@ -249,23 +292,43 @@ export default function DeliveryChallanForm({
     };
 
     const handleSerialAdd = (lineIndex, serialNumber) => {
-        if (!serialNumber || !serialNumber.trim()) return;
+        const trimmed = (serialNumber || "").trim();
+        if (!trimmed) return;
 
-        setLines((prev) =>
-            prev.map((line, i) => {
+        const availableList = availableSerialsByLineIndex[lineIndex];
+        if (Array.isArray(availableList) && availableList.length > 0) {
+            const isAvailable = availableList.some(
+                (s) => (s.serial_number || "").trim() === trimmed
+            );
+            if (!isAvailable) {
+                toastError("This serial is not available at this warehouse");
+                return;
+            }
+        }
+
+        setLines((prev) => {
+            const currentLine = prev[lineIndex];
+            const shipNow = Number(currentLine?.ship_now) || 0;
+            if (currentLine && currentLine.serials.length >= shipNow) {
+                toastError(`Maximum ${shipNow} serial numbers allowed for ship quantity`);
+                return prev;
+            }
+            if (currentLine && currentLine.serials.includes(trimmed)) {
+                toastError("Serial number already added");
+                return prev;
+            }
+            const usedInOtherLine = prev.some(
+                (line, i) => i !== lineIndex && (line.serials || []).includes(trimmed)
+            );
+            if (usedInOtherLine) {
+                toastError("This serial is already used in another line");
+                return prev;
+            }
+            return prev.map((line, i) => {
                 if (i !== lineIndex) return line;
-                const shipNow = Number(line.ship_now) || 0;
-                if (line.serials.length >= shipNow) {
-                    toastError(`Maximum ${shipNow} serial numbers allowed for ship quantity`);
-                    return line;
-                }
-                if (line.serials.includes(serialNumber.trim())) {
-                    toastError("Serial number already added");
-                    return line;
-                }
-                return { ...line, serials: [...line.serials, serialNumber.trim()] };
-            })
-        );
+                return { ...line, serials: [...(line.serials || []), trimmed] };
+            });
+        });
     };
 
     const handleSerialRemove = (lineIndex, serialIndex) => {
@@ -277,6 +340,136 @@ export default function DeliveryChallanForm({
                 return { ...line, serials: newSerials };
             })
         );
+    };
+
+    const toggleSerialRowExpand = (lineIndex) => {
+        const line = lines[lineIndex];
+        if (!line?.serial_required) return;
+        const shipNow = Number(line.ship_now) || 0;
+        if (shipNow <= 0) return;
+
+        if (expandedSerialLineIndex === lineIndex) {
+            setExpandedSerialLineIndex(null);
+            setSerialDrawerValues([]);
+            setSerialDrawerError("");
+            setSerialDrawerFieldErrors({});
+            setSerialDrawerValidating(null);
+            serialInputRefs.current = [];
+            return;
+        }
+
+        const existing = (line.serials || []).map((s) => String(s || "").trim());
+        const padded = Array.from({ length: shipNow }, (_, i) => existing[i] ?? "");
+        setSerialDrawerValues(padded);
+        setSerialDrawerError("");
+        setSerialDrawerFieldErrors({});
+        setSerialDrawerValidating(null);
+        setExpandedSerialLineIndex(lineIndex);
+        serialInputRefs.current = [];
+        setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
+    };
+
+    const closeSerialRowExpand = () => {
+        setExpandedSerialLineIndex(null);
+        setSerialDrawerValues([]);
+        setSerialDrawerError("");
+        setSerialDrawerFieldErrors({});
+        setSerialDrawerValidating(null);
+        serialInputRefs.current = [];
+    };
+
+    const validateSerialWithBackend = async (drawerValueIndex, value) => {
+        const trimmed = (value || "").trim();
+        if (!trimmed || expandedSerialLineIndex == null) {
+            setSerialDrawerFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next[drawerValueIndex];
+                return next;
+            });
+            return;
+        }
+
+        const line = lines[expandedSerialLineIndex];
+        const warehouseId = order?.planned_warehouse_id;
+        const productId = line?.product_id;
+        if (!warehouseId || !productId) {
+            setSerialDrawerFieldErrors((prev) => ({ ...prev, [drawerValueIndex]: "Warehouse or product missing" }));
+            return;
+        }
+
+        setSerialDrawerValidating(drawerValueIndex);
+        try {
+            const res = await stockService.validateSerialAvailable(trimmed, productId, warehouseId);
+            const result = res?.result ?? res;
+            const valid = result?.valid === true;
+            setSerialDrawerFieldErrors((prev) => {
+                const next = { ...prev };
+                if (valid) delete next[drawerValueIndex];
+                else next[drawerValueIndex] = result?.message || "Serial is not available at this warehouse";
+                return next;
+            });
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || "Validation failed";
+            setSerialDrawerFieldErrors((prev) => ({ ...prev, [drawerValueIndex]: msg }));
+        } finally {
+            setSerialDrawerValidating(null);
+        }
+    };
+
+    const handleSerialDrawerValueChange = (index, value) => {
+        setSerialDrawerValues((prev) => {
+            const next = [...prev];
+            next[index] = value;
+            return next;
+        });
+        setSerialDrawerFieldErrors((prev) => {
+            const next = { ...prev };
+            delete next[index];
+            return next;
+        });
+        setSerialDrawerError("");
+    };
+
+    const handleSerialDrawerKeyDown = (index, e) => {
+        const shipNow = serialDrawerValues.length;
+        if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            const value = (serialDrawerValues[index] || "").trim();
+            if (value) validateSerialWithBackend(index, value);
+            if (index < shipNow - 1) {
+                serialInputRefs.current[index + 1]?.focus();
+            } else {
+                handleSerialDrawerDone();
+            }
+        }
+    };
+
+    const handleSerialDrawerDone = () => {
+        const trimmed = serialDrawerValues.map((s) => String(s || "").trim());
+        const emptyIndex = trimmed.findIndex((s) => !s);
+        if (emptyIndex !== -1) {
+            setSerialDrawerError("Please fill all serial numbers.");
+            serialInputRefs.current[emptyIndex]?.focus();
+            return;
+        }
+        const unique = new Set(trimmed);
+        if (unique.size !== trimmed.length) {
+            setSerialDrawerError("Duplicate serial numbers are not allowed.");
+            return;
+        }
+        if (expandedSerialLineIndex == null) return;
+        setLines((prev) =>
+            prev.map((line, i) => {
+                if (i !== expandedSerialLineIndex) return line;
+                return { ...line, serials: trimmed };
+            })
+        );
+        setErrors((prev) => {
+            const next = { ...prev };
+            delete next[`line_${expandedSerialLineIndex}_serials`];
+            return next;
+        });
+        closeSerialRowExpand();
     };
 
     // ── Validation + payload ───────────────────────────────────────────
@@ -538,111 +731,147 @@ export default function DeliveryChallanForm({
                                             {lines.map((line, index) => {
                                                 const shipNow = Number(line.ship_now) || 0;
                                                 const serialCount = (line.serials || []).length;
+                                                const isSerialLine = line.serial_required && shipNow > 0;
+                                                const isExpanded = expandedSerialLineIndex === index;
 
                                                 return (
-                                                    <TableRow
-                                                        key={line.product_id || index}
-                                                        sx={{ "&:nth-of-type(odd)": { backgroundColor: "action.hover" } }}
-                                                    >
-                                                        <TableCell sx={compactCellSx}>{index + 1}</TableCell>
-                                                        <TableCell sx={compactCellSx}>
-                                                            <Typography
-                                                                variant="body2"
-                                                                fontWeight="medium"
-                                                                noWrap
-                                                                sx={{ maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
-                                                            >
-                                                                {line.product_name}
-                                                            </Typography>
-                                                            {line.serial_required && (
-                                                                <Chip label="SERIAL" size="small" color="primary" sx={{ mt: 0.25, height: 18, fontSize: "0.65rem" }} />
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell sx={compactCellSx}>{line.product_type_name}</TableCell>
-                                                        <TableCell sx={compactCellSx}>{line.make_name}</TableCell>
-                                                        <TableCell sx={compactCellSx} align="right">{line.required_qty}</TableCell>
-                                                        <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
-                                                        <TableCell sx={compactCellSx} align="right">{line.shipped_qty}</TableCell>
-                                                        <TableCell sx={compactCellSx} align="right">
-                                                            <Typography
-                                                                variant="body2"
-                                                                fontWeight="medium"
-                                                                color={line.pending_qty > 0 ? "warning.main" : "success.main"}
-                                                            >
-                                                                {line.pending_qty} {line.unit_name || ""}
-                                                            </Typography>
-                                                        </TableCell>
-                                                        <TableCell sx={compactCellSx}>
-                                                            <Input
-                                                                type="number"
-                                                                size="small"
-                                                                value={line.ship_now}
-                                                                onChange={(e) => handleShipNowChange(index, e.target.value)}
-                                                                inputProps={{ min: 0, max: line.pending_qty }}
-                                                                error={!!errors[`line_${index}_ship_now`]}
-                                                                helperText={errors[`line_${index}_ship_now`]}
-                                                                disabled={!order}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell sx={compactCellSx}>
-                                                            {line.serial_required && shipNow > 0 ? (
-                                                                <Box>
-                                                                    <Box sx={{ display: "flex", gap: 0.5, mb: 0.5, alignItems: "center" }}>
-                                                                        <Input
-                                                                            size="small"
-                                                                            placeholder="Enter serial & press Enter"
-                                                                            value={serialDrafts[index] || ""}
-                                                                            onChange={(e) =>
-                                                                                setSerialDrafts((prev) => ({
-                                                                                    ...prev,
-                                                                                    [index]: e.target.value,
-                                                                                }))
-                                                                            }
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === "Enter") {
-                                                                                    e.preventDefault();
-                                                                                    const draft = (serialDrafts[index] || "").trim();
-                                                                                    handleSerialAdd(index, draft);
-                                                                                    setSerialDrafts((prev) => ({
-                                                                                        ...prev,
-                                                                                        [index]: "",
-                                                                                    }));
-                                                                                }
-                                                                            }}
-                                                                            disabled={!order}
-                                                                        />
-                                                                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 50, whiteSpace: "nowrap" }}>
-                                                                            {serialCount}/{shipNow}
-                                                                        </Typography>
-                                                                    </Box>
-                                                                    {line.serials.length > 0 && (
-                                                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.35 }}>
-                                                                            {line.serials.map((serial, si) => (
-                                                                                <Chip
-                                                                                    key={si}
-                                                                                    label={serial}
-                                                                                    size="small"
-                                                                                    onDelete={() => handleSerialRemove(index, si)}
-                                                                                    color="primary"
-                                                                                    variant="outlined"
-                                                                                    sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: "0.7rem" } }}
-                                                                                />
-                                                                            ))}
-                                                                        </Box>
+                                                    <Fragment key={line.product_id || index}>
+                                                        <TableRow
+                                                            sx={{
+                                                                "&:nth-of-type(odd)": { backgroundColor: "action.hover" },
+                                                                ...(isSerialLine && { cursor: "pointer" }),
+                                                            }}
+                                                            onClick={(e) => {
+                                                                if (!isSerialLine) return;
+                                                                if (e.target.closest("[data-no-row-toggle]")) return;
+                                                                toggleSerialRowExpand(index);
+                                                            }}
+                                                        >
+                                                            <TableCell sx={compactCellSx}>{index + 1}</TableCell>
+                                                            <TableCell sx={compactCellSx}>
+                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                    {isSerialLine && (
+                                                                        <IconButton size="small" sx={{ p: 0.25 }} aria-label={isExpanded ? "Collapse" : "Expand"}>
+                                                                            {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                                        </IconButton>
                                                                     )}
-                                                                    {errors[`line_${index}_serials`] && (
-                                                                        <FormHelperText error sx={{ mt: 0.5 }}>
-                                                                            {errors[`line_${index}_serials`]}
-                                                                        </FormHelperText>
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        fontWeight="medium"
+                                                                        noWrap
+                                                                        sx={{ maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
+                                                                    >
+                                                                        {line.product_name}
+                                                                    </Typography>
+                                                                    {line.serial_required && (
+                                                                        <Chip label="SERIAL" size="small" color="primary" sx={{ mt: 0.25, height: 18, fontSize: "0.65rem" }} />
                                                                     )}
                                                                 </Box>
-                                                            ) : (
-                                                                <Typography variant="caption" color="text.secondary">
-                                                                    {line.serial_required ? "Enter quantity to add serials" : "-"}
+                                                            </TableCell>
+                                                            <TableCell sx={compactCellSx}>{line.product_type_name}</TableCell>
+                                                            <TableCell sx={compactCellSx}>{line.make_name}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{line.required_qty}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{line.shipped_qty}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    fontWeight="medium"
+                                                                    color={line.pending_qty > 0 ? "warning.main" : "success.main"}
+                                                                >
+                                                                    {line.pending_qty} {line.unit_name || ""}
                                                                 </Typography>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
+                                                            </TableCell>
+                                                            <TableCell sx={compactCellSx} data-no-row-toggle>
+                                                                <Input
+                                                                    type="number"
+                                                                    size="small"
+                                                                    value={line.ship_now}
+                                                                    onChange={(e) => handleShipNowChange(index, e.target.value)}
+                                                                    inputProps={{ min: 0, max: line.pending_qty }}
+                                                                    error={!!errors[`line_${index}_ship_now`]}
+                                                                    helperText={errors[`line_${index}_ship_now`]}
+                                                                    disabled={!order}
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell sx={compactCellSx}>
+                                                                {line.serial_required && shipNow > 0 ? (
+                                                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                                                                        <Typography variant="caption" color="text.secondary">
+                                                                            {serialCount} / {shipNow} serials
+                                                                        </Typography>
+                                                                        {line.serials?.length > 0 && (
+                                                                            <Typography variant="caption" color="text.secondary">
+                                                                                {line.serials.length <= 2
+                                                                                    ? line.serials.join(", ")
+                                                                                    : `${line.serials.slice(0, 2).join(", ")} and ${line.serials.length - 2} more`}
+                                                                            </Typography>
+                                                                        )}
+                                                                        {errors[`line_${index}_serials`] && (
+                                                                            <FormHelperText error sx={{ mt: 0.5 }}>
+                                                                                {errors[`line_${index}_serials`]}
+                                                                            </FormHelperText>
+                                                                        )}
+                                                                    </Box>
+                                                                ) : (
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        {line.serial_required ? "Enter quantity to add serials" : "-"}
+                                                                    </Typography>
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                        {isSerialLine && (
+                                                            <TableRow sx={{ "& > td": { borderBottom: isExpanded ? undefined : "none", py: 0, verticalAlign: "top" } }}>
+                                                                <TableCell colSpan={10} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
+                                                                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                                                        <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
+                                                                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                                                                                Enter exactly {shipNow} serial number(s). Use TAB or ENTER to move to the next. Each serial is validated against stock at this warehouse.
+                                                                            </Typography>
+                                                                            {serialDrawerError && (
+                                                                                <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
+                                                                                    {serialDrawerError}
+                                                                                </Alert>
+                                                                            )}
+                                                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 1.5 }}>
+                                                                                {isExpanded && serialDrawerValues.length === shipNow && serialDrawerValues.map((value, idx) => (
+                                                                                    <Box key={idx} sx={{ minWidth: 200 }}>
+                                                                                        <TextField
+                                                                                            size="small"
+                                                                                            fullWidth
+                                                                                            sx={{ minWidth: 180 }}
+                                                                                            label={`Serial ${idx + 1} of ${shipNow}`}
+                                                                                            value={value}
+                                                                                            onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                            onBlur={() => value?.trim() && validateSerialWithBackend(idx, value)}
+                                                                                            onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
+                                                                                            inputRef={(el) => { serialInputRefs.current[idx] = el; }}
+                                                                                            variant="outlined"
+                                                                                            error={!!serialDrawerFieldErrors[idx]}
+                                                                                            helperText={serialDrawerFieldErrors[idx]}
+                                                                                            InputProps={{
+                                                                                                endAdornment: serialDrawerValidating === idx ? (
+                                                                                                    <CircularProgress size={16} sx={{ ml: 0.5 }} />
+                                                                                                ) : null,
+                                                                                            }}
+                                                                                        />
+                                                                                    </Box>
+                                                                                ))}
+                                                                            </Box>
+                                                                            <Box sx={{ display: "flex", gap: 1 }}>
+                                                                                <Button type="button" variant="outline" size="sm" onClick={closeSerialRowExpand}>
+                                                                                    Cancel
+                                                                                </Button>
+                                                                                <Button type="button" size="sm" onClick={handleSerialDrawerDone}>
+                                                                                    Done
+                                                                                </Button>
+                                                                            </Box>
+                                                                        </Box>
+                                                                    </Collapse>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </Fragment>
                                                 );
                                             })}
                                         </TableBody>

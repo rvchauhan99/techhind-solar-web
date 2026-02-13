@@ -461,7 +461,7 @@ export default function SiteVisitPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "site_visit_created_at"}
+            sortBy={sortBy || "site_visit_id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
