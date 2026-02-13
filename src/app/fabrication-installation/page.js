@@ -45,20 +45,12 @@ const COLUMNS = [
         emptyMessage: "No pending installation orders assigned to you.",
     },
     {
-        key: "completed_fabrication_15d",
-        title: "Completed Fabrications (Last 15 Days)",
-        headerBg: "#16a34a",
-        chipBg: "#15803d",
-        accentColor: "#16a34a",
-        emptyMessage: "No completed fabrications in the last 15 days.",
-    },
-    {
         key: "completed_installation_15d",
-        title: "Completed Installation (Last 15 Days)",
+        title: "Completed Fabrication and Installation",
         headerBg: "#15803d",
         chipBg: "#166534",
         accentColor: "#22c55e",
-        emptyMessage: "No completed installations in the last 15 days.",
+        emptyMessage: "No completed fabrication and installation in the last 15 days.",
     },
 ];
 
@@ -69,12 +61,6 @@ const toDateTime = (value, fallback) => {
 
 const sortOrdersForColumn = (list, key) => {
     const rows = [...(list || [])];
-    if (key === "completed_fabrication_15d") {
-        return rows.sort(
-            (a, b) =>
-                toDateTime(b.fabrication_completed_at, 0) - toDateTime(a.fabrication_completed_at, 0)
-        );
-    }
     if (key === "completed_installation_15d") {
         return rows.sort(
             (a, b) =>
@@ -442,15 +428,9 @@ function FabricationInstallationPageContent() {
                                                     Outstanding: {formatCurrency(o.outstanding_balance)}
                                                 </Typography>
                                             </Box>
-                                            {(col.key === "completed_fabrication_15d" ||
-                                                col.key === "completed_installation_15d") && (
+                                            {col.key === "completed_installation_15d" && (
                                                 <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                                                    Completed:{" "}
-                                                    {formatDate(
-                                                        col.key === "completed_fabrication_15d"
-                                                            ? o.fabrication_completed_at
-                                                            : o.installation_completed_at
-                                                    )}
+                                                    Completed: {formatDate(o.installation_completed_at)}
                                                 </Typography>
                                             )}
                                             <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", pt: 0.25 }}>
