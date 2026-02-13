@@ -244,17 +244,19 @@ export default function DeliveryChallanForm({
         let pendingForLine = 0;
         let availableForLine = 0;
         const shipNowNum = Number(value) || 0;
+        const line = lines[index];
+        const isSerialRequired = line?.serial_required;
 
         if (expandedSerialLineIndex === index) {
             closeSerialRowExpand();
         }
 
         setLines((prev) =>
-            prev.map((line, i) => {
-                if (i !== index) return line;
-                const newLine = { ...line, ship_now: value };
+            prev.map((l, i) => {
+                if (i !== index) return l;
+                const newLine = { ...l, ship_now: value };
                 // Reset serials if ship_now changes
-                if (line.serial_required && newLine.serials.length > shipNowNum) {
+                if (l.serial_required && newLine.serials.length > shipNowNum) {
                     newLine.serials = newLine.serials.slice(0, shipNowNum);
                 }
                 pendingForLine = newLine.pending_qty;
@@ -289,6 +291,21 @@ export default function DeliveryChallanForm({
 
             return next;
         });
+
+        // Auto-open serial drawer when user enters ship qty for a serialized item
+        if (isSerialRequired && shipNowNum > 0) {
+            setTimeout(() => {
+                const existing = (line.serials || []).map((s) => String(s || "").trim()).slice(0, shipNowNum);
+                const padded = Array.from({ length: shipNowNum }, (_, i) => existing[i] ?? "");
+                setSerialDrawerValues(padded);
+                setSerialDrawerError("");
+                setSerialDrawerFieldErrors({});
+                setSerialDrawerValidating(null);
+                setExpandedSerialLineIndex(index);
+                serialInputRefs.current = [];
+                setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
+            }, 0);
+        }
     };
 
     const handleSerialAdd = (lineIndex, serialNumber) => {
@@ -716,7 +733,7 @@ export default function DeliveryChallanForm({
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell><strong>#</strong></TableCell>
-                                                <TableCell><strong>Product</strong></TableCell>
+                                                <TableCell sx={{ minWidth: 220 }}><strong>Product</strong></TableCell>
                                                 <TableCell><strong>Type</strong></TableCell>
                                                 <TableCell><strong>Make</strong></TableCell>
                                                 <TableCell align="right"><strong>Planned</strong></TableCell>
@@ -724,7 +741,7 @@ export default function DeliveryChallanForm({
                                                 <TableCell align="right"><strong>Shipped</strong></TableCell>
                                                 <TableCell align="right"><strong>Rem.</strong></TableCell>
                                                 <TableCell align="right" sx={{ minWidth: 110 }}><strong>Ship Now</strong></TableCell>
-                                                <TableCell sx={{ minWidth: 210 }}><strong>Serials</strong></TableCell>
+                                                <TableCell sx={{ minWidth: 120 }}><strong>Serials</strong></TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -758,8 +775,7 @@ export default function DeliveryChallanForm({
                                                                     <Typography
                                                                         variant="body2"
                                                                         fontWeight="medium"
-                                                                        noWrap
-                                                                        sx={{ maxWidth: 170, overflow: "hidden", textOverflow: "ellipsis" }}
+                                                                        sx={{ whiteSpace: "normal", wordBreak: "break-word" }}
                                                                     >
                                                                         {line.product_name}
                                                                     </Typography>
@@ -794,10 +810,10 @@ export default function DeliveryChallanForm({
                                                                     disabled={!order}
                                                                 />
                                                             </TableCell>
-                                                            <TableCell sx={compactCellSx}>
+                                                            <TableCell sx={{ ...compactCellSx, minWidth: 120, maxWidth: 140 }}>
                                                                 {line.serial_required && shipNow > 0 ? (
                                                                     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                                                                        <Typography variant="caption" color="text.secondary">
+                                                                        <Typography variant="caption" color="text.secondary" noWrap title={`${serialCount} / ${shipNow} serials`}>
                                                                             {serialCount} / {shipNow} serials
                                                                         </Typography>
                                                                         {line.serials?.length > 0 && (
