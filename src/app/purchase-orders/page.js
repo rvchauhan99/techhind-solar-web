@@ -32,7 +32,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { DIALOG_FORM_SMALL } from "@/utils/formConstants";
 import PaginationControls from "@/components/common/PaginationControls";
-import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload } from "@tabler/icons-react";
+import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload, IconPrinter } from "@tabler/icons-react";
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -85,6 +85,7 @@ export default function PurchaseOrderPage() {
   const [selectedPO, setSelectedPO] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [attachmentLoadingIndex, setAttachmentLoadingIndex] = useState(null);
+  const [printingId, setPrintingId] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -185,6 +186,38 @@ export default function PurchaseOrderPage() {
     }
   }, []);
 
+  const handlePrintPO = useCallback(async (poId, e) => {
+    if (e) e.stopPropagation();
+    setPrintingId(poId);
+    try {
+      const { blob, filename } = await purchaseOrderService.getPurchaseOrderPdf(poId);
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, "_blank");
+      if (printWindow) {
+        printWindow.onload = () => {
+          try {
+            printWindow.print();
+          } catch (_) {
+            // PDF viewer may not support print() immediately; user can print from browser
+          }
+        };
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+      toast.success("Purchase order PDF opened");
+    } catch (error) {
+      console.error("Print/PDF error:", error);
+      toast.error(error?.response?.data?.message || "Failed to generate PDF");
+    } finally {
+      setPrintingId(null);
+    }
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -279,6 +312,17 @@ export default function PurchaseOrderPage() {
             >
               <IconEye className="size-4" />
             </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              onClick={(e) => handlePrintPO(row.id, e)}
+              title="Print"
+              aria-label="Print"
+              disabled={printingId === row.id}
+            >
+              <IconPrinter className="size-4" />
+            </Button>
             {row.status === "DRAFT" && perms?.can_update && (
               <Button
                 size="icon"
@@ -327,7 +371,7 @@ export default function PurchaseOrderPage() {
         ),
       },
     ],
-    [router, handleOpenSidebar]
+    [router, handleOpenSidebar, handlePrintPO, printingId]
   );
 
   const fetcher = useMemo(
@@ -457,7 +501,20 @@ export default function PurchaseOrderPage() {
     return (
       <div className="pr-1 space-y-4">
         <div className="space-y-1">
-          <p className="font-semibold text-base">{text(po.po_number)}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-base">{text(po.po_number)}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              disabled={printingId === po.id}
+              onClick={() => handlePrintPO(po.id)}
+            >
+              <IconPrinter className="size-4 mr-1" />
+              {printingId === po.id ? "Generating..." : "Print"}
+            </Button>
+          </div>
           <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
             {text(po.status)}
           </Badge>
@@ -611,7 +668,7 @@ export default function PurchaseOrderPage() {
         </div>
       </div>
     );
-  }, [loadingRecord, selectedPO, attachmentLoadingIndex, handleOpenAttachment]);
+  }, [loadingRecord, selectedPO, attachmentLoadingIndex, handleOpenAttachment, handlePrintPO, printingId]);
 
   return (
     <ProtectedRoute>

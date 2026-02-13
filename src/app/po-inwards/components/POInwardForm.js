@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import {
     Box,
     Typography,
     MenuItem,
     Alert,
-    IconButton,
     Table,
     TableBody,
     TableCell,
@@ -19,7 +18,12 @@ import {
     Checkbox,
     FormHelperText,
     CircularProgress,
+    TextField,
+    Collapse,
+    IconButton,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import purchaseOrderService from "@/services/purchaseOrderService";
 import companyService from "@/services/companyService";
 import { toastError } from "@/utils/toast";
@@ -56,6 +60,10 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
     const [warehouses, setWarehouses] = useState([]);
     const [selectedPO, setSelectedPO] = useState(null);
     const [loadingOptions, setLoadingOptions] = useState(false);
+    const [expandedSerialRowIndex, setExpandedSerialRowIndex] = useState(null);
+    const [serialDrawerValues, setSerialDrawerValues] = useState([]);
+    const [serialDrawerError, setSerialDrawerError] = useState("");
+    const serialInputRefs = useRef([]);
 
     useEffect(() => {
         const loadOptions = async () => {
@@ -234,6 +242,20 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
             ...prev,
             items: newItems,
         }));
+
+        // Auto-open serial drawer when received/rejected qty results in accepted qty > 0 for SERIAL item
+        if ((field === "received_quantity" || field === "rejected_quantity") && isSerialItem(newItems[index])) {
+            const acceptedQty = newItems[index].accepted_quantity || 0;
+            if (acceptedQty > 0) {
+                const existing = (newItems[index].serials || []).map((s) => (typeof s === "string" ? s : s?.serial_number ?? "").trim());
+                const padded = Array.from({ length: acceptedQty }, (_, i) => existing[i] ?? "");
+                setSerialDrawerValues(padded);
+                setSerialDrawerError("");
+                setExpandedSerialRowIndex(index);
+                serialInputRefs.current = [];
+                setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
+            }
+        }
     };
 
     const handleSerialAdd = (itemIndex, serialNumber) => {
@@ -272,6 +294,82 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
             ...prev,
             items: newItems,
         }));
+    };
+
+    const toggleSerialRowExpand = (itemIndex) => {
+        const item = formData.items[itemIndex];
+        if (!item || !isSerialItem(item)) return;
+        const acceptedQty = Math.max(0, parseInt(item.accepted_quantity) || 0);
+        if (acceptedQty === 0) return;
+        if (expandedSerialRowIndex === itemIndex) {
+            setExpandedSerialRowIndex(null);
+            setSerialDrawerValues([]);
+            setSerialDrawerError("");
+            serialInputRefs.current = [];
+            return;
+        }
+        const existing = (item.serials || []).map((s) => (typeof s === "string" ? s : s?.serial_number ?? "").trim());
+        const padded = Array.from({ length: acceptedQty }, (_, i) => existing[i] ?? "");
+        setSerialDrawerValues(padded);
+        setSerialDrawerError("");
+        setExpandedSerialRowIndex(itemIndex);
+        serialInputRefs.current = [];
+        setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
+    };
+
+    const closeSerialRowExpand = () => {
+        setExpandedSerialRowIndex(null);
+        setSerialDrawerValues([]);
+        setSerialDrawerError("");
+        serialInputRefs.current = [];
+    };
+
+    const handleSerialDrawerValueChange = (index, value) => {
+        setSerialDrawerValues((prev) => {
+            const next = [...prev];
+            next[index] = value;
+            return next;
+        });
+        setSerialDrawerError("");
+    };
+
+    const handleSerialDrawerKeyDown = (index, e) => {
+        const acceptedQty = serialDrawerValues.length;
+        if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            if (index < acceptedQty - 1) {
+                serialInputRefs.current[index + 1]?.focus();
+            } else {
+                handleSerialDrawerDone();
+            }
+        }
+    };
+
+    const handleSerialDrawerDone = () => {
+        const trimmed = serialDrawerValues.map((s) => String(s || "").trim());
+        const emptyIndex = trimmed.findIndex((s) => !s);
+        if (emptyIndex !== -1) {
+            setSerialDrawerError("Please fill all serial numbers.");
+            serialInputRefs.current[emptyIndex]?.focus();
+            return;
+        }
+        const unique = new Set(trimmed);
+        if (unique.size !== trimmed.length) {
+            setSerialDrawerError("Duplicate serial numbers are not allowed.");
+            return;
+        }
+        if (expandedSerialRowIndex == null) return;
+        const newItems = [...formData.items];
+        newItems[expandedSerialRowIndex].serials = trimmed;
+        setFormData((prev) => ({ ...prev, items: newItems }));
+        if (errors[`item_${expandedSerialRowIndex}_serials`]) {
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next[`item_${expandedSerialRowIndex}_serials`];
+                return next;
+            });
+        }
+        closeSerialRowExpand();
     };
 
     const handleSubmit = (e) => {
@@ -329,20 +427,18 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                     validationErrors[`item_${index}_accepted`] = `Accepted quantity should be ${calculatedAccepted} (Received: ${receivedQty} - Rejected: ${rejectedQty})`;
                 }
 
-                // For SERIAL items: Validate serial numbers
+                // For SERIAL items: Serial numbers are mandatory (exactly acceptedQty)
                 if (isSerialItem(item)) {
                     const serialCount = (item.serials || []).length;
-                    
-                    // Serial numbers are optional, but if provided, cannot exceed accepted_quantity
-                    if (serialCount > acceptedQty) {
-                        validationErrors[`item_${index}_serials`] = `Cannot have more than ${acceptedQty} serial numbers for accepted quantity`;
-                    }
-
-                    // Check for duplicate serial numbers
-                    const serialNumbers = (item.serials || []).map(s => typeof s === "string" ? s.trim() : s.serial_number?.trim()).filter(Boolean);
-                    const uniqueSerials = new Set(serialNumbers);
-                    if (serialNumbers.length !== uniqueSerials.size) {
-                        validationErrors[`item_${index}_serials`] = "Duplicate serial numbers are not allowed";
+                    if (serialCount !== acceptedQty) {
+                        validationErrors[`item_${index}_serials`] = `Please enter exactly ${acceptedQty} serial number(s) for this item (required for serialized products).`;
+                    } else {
+                        // Check for duplicate serial numbers
+                        const serialNumbers = (item.serials || []).map(s => typeof s === "string" ? s.trim() : s.serial_number?.trim()).filter(Boolean);
+                        const uniqueSerials = new Set(serialNumbers);
+                        if (serialNumbers.length !== uniqueSerials.size) {
+                            validationErrors[`item_${index}_serials`] = "Duplicate serial numbers are not allowed";
+                        }
                     }
                 }
             });
@@ -559,120 +655,145 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                             const isLot = item.tracking_type === "LOT" && !isSerial;
                                             const serialCount = (item.serials || []).length;
                                             const acceptedQty = item.accepted_quantity || 0;
+                                            const isExpanded = expandedSerialRowIndex === index;
 
                                             return (
-                                                <TableRow key={index} sx={{ '&:nth-of-type(odd)': { backgroundColor: 'action.hover' } }}>
-                                                    <TableCell>
-                                                        <Box>
-                                                            <Typography variant="body2" fontWeight="medium">
-                                                                {item.product_name}
-                                                            </Typography>
-                                                            {isSerial && (
-                                                                <Chip
-                                                                    label="SERIAL"
-                                                                    size="small"
-                                                                    color="primary"
-                                                                    sx={{ mt: 0.5, mr: 0.5 }}
-                                                                />
-                                                            )}
-                                                            {isLot && (
-                                                                <Chip
-                                                                    label="LOT"
-                                                                    size="small"
-                                                                    color="secondary"
-                                                                    sx={{ mt: 0.5 }}
-                                                                />
-                                                            )}
-                                                        </Box>
-                                                    </TableCell>
-                                                    <TableCell align="right">{item.ordered_quantity}</TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="number"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={item.received_quantity}
-                                                            onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
-                                                            inputProps={{ min: 0, max: item.ordered_quantity }}
-                                                            error={!!errors[`item_${index}_received`]}
-                                                            helperText={errors[`item_${index}_received`]}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="number"
-                                                            size="small"
-                                                            fullWidth
-                                                            value={item.rejected_quantity}
-                                                            onChange={(e) => handleItemChange(index, "rejected_quantity", e.target.value)}
-                                                            inputProps={{ min: 0, max: item.received_quantity }}
-                                                            error={!!errors[`item_${index}_rejected`]}
-                                                            helperText={errors[`item_${index}_rejected`]}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell align="right">
-                                                        <Typography variant="body2" fontWeight="medium" color="success.main">
-                                                            {item.accepted_quantity}
-                                                        </Typography>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {isSerial ? (
-                                                            <Box>
-                                                                <Box sx={{ display: "flex", gap: 1, mb: 1, alignItems: "center" }}>
-                                                                    <Input
-                                                                        size="small"
-                                                                        placeholder="Enter serial number"
-                                                                        sx={{ flex: 1 }}
-                                                                        onKeyPress={(e) => {
-                                                                            if (e.key === "Enter") {
-                                                                                e.preventDefault();
-                                                                                handleSerialAdd(index, e.target.value);
-                                                                                e.target.value = "";
-                                                                            }
-                                                                        }}
-                                                                    />
-                                                                    <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80 }}>
-                                                                        {serialCount} / {acceptedQty} (Optional)
+                                                <Fragment key={index}>
+                                                    <TableRow
+                                                        sx={{
+                                                            "&:nth-of-type(odd)": { backgroundColor: "action.hover" },
+                                                            ...(isSerial && { cursor: acceptedQty > 0 ? "pointer" : "default" }),
+                                                        }}
+                                                        onClick={(e) => {
+                                                            if (!isSerial || acceptedQty === 0) return;
+                                                            if (e.target.closest("[data-no-row-toggle]")) return;
+                                                            toggleSerialRowExpand(index);
+                                                        }}
+                                                    >
+                                                        <TableCell>
+                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                {isSerial && acceptedQty > 0 && (
+                                                                    <IconButton size="small" sx={{ p: 0.25 }} aria-label={isExpanded ? "Collapse" : "Expand"}>
+                                                                        {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                                    </IconButton>
+                                                                )}
+                                                                <Box>
+                                                                    <Typography variant="body2" fontWeight="medium">
+                                                                        {item.product_name}
                                                                     </Typography>
+                                                                    {isSerial && (
+                                                                        <Chip label="SERIAL" size="small" color="primary" sx={{ mt: 0.5, mr: 0.5 }} />
+                                                                    )}
+                                                                    {isLot && (
+                                                                        <Chip label="LOT" size="small" color="secondary" sx={{ mt: 0.5 }} />
+                                                                    )}
                                                                 </Box>
-                                                                {item.serials && item.serials.length > 0 && (
-                                                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                                                                        {item.serials.map((serial, serialIndex) => (
-                                                                            <Chip
-                                                                                key={serialIndex}
-                                                                                label={serial}
-                                                                                size="small"
-                                                                                onDelete={() => handleSerialRemove(index, serialIndex)}
-                                                                                color="primary"
-                                                                                variant="outlined"
-                                                                            />
-                                                                        ))}
-                                                                    </Box>
-                                                                )}
-                                                                {errors[`item_${index}_serials`] && (
-                                                                    <FormHelperText error sx={{ mt: 0.5 }}>
-                                                                        {errors[`item_${index}_serials`]}
-                                                                    </FormHelperText>
-                                                                )}
-                                                                {serialCount < acceptedQty && (
-                                                                    <FormHelperText sx={{ mt: 0.5, fontSize: '0.7rem' }}>
-                                                                        You can add up to {acceptedQty - serialCount} more serial numbers (optional)
-                                                                    </FormHelperText>
-                                                                )}
                                                             </Box>
-                                                        ) : isLot ? (
+                                                        </TableCell>
+                                                        <TableCell align="right">{item.ordered_quantity}</TableCell>
+                                                        <TableCell data-no-row-toggle>
                                                             <Input
+                                                                type="number"
                                                                 size="small"
                                                                 fullWidth
-                                                                placeholder="Lot/Batch Number (Optional)"
-                                                                value={item.lot_number || ""}
-                                                                onChange={(e) => handleItemChange(index, "lot_number", e.target.value)}
+                                                                value={item.received_quantity}
+                                                                onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
+                                                                inputProps={{ min: 0, max: item.ordered_quantity }}
+                                                                error={!!errors[`item_${index}_received`]}
+                                                                helperText={errors[`item_${index}_received`]}
                                                             />
-                                                        ) : (
-                                                            <Typography variant="body2" color="text.secondary">N/A</Typography>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
+                                                        </TableCell>
+                                                        <TableCell data-no-row-toggle>
+                                                            <Input
+                                                                type="number"
+                                                                size="small"
+                                                                fullWidth
+                                                                value={item.rejected_quantity}
+                                                                onChange={(e) => handleItemChange(index, "rejected_quantity", e.target.value)}
+                                                                inputProps={{ min: 0, max: item.received_quantity }}
+                                                                error={!!errors[`item_${index}_rejected`]}
+                                                                helperText={errors[`item_${index}_rejected`]}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell align="right">
+                                                            <Typography variant="body2" fontWeight="medium" color="success.main">
+                                                                {item.accepted_quantity}
+                                                            </Typography>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {isSerial ? (
+                                                                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                                                                    <Typography variant="caption" color="text.secondary">
+                                                                        {serialCount} / {acceptedQty} serials
+                                                                    </Typography>
+                                                                    {item.serials?.length > 0 && (
+                                                                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                                            {item.serials.length <= 2
+                                                                                ? item.serials.join(", ")
+                                                                                : `${item.serials.slice(0, 2).join(", ")} and ${item.serials.length - 2} more`}
+                                                                        </Typography>
+                                                                    )}
+                                                                    {errors[`item_${index}_serials`] && (
+                                                                        <FormHelperText error sx={{ mt: 0.5 }}>
+                                                                            {errors[`item_${index}_serials`]}
+                                                                        </FormHelperText>
+                                                                    )}
+                                                                </Box>
+                                                            ) : isLot ? (
+                                                                <Input
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    placeholder="Lot/Batch Number (Optional)"
+                                                                    value={item.lot_number || ""}
+                                                                    onChange={(e) => handleItemChange(index, "lot_number", e.target.value)}
+                                                                />
+                                                            ) : (
+                                                                <Typography variant="body2" color="text.secondary">N/A</Typography>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                    {isSerial && (
+                                                        <TableRow sx={{ "& > td": { borderBottom: isExpanded ? undefined : "none", py: 0, verticalAlign: "top" } }}>
+                                                            <TableCell colSpan={6} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
+                                                                <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                                                    <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
+                                                                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                                                                            Enter exactly {acceptedQty} serial number(s). Use TAB or ENTER to move to the next.
+                                                                        </Typography>
+                                                                        {serialDrawerError && (
+                                                                            <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
+                                                                                {serialDrawerError}
+                                                                            </Alert>
+                                                                        )}
+                                                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 1.5 }}>
+                                                                            {isExpanded && serialDrawerValues.length === acceptedQty && serialDrawerValues.map((value, idx) => (
+                                                                                <TextField
+                                                                                    key={idx}
+                                                                                    size="small"
+                                                                                    sx={{ minWidth: 180 }}
+                                                                                    label={`Serial ${idx + 1} of ${acceptedQty}`}
+                                                                                    value={value}
+                                                                                    onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                    onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
+                                                                                    inputRef={(el) => { serialInputRefs.current[idx] = el; }}
+                                                                                    variant="outlined"
+                                                                                />
+                                                                            ))}
+                                                                        </Box>
+                                                                        <Box sx={{ display: "flex", gap: 1 }}>
+                                                                            <Button type="button" variant="outline" size="sm" onClick={closeSerialRowExpand}>
+                                                                                Cancel
+                                                                            </Button>
+                                                                            <Button type="button" size="sm" onClick={handleSerialDrawerDone}>
+                                                                                Done
+                                                                            </Button>
+                                                                        </Box>
+                                                                    </Box>
+                                                                </Collapse>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </Fragment>
                                             );
                                         })}
                                     </TableBody>
