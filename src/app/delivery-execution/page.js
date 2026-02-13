@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Box,
@@ -8,16 +8,27 @@ import {
   Chip,
   CircularProgress,
   Drawer,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
   Paper,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import DescriptionIcon from "@mui/icons-material/Description";
+import GroupIcon from "@mui/icons-material/Group";
+import AddIcon from "@mui/icons-material/Add";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import { useRouter } from "next/navigation";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import AssignFabricatorAndInstaller from "@/app/confirm-orders/components/AssignFabricatorAndInstaller";
 import {
   compactAddress,
   formatCurrency,
@@ -98,29 +109,76 @@ export default function DeliveryExecutionPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+  const [assignTeamDrawerOpen, setAssignTeamDrawerOpen] = useState(false);
+  const [assignTeamOrderId, setAssignTeamOrderId] = useState(null);
+  const [assignTeamOrderData, setAssignTeamOrderData] = useState(null);
+  const [assignTeamLoading, setAssignTeamLoading] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [menuOrder, setMenuOrder] = useState(null);
   const router = useRouter();
 
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await orderService.getDeliveryExecutionOrders(buildFilterParams(appliedFilters));
+      const data = res?.result || res || [];
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load delivery execution orders:", err);
+      const msg =
+        err?.response?.data?.message || err?.message || "Failed to load delivery execution orders";
+      setError(msg);
+      toastError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters]);
+
   useEffect(() => {
-    const fetchData = async () => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!assignTeamDrawerOpen || !assignTeamOrderId) {
+      setAssignTeamOrderData(null);
+      return;
+    }
+    const loadOrder = async () => {
       try {
-        setLoading(true);
-        setError(null);
-        const res = await orderService.getDeliveryExecutionOrders(buildFilterParams(appliedFilters));
-        const data = res?.result || res || [];
-        setOrders(Array.isArray(data) ? data : []);
+        setAssignTeamLoading(true);
+        const data = await orderService.getOrderById(assignTeamOrderId);
+        const item = data?.result ?? data;
+        setAssignTeamOrderData(item || null);
       } catch (err) {
-        console.error("Failed to load delivery execution orders:", err);
-        const msg =
-          err?.response?.data?.message || err?.message || "Failed to load delivery execution orders";
-        setError(msg);
-        toastError(msg);
+        console.error("Failed to load order for assign team:", err);
+        toastError(err?.response?.data?.message || err?.message || "Failed to load order");
       } finally {
-        setLoading(false);
+        setAssignTeamLoading(false);
       }
     };
+    loadOrder();
+  }, [assignTeamDrawerOpen, assignTeamOrderId]);
 
+  const handleOpenAssignTeam = (order) => {
+    setAssignTeamOrderId(order?.id ?? null);
+    setAssignTeamDrawerOpen(true);
+  };
+
+  const handleCloseAssignTeam = () => {
+    setAssignTeamDrawerOpen(false);
+    setAssignTeamOrderId(null);
+    setAssignTeamOrderData(null);
+  };
+
+  const handleAssignTeamSuccess = () => {
     fetchData();
-  }, [appliedFilters]);
+    if (selectedOrder?.id === assignTeamOrderId) {
+      setSelectedOrder(null);
+      setDetailsOpen(false);
+    }
+    handleCloseAssignTeam();
+  };
 
   const handleFilterChange = (event) => {
     const { name, value } = event.target;
@@ -154,14 +212,6 @@ export default function DeliveryExecutionPage() {
     router.push(`/delivery-challans/new?order_id=${orderId}`);
   };
 
-  const handleViewOrder = (orderId) => {
-    router.push(`/delivery-execution/view?id=${orderId}`);
-  };
-
-  const handleViewChallans = (orderId) => {
-    router.push(`/delivery-challans?order_id=${orderId}`);
-  };
-
   const handleOpenDetails = (order) => {
     setSelectedOrder(order);
     setDetailsOpen(true);
@@ -191,57 +241,40 @@ export default function DeliveryExecutionPage() {
     }
   };
 
-  const renderActions = (statusKey, order) => {
-    const orderId = order?.id;
-    if (statusKey === "pending") {
-      return (
-        <>
-          <Button size="small" variant="text" onClick={() => handleOpenDetails(order)}>
-            Details
-          </Button>
-          <Button size="small" variant="outlined" onClick={() => handleViewOrder(orderId)}>
-            View
-          </Button>
-          <Button size="small" variant="contained" onClick={() => handleCreateChallan(orderId)}>
-            Create Challan
-          </Button>
-        </>
-      );
-    }
-
-    if (statusKey === "partial") {
-      return (
-        <>
-          <Button size="small" variant="text" onClick={() => handleOpenDetails(order)}>
-            Details
-          </Button>
-          <Button size="small" variant="outlined" onClick={() => handleViewOrder(orderId)}>
-            View
-          </Button>
-          <Button size="small" variant="outlined" onClick={() => handleViewChallans(orderId)}>
-            Challans
-          </Button>
-          <Button size="small" variant="contained" onClick={() => handleCreateChallan(orderId)}>
-            New Challan
-          </Button>
-        </>
-      );
-    }
-
-    return (
-      <>
-        <Button size="small" variant="text" onClick={() => handleOpenDetails(order)}>
-          Details
-        </Button>
-        <Button size="small" variant="outlined" onClick={() => handleViewOrder(orderId)}>
-          View
-        </Button>
-        <Button size="small" variant="outlined" onClick={() => handleViewChallans(orderId)}>
-          Challans
-        </Button>
-      </>
-    );
+  const handleMenuOpen = (event, order) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setMenuOrder(order);
   };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuOrder(null);
+  };
+
+  const handleMenuOrderDetails = () => {
+    if (menuOrder) handleOpenDetails(menuOrder);
+    handleMenuClose();
+  };
+
+  const handleMenuViewChallans = () => {
+    if (menuOrder?.id) router.push(`/delivery-execution/view?id=${menuOrder.id}`);
+    handleMenuClose();
+  };
+
+  const handleMenuAssignTeam = () => {
+    if (menuOrder) handleOpenAssignTeam(menuOrder);
+    handleMenuClose();
+  };
+
+  const handleMenuNewChallan = () => {
+    if (menuOrder?.id) handleCreateChallan(menuOrder.id);
+    handleMenuClose();
+  };
+
+  const menuStatus = menuOrder?.kanban_status || menuOrder?.delivery_status || "pending";
+  const showAssignTeam = menuStatus === "partial" || menuStatus === "complete";
+  const showNewChallan = menuStatus === "pending" || menuStatus === "partial";
 
   return (
     <Box
@@ -256,7 +289,7 @@ export default function DeliveryExecutionPage() {
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-        <Typography variant="h6">Delivery Execution</Typography>
+        <Typography variant="h6">Delivery Execution & Team Planning</Typography>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Button size="small" variant="outlined" onClick={() => setFilterDrawerOpen(true)}>
             Filter {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
@@ -404,6 +437,15 @@ export default function DeliveryExecutionPage() {
                             color={deliveryStatusColor(o.delivery_status)}
                             sx={{ height: 20, fontSize: "0.68rem" }}
                           />
+                          <Tooltip title="More actions">
+                            <IconButton
+                              size="small"
+                              sx={{ flex: "0 0 auto", p: 0.25 }}
+                              onClick={(e) => handleMenuOpen(e, o)}
+                            >
+                              <MoreVertIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </Box>
                       </Box>
 
@@ -451,10 +493,6 @@ export default function DeliveryExecutionPage() {
                             Last Challan: {formatDate(o.last_challan_date)} • Count: {o.challan_count || 0}
                           </Typography>
                         )}
-                      </Box>
-
-                      <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap", pt: 0.25 }}>
-                        {renderActions(col.key, o)}
                       </Box>
                     </Paper>
                   ))}
@@ -578,6 +616,67 @@ export default function DeliveryExecutionPage() {
             <Button size="small" variant="text" onClick={() => setFilterDrawerOpen(false)}>
               Cancel
             </Button>
+          </Box>
+        </Box>
+      </Drawer>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <MenuItem onClick={handleMenuOrderDetails}>
+          <ListItemIcon>
+            <DescriptionIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Order Details" />
+        </MenuItem>
+        <MenuItem onClick={handleMenuViewChallans}>
+          <ListItemIcon>
+            <ReceiptLongIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="View Challans" />
+        </MenuItem>
+        {showAssignTeam && (
+          <MenuItem onClick={handleMenuAssignTeam}>
+            <ListItemIcon>
+              <GroupIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Assign Team" />
+          </MenuItem>
+        )}
+        {showNewChallan && (
+          <MenuItem onClick={handleMenuNewChallan}>
+            <ListItemIcon>
+              <AddIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="New Challan" />
+          </MenuItem>
+        )}
+      </Menu>
+
+      <Drawer anchor="right" open={assignTeamDrawerOpen} onClose={handleCloseAssignTeam}>
+        <Box sx={{ width: { xs: 340, sm: 480 }, p: 0, display: "flex", flexDirection: "column", height: "100%" }}>
+          <Box sx={{ p: 2, borderBottom: 1, borderColor: "divider" }}>
+            <Typography variant="h6">Assign Team</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Assign fabricator and installer for this order.
+            </Typography>
+          </Box>
+          <Box sx={{ flex: 1, overflowY: "auto", p: 2 }}>
+            {assignTeamLoading ? (
+              <Box sx={{ py: 4, display: "flex", justifyContent: "center" }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : assignTeamOrderData && assignTeamOrderId ? (
+              <AssignFabricatorAndInstaller
+                orderId={assignTeamOrderId}
+                orderData={assignTeamOrderData}
+                onSuccess={handleAssignTeamSuccess}
+              />
+            ) : null}
           </Box>
         </Box>
       </Drawer>
