@@ -170,7 +170,7 @@ export default function ListView() {
                         sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=2`)}>
+                        <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton size="small" title="Upload" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=5`)}>
@@ -286,7 +286,7 @@ export default function ListView() {
                 open={Boolean(menuAnchor)}
                 onClose={handleMenuClose}
             >
-                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=2`); handleMenuClose(); }}>
                     <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Add Payment</ListItemText>
                 </MenuItem>
