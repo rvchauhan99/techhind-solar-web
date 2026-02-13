@@ -224,6 +224,19 @@ export default function OrderDetailsDrawer({
                         <Divider />
                         <Box>
                             <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
+                                Fabricator & Installer
+                            </Typography>
+                            <Typography variant="body2">
+                                Fabricator: {safeValue(resolvedOrder?.fabrication?.fabricator_name) || "-"}
+                            </Typography>
+                            <Typography variant="body2">
+                                Installer: {safeValue(resolvedOrder?.installation?.installer_name) || "-"}
+                            </Typography>
+                        </Box>
+
+                        <Divider />
+                        <Box>
+                            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
                                 BOM Summary
                             </Typography>
                             {bomLines.length === 0 ? (
