@@ -462,9 +462,6 @@ export default function LoginPage() {
         </form>
       )}
 
-      <p className="text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Solar Systems Inc.
-      </p>
     </div>
   );
 }

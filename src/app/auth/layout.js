@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/components/ui/card";
+import Image from "next/image";
 
 export const metadata = {
   title: "Auth | Solar Management System",
@@ -7,49 +7,60 @@ export const metadata = {
 
 export default function AuthLayout({ children }) {
   return (
-    <div className="bg-content min-h-dvh p-2 md:p-4">
-      <Card className="h-[calc(100vh-16px)] w-full md:h-[calc(100vh-32px)] md:py-0">
-        <CardContent className="flex h-full px-0 md:pl-4">
-          {/* Left Section - Branding (hidden on small screens) */}
+    <div className="relative min-h-dvh w-full overflow-hidden">
+      {/* Single full-screen hero image only - solar-hero-4k.png */}
+      <Image
+        src="/images/solar-hero-4k.png"
+        alt="Solar EPC - CRM for Indian solar companies"
+        fill
+        priority
+        className="object-cover"
+        sizes="100vw"
+      />
+      {/* Subtle overlay for text/card readability only */}
+      <div
+        className="absolute inset-0 bg-slate-900/20"
+        aria-hidden
+      />
+
+      {/* Content overlaid on hero: two-column on lg, card only on mobile */}
+      <div className="relative z-10 grid min-h-dvh lg:grid-cols-2">
+        {/* Left: Headline + footer - hidden on mobile */}
+        <div className="hidden flex-col justify-between p-8 xl:p-12 lg:flex">
+          <div />
+          <div>
+            <h1 className="text-3xl font-bold leading-tight text-white xl:text-4xl">
+              India&apos;s Most Powerful{" "}
+              <span className="text-emerald-400">CRM</span> for Solar EPC
+              <br />
+              Companies
+            </h1>
+            <p className="mt-4 max-w-md text-base text-white/90 xl:text-lg">
+              From Lead Generation to Project Completion – Manage your entire
+              solar business with one powerful, cloud-based platform designed
+              specifically for Indian solar companies.
+            </p>
+          </div>
+          <p className="text-sm text-white/80">
+            Powered by Techhind Pvt Ltd
+            <br />
+            All Rights Reserved © 2026
+          </p>
+        </div>
+
+        {/* Right: Login card over hero */}
+        <div className="flex min-h-dvh items-center justify-center p-4 md:p-6 lg:p-8">
           <div
-            className="relative hidden overflow-hidden rounded-md md:my-4 lg:flex lg:flex-1"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-white/90 px-6 py-8 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 md:px-8 md:py-10"
             style={{
-              background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+              boxShadow:
+                "0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08) inset",
             }}
           >
-            <div className="relative z-10 flex flex-1 flex-col justify-end p-5">
-              <h1 className="text-2xl font-bold text-primary">
-                Solar Management System
-              </h1>
-              <p className="mt-2 text-sm text-white/90">
-                Monitor efficiency, track grid performance, and optimize
-                energy output in real-time. Inquiry, quotation, orders, and
-                operations in one place.
-              </p>
-            </div>
+            {children}
           </div>
-
-          {/* Right Section - Form area */}
-          <div className="relative flex flex-1 overflow-y-auto bg-background">
-            {/* Dot pattern background */}
-            <div
-              className="absolute inset-0 opacity-5"
-              style={{
-                backgroundImage: `radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)`,
-                backgroundSize: "24px 24px",
-              }}
-            />
-
-            <div className="relative z-10 flex w-full justify-center p-4">
-              <div className="mx-auto w-full max-w-md">
-                <div className="flex min-h-full items-center justify-center py-8">
-                  <div className="w-full shrink-0">{children}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
