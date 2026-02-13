@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 
-// MUI-style props that must not be forwarded to the DOM
+// MUI-style props that must not be forwarded to the DOM (strip and apply inputProps contents instead)
 const DOM_EXCLUDED_PROPS = [
   "InputLabelProps",
   "InputProps",
+  "inputProps",
   "FormControlProps",
   "FormHelperTextProps",
   "SelectProps",
@@ -11,7 +12,11 @@ const DOM_EXCLUDED_PROPS = [
 
 export function Input({ className, type, ...props }) {
   const domProps = { ...props };
+  const inputProps = domProps.inputProps;
   DOM_EXCLUDED_PROPS.forEach((key) => delete domProps[key]);
+  if (inputProps && typeof inputProps === "object" && !Array.isArray(inputProps)) {
+    Object.assign(domProps, inputProps);
+  }
   // Satisfy React: value without onChange must be read-only
   if ("value" in domProps && domProps.onChange == null) {
     domProps.readOnly = true;
