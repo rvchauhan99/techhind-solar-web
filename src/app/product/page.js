@@ -189,7 +189,7 @@ export default function ProductPage() {
         filterType: "select",
         filterKey: "visibility",
         filterOptions: VISIBILITY_OPTIONS,
-        render: (row) => (row.deleted_at ? "Inactive" : "Active"),
+        render: (row) => (row.is_active ? "Active" : "Inactive"),
       },
       {
         field: "product_type_name",
@@ -342,8 +342,8 @@ export default function ProductPage() {
                   setProductToDelete(row);
                   setShowDeleteDialog(true);
                 }}
-                title="Delete"
-                aria-label="Delete"
+                title="Deactivate"
+                aria-label="Deactivate"
               >
                 <IconTrash className="size-4" />
               </Button>
@@ -450,10 +450,10 @@ export default function ProductPage() {
       setTableKey((prev) => prev + 1);
       setShowDeleteDialog(false);
       setProductToDelete(null);
-      toast.success(`Product "${productToDelete.product_name}" deleted successfully`);
+      toast.success(`Product "${productToDelete.product_name}" deactivated successfully`);
     } catch (error) {
       const errorMsg =
-        error.response?.data?.message || error.message || "Failed to delete product";
+        error.response?.data?.message || error.message || "Failed to deactivate product";
       toast.error(errorMsg);
     } finally {
       setDeleting(false);
@@ -623,11 +623,11 @@ export default function ProductPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Delete</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Deactivate</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the product{" "}
-              <strong>&quot;{productToDelete?.product_name}&quot;</strong>? This action cannot be
-              undone.
+              Are you sure you want to deactivate the product{" "}
+              <strong>&quot;{productToDelete?.product_name}&quot;</strong>? The product will be
+              hidden from active lists but can be reactivated later from the edit form.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -638,7 +638,7 @@ export default function ProductPage() {
               loading={deleting}
               onClick={handleDeleteConfirm}
             >
-              Delete
+              Deactivate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

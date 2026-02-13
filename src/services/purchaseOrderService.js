@@ -35,6 +35,18 @@ export const createPurchaseOrder = (payload, files = []) => {
 export const getPurchaseOrderById = (id) =>
   apiClient.get(`/purchase-orders/${id}`).then((r) => r.data);
 
+export const getPurchaseOrderPdf = (id) =>
+  apiClient
+    .get(`/purchase-orders/${id}/pdf`, { responseType: "blob" })
+    .then((r) => {
+      const disposition = r.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      return {
+        blob: r.data,
+        filename: match?.[1] || `PO-${id}.pdf`,
+      };
+    });
+
 export const updatePurchaseOrder = (id, payload, files = []) => {
   const formData = new FormData();
   
@@ -78,6 +90,7 @@ export default {
   exportPurchaseOrders,
   createPurchaseOrder,
   getPurchaseOrderById,
+  getPurchaseOrderPdf,
   updatePurchaseOrder,
   deletePurchaseOrder,
   approvePurchaseOrder,
