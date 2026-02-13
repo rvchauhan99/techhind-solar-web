@@ -25,7 +25,7 @@ export default function NewChallanForm({ orderId }) {
                     order_id: orderId,
                     page: 1,
                     limit: 1,
-                    sortBy: "created_at",
+                    sortBy: "id",
                     sortOrder: "DESC",
                 });
                 const result = response?.result ?? response;

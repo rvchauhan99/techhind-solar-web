@@ -366,7 +366,7 @@ export default function ListView({
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy || "order_date"}
+          sortBy={sortBy || "id"}
           sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}

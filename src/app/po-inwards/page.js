@@ -291,7 +291,7 @@ export default function POInwardPage() {
         limit: p.limit,
         q: p.q || undefined,
         status: p.status || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         supplier_invoice_number: p.supplier_invoice_number || undefined,
         received_at_from: p.received_at_from || undefined,
@@ -484,8 +484,8 @@ export default function POInwardPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

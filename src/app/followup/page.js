@@ -176,6 +176,7 @@ export default function FollowupPage() {
     () => async (params) => {
       const apiParams = { ...params };
       if (apiParams.sortBy === "followup_created_at") apiParams.sortBy = "created_at";
+      if (apiParams.sortBy === "followup_id") apiParams.sortBy = "id";
       if (apiParams.sortBy === "followup_status") apiParams.sortBy = "inquiry_status";
       const response = await followupService.listFollowups(apiParams);
       const result = response?.result ?? response;
@@ -452,7 +453,7 @@ export default function FollowupPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "created_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

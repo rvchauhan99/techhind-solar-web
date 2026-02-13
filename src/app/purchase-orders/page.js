@@ -37,6 +37,9 @@ import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload, IconPrin
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "APPROVED", label: "Approved" },
+  { value: "PARTIAL_RECEIVED", label: "Partial Received" },
+  { value: "CLOSED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
 ];
 
 const COLUMN_FILTER_KEYS = [
@@ -98,6 +101,7 @@ export default function PurchaseOrderPage() {
       const exportParams = {
         ...(filters.po_number && { po_number: filters.po_number, po_number_op: filters.po_number_op }),
         ...(filters.status && { status: filters.status }),
+        ...(!filters.status && { include_closed: true }),
         ...(filters.po_date_from && {
           po_date_from: filters.po_date_from,
           po_date_to: filters.po_date_to,
@@ -276,10 +280,23 @@ export default function PurchaseOrderPage() {
         render: (row) => {
           const status = row.status || "";
           const statusLower = status.toLowerCase();
-          const variant = statusLower === "approved" ? "default" : statusLower === "draft" ? "secondary" : "outline";
+          const label =
+            status === "CLOSED"
+              ? "Completed"
+              : status === "PARTIAL_RECEIVED"
+                ? "Partial Received"
+                : status;
+          const variant =
+            statusLower === "approved"
+              ? "default"
+              : statusLower === "draft"
+                ? "secondary"
+                : statusLower === "closed"
+                  ? "default"
+                  : "outline";
           return (
             <Badge variant={variant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
-              {status}
+              {label}
             </Badge>
           );
         },
@@ -404,7 +421,8 @@ export default function PurchaseOrderPage() {
         limit: l,
         q: searchQ || undefined,
         status: statusFilter || undefined,
-        sortBy: sBy || "created_at",
+        include_closed: !statusFilter,
+        sortBy: sBy || "id",
         sortOrder: sOrder || "DESC",
         po_number: poNumber || undefined,
         po_number_op: poNumberOp || undefined,
@@ -714,8 +732,8 @@ export default function PurchaseOrderPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

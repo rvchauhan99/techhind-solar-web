@@ -829,7 +829,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "created_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

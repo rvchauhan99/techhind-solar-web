@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import inventoryLedgerService from "@/services/inventoryLedgerService";
+import mastersService from "@/services/mastersService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
@@ -11,7 +12,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/utils/dataTableUtils";
+import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 
 const COLUMN_FILTER_KEYS = [
   "performed_at_from",
@@ -19,6 +20,7 @@ const COLUMN_FILTER_KEYS = [
   "performed_at_op",
   "product_name",
   "product_name_op",
+  "product_type_id",
   "warehouse_name",
   "warehouse_name_op",
   "transaction_type",
@@ -64,6 +66,18 @@ export default function InventoryLedgerPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [productTypeOptions, setProductTypeOptions] = useState([]);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_type.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
+        setProductTypeOptions(options);
+      })
+      .catch(() => setProductTypeOptions([]));
+  }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -152,6 +166,15 @@ export default function InventoryLedgerPage() {
         filterKey: "product_name",
         defaultFilterOperator: "contains",
         render: (row) => row.product?.product_name || "-",
+      },
+      {
+        field: "product_type_name",
+        label: "Product Type",
+        sortable: false,
+        filterType: "select",
+        filterKey: "product_type_id",
+        filterOptions: productTypeOptions,
+        render: (row) => row.product_type_name || row.product?.productType?.name || "-",
       },
       {
         field: "warehouse",
@@ -246,7 +269,7 @@ export default function InventoryLedgerPage() {
         render: (row) => row.performedBy?.name || "-",
       },
     ],
-    [handleOpenSidebar]
+    [handleOpenSidebar, productTypeOptions]
   );
 
   const fetcher = useMemo(
@@ -257,6 +280,7 @@ export default function InventoryLedgerPage() {
         limit: p.limit,
         product_id: p.product_id || undefined,
         warehouse_id: p.warehouse_id || undefined,
+        product_type_id: p.product_type_id || undefined,
         product_name: p.product_name || undefined,
         warehouse_name: p.warehouse_name || undefined,
         transaction_type: p.transaction_type || undefined,
@@ -274,7 +298,7 @@ export default function InventoryLedgerPage() {
         closing_quantity_to: p.closing_quantity_to || undefined,
         serial_number: p.serial_number || undefined,
         performed_by_name: p.performed_by_name || undefined,
-        sortBy: p.sortBy || "performed_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
       });
       const result = response?.result || response;
@@ -292,6 +316,8 @@ export default function InventoryLedgerPage() {
     return (
       <div className="pr-1 space-y-3">
         <p className="font-semibold">{r.product?.product_name ?? "-"}</p>
+        <p className="text-xs font-semibold text-muted-foreground">Product Type</p>
+        <p className="text-sm">{r.product_type_name ?? r.product?.productType?.name ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Date</p>
         <p className="text-sm">{r.performed_at ? formatDate(r.performed_at) : "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
@@ -306,6 +332,18 @@ export default function InventoryLedgerPage() {
         <p className="text-sm">{r.opening_quantity ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Closing</p>
         <p className="text-sm">{r.closing_quantity ?? "-"}</p>
+        {r.rate != null && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground">Rate</p>
+            <p className="text-sm">{formatCurrency(r.rate)}</p>
+          </>
+        )}
+        {r.amount != null && (
+          <>
+            <p className="text-xs font-semibold text-muted-foreground">Amount</p>
+            <p className="text-sm">{formatCurrency(r.amount)}</p>
+          </>
+        )}
         <p className="text-xs font-semibold text-muted-foreground">Serial</p>
         <p className="text-sm">{r.serial?.serial_number ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Performed By</p>
@@ -338,7 +376,7 @@ export default function InventoryLedgerPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "performed_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

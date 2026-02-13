@@ -314,7 +314,7 @@ export default function UserListPage() {
         limit: p.limit,
         q: p.q || undefined,
         status: p.status || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         name: p.name || undefined,
         name_op: p.name_op || undefined,
@@ -501,8 +501,8 @@ export default function UserListPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}
