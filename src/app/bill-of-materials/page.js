@@ -300,7 +300,7 @@ export default function BillOfMaterialPage() {
         page: p.page,
         limit: p.limit,
         q: p.q || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         code: p.code || undefined,
         code_op: p.code_op || undefined,
@@ -360,7 +360,7 @@ export default function BillOfMaterialPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "created_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

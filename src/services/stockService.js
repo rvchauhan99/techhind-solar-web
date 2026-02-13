@@ -17,11 +17,17 @@ export const getAvailableSerials = (productId, warehouseId) =>
     params: { product_id: productId, warehouse_id: warehouseId },
   }).then((r) => r.data);
 
+export const validateSerialAvailable = (serialNumber, productId, warehouseId) =>
+  apiClient.get("/stocks/serials/validate", {
+    params: { serial_number: serialNumber, product_id: productId, warehouse_id: warehouseId },
+  }).then((r) => r.data);
+
 export default {
   getStocks,
   exportStocks,
   getStockById,
   getStocksByWarehouse,
   getAvailableSerials,
+  validateSerialAvailable,
 };
 

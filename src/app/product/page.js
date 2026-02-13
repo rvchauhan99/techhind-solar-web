@@ -362,7 +362,7 @@ export default function ProductPage() {
         page: p.page,
         limit: p.limit,
         q: p.q || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         product_name: p.product_name || undefined,
         product_name_op: p.product_name_op || undefined,
@@ -525,8 +525,8 @@ export default function ProductPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}

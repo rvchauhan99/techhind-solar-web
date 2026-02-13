@@ -363,7 +363,7 @@ export default function ProjectPricePage() {
         page: p.page,
         limit: p.limit,
         q: p.q || undefined,
-        sortBy: p.sortBy || "created_at",
+        sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
         state_name: p.state_name || undefined,
         project_for_name: p.project_for_name || undefined,
@@ -441,7 +441,7 @@ export default function ProjectPricePage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "created_at"}
+            sortBy={sortBy || "id"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}

@@ -182,8 +182,8 @@ export default function RoleListPage() {
         page: p.page,
         limit: p.limit,
         q: p.q || undefined,
-        sortBy: p.sortBy || "name",
-        sortOrder: p.sortOrder || "ASC",
+        sortBy: p.sortBy || "id",
+        sortOrder: p.sortOrder || "DESC",
         name: p.name || undefined,
         name_op: p.name_op || undefined,
         description: p.description || undefined,
@@ -444,8 +444,8 @@ export default function RoleListPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "name"}
-            sortOrder={sortOrder || "ASC"}
+            sortBy={sortBy || "id"}
+            sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
             onQChange={setQ}

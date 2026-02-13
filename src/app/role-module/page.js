@@ -91,7 +91,7 @@ export default function RoleModuleListPage() {
             ? p.listing_criteria
             : undefined,
         sortBy: p.sortBy || "id",
-        sortOrder: p.sortOrder || "ASC",
+        sortOrder: p.sortOrder || "DESC",
       });
       const result = response?.result || response;
       return {
@@ -293,7 +293,7 @@ export default function RoleModuleListPage() {
           limit={limit}
           q={q}
           sortBy={sortBy || "id"}
-          sortOrder={sortOrder || "ASC"}
+          sortOrder={sortOrder || "DESC"}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}
