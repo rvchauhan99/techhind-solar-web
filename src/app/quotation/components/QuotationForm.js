@@ -279,13 +279,13 @@ export default function QuotationForm({
                                 value={formData.structure_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
-                                    let material = findProduct?.properties?.structure?.material ?? "";
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
+                                    const material = findProduct?.properties?.structure?.material ?? "";
                                     setFormData({
                                         ...formData,
                                         structure_material: material,
-                                        structure_product: e.target.value
-                                    })
+                                        structure_product: e.target.value,
+                                    });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
                             >
@@ -328,7 +328,7 @@ export default function QuotationForm({
                                 value={formData.panel_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         panel_product: e.target.value,
@@ -366,7 +366,7 @@ export default function QuotationForm({
                                 name="panel_quantity"
                                 value={formData.panel_quantity}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === formData.panel_product)
+                                    const findProduct = options.products.find(p => p.id == formData.panel_product);
                                     setFormData({
                                         ...formData,
                                         panel_quantity: e.target.value,
@@ -432,7 +432,7 @@ export default function QuotationForm({
                                 value={formData.inverter_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         inverter_product: e.target.value,
@@ -509,7 +509,7 @@ export default function QuotationForm({
                                 value={formData.battery_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         battery_product: e.target.value,
@@ -517,6 +517,7 @@ export default function QuotationForm({
                                         battery_size: findProduct?.capacity ?? "",
                                         battery_type: findProduct?.properties?.battery?.type ?? "",
                                         battery_warranty: findProduct?.properties?.battery?.warranty ?? "",
+                                        battery_description_text: findProduct?.product_description ?? "",
                                     });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
@@ -599,7 +600,7 @@ export default function QuotationForm({
                                 value={formData.hybrid_inverter_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         hybrid_inverter_product: e.target.value,
@@ -646,7 +647,15 @@ export default function QuotationForm({
                                 name="acdb_product"
                                 label="Product"
                                 value={formData.acdb_product || ""}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
+                                    setFormData({
+                                        ...formData,
+                                        acdb_product: e.target.value,
+                                        acdb_quantity: findProduct?.properties?.acdb?.quantity ?? "",
+                                        acdb_description: findProduct?.properties?.acdb?.description ?? findProduct?.product_description ?? "",
+                                    });
+                                }}
                                 disabled={formData.project_price_id}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
                             >
@@ -675,7 +684,15 @@ export default function QuotationForm({
                                 name="dcdb_product"
                                 label="Product"
                                 value={formData.dcdb_product || ""}
-                                onChange={handleChange}
+                                onChange={(e) => {
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
+                                    setFormData({
+                                        ...formData,
+                                        dcdb_product: e.target.value,
+                                        dcdb_quantity: findProduct?.properties?.dcdb?.quantity ?? "",
+                                        dcdb_description: findProduct?.properties?.dcdb?.description ?? findProduct?.product_description ?? "",
+                                    });
+                                }}
                                 disabled={formData.project_price_id}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
                             >
@@ -706,11 +723,13 @@ export default function QuotationForm({
                                 value={formData.cable_ac_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         cable_ac_product: e.target.value,
                                         cable_ac_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        cable_ac_quantity: findProduct?.properties?.ac_cable?.ac_quantity ?? "",
+                                        cable_ac_description: findProduct?.product_description ?? "",
                                     });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
@@ -745,11 +764,13 @@ export default function QuotationForm({
                                 value={formData.cable_dc_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         cable_dc_product: e.target.value,
                                         cable_dc_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        cable_dc_quantity: findProduct?.properties?.dc_cable?.dc_quantity ?? "",
+                                        cable_dc_description: findProduct?.product_description ?? "",
                                     });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
@@ -789,11 +810,13 @@ export default function QuotationForm({
                                 value={formData.earthing_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         earthing_product: e.target.value,
                                         earthing_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        earthing_quantity: findProduct?.properties?.earthing?.quantity ?? "",
+                                        earthing_description: findProduct?.product_description ?? "",
                                     });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
@@ -833,11 +856,13 @@ export default function QuotationForm({
                                 value={formData.la_product || ""}
                                 disabled={formData.project_price_id}
                                 onChange={(e) => {
-                                    let findProduct = options.products.find(p => p.id === e.target.value)
+                                    const findProduct = options.products.find(p => p.id == e.target.value);
                                     setFormData({
                                         ...formData,
                                         la_product: e.target.value,
                                         la_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
+                                        la_quantity: findProduct?.properties?.la?.quantity ?? "",
+                                        la_description: findProduct?.product_description ?? "",
                                     });
                                 }}
                                 sx={formData.project_price_id ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
