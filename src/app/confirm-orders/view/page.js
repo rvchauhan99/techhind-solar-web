@@ -24,7 +24,7 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import orderService from "@/services/orderService";
+import confirmOrdersService from "@/services/confirmOrdersService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import moment from "moment";
@@ -161,7 +161,7 @@ function ConfirmedOrderViewPageContent() {
         try {
             setLoading(true);
             const [orderRes, paymentsRes, docsRes] = await Promise.all([
-                orderService.getOrderById(orderId),
+                confirmOrdersService.getOrderById(orderId),
                 orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 }),
                 orderDocumentsService.getOrderDocuments({ order_id: orderId, limit: 1000 })
             ]);

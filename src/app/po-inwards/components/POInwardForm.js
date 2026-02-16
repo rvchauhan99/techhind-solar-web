@@ -24,7 +24,8 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import purchaseOrderService from "@/services/purchaseOrderService";
+import mastersService from "@/services/mastersService";
+import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
 import { toastError } from "@/utils/toast";
 import Input from "@/components/common/Input";
@@ -69,12 +70,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
         const loadOptions = async () => {
             setLoadingOptions(true);
             try {
-                const poRes = await purchaseOrderService.getPurchaseOrders({ status: "APPROVED" });
-                setPurchaseOrders(poRes?.result?.data || poRes?.data || []);
-                // Don't load warehouses here - will load when PO is selected
+                // Use masters reference-options so inward team can select PO without purchase-orders module access
+                const res = await mastersService.getReferenceOptions("purchaseOrder.model", { status: "APPROVED" });
+                const options = res?.result ?? res ?? [];
+                setPurchaseOrders(Array.isArray(options) ? options : []);
                 setWarehouses([]);
             } catch (err) {
-                console.error("Failed to load options", err);
+                console.error("Failed to load PO options", err);
             } finally {
                 setLoadingOptions(false);
             }
@@ -102,7 +104,8 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
     const loadPurchaseOrder = async (poId) => {
         try {
-            const response = await purchaseOrderService.getPurchaseOrderById(poId);
+            // Use po-inwards/po-details so inward team can load PO without purchase-orders module access
+            const response = await poInwardService.getPODetailsForInward(poId);
             const result = response.result || response;
             setSelectedPO(result);
 
@@ -551,7 +554,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                             <MenuItem value="">-- Select --</MenuItem>
                             {purchaseOrders.map((po) => (
                                 <MenuItem key={po.id} value={po.id}>
-                                    {po.po_number} - {po.supplier?.supplier_name || ""}
+                                    {po.label ?? `${po.po_number ?? po.id} - ${po.supplier?.supplier_name ?? ""}`}
                                 </MenuItem>
                             ))}
                         </Select>

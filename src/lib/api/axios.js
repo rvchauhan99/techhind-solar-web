@@ -5,7 +5,9 @@ import {
   getRefreshToken,
   setTokens,
   clearTokens,
+  getStoredProfile,
 } from "@/lib/authStorage";
+import { getAllowedRoutes, isPathAllowedByRoutes } from "@/lib/permissionUtils";
 
 let refreshPromise = null;
 
@@ -45,6 +47,14 @@ const axiosInstance = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+/** API path prefixes that skip frontend permission check (auth, health). */
+const API_PATH_WHITELIST_PREFIXES = ["/auth", "/health-check"];
+
+function isApiPathWhitelisted(path) {
+  if (!path) return true;
+  return API_PATH_WHITELIST_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+}
+
 // Request interceptor: auth token + x-timezone
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -61,6 +71,29 @@ axiosInstance.interceptors.request.use(
       config.headers["x-timezone"] = "";
     }
     return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Request interceptor: frontend-first module permission check (cached profile)
+// Set to false to skip so only backend enforces; revert to true when done testing.
+const SKIP_FRONTEND_MODULE_CHECK = true;
+axiosInstance.interceptors.request.use(
+  (config) => {
+    if (SKIP_FRONTEND_MODULE_CHECK || typeof window === "undefined") return config;
+
+    const rawPath = (config.url || "").split("?")[0];
+    const path = rawPath ? (rawPath.startsWith("/") ? rawPath : `/${rawPath}`) : "";
+    if (!path || isApiPathWhitelisted(path)) return config;
+
+    const profile = getStoredProfile();
+    if (!profile?.modules) return config;
+
+    const allowedRoutes = getAllowedRoutes(profile.modules);
+    if (isPathAllowedByRoutes(path, allowedRoutes)) return config;
+
+    window.location.href = "/access-denied";
+    return Promise.reject(new Error("Module access denied"));
   },
   (error) => Promise.reject(error)
 );
@@ -166,6 +199,18 @@ axiosInstance.interceptors.response.use(
         return Promise.reject(refreshError);
       }
     }
+
+    // 403: any permission denied -> redirect to Access Denied page (Back + Home)
+    if (status === 403 && typeof window !== "undefined") {
+      const pagePath =
+        typeof window.location !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "";
+      const q = pagePath ? `?from=${encodeURIComponent(pagePath)}` : "";
+      window.location.href = "/access-denied" + q;
+      return Promise.reject(error);
+    }
+
     return Promise.reject(error);
   }
 );

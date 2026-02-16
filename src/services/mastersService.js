@@ -51,7 +51,10 @@ export const updateMaster = (id, payload, model, file = null) => {
   return apiClient.put(`/masters/${id}?model=${model}`, payload).then((r) => r.data);
 };
 
-export const getReferenceOptions = (model) => apiClient.get(`/masters/reference-options?model=${model}`).then((r) => r.data);
+export const getReferenceOptions = (model, params = {}) => {
+  const searchParams = new URLSearchParams({ model, ...params });
+  return apiClient.get(`/masters/reference-options?${searchParams.toString()}`).then((r) => r.data);
+};
 
 export const getConstants = () => apiClient.get(`/masters/constants`).then((r) => r.data);
 
