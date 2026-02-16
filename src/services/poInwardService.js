@@ -12,6 +12,10 @@ export const createPOInward = (payload) =>
 export const getPOInwardById = (id) =>
   apiClient.get(`/po-inwards/${id}`).then((r) => r.data);
 
+/** Get PO details for creating an inward (does not require purchase-orders module access) */
+export const getPODetailsForInward = (poId) =>
+  apiClient.get(`/po-inwards/po-details/${poId}`).then((r) => r.data);
+
 export const updatePOInward = (id, payload) =>
   apiClient.put(`/po-inwards/${id}`, payload).then((r) => r.data);
 
@@ -23,6 +27,7 @@ export default {
   exportPOInwards,
   createPOInward,
   getPOInwardById,
+  getPODetailsForInward,
   updatePOInward,
   approvePOInward,
 };
