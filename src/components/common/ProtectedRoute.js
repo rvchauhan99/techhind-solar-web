@@ -3,6 +3,19 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
+import { getAllowedRoutes, isPathAllowedByRoutes, normalizePath } from "@/lib/permissionUtils";
+
+/** Set to true to skip frontend module check (only backend will enforce). Revert to false when done testing. */
+const SKIP_FRONTEND_MODULE_CHECK = true;
+
+/** Paths that do not require a module permission (always allowed when authenticated). */
+const PATH_WHITELIST = new Set(["/", "/home", "/task-planner", "/marketing-leads", "/access-denied"]);
+
+function isPathAllowed(pathname, allowedRoutes) {
+  const normalized = normalizePath(pathname);
+  if (PATH_WHITELIST.has(normalized)) return true;
+  return isPathAllowedByRoutes(pathname, allowedRoutes);
+}
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -10,85 +23,67 @@ export default function ProtectedRoute({ children }) {
   const [authorized, setAuthorized] = useState(false);
   const pathname = usePathname();
   const { fetchPermissionForModule, setCurrentModuleId } = useAuth();
-  // Track the last pathname for which permissions were successfully fetched
   const lastFetchedPathnameRef = useRef(null);
-  // Prevent concurrent fetches
   const isFetchingRef = useRef(false);
 
   useEffect(() => {
-    // Skip if already fetched for this pathname
-    if (pathname === lastFetchedPathnameRef.current && authorized) {
-      return;
-    }
-
-    // Skip if currently fetching
-    if (isFetchingRef.current) {
-      return;
-    }
-
-    // Reset authorized state when pathname changes to show loading while fetching new permissions
-    if (pathname !== lastFetchedPathnameRef.current) {
-      setAuthorized(false);
-    }
+    if (pathname === lastFetchedPathnameRef.current && authorized) return;
+    if (isFetchingRef.current) return;
+    if (pathname !== lastFetchedPathnameRef.current) setAuthorized(false);
 
     if (!loading) {
       if (!user) {
         router.replace("/auth/login");
-      } else {
-        // Before rendering, try to resolve module id from user profile for this route
-        isFetchingRef.current = true;
-
-        (async () => {
-          try {
-            // find module in user.modules by route or key (search recursively through submodules)
-            const modules = user?.modules || [];
-            const normalizeKeys = (m) => [m.key, m.route];
-
-            const matchPredicate = (m) => {
-              if (!m) return false;
-              const routeMatch = m.route === pathname;
-              const key = m.key || '';
-              const keyMatch = key === pathname.replace(/^\//, '') || key === pathname.replace(/\//g, '_') || key === pathname.replace(/\//g, '-');
-              return routeMatch || keyMatch;
-            };
-
-            const findModuleRecursive = (list) => {
-              for (const mod of list || []) {
-                if (matchPredicate(mod)) return mod;
-                if (mod.submodules && mod.submodules.length) {
-                  const found = findModuleRecursive(mod.submodules);
-                  if (found) return found;
-                }
-              }
-              return null;
-            };
-
-            const moduleMatch = findModuleRecursive(modules);
-            if (moduleMatch && moduleMatch.id) {
-              console.debug('[ProtectedRoute] module match found for', pathname, '->', moduleMatch);
-              setCurrentModuleId(moduleMatch.id);
-              // fetch permission once and cache in context (force refresh on route render)
-              console.debug('[ProtectedRoute] calling fetchPermissionForModule for moduleId', moduleMatch.id, '(force)');
-              await fetchPermissionForModule(moduleMatch.id, true);
-            } else {
-              console.debug('[ProtectedRoute] no moduleMatch for', pathname, 'user.modules length', modules.length);
-              try {
-                console.debug('[ProtectedRoute] modules:', modules.map((m) => ({ id: m.id, key: m.key, route: m.route })));
-              } catch (e) {
-                console.debug('[ProtectedRoute] modules (raw):', modules);
-              }
-              setCurrentModuleId(null);
-            }
-          } catch (err) {
-            console.error('ProtectedRoute permission fetch error', err);
-          } finally {
-            // Mark this pathname as successfully fetched
-            lastFetchedPathnameRef.current = pathname;
-            isFetchingRef.current = false;
-            setAuthorized(true);
-          }
-        })();
+        return;
       }
+
+      const modules = user?.modules || [];
+      const allowedRoutes = getAllowedRoutes(modules);
+
+      if (!SKIP_FRONTEND_MODULE_CHECK && !isPathAllowed(pathname, allowedRoutes)) {
+        router.replace("/access-denied");
+        setAuthorized(false);
+        return;
+      }
+
+      isFetchingRef.current = true;
+
+      (async () => {
+        try {
+          const normalizedPathname = normalizePath(pathname);
+          const matchPredicate = (m) => {
+            if (!m?.route) return false;
+            const normalizedRoute = normalizePath(m.route);
+            if (!normalizedRoute) return false;
+            return normalizedPathname === normalizedRoute || normalizedPathname.startsWith(normalizedRoute + "/");
+          };
+
+          const findModuleRecursive = (list) => {
+            for (const mod of list || []) {
+              if (matchPredicate(mod)) return mod;
+              if (mod.submodules?.length) {
+                const found = findModuleRecursive(mod.submodules);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const moduleMatch = findModuleRecursive(modules);
+          if (moduleMatch?.id) {
+            setCurrentModuleId(moduleMatch.id);
+            await fetchPermissionForModule(moduleMatch.id, true);
+          } else {
+            setCurrentModuleId(null);
+          }
+        } catch (err) {
+          console.error("ProtectedRoute permission fetch error", err);
+        } finally {
+          lastFetchedPathnameRef.current = pathname;
+          isFetchingRef.current = false;
+          setAuthorized(true);
+        }
+      })();
     }
   }, [user, loading, router, pathname, fetchPermissionForModule, setCurrentModuleId, authorized]);
 

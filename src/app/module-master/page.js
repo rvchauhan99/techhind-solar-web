@@ -274,6 +274,12 @@ export default function ModuleMasterPage() {
         ],
       },
       {
+        field: "authorize_with_params",
+        label: "Authorize with params",
+        sortable: false,
+        render: (row) => (row.authorize_with_params ? "Yes" : "No"),
+      },
+      {
         field: "actions",
         label: "Actions",
         sortable: false,
@@ -377,6 +383,8 @@ export default function ModuleMasterPage() {
         <p className="text-sm">{r.sequence ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Status</p>
         <p className="text-sm">{r.status ?? "-"}</p>
+        <p className="text-xs font-semibold text-muted-foreground">Authorize with params</p>
+        <p className="text-sm">{r.authorize_with_params ? "Yes" : "No"}</p>
       </div>
     );
   }, [selectedRow]);
