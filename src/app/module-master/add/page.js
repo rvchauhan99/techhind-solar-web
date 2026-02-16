@@ -2,10 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import ModuleForm from "../components/ModuleForm";
 import moduleService from "@/services/moduleMasterService";
+
+const EMPTY_DEFAULTS = Object.freeze({});
 
 export default function ModuleAddPage() {
   const router = useRouter();
@@ -35,6 +38,7 @@ export default function ModuleAddPage() {
   const handleSubmit = async (data) => {
     try {
       await moduleService.createModuleMaster(data);
+      toast.success("Module created");
       router.push("/module-master");
     } catch (err) {
       const msg =
@@ -52,7 +56,7 @@ export default function ModuleAddPage() {
       <AddEditPageShell title="Add New Module" listHref="/module-master" listLabel="Module Master">
         <ModuleForm
           onSubmit={handleSubmit}
-          defaultValues={{}}
+          defaultValues={EMPTY_DEFAULTS}
           loading={false}
           parentOptions={parentOptions}
           serverError={serverError}
