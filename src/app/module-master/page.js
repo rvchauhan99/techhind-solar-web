@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { toast } from "sonner";
-import { Box, CircularProgress } from "@mui/material";
 import { Button } from "@/components/ui/button";
 import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -16,6 +15,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import moduleService from "@/services/moduleMasterService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -24,13 +29,6 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import ModuleForm from "./components/ModuleForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 
 const COLUMN_FILTER_KEYS = [
@@ -57,7 +55,6 @@ export default function ModuleMasterPage() {
   };
 
   const [parentOptions, setParentOptions] = useState([]);
-  const [loadingParents, setLoadingParents] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -69,11 +66,27 @@ export default function ModuleMasterPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
-  const addFormRef = useRef(null);
-  const editFormRef = useRef(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [moduleToDelete, setModuleToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await moduleService.listModuleMasters({ page: 1, limit: 500 });
+        const body = res.result || res.data || res;
+        const rows = body.data || body.result || body || [];
+        const parents = (Array.isArray(rows) ? rows : rows.data || []).filter(
+          (m) => m.parent_id === null || m.parent_id === undefined
+        );
+        if (!cancelled) setParentOptions(parents);
+      } catch (err) {
+        if (!cancelled) setParentOptions([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const listingState = useListingQueryState({
     defaultLimit: 20,
@@ -91,26 +104,6 @@ export default function ModuleMasterPage() {
       ),
     [filters]
   );
-
-  // Load parent options on component mount
-  useEffect(() => {
-    setLoadingParents(true);
-    moduleService
-      .listModuleMasters({
-        page: 1,
-        limit: 500,
-      })
-      .then((res) => {
-        const body = res.result || res.data || res;
-        const rows = body.data || body.result || body || [];
-        const parents = (Array.isArray(rows) ? rows : rows.data || []).filter(
-          (m) => m.parent_id === null || m.parent_id === undefined
-        );
-        setParentOptions(parents);
-      })
-      .catch(() => setParentOptions([]))
-      .finally(() => setLoadingParents(false));
-  }, []);
 
   const handleDeleteClick = (id, reload) => {
     setModuleToDelete({ id, reload });
@@ -172,6 +165,18 @@ export default function ModuleMasterPage() {
     setSelectedRow(null);
   }, []);
 
+  const handleOpenAddModal = useCallback(() => {
+    setShowAddModal(true);
+    setServerError(null);
+    setSelectedRecord(null);
+  }, []);
+
+  const handleCloseAddModal = useCallback(() => {
+    setShowAddModal(false);
+    setServerError(null);
+    setSelectedRecord(null);
+  }, []);
+
   const handleOpenEditModal = useCallback(async (id) => {
     setLoadingRecord(true);
     setServerError(null);
@@ -187,6 +192,38 @@ export default function ModuleMasterPage() {
       setLoadingRecord(false);
     }
   }, []);
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false);
+    setSelectedRecord(null);
+    setServerError(null);
+  }, []);
+
+  const handleSubmit = useCallback(
+    async (payload) => {
+      setSubmitting(true);
+      setServerError(null);
+      try {
+        if (selectedRecord?.id) {
+          await moduleService.updateModuleMaster(selectedRecord.id, payload);
+          handleCloseEditModal();
+          toast.success("Module updated");
+        } else {
+          await moduleService.createModuleMaster(payload);
+          handleCloseAddModal();
+          toast.success("Module created");
+        }
+        setTableKey((prev) => prev + 1);
+      } catch (err) {
+        const msg = err?.response?.data?.message || err?.message || "Failed to save module";
+        setServerError(msg);
+        toast.error(msg);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [selectedRecord, handleCloseAddModal, handleCloseEditModal]
+  );
 
   const fetcher = useMemo(
     () => async (params) => {
@@ -329,46 +366,6 @@ export default function ModuleMasterPage() {
     [currentPerm, handleOpenEditModal, handleOpenSidebar]
   );
 
-  const handleOpenAddModal = () => {
-    setShowAddModal(true);
-    setServerError(null);
-    setSelectedRecord(null);
-  };
-
-  const handleCloseAddModal = () => {
-    setShowAddModal(false);
-    setServerError(null);
-    setSelectedRecord(null);
-  };
-
-  const handleCloseEditModal = () => {
-    setShowEditModal(false);
-    setSelectedRecord(null);
-    setServerError(null);
-  };
-
-  const handleSubmit = async (payload) => {
-    setSubmitting(true);
-    setServerError(null);
-    try {
-      if (selectedRecord?.id) {
-        await moduleService.updateModuleMaster(selectedRecord.id, payload);
-        handleCloseEditModal();
-        toast.success("Module updated");
-      } else {
-        await moduleService.createModuleMaster(payload);
-        handleCloseAddModal();
-        toast.success("Module created");
-      }
-      setTableKey((prev) => prev + 1);
-    } catch (err) {
-      setServerError(err.response?.data?.message || err.message || "Failed to save module");
-      toast.error(err.response?.data?.message || err.message || "Failed to save module");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const sidebarContent = useMemo(() => {
     if (!selectedRow) return null;
     const r = selectedRow;
@@ -434,80 +431,50 @@ export default function ModuleMasterPage() {
         <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Module Details">
           {sidebarContent}
         </DetailsSidebar>
-      </ListingPageContainer>
 
-      {/* Add Module Modal */}
-      <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
-        <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
-          <DialogHeader>
-            <DialogTitle>Add Module</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-            <ModuleForm
-              ref={addFormRef}
-              onSubmit={handleSubmit}
-              loading={submitting}
-              parentOptions={parentOptions}
-              serverError={serverError}
-              onClearServerError={() => setServerError(null)}
-            />
-          </div>
-          <DialogFooter className="pt-4">
-            <Button variant="outline" size="sm" type="button" onClick={handleCloseAddModal}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              loading={submitting}
-              type="button"
-              onClick={() => addFormRef.current?.requestSubmit?.()}
-            >
-              Create
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Module Modal */}
-      <Dialog open={showEditModal} onOpenChange={(open) => !open && handleCloseEditModal()}>
-        <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
-          <DialogHeader>
-            <DialogTitle>Edit Module</DialogTitle>
-          </DialogHeader>
-          {loadingRecord ? (
-            <div className="flex min-h-[200px] items-center justify-center">
-              <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
+          <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="text-base font-semibold">Add Module</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <ModuleForm
+                onSubmit={handleSubmit}
+                loading={submitting}
+                parentOptions={parentOptions}
+                serverError={serverError}
+                onClearServerError={() => setServerError(null)}
+                onCancel={handleCloseAddModal}
+              />
             </div>
-          ) : (
-            <>
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={showEditModal} onOpenChange={(open) => !open && handleCloseEditModal()}>
+          <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
+            <DialogHeader className="shrink-0">
+              <DialogTitle className="text-base font-semibold">Edit Module</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {loadingRecord ? (
+                <div className="flex justify-center items-center min-h-[200px]">
+                  <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              ) : (
                 <ModuleForm
-                  ref={editFormRef}
                   defaultValues={selectedRecord}
                   onSubmit={handleSubmit}
                   loading={submitting}
                   parentOptions={parentOptions}
                   serverError={serverError}
                   onClearServerError={() => setServerError(null)}
+                  onCancel={handleCloseEditModal}
                 />
-              </div>
-              <DialogFooter className="pt-4">
-                <Button variant="outline" size="sm" type="button" onClick={handleCloseEditModal}>
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  loading={submitting}
-                  type="button"
-                  onClick={() => editFormRef.current?.requestSubmit?.()}
-                >
-                  Update
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </ListingPageContainer>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>

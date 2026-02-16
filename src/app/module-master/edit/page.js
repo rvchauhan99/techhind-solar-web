@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -61,6 +62,7 @@ function ModuleEditContent() {
   const handleSubmit = async (data) => {
     try {
       await moduleService.updateModuleMaster(id, data);
+      toast.success("Module updated");
       router.push("/module-master");
     } catch (err) {
       const msg =
