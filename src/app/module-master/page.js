@@ -77,10 +77,8 @@ export default function ModuleMasterPage() {
         const res = await moduleService.listModuleMasters({ page: 1, limit: 500 });
         const body = res.result || res.data || res;
         const rows = body.data || body.result || body || [];
-        const parents = (Array.isArray(rows) ? rows : rows.data || []).filter(
-          (m) => m.parent_id === null || m.parent_id === undefined
-        );
-        if (!cancelled) setParentOptions(parents);
+        const allModules = Array.isArray(rows) ? rows : rows.data || [];
+        if (!cancelled) setParentOptions(allModules);
       } catch (err) {
         if (!cancelled) setParentOptions([]);
       }
@@ -462,6 +460,7 @@ export default function ModuleMasterPage() {
                 </div>
               ) : (
                 <ModuleForm
+                  key={selectedRecord?.id ?? "edit"}
                   defaultValues={selectedRecord}
                   onSubmit={handleSubmit}
                   loading={submitting}
