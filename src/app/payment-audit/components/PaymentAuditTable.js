@@ -4,21 +4,18 @@ import { useState } from "react";
 import { Box, Chip, Typography } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
-import {
-  IconCheck,
-  IconX,
-  IconPrinter,
-} from "@tabler/icons-react";
+import { IconCheck, IconX, IconPrinter } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import Input from "@/components/common/Input";
 import { toastSuccess, toastError } from "@/utils/toast";
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
-} from "@mui/material";
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button as UiButton } from "@/components/ui/button";
 
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
@@ -287,12 +284,14 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         filterParams={filterParams}
         moduleKey="payment_audit"
       />
-      <Dialog open={rejectDialog.open} onClose={handleCloseRejectDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Reject Payment</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" gutterBottom>
+      <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && handleCloseRejectDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Payment</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
             Please enter a reason for rejection (optional).
-          </Typography>
+          </p>
           <Input
             fullWidth
             multiline
@@ -302,26 +301,26 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               setRejectDialog((prev) => ({ ...prev, reason: e.target.value }))
             }
           />
+          <DialogFooter className="pt-4">
+            <UiButton variant="outline" size="sm" onClick={handleCloseRejectDialog}>
+              Cancel
+            </UiButton>
+            <UiButton
+              variant="destructive"
+              size="sm"
+              onClick={() =>
+                handleConfirmReject(
+                  rejectDialog.paymentId,
+                  rejectDialog.reason,
+                  rejectDialog.reload
+                )
+              }
+            >
+              <IconX className="size-4 mr-1.5" />
+              Reject Payment
+            </UiButton>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions>
-          <UiButton variant="ghost" size="sm" onClick={handleCloseRejectDialog}>
-            Cancel
-          </UiButton>
-          <UiButton
-            variant="destructive"
-            size="sm"
-            startIcon={<IconX className="size-4" />}
-            onClick={() =>
-              handleConfirmReject(
-                rejectDialog.paymentId,
-                rejectDialog.reason,
-                rejectDialog.reload
-              )
-            }
-          >
-            Reject Payment
-          </UiButton>
-        </DialogActions>
       </Dialog>
     </>
   );

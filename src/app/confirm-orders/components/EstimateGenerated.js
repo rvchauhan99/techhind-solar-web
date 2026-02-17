@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Box, Typography, Alert } from "@mui/material";
 import {
-    Box,
-    Typography,
-    Alert,
     Dialog,
-    DialogTitle,
     DialogContent,
-    DialogActions,
-} from "@mui/material";
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { usePathname } from "next/navigation";
 import moment from "moment";
 import Input from "@/components/common/Input";
@@ -252,24 +251,26 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
                 </div>
             </div>
 
-            <Dialog open={confirmDialogOpen} onClose={handleCloseConfirmDialog}>
-                <DialogTitle>Confirm zero amount estimate</DialogTitle>
-                <DialogContent>
-                    <Typography sx={{ mb: 2 }}>
+            <Dialog open={confirmDialogOpen} onOpenChange={(open) => !open && handleCloseConfirmDialog()}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Confirm zero amount estimate</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground mb-2">
                         Are you sure you want to proceed with a zero-amount estimate? The order will be moved directly to the Planner stage.
-                    </Typography>
+                    </p>
                     {error && confirmDialogOpen && (
                         <Alert severity="error" sx={{ mt: 1 }}>{error}</Alert>
                     )}
+                    <DialogFooter className="pt-4">
+                        <Button variant="outline" size="sm" onClick={handleCloseConfirmDialog} disabled={submittingZeroAmount || isReadOnly}>
+                            Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleConfirmZeroAmount} disabled={submittingZeroAmount || isReadOnly} loading={submittingZeroAmount}>
+                            Confirm
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2, pt: 1 }}>
-                    <Button variant="outline" size="sm" onClick={handleCloseConfirmDialog} disabled={submittingZeroAmount || isReadOnly}>
-                        Cancel
-                    </Button>
-                    <Button size="sm" onClick={handleConfirmZeroAmount} disabled={submittingZeroAmount || isReadOnly} loading={submittingZeroAmount}>
-                        Confirm
-                    </Button>
-                </DialogActions>
             </Dialog>
         </Box>
     );
