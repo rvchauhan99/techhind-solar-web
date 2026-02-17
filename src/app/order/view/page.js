@@ -17,6 +17,7 @@ import {
     MenuItem,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
+import PrintIcon from "@mui/icons-material/Print";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
 import Select from "@/components/common/Select";
@@ -602,6 +603,24 @@ function PreviousPaymentsTable({ orderId }) {
         return result;
     };
 
+    const handlePrintReceipt = async (id) => {
+        try {
+            const { blob, filename } = await orderPaymentsService.downloadReceiptPDF(id);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Failed to download payment receipt:", err);
+            const msg = err?.response?.data?.message || err?.message || "Failed to download payment receipt";
+            toastError(msg);
+        }
+    };
+
     const paymentsColumns = [
         {
             id: "date_of_payment",
@@ -656,6 +675,29 @@ function PreviousPaymentsTable({ orderId }) {
                 const color =
                     row.status === "approved" ? "success" : row.status === "rejected" ? "error" : "warning";
                 return <Chip label={label} color={color} size="small" />;
+            },
+        },
+        {
+            id: "actions",
+            label: "Actions",
+            field: "actions",
+            isActionColumn: true,
+            render: (row) => {
+                const isApproved = row.status === "approved";
+                return (
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {isApproved && (
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<PrintIcon />}
+                                onClick={() => handlePrintReceipt(row.id)}
+                            >
+                                Print Receipt
+                            </Button>
+                        )}
+                    </Box>
+                );
             },
         },
     ];
@@ -906,6 +948,7 @@ function OrderViewPageContent() {
     const [tabValue, setTabValue] = useState(initialTab || 0); // Use initialTab from URL
     const [visitedTabs, setVisitedTabs] = useState(new Set([initialTab || 0])); // Track visited tabs, start with initialTab
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
+    const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -979,6 +1022,11 @@ function OrderViewPageContent() {
         } catch (err) {
             console.error("Failed to refresh payment total:", err);
         }
+    };
+
+    const handlePaymentSaved = () => {
+        refreshPaymentTotal();
+        setPaymentsDocumentsRefreshKey((k) => k + 1);
     };
 
     const fetchDocuments = async (params) => {
@@ -1247,6 +1295,7 @@ function OrderViewPageContent() {
                             <TabPanel value={tabValue} index={1}>
                                 {visitedTabs.has(1) && (
                                     <PaginatedTable
+                                        key={`documents-${paymentsDocumentsRefreshKey}`}
                                         columns={documentsColumns}
                                         fetcher={fetchDocuments}
                                         initialPage={1}
@@ -1259,11 +1308,11 @@ function OrderViewPageContent() {
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={2}>
-                                {visitedTabs.has(2) && <ReceivePaymentForm orderData={orderData} orderId={orderId} onPaymentSaved={refreshPaymentTotal} />}
+                                {visitedTabs.has(2) && <ReceivePaymentForm orderData={orderData} orderId={orderId} onPaymentSaved={handlePaymentSaved} />}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={3}>
-                                {visitedTabs.has(3) && <PreviousPaymentsTable orderId={orderId} />}
+                                {visitedTabs.has(3) && <PreviousPaymentsTable key={`payments-${paymentsDocumentsRefreshKey}`} orderId={orderId} />}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={4}>
