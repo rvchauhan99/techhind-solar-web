@@ -20,27 +20,62 @@ export default function ModuleForm({
   onClearServerError = () => {},
   onCancel = null,
 }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    key: "",
-    icon: "",
-    parent_id: null,
-    route: "",
-    sequence: 0,
-    status: "active",
-    authorize_with_params: false,
-  });
+  const normalizeIconValue = (value) => {
+    if (!value) return "";
+    return String(value).trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  };
+
+  const getInitialFormData = (defaults) => {
+    if (defaults && (defaults.id != null || Object.keys(defaults || {}).length > 0)) {
+      const normalizedParentId =
+        defaults.parent_id === null ||
+        defaults.parent_id === undefined ||
+        defaults.parent_id === ""
+          ? null
+          : Number(defaults.parent_id);
+      const normalizedIcon = normalizeIconValue(defaults.icon ?? "");
+      return {
+        name: defaults.name ?? "",
+        key: defaults.key ?? "",
+        icon: normalizedIcon,
+        parent_id: Number.isNaN(normalizedParentId) ? null : normalizedParentId,
+        route: defaults.route ?? "",
+        sequence: defaults.sequence ?? 0,
+        status: defaults.status ?? "active",
+        authorize_with_params: !!defaults.authorize_with_params,
+      };
+    }
+    return {
+      name: "",
+      key: "",
+      icon: "",
+      parent_id: null,
+      route: "",
+      sequence: 0,
+      status: "active",
+      authorize_with_params: false,
+    };
+  };
+
+  const [formData, setFormData] = useState(() => getInitialFormData(defaultValues));
   const [iconError, setIconError] = useState("");
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (defaultValues && Object.keys(defaultValues).length > 0) {
+      const normalizedParentId =
+        defaultValues.parent_id === null ||
+        defaultValues.parent_id === undefined ||
+        defaultValues.parent_id === ""
+          ? null
+          : Number(defaultValues.parent_id);
+      const normalizedIcon = normalizeIconValue(defaultValues.icon ?? "");
       setFormData({
         name: defaultValues.name ?? "",
         key: defaultValues.key ?? "",
-        icon: defaultValues.icon ?? "",
-        parent_id: defaultValues.parent_id ?? null,
+        icon: normalizedIcon,
+        parent_id: Number.isNaN(normalizedParentId) ? null : normalizedParentId,
         route: defaultValues.route ?? "",
         sequence: defaultValues.sequence ?? 0,
         status: defaultValues.status ?? "active",
@@ -57,6 +92,9 @@ export default function ModuleForm({
     }
     if (name === "sequence") {
       nextValue = value === "" ? "" : Number(value);
+    }
+    if (name === "icon") {
+      nextValue = normalizeIconValue(value);
     }
     setFormData((prev) => ({
       ...prev,
@@ -105,7 +143,11 @@ export default function ModuleForm({
     const isAutoSeq = seqVal === "" || seqVal == null || Number(seqVal) === 0;
     const payload = {
       ...formData,
-      parent_id: formData.parent_id ? formData.parent_id : null,
+      icon: normalizeIconValue(formData.icon),
+      parent_id:
+        formData.parent_id === null || formData.parent_id === undefined || formData.parent_id === ""
+          ? null
+          : Number(formData.parent_id),
       sequence: isAutoSeq ? null : Number(seqVal),
       authorize_with_params: !!formData.authorize_with_params,
     };
@@ -124,6 +166,24 @@ export default function ModuleForm({
       </div>
     );
   }
+
+  const iconOptions = getAvailableIcons()
+    .sort((a, b) => {
+      if (a.category !== b.category) return a.category.localeCompare(b.category);
+      return a.label.localeCompare(b.label);
+    });
+  const hasCurrentIcon = iconOptions.some((opt) => opt.name === formData.icon);
+  const iconOptionsWithCurrent = hasCurrentIcon || !formData.icon
+    ? iconOptions
+    : [
+        {
+          name: formData.icon,
+          label: `${formData.icon} (legacy)`,
+          component: getIcon(formData.icon),
+          category: "Legacy",
+        },
+        ...iconOptions,
+      ];
 
   return (
     <FormContainer>
@@ -203,11 +263,7 @@ export default function ModuleForm({
               <MenuItem value="">
                 <em>None</em>
               </MenuItem>
-              {getAvailableIcons()
-                .sort((a, b) => {
-                  if (a.category !== b.category) return a.category.localeCompare(b.category);
-                  return a.label.localeCompare(b.label);
-                })
+              {iconOptionsWithCurrent
                 .map((icon) => {
                   const IconC = icon.component;
                   return (

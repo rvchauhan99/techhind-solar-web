@@ -25,10 +25,8 @@ export default function ModuleAddPage() {
         const body = res.result || res.data || res;
         // body may be { data: rows, meta } or an array
         const rows = body.data || body.result || body || [];
-        const parents = (Array.isArray(rows) ? rows : rows.data || []).filter(
-          (m) => m.parent_id === null || m.parent_id === undefined
-        );
-        setParentOptions(parents);
+        const allModules = Array.isArray(rows) ? rows : rows.data || [];
+        setParentOptions(allModules);
       } catch (err) {
         console.error(err);
       }
