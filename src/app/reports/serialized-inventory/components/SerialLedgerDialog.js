@@ -2,13 +2,6 @@
 
 import { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Box,
-  Typography,
   Table,
   TableBody,
   TableCell,
@@ -17,14 +10,21 @@ import {
   TableRow,
   Paper,
   Chip,
-  CircularProgress,
   Alert,
-  Divider,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
-import DownloadIcon from "@mui/icons-material/Download";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import Loader from "@/components/common/Loader";
+import { IconDownload } from "@tabler/icons-react";
 import serializedInventoryService from "@/services/serializedInventoryService";
 import { toastError } from "@/utils/toast";
+import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 
 export default function SerialLedgerDialog({ open, onClose, serialId, serialNumber }) {
   const [loading, setLoading] = useState(false);
@@ -124,108 +124,106 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
-      <DialogTitle>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Box>
-            <Typography variant="h6">Serial Ledger</Typography>
-            {data?.serial && (
-              <Typography variant="body2" color="text.secondary">
-                Serial: {data.serial.serial_number} | Product: {data.serial.product_name} | Warehouse: {data.serial.warehouse_name}
-              </Typography>
-            )}
-          </Box>
-          <Button onClick={onClose} size="small" color="error" startIcon={<CloseIcon />}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className={DIALOG_FORM_LARGE}>
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold">Serial Ledger</DialogTitle>
+          {data?.serial && (
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Serial: {data.serial.serial_number} | Product: {data.serial.product_name} | Warehouse: {data.serial.warehouse_name}
+            </p>
+          )}
+        </DialogHeader>
+
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {loading && (
+            <div className="flex justify-center p-8">
+              <Loader />
+            </div>
+          )}
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {!loading && !error && data && (
+            <>
+              {data.ledger_entries && data.ledger_entries.length > 0 ? (
+                <TableContainer component={Paper} sx={{ mt: 2 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell><strong>Date & Time</strong></TableCell>
+                        <TableCell><strong>Transaction</strong></TableCell>
+                        <TableCell><strong>Movement</strong></TableCell>
+                        <TableCell align="right"><strong>Opening</strong></TableCell>
+                        <TableCell align="right"><strong>Quantity</strong></TableCell>
+                        <TableCell align="right"><strong>Closing</strong></TableCell>
+                        <TableCell align="right"><strong>Rate</strong></TableCell>
+                        <TableCell align="right"><strong>GST %</strong></TableCell>
+                        <TableCell align="right"><strong>Amount</strong></TableCell>
+                        <TableCell><strong>Performed By</strong></TableCell>
+                        <TableCell><strong>Remarks</strong></TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {data.ledger_entries.map((entry, index) => (
+                        <TableRow key={entry.id || index} sx={{ "&:nth-of-type(odd)": { backgroundColor: "action.hover" } }}>
+                          <TableCell>
+                            {new Date(entry.performed_at).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <Chip label={entry.transaction_type} size="small" color="primary" />
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={entry.movement_type}
+                              size="small"
+                              color={getMovementColor(entry.movement_type)}
+                            />
+                          </TableCell>
+                          <TableCell align="right">{entry.opening_quantity}</TableCell>
+                          <TableCell align="right">{entry.quantity}</TableCell>
+                          <TableCell align="right">{entry.closing_quantity}</TableCell>
+                          <TableCell align="right">
+                            {entry.rate ? `₹${parseFloat(entry.rate).toFixed(2)}` : "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {entry.gst_percent ? `${parseFloat(entry.gst_percent).toFixed(2)}%` : "-"}
+                          </TableCell>
+                          <TableCell align="right">
+                            {entry.amount ? `₹${parseFloat(entry.amount).toFixed(2)}` : "-"}
+                          </TableCell>
+                          <TableCell>{entry.performed_by || "-"}</TableCell>
+                          <TableCell>{entry.reason || "-"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  No ledger entries found for this serial number.
+                </Alert>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter className="pt-4">
+          <Button type="button" variant="outline" onClick={onClose}>
             Close
           </Button>
-        </Box>
-      </DialogTitle>
-
-      <DialogContent>
-        {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-            <CircularProgress />
-          </Box>
-        )}
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-
-        {!loading && !error && data && (
-          <>
-            {data.ledger_entries && data.ledger_entries.length > 0 ? (
-              <TableContainer component={Paper} sx={{ mt: 2 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Date & Time</strong></TableCell>
-                      <TableCell><strong>Transaction</strong></TableCell>
-                      <TableCell><strong>Movement</strong></TableCell>
-                      <TableCell align="right"><strong>Opening</strong></TableCell>
-                      <TableCell align="right"><strong>Quantity</strong></TableCell>
-                      <TableCell align="right"><strong>Closing</strong></TableCell>
-                      <TableCell align="right"><strong>Rate</strong></TableCell>
-                      <TableCell align="right"><strong>GST %</strong></TableCell>
-                      <TableCell align="right"><strong>Amount</strong></TableCell>
-                      <TableCell><strong>Performed By</strong></TableCell>
-                      <TableCell><strong>Remarks</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {data.ledger_entries.map((entry, index) => (
-                      <TableRow key={entry.id || index} sx={{ "&:nth-of-type(odd)": { backgroundColor: "action.hover" } }}>
-                        <TableCell>
-                          {new Date(entry.performed_at).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <Chip label={entry.transaction_type} size="small" color="primary" />
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={entry.movement_type}
-                            size="small"
-                            color={getMovementColor(entry.movement_type)}
-                          />
-                        </TableCell>
-                        <TableCell align="right">{entry.opening_quantity}</TableCell>
-                        <TableCell align="right">{entry.quantity}</TableCell>
-                        <TableCell align="right">{entry.closing_quantity}</TableCell>
-                        <TableCell align="right">
-                          {entry.rate ? `₹${parseFloat(entry.rate).toFixed(2)}` : "-"}
-                        </TableCell>
-                        <TableCell align="right">
-                          {entry.gst_percent ? `${parseFloat(entry.gst_percent).toFixed(2)}%` : "-"}
-                        </TableCell>
-                        <TableCell align="right">
-                          {entry.amount ? `₹${parseFloat(entry.amount).toFixed(2)}` : "-"}
-                        </TableCell>
-                        <TableCell>{entry.performed_by || "-"}</TableCell>
-                        <TableCell>{entry.reason || "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info" sx={{ mt: 2 }}>
-                No ledger entries found for this serial number.
-              </Alert>
-            )}
-          </>
-        )}
+          {data && data.ledger_entries && data.ledger_entries.length > 0 && (
+            <Button type="button" onClick={handleExport}>
+              <IconDownload className="size-4 mr-1.5" />
+              Export Ledger
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
-
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-        {data && data.ledger_entries && data.ledger_entries.length > 0 && (
-          <Button onClick={handleExport} startIcon={<DownloadIcon />} variant="contained">
-            Export Ledger
-          </Button>
-        )}
-      </DialogActions>
     </Dialog>
   );
 }
