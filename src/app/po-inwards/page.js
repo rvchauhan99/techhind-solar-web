@@ -144,6 +144,10 @@ export default function POInwardPage() {
     }
   }, [filters]);
 
+  // Default listing: newest first (primary id DESC) when user has not chosen a sort column yet.
+  const effectiveSortBy = sortBy || "id";
+  const effectiveSortOrder = sortBy ? (sortOrder || "asc") : "DESC";
+
   const getStatusVariant = (status) => {
     const s = (status || "").toLowerCase();
     if (s === "received") return "default";
@@ -230,7 +234,7 @@ export default function POInwardPage() {
         filterKeyTo: "received_at_to",
         operatorKey: "received_at_op",
         defaultFilterOperator: "inRange",
-        render: (row) => (row.received_at ? new Date(row.received_at).toLocaleString() : "-"),
+        render: (row) => formatDate(row.received_at),
       },
       {
         field: "actions",
@@ -265,7 +269,6 @@ export default function POInwardPage() {
               <Button
                 size="icon"
                 variant="success"
-                size="icon"
                 onClick={() => {
                   setPoInwardToApprove(row);
                   setShowApproveDialog(true);
@@ -292,7 +295,7 @@ export default function POInwardPage() {
         q: p.q || undefined,
         status: p.status || undefined,
         sortBy: p.sortBy || "id",
-        sortOrder: p.sortOrder || "DESC",
+        sortOrder: p.sortOrder || (p.sortBy ? "asc" : "DESC"),
         supplier_invoice_number: p.supplier_invoice_number || undefined,
         received_at_from: p.received_at_from || undefined,
         received_at_to: p.received_at_to || undefined,
@@ -357,7 +360,7 @@ export default function POInwardPage() {
           <p className="text-xs text-muted-foreground">
             PO Date: {formatDate(p.purchaseOrder?.po_date)} · Due: {formatDate(p.purchaseOrder?.due_date)}
           </p>
-          <p className="text-xs text-muted-foreground">Received At: {dt(p.received_at)}</p>
+          <p className="text-xs text-muted-foreground">Received At: {formatDate(p.received_at)}</p>
         </div>
 
         <div className="rounded-md border border-border p-3 space-y-2">
@@ -484,8 +487,8 @@ export default function POInwardPage() {
           page={page}
           limit={limit}
           q={q}
-          sortBy={sortBy || "id"}
-          sortOrder={sortOrder || "DESC"}
+          sortBy={effectiveSortBy}
+          sortOrder={effectiveSortOrder}
           onPageChange={(zeroBased) => setPage(zeroBased + 1)}
           onRowsPerPageChange={setLimit}
           onQChange={setQ}
