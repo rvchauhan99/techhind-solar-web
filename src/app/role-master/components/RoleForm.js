@@ -58,6 +58,7 @@ const RoleForm = forwardRef(function RoleForm({
     can_delete: false,
   });
   const [editingIndex, setEditingIndex] = useState(null); // Track which item is being edited
+  const [submitting, setSubmitting] = useState(false);
 
   // Initialize module permissions list from existing roleModules (only show child modules, not parents)
   useEffect(() => {
@@ -158,18 +159,29 @@ const RoleForm = forwardRef(function RoleForm({
     
     // If a module is selected, include it in available modules (for editing)
     if (selectedModuleId) {
-      return childModules.filter((module) => !usedModuleIds.has(module.id) || module.id === parseInt(selectedModuleId));
+      return childModules.filter((module) => {
+        const moduleIdNum = typeof module.id === "string" ? parseInt(module.id, 10) : module.id;
+        const selectedIdNum = parseInt(selectedModuleId, 10);
+        return !usedModuleIds.has(moduleIdNum) || moduleIdNum === selectedIdNum;
+      });
     }
-    return childModules.filter((module) => !usedModuleIds.has(module.id));
+    return childModules.filter((module) => {
+      const moduleIdNum = typeof module.id === "string" ? parseInt(module.id, 10) : module.id;
+      return !usedModuleIds.has(moduleIdNum);
+    });
   };
 
   const handleAddModule = () => {
     if (!selectedModuleId) return;
     
-    const module = modules.find((m) => m.id === parseInt(selectedModuleId));
+    const selectedIdNum = parseInt(selectedModuleId, 10);
+    const module = modules.find((m) => {
+      const moduleIdNum = typeof m.id === "string" ? parseInt(m.id, 10) : m.id;
+      return moduleIdNum === selectedIdNum;
+    });
     if (!module) return;
 
-    const moduleIdNum = parseInt(selectedModuleId);
+    const moduleIdNum = selectedIdNum;
     
     const newItem = {
       module_id: moduleIdNum,
@@ -247,8 +259,9 @@ const RoleForm = forwardRef(function RoleForm({
   };
 
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting || viewMode) return;
     
     // Clear editing state before submission
     setEditingIndex(null);
@@ -275,12 +288,19 @@ const RoleForm = forwardRef(function RoleForm({
       };
       
       // Track parent permissions (union of all children's permissions)
-      const module = modules.find((m) => m.id === item.module_id);
+      const module = modules.find((m) => {
+        const moduleIdNum = typeof m.id === "string" ? parseInt(m.id, 10) : m.id;
+        return moduleIdNum === item.module_id;
+      });
       if (module && module.parent_id) {
         const parentId = module.parent_id;
         if (!parentPermissionsMap[parentId]) {
           // Check if parent already exists in roleModules (for updates)
-          const existingParentRoleModule = roleModules.find((rm) => rm.module_id === parentId);
+          const existingParentRoleModule = roleModules.find((rm) => {
+            const roleModuleIdNum = typeof rm.module_id === "string" ? parseInt(rm.module_id, 10) : rm.module_id;
+            const parentIdNum = typeof parentId === "string" ? parseInt(parentId, 10) : parentId;
+            return roleModuleIdNum === parentIdNum;
+          });
           parentPermissionsMap[parentId] = {
             can_create: item.can_create,
             can_read: item.can_read,
@@ -306,10 +326,15 @@ const RoleForm = forwardRef(function RoleForm({
       modulePermissions[parseInt(parentId)] = parentPermissionsMap[parentId];
     });
     
-    onSubmit({
-      ...formData,
-      modulePermissions,
-    });
+    try {
+      setSubmitting(true);
+      await onSubmit({
+        ...formData,
+        modulePermissions,
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -413,7 +438,7 @@ const RoleForm = forwardRef(function RoleForm({
                           can_create: e.target.checked,
                         }))
                       }
-                      disabled={!selectedModuleId}
+                      disabled={!selectedModuleId || submitting}
                     />
                   }
                   label="Create"
@@ -428,7 +453,7 @@ const RoleForm = forwardRef(function RoleForm({
                           can_read: e.target.checked,
                         }))
                       }
-                      disabled={!selectedModuleId}
+                      disabled={!selectedModuleId || submitting}
                     />
                   }
                   label="Read"
@@ -443,7 +468,7 @@ const RoleForm = forwardRef(function RoleForm({
                           can_update: e.target.checked,
                         }))
                       }
-                      disabled={!selectedModuleId}
+                      disabled={!selectedModuleId || submitting}
                     />
                   }
                   label="Update"
@@ -458,7 +483,7 @@ const RoleForm = forwardRef(function RoleForm({
                           can_delete: e.target.checked,
                         }))
                       }
-                      disabled={!selectedModuleId}
+                      disabled={!selectedModuleId || submitting}
                     />
                   }
                   label="Delete"
@@ -467,7 +492,7 @@ const RoleForm = forwardRef(function RoleForm({
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={handleAddModule}
-                  disabled={!selectedModuleId}
+                  disabled={!selectedModuleId || submitting}
                   sx={{ minWidth: 100 }}
                 >
                   {editingIndex !== null ? "Update" : "Add"}
@@ -476,6 +501,7 @@ const RoleForm = forwardRef(function RoleForm({
                   <Button
                     variant="outlined"
                     onClick={handleCancelEdit}
+                    disabled={submitting}
                     sx={{ minWidth: 100 }}
                   >
                     Cancel
@@ -528,6 +554,7 @@ const RoleForm = forwardRef(function RoleForm({
                             size="small"
                             onClick={() => handleEditModule(index)}
                             color="primary"
+                            disabled={submitting}
                           >
                             <EditIcon />
                           </IconButton>
@@ -535,6 +562,7 @@ const RoleForm = forwardRef(function RoleForm({
                             size="small"
                             onClick={() => handleDeleteModule(index)}
                             color="error"
+                            disabled={submitting}
                           >
                             <DeleteIcon />
                           </IconButton>
