@@ -7,7 +7,11 @@ import {
   clearTokens,
   getStoredProfile,
 } from "@/lib/authStorage";
-import { getAllowedRoutes, isPathAllowedByRoutes } from "@/lib/permissionUtils";
+import {
+  getAllowedRoutes,
+  isPathAllowedByRoutes,
+  normalizePath,
+} from "@/lib/permissionUtils";
 
 let refreshPromise = null;
 
@@ -55,6 +59,27 @@ function isApiPathWhitelisted(path) {
   return API_PATH_WHITELIST_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
 }
 
+function getCurrentOpenedModuleRoute() {
+  if (typeof window === "undefined") return null;
+  const profile = getStoredProfile();
+  const routes = getAllowedRoutes(profile?.modules || []);
+  if (!routes.length) return null;
+
+  const currentPath = normalizePath(window.location?.pathname || "");
+  if (!currentPath) return null;
+
+  let bestMatch = null;
+  for (const route of routes) {
+    if (!route || route === "/") continue;
+    if (currentPath === route || currentPath.startsWith(route + "/")) {
+      if (!bestMatch || route.length > bestMatch.length) {
+        bestMatch = route;
+      }
+    }
+  }
+  return bestMatch;
+}
+
 // Request interceptor: auth token + x-timezone
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -66,6 +91,10 @@ axiosInstance.interceptors.request.use(
       if (config.headers) {
         config.headers["x-timezone"] =
           Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+        const currentModuleRoute = getCurrentOpenedModuleRoute();
+        if (currentModuleRoute) {
+          config.headers["x-current-module-route"] = currentModuleRoute;
+        }
       }
     } else if (config.headers) {
       config.headers["x-timezone"] = "";
