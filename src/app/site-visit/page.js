@@ -12,7 +12,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import siteVisitService from "@/services/siteVisitService";
 import BucketImage from "@/components/common/BucketImage";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import { Tooltip, Snackbar, Alert } from "@mui/material";
+import { Box, Tooltip, Snackbar, Alert } from "@mui/material";
 import {
   Dialog,
   DialogContent,
