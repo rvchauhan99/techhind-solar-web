@@ -2,10 +2,18 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress } from "@mui/material";
 import { Button } from "@/components/ui/button";
-import { IconEye, IconPencil, IconTrash, IconX } from "@tabler/icons-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
+import Loader from "@/components/common/Loader";
+import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -467,129 +475,86 @@ export default function RoleListPage() {
       </ListingPageContainer>
 
       {/* Add Role Modal */}
-      <Dialog
-        open={showAddModal}
-        onClose={handleCloseAddModal}
-        maxWidth="lg"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column'
-            }
-          }
-        }}
-      >
-        <DialogTitle>
-          Add Role
-          <Button
-            type="button"
-            aria-label="close"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute right-2 top-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleCloseAddModal}
-          >
-            <IconX className="size-4" />
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, overflowY: 'auto', flex: 1 }}>
-          <RoleForm
-            ref={addFormRef}
-            onSubmit={handleSubmit}
-            loading={submitting}
-            serverError={serverError}
-            onClearServerError={() => setServerError(null)}
-            modules={modules}
-            roleModules={[]}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 1 }}>
-          <Button type="button" onClick={handleCloseAddModal} variant="outline" size="sm">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            loading={submitting}
-            onClick={() => {
-              if (addFormRef.current) {
-                addFormRef.current.requestSubmit();
-              }
-            }}
-          >
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Role Modal */}
-      <Dialog
-        open={showEditModal}
-        onClose={handleCloseEditModal}
-        maxWidth="lg"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: {
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column'
-            }
-          }
-        }}
-      >
-        <DialogTitle>
-          Edit Role
-          <Button
-            type="button"
-            aria-label="close"
-            variant="ghost"
-            size="icon-sm"
-            className="absolute right-2 top-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={handleCloseEditModal}
-          >
-            <IconX className="size-4" />
-          </Button>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3, overflowY: 'auto', flex: 1 }}>
-          {loadingRecord ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-              <CircularProgress />
-            </Box>
-          ) : (
+      <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
+        <DialogContent className={DIALOG_FORM_LARGE}>
+          <DialogHeader>
+            <DialogTitle>Add Role</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <RoleForm
-              key={`edit-${selectedRecord?.id}-${editRoleModules.length}-${modules.length}`}
-              ref={editFormRef}
-              defaultValues={selectedRecord}
+              ref={addFormRef}
               onSubmit={handleSubmit}
               loading={submitting}
               serverError={serverError}
               onClearServerError={() => setServerError(null)}
               modules={modules}
-              roleModules={editRoleModules}
+              roleModules={[]}
             />
-          )}
+          </div>
+          <DialogFooter className="pt-4">
+            <Button type="button" onClick={handleCloseAddModal} variant="outline" size="sm">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              loading={submitting}
+              onClick={() => {
+                if (addFormRef.current) {
+                  addFormRef.current.requestSubmit();
+                }
+              }}
+            >
+              Create
+            </Button>
+          </DialogFooter>
         </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 1 }}>
-          <Button type="button" onClick={handleCloseEditModal} variant="outline" size="sm">
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            loading={submitting}
-            onClick={() => {
-              if (editFormRef.current) {
-                editFormRef.current.requestSubmit();
-              }
-            }}
-          >
-            Update
-          </Button>
-        </DialogActions>
+      </Dialog>
+
+      {/* Edit Role Modal */}
+      <Dialog open={showEditModal} onOpenChange={(open) => !open && handleCloseEditModal()}>
+        <DialogContent className={DIALOG_FORM_LARGE}>
+          <DialogHeader>
+            <DialogTitle>Edit Role</DialogTitle>
+          </DialogHeader>
+          {loadingRecord ? (
+            <div className="flex flex-1 min-h-[200px] items-center justify-center">
+              <Loader />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <RoleForm
+                key={`edit-${selectedRecord?.id}-${editRoleModules.length}-${modules.length}`}
+                ref={editFormRef}
+                defaultValues={selectedRecord}
+                onSubmit={handleSubmit}
+                loading={submitting}
+                serverError={serverError}
+                onClearServerError={() => setServerError(null)}
+                modules={modules}
+                roleModules={editRoleModules}
+              />
+            </div>
+          )}
+          <DialogFooter className="pt-4">
+            <Button type="button" onClick={handleCloseEditModal} variant="outline" size="sm">
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              loading={submitting}
+              disabled={loadingRecord}
+              onClick={() => {
+                if (editFormRef.current) {
+                  editFormRef.current.requestSubmit();
+                }
+              }}
+            >
+              Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { if (!open) { setDeleteDialogOpen(false); setRoleToDelete(null); } }}>
