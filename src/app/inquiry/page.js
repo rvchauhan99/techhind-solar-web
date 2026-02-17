@@ -49,6 +49,9 @@ export default function InquiryPage() {
   const importFileInputRef = useRef(null);
   const router = useRouter();
 
+  // Allow add/import for anyone who has access to the Inquiry module.
+  const canAccessInquiryModule = currentPerm.can_create || currentPerm.can_read;
+
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -123,7 +126,7 @@ export default function InquiryPage() {
         <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-bold flex-1">Inquiry</h1>
           <div className="flex flex-wrap items-center gap-2">
-            {currentPerm.can_create && (
+            {canAccessInquiryModule && (
               <Button onClick={() => router.push("/inquiry/add")}>
                 <IconPlus className="mr-2 size-4" />
                 New Inquiry
@@ -137,7 +140,7 @@ export default function InquiryPage() {
               <IconDownload className="mr-2 size-4" />
               {exporting ? "Exporting..." : "Export"}
             </Button>
-            {currentPerm.can_create && (
+            {canAccessInquiryModule && (
               <Button
                 variant="outline"
                 onClick={() => {

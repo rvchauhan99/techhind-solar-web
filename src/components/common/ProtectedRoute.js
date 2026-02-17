@@ -51,6 +51,9 @@ export default function ProtectedRoute({ children }) {
       (async () => {
         try {
           const normalizedPathname = normalizePath(pathname);
+          // Resolve permissions for the single module whose route matches the current pathname.
+          // Example: /inquiry/add or /inquiry/123 use the /inquiry module; we never fetch
+          // permissions for unrelated modules here to keep checks scoped to the opened page.
           const matchPredicate = (m) => {
             if (!m?.route) return false;
             const normalizedRoute = normalizePath(m.route);

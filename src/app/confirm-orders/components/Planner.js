@@ -12,6 +12,13 @@ import Select, { MenuItem } from "@/components/common/Select";
 import Checkbox from "@/components/common/Checkbox";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/common/Loader";
 import orderService from "@/services/orderService";
@@ -48,6 +55,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     // not persist this back to the API; it's for operator visibility and
     // future extension (e.g. planner_bom_plan JSON on the order).
     const [bomPlan, setBomPlan] = useState([]);
+    const [outstandingConfirmOpen, setOutstandingConfirmOpen] = useState(false);
+    const [pendingPayload, setPendingPayload] = useState(null);
+    const [outstandingInfo, setOutstandingInfo] = useState(null);
 
     useEffect(() => {
         fetchWarehouses();
@@ -124,9 +134,25 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         }
     };
 
+    const savePlanner = async (payload) => {
+        try {
+            await orderService.updateOrder(orderId, payload);
+
+            const msg = "Planner details saved successfully!";
+            setSuccessMsg(msg);
+            toastSuccess(msg);
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            console.error("Failed to save planner details:", err);
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            setError(errMsg);
+            toastError(errMsg);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isReadOnly) return;
+        if (isReadOnly || submitting) return;
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -203,27 +229,41 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 payableAmount > 0 ? (outstandingAmount / payableAmount) * 100 : 0;
 
             if (outstandingPercent > 50) {
-                const shouldProceed = window.confirm(
-                    `Outstanding payment is ${outstandingPercent.toFixed(2)}% (Rs. ${outstandingAmount.toLocaleString(
-                        "en-IN"
-                    )}) of payable amount. Do you want to continue saving planner details?`
-                );
-                if (!shouldProceed) {
-                    return;
-                }
+                setPendingPayload(payload);
+                setOutstandingInfo({
+                    percent: outstandingPercent.toFixed(2),
+                    amountFormatted: outstandingAmount.toLocaleString("en-IN"),
+                });
+                setOutstandingConfirmOpen(true);
+                return;
             }
 
-            await orderService.updateOrder(orderId, payload);
-
-            const msg = "Planner details saved successfully!";
-            setSuccessMsg(msg);
-            toastSuccess(msg);
-            if (onSuccess) onSuccess();
+            await savePlanner(payload);
         } catch (err) {
-            console.error("Failed to save planner details:", err);
-            const errMsg = err?.response?.data?.message || err?.message || "Failed to save data";
+            console.error("Failed to prepare planner details:", err);
+            const errMsg = err?.message || "Failed to save data";
             setError(errMsg);
             toastError(errMsg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleCancelOutstandingConfirm = () => {
+        setOutstandingConfirmOpen(false);
+        setPendingPayload(null);
+    };
+
+    const handleConfirmOutstandingProceed = async () => {
+        if (!pendingPayload) {
+            handleCancelOutstandingConfirm();
+            return;
+        }
+        setSubmitting(true);
+        try {
+            await savePlanner(pendingPayload);
+            setPendingPayload(null);
+            setOutstandingConfirmOpen(false);
         } finally {
             setSubmitting(false);
         }
@@ -438,6 +478,39 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                             {isCompleted ? "Update Details" : "Save"}
                         </Button>
                     </div>
+
+                    <Dialog
+                        open={outstandingConfirmOpen}
+                        onOpenChange={(open) => !open && handleCancelOutstandingConfirm()}
+                    >
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Outstanding payment warning</DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground mb-2">
+                                {`Outstanding payment is ${outstandingInfo?.percent ?? ""}% (Rs. ${outstandingInfo?.amountFormatted ?? ""
+                                    }) of payable amount. Do you want to continue saving planner details?`}
+                            </p>
+                            <DialogFooter className="pt-4">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCancelOutstandingConfirm}
+                                    disabled={submitting}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={handleConfirmOutstandingProceed}
+                                    loading={submitting}
+                                    disabled={submitting}
+                                >
+                                    OK
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </Box>
             ) : (
                 <Box className="p-4">
