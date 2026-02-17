@@ -12,18 +12,16 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import siteVisitService from "@/services/siteVisitService";
 import BucketImage from "@/components/common/BucketImage";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { Tooltip, Snackbar, Alert } from "@mui/material";
 import {
   Dialog,
-  DialogTitle,
   DialogContent,
-  Box,
-  Typography,
-  Tooltip,
-  Snackbar,
-  Alert,
-} from "@mui/material";
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { IconMapPin, IconClipboardList, IconFileDescription, IconX } from "@tabler/icons-react";
+import { IconMapPin, IconClipboardList, IconFileDescription } from "@tabler/icons-react";
+import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/utils/dataTableUtils";
 
@@ -488,61 +486,41 @@ export default function SiteVisitPage() {
           )}
         </DetailsSidebar>
 
-        <Dialog open={showAddModal} onClose={handleCloseAddModal} maxWidth="lg">
-          <DialogTitle>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Typography variant="h6">{selectedRow ? "View/Edit Site Visit" : "Add Site Visit"}</Typography>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="close"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={handleCloseAddModal}
-              >
-                <IconX className="size-4" />
-              </Button>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ p: 3 }}>
-            <SiteVisitForm
-              defaultValues={
-                selectedRow ? { inquiry_id: selectedRow.inquiry_id ? String(selectedRow.inquiry_id) : "" } : null
-              }
-              onSubmit={handleSubmit}
-              onCancel={handleCloseAddModal}
-              loading={loading}
-              serverError={null}
-              onClearServerError={() => setServerError(null)}
-            />
+        <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
+          <DialogContent className={DIALOG_FORM_LARGE}>
+            <DialogHeader>
+              <DialogTitle>{selectedRow ? "View/Edit Site Visit" : "Add Site Visit"}</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
+              <SiteVisitForm
+                defaultValues={
+                  selectedRow ? { inquiry_id: selectedRow.inquiry_id ? String(selectedRow.inquiry_id) : "" } : null
+                }
+                onSubmit={handleSubmit}
+                onCancel={handleCloseAddModal}
+                loading={loading}
+                serverError={null}
+                onClearServerError={() => setServerError(null)}
+              />
+            </div>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={showSurveyModal} onClose={handleCloseSurveyModal} maxWidth="lg">
-          <DialogTitle>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Typography variant="h6">Site Survey</Typography>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="close"
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                onClick={handleCloseSurveyModal}
-              >
-                <IconX className="size-4" />
-              </Button>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ p: 3 }}>
-            <SiteSurveyForm
-              siteVisitId={selectedRow?.site_visit_id}
-              onSubmit={handleSurveySubmit}
-              onCancel={handleCloseSurveyModal}
-              loading={loading}
-              serverError={null}
-              onClearServerError={() => setServerError(null)}
-            />
+        <Dialog open={showSurveyModal} onOpenChange={(open) => !open && handleCloseSurveyModal()}>
+          <DialogContent className={DIALOG_FORM_LARGE}>
+            <DialogHeader>
+              <DialogTitle>Site Survey</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
+              <SiteSurveyForm
+                siteVisitId={selectedRow?.site_visit_id}
+                onSubmit={handleSurveySubmit}
+                onCancel={handleCloseSurveyModal}
+                loading={loading}
+                serverError={null}
+                onClearServerError={() => setServerError(null)}
+              />
+            </div>
           </DialogContent>
         </Dialog>
 
