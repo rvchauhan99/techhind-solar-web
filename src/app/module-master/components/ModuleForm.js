@@ -32,6 +32,7 @@ export default function ModuleForm({
   });
   const [iconError, setIconError] = useState("");
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -50,9 +51,16 @@ export default function ModuleForm({
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let nextValue = type === "checkbox" ? checked : value;
+    if (name === "parent_id") {
+      nextValue = value === "" ? null : Number(value);
+    }
+    if (name === "sequence") {
+      nextValue = value === "" ? "" : Number(value);
+    }
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: nextValue,
     }));
     if (errors[name]) {
       setErrors((prev) => {
@@ -73,8 +81,9 @@ export default function ModuleForm({
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     if (formData.icon && formData.icon.trim() && !isValidIcon(formData.icon)) {
       setIconError("Please select a valid icon from the list.");
       return;
@@ -100,7 +109,12 @@ export default function ModuleForm({
       sequence: isAutoSeq ? null : Number(seqVal),
       authorize_with_params: !!formData.authorize_with_params,
     };
-    onSubmit(payload);
+    try {
+      setSubmitting(true);
+      await onSubmit(payload);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -159,7 +173,7 @@ export default function ModuleForm({
               onChange={handleChange}
             >
               <MenuItem value="">None</MenuItem>
-              {parentOptions.map((p) => (
+              {parentOptions.filter((p) => p.id !== defaultValues?.id).map((p) => (
                 <MenuItem key={p.id} value={p.id}>
                   {p.name}
                 </MenuItem>
@@ -253,12 +267,12 @@ export default function ModuleForm({
       </Box>
       <FormActions>
         {onCancel && (
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={submitting}>
             Cancel
           </Button>
         )}
-        <Button type="submit" form="module-form" size="sm">
-          {defaultValues?.id ? "Update" : "Create"}
+        <Button type="submit" form="module-form" size="sm" disabled={submitting}>
+          {submitting ? (defaultValues?.id ? "Updating..." : "Creating...") : (defaultValues?.id ? "Update" : "Create")}
         </Button>
       </FormActions>
     </FormContainer>

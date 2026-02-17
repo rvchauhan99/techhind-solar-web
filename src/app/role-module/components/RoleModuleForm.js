@@ -28,6 +28,7 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
   };
 
   const [formData, setFormData] = useState({ ...base, ...(defaultValues || {}) });
+  const [submitting, setSubmitting] = useState(false);
 
   // Only apply defaults when we have meaningful defaultValues (e.g. edit case).
   useEffect(() => {
@@ -40,7 +41,11 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (serverError) onClearServerError();
-    setFormData((s) => ({ ...s, [name]: value }));
+    const normalizedValue =
+      name === "role_id" || name === "module_id"
+        ? (value === "" ? null : Number(value))
+        : value;
+    setFormData((s) => ({ ...s, [name]: normalizedValue }));
   };
 
   const handleCheckboxChange = (name, checked) => {
@@ -48,9 +53,15 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
     setFormData((s) => ({ ...s, [name]: !!checked }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    if (submitting) return;
+    try {
+      setSubmitting(true);
+      await onSubmit(formData);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) return <p>Loading...</p>;
@@ -96,8 +107,10 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
   <FormControlLabel control={<Checkbox name="can_delete" checked={!!formData.can_delete} onChange={(e) => handleCheckboxChange('can_delete', e.target.checked)} />} label="Can Delete" />
 
       <Box mt={2}>
-        <Button component={Link} href="/role-module" variant="outlined" sx={{ mr: 1 }}>Back</Button>
-        <Button variant="contained" type="submit">{defaultValues?.id ? 'Update' : 'Create'}</Button>
+        <Button component={Link} href="/role-module" variant="outlined" sx={{ mr: 1 }} disabled={submitting}>Back</Button>
+        <Button variant="contained" type="submit" disabled={submitting}>
+          {submitting ? (defaultValues?.id ? "Updating..." : "Creating...") : (defaultValues?.id ? 'Update' : 'Create')}
+        </Button>
       </Box>
     </Box>
   );
