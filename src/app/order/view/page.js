@@ -906,6 +906,7 @@ function OrderViewPageContent() {
     const [tabValue, setTabValue] = useState(initialTab || 0); // Use initialTab from URL
     const [visitedTabs, setVisitedTabs] = useState(new Set([initialTab || 0])); // Track visited tabs, start with initialTab
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
+    const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -979,6 +980,11 @@ function OrderViewPageContent() {
         } catch (err) {
             console.error("Failed to refresh payment total:", err);
         }
+    };
+
+    const handlePaymentSaved = () => {
+        refreshPaymentTotal();
+        setPaymentsDocumentsRefreshKey((k) => k + 1);
     };
 
     const fetchDocuments = async (params) => {
@@ -1247,6 +1253,7 @@ function OrderViewPageContent() {
                             <TabPanel value={tabValue} index={1}>
                                 {visitedTabs.has(1) && (
                                     <PaginatedTable
+                                        key={`documents-${paymentsDocumentsRefreshKey}`}
                                         columns={documentsColumns}
                                         fetcher={fetchDocuments}
                                         initialPage={1}
@@ -1259,11 +1266,11 @@ function OrderViewPageContent() {
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={2}>
-                                {visitedTabs.has(2) && <ReceivePaymentForm orderData={orderData} orderId={orderId} onPaymentSaved={refreshPaymentTotal} />}
+                                {visitedTabs.has(2) && <ReceivePaymentForm orderData={orderData} orderId={orderId} onPaymentSaved={handlePaymentSaved} />}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={3}>
-                                {visitedTabs.has(3) && <PreviousPaymentsTable orderId={orderId} />}
+                                {visitedTabs.has(3) && <PreviousPaymentsTable key={`payments-${paymentsDocumentsRefreshKey}`} orderId={orderId} />}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={4}>
