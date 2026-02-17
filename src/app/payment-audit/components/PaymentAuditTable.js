@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Box, Chip, Typography } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
-import { IconCheck, IconX, IconPrinter } from "@tabler/icons-react";
+import { IconCheck, IconX, IconPrinter, IconLoader2 } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import orderPaymentsService from "@/services/orderPaymentsService";
+import orderDocumentsService from "@/services/orderDocumentsService";
 import Input from "@/components/common/Input";
 import { toastSuccess, toastError } from "@/utils/toast";
 import {
@@ -21,38 +22,93 @@ import { Button as UiButton } from "@/components/ui/button";
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
 
 export default function PaymentAuditTable({ filterParams = {} }) {
+  const [approveDialog, setApproveDialog] = useState({
+    open: false,
+    paymentId: null,
+    orderId: null,
+    proofFile: null,
+    reload: null,
+  });
+  const [approveFileInputKey, setApproveFileInputKey] = useState(Date.now());
+  const [approveConfirmLoading, setApproveConfirmLoading] = useState(false);
+
   const [rejectDialog, setRejectDialog] = useState({
     open: false,
     paymentId: null,
+    orderId: null,
     reason: "",
+    proofFile: null,
     reload: null,
   });
+  const [rejectFileInputKey, setRejectFileInputKey] = useState(Date.now());
 
-  const handleCloseRejectDialog = () => {
-    setRejectDialog({ open: false, paymentId: null, reason: "", reload: null });
+  const handleCloseApproveDialog = () => {
+    if (approveConfirmLoading) return;
+    setApproveDialog({
+      open: false,
+      paymentId: null,
+      orderId: null,
+      proofFile: null,
+      reload: null,
+    });
+    setApproveFileInputKey(Date.now());
   };
 
-  const handleConfirmReject = async (paymentId, reason, reload) => {
+  const handleConfirmApprove = async () => {
+    const { paymentId, orderId, proofFile, reload } = approveDialog;
+    setApproveConfirmLoading(true);
+    try {
+      await orderPaymentsService.approvePayment(paymentId);
+      if (proofFile && orderId) {
+        const formData = new FormData();
+        formData.append("document", proofFile);
+        formData.append("order_id", orderId);
+        formData.append("doc_type", "Payment Proof (Approved)");
+        formData.append("remarks", "Payment proof - approved");
+        await orderDocumentsService.createOrderDocument(formData);
+      }
+      toastSuccess("Payment approved");
+      handleCloseApproveDialog();
+      if (reload) await reload();
+    } catch (err) {
+      console.error("Failed to approve payment:", err);
+      const msg = err?.response?.data?.message || err?.message || "Failed to approve payment";
+      toastError(msg);
+    } finally {
+      setApproveConfirmLoading(false);
+    }
+  };
+
+  const handleCloseRejectDialog = () => {
+    setRejectDialog({
+      open: false,
+      paymentId: null,
+      orderId: null,
+      reason: "",
+      proofFile: null,
+      reload: null,
+    });
+    setRejectFileInputKey(Date.now());
+  };
+
+  const handleConfirmReject = async () => {
+    const { paymentId, orderId, reason, proofFile, reload } = rejectDialog;
     try {
       await orderPaymentsService.rejectPayment(paymentId, reason || null);
+      if (proofFile && orderId) {
+        const formData = new FormData();
+        formData.append("document", proofFile);
+        formData.append("order_id", orderId);
+        formData.append("doc_type", "Payment Proof (Rejected)");
+        formData.append("remarks", "Payment proof - rejected");
+        await orderDocumentsService.createOrderDocument(formData);
+      }
       toastSuccess("Payment rejected");
       handleCloseRejectDialog();
       if (reload) await reload();
     } catch (err) {
       console.error("Failed to reject payment:", err);
       const msg = err?.response?.data?.message || err?.message || "Failed to reject payment";
-      toastError(msg);
-    }
-  };
-
-  const handleApprove = async (id, reload) => {
-    try {
-      await orderPaymentsService.approvePayment(id);
-      toastSuccess("Payment approved");
-      if (reload) await reload();
-    } catch (err) {
-      console.error("Failed to approve payment:", err);
-      const msg = err?.response?.data?.message || err?.message || "Failed to approve payment";
       toastError(msg);
     }
   };
@@ -233,7 +289,15 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                   variant="success"
                   size="sm"
                   startIcon={<IconCheck className="size-4" />}
-                  onClick={() => handleApprove(row.id, reload)}
+                  onClick={() =>
+                    setApproveDialog({
+                      open: true,
+                      paymentId: row.id,
+                      orderId: row.order_id || null,
+                      proofFile: null,
+                      reload,
+                    })
+                  }
                 >
                   Approve
                 </UiButton>
@@ -246,7 +310,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                     setRejectDialog({
                       open: true,
                       paymentId: row.id,
+                      orderId: row.order_id || null,
                       reason: "",
+                      proofFile: null,
                       reload,
                     })
                   }
@@ -284,6 +350,60 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         filterParams={filterParams}
         moduleKey="payment_audit"
       />
+      <Dialog
+        open={approveDialog.open}
+        onOpenChange={(open) => !open && !approveConfirmLoading && handleCloseApproveDialog()}
+      >
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => approveConfirmLoading && e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Confirm Approve Payment</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-2">
+            Are you sure you want to approve this payment?
+          </p>
+          <p className="text-sm text-muted-foreground mb-2">
+            Payment proof (optional):
+          </p>
+          <input
+            key={approveFileInputKey}
+            type="file"
+            accept=".pdf,image/*"
+            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              setApproveDialog((prev) => ({ ...prev, proofFile: file || null }));
+            }}
+          />
+          <DialogFooter className="pt-4">
+            <UiButton
+              variant="outline"
+              size="sm"
+              onClick={handleCloseApproveDialog}
+              disabled={approveConfirmLoading}
+            >
+              Cancel
+            </UiButton>
+            <UiButton
+              variant="default"
+              size="sm"
+              onClick={handleConfirmApprove}
+              disabled={approveConfirmLoading}
+            >
+              {approveConfirmLoading ? (
+                <>
+                  <IconLoader2 className="size-4 mr-1.5 animate-spin" />
+                  Approving...
+                </>
+              ) : (
+                <>
+                  <IconCheck className="size-4 mr-1.5" />
+                  Confirm Approve
+                </>
+              )}
+            </UiButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && handleCloseRejectDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -301,6 +421,19 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               setRejectDialog((prev) => ({ ...prev, reason: e.target.value }))
             }
           />
+          <p className="text-sm text-muted-foreground mt-3 mb-2">
+            Payment proof (optional):
+          </p>
+          <input
+            key={rejectFileInputKey}
+            type="file"
+            accept=".pdf,image/*"
+            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              setRejectDialog((prev) => ({ ...prev, proofFile: file || null }));
+            }}
+          />
           <DialogFooter className="pt-4">
             <UiButton variant="outline" size="sm" onClick={handleCloseRejectDialog}>
               Cancel
@@ -308,13 +441,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
             <UiButton
               variant="destructive"
               size="sm"
-              onClick={() =>
-                handleConfirmReject(
-                  rejectDialog.paymentId,
-                  rejectDialog.reason,
-                  rejectDialog.reload
-                )
-              }
+              onClick={handleConfirmReject}
             >
               <IconX className="size-4 mr-1.5" />
               Reject Payment
