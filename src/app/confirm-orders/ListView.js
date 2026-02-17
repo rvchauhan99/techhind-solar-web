@@ -173,7 +173,7 @@ export default function ListView() {
                         <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Upload" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=5`)}>
+                        <IconButton size="small" title="Upload" onClick={() => router.push(`/order/view?id=${row.id}&tab=5`)}>
                             <UploadFileIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton size="small" title="Details" onClick={() => openConfirmOrderView(row.id)}>
@@ -294,7 +294,7 @@ export default function ListView() {
                     <ListItemIcon><CommentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Remarks</ListItemText>
                 </MenuItem>
-                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=5`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=5`); handleMenuClose(); }}>
                     <ListItemIcon><UploadFileIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Upload Documents</ListItemText>
                 </MenuItem>
