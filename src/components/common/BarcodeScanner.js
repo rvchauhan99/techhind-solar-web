@@ -10,6 +10,7 @@ import {
     IconButton,
     CircularProgress,
     Alert,
+    Button,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
@@ -33,7 +34,17 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
     const scannerInstanceRef = useRef(null);
     const [starting, setStarting] = useState(false);
     const [cameraError, setCameraError] = useState("");
+    const [showScanNextHint, setShowScanNextHint] = useState(false);
+    const setShowScanNextHintRef = useRef(setShowScanNextHint);
+    setShowScanNextHintRef.current = setShowScanNextHint;
     const SCANNER_ELEMENT_ID = "barcodeScanner__region";
+
+    // Auto-hide "Scan next" hint after 2.5s
+    useEffect(() => {
+        if (!showScanNextHint) return;
+        const t = setTimeout(() => setShowScanNextHint(false), 2500);
+        return () => clearTimeout(t);
+    }, [showScanNextHint]);
 
     // Keep a stable ref to onScan so the scan callback never captures a stale closure
     const onScanRef = useRef(onScan);
@@ -41,12 +52,23 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
         onScanRef.current = onScan;
     }, [onScan]);
 
+    // Cooldown: prevent the same physical scan from firing onScan on every camera frame
+    const lastScanTime = useRef(0);
+    // Session-based: same value never passed twice while dialog is open
+    const lastScanValue = useRef(null);
+    const COOLDOWN_MS = 1500;
+
     // Start / stop the scanner whenever `open` changes
     useEffect(() => {
         if (!open) {
             stopScanner();
+            setShowScanNextHint(false);
             return;
         }
+        // Reset each time the scanner opens so the first scan is always accepted
+        lastScanTime.current = 0;
+        lastScanValue.current = null;
+        setShowScanNextHint(false);
 
         let cancelled = false;
         const startScanner = async () => {
@@ -66,7 +88,6 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
                 }
 
                 const scanner = new Html5Qrcode(SCANNER_ELEMENT_ID);
-                scannerInstanceRef.current = scanner;
 
                 await scanner.start(
                     { facingMode: "environment" },
@@ -76,14 +97,27 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
                         aspectRatio: 1.5,
                     },
                     (decodedText) => {
-                        if (!cancelled) {
-                            onScanRef.current(decodedText);
-                        }
+                        if (cancelled) return;
+                        const now = Date.now();
+                        if (now - lastScanTime.current < COOLDOWN_MS) return;
+                        const normalized = (decodedText || "").trim();
+                        // Same value never passed twice in this session (no time limit)
+                        if (normalized && normalized === lastScanValue.current) return;
+                        lastScanTime.current = now;
+                        lastScanValue.current = normalized || null;
+                        onScanRef.current(decodedText);
+                        if (setShowScanNextHintRef.current) setShowScanNextHintRef.current(true);
                     },
                     () => {
                         // per-frame error — ignore
                     }
                 );
+
+                if (cancelled) {
+                    try { await scanner.stop(); } catch (_) { /* ignore */ }
+                    return;
+                }
+                scannerInstanceRef.current = scanner;
             } catch (err) {
                 if (!cancelled) {
                     const msg =
@@ -109,11 +143,14 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
 
     const stopScanner = () => {
         const scanner = scannerInstanceRef.current;
-        if (scanner) {
+        scannerInstanceRef.current = null;
+        if (!scanner) return;
+        try {
             scanner.stop().catch(() => {}).finally(() => {
                 try { scanner.clear(); } catch (_) {}
-                scannerInstanceRef.current = null;
             });
+        } catch (_) {
+            // stop() may throw if scanner never started or already stopped — ignore
         }
     };
 
@@ -188,9 +225,21 @@ export default function BarcodeScanner({ open, onScan, onClose, hint = "" }) {
                 )}
 
                 <Box sx={{ px: 2, pt: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                        Point the camera at the barcode or QR code on the serial number label.
-                    </Typography>
+                    {showScanNextHint ? (
+                        <Alert severity="success" icon={false} sx={{ py: 0.75 }}
+                            action={
+                                <Button size="small" color="inherit" sx={{ minWidth: 0 }}
+                                    onClick={() => setShowScanNextHint(false)}>
+                                    Next
+                                </Button>
+                            }>
+                            <Typography variant="body2">Scanned. Point camera at next barcode.</Typography>
+                        </Alert>
+                    ) : (
+                        <Typography variant="caption" color="text.secondary">
+                            Point the camera at the barcode or QR code on the serial number label.
+                        </Typography>
+                    )}
                 </Box>
             </DialogContent>
         </Dialog>

@@ -20,9 +20,15 @@ import {
     TextField,
     Collapse,
     IconButton,
+    Card,
+    CardContent,
+    Divider,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import ClearIcon from "@mui/icons-material/Clear";
+import BarcodeScanner from "@/components/common/BarcodeScanner";
 import mastersService from "@/services/mastersService";
 import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
@@ -63,6 +69,19 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
     const [serialDrawerValues, setSerialDrawerValues] = useState([]);
     const [serialDrawerError, setSerialDrawerError] = useState("");
     const serialInputRefs = useRef([]);
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scanTargetIndex, setScanTargetIndex] = useState(null);
+    // Mobile card collapse — empty Set means all cards open by default
+    const [collapsedCardItems, setCollapsedCardItems] = useState(new Set());
+
+    const toggleCardCollapse = (index) => {
+        setCollapsedCardItems((prev) => {
+            const next = new Set(prev);
+            if (next.has(index)) next.delete(index);
+            else next.add(index);
+            return next;
+        });
+    };
 
     useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -355,6 +374,34 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
         closeSerialRowExpand();
     };
 
+    const openScanner = () => {
+        const firstEmpty = serialDrawerValues.findIndex((v) => !(v || "").trim());
+        setScanTargetIndex(firstEmpty !== -1 ? firstEmpty : 0);
+        setScannerOpen(true);
+    };
+
+    const handleScanResult = (value) => {
+        const trimmed = (value || "").trim();
+        if (!trimmed || scanTargetIndex == null) return;
+
+        const alreadyEntered = serialDrawerValues.some(
+            (v) => (v || "").trim().toLowerCase() === trimmed.toLowerCase()
+        );
+        if (alreadyEntered) {
+            toastError("Serial number already entered.");
+            return;
+        }
+
+        handleSerialDrawerValueChange(scanTargetIndex, trimmed);
+        const updated = serialDrawerValues.map((v, i) => (i === scanTargetIndex ? trimmed : v));
+        const nextEmpty = updated.findIndex((v, i) => i > scanTargetIndex && !(v || "").trim());
+        if (nextEmpty === -1) { setScannerOpen(false); setScanTargetIndex(null); }
+        else setScanTargetIndex(nextEmpty);
+    };
+
+    const scanHint = scanTargetIndex != null && serialDrawerValues.length > 0
+        ? `Scanning serial ${scanTargetIndex + 1} of ${serialDrawerValues.length}` : "";
+
     const handleSubmit = (e) => {
         e.preventDefault();
 
@@ -608,6 +655,206 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                         )}
 
                         {formData.items.length > 0 ? (
+                            <>
+                            {/* ── Mobile card list (xs only) ─────────────────── */}
+                            <Box sx={{ display: { xs: "block", sm: "none" }, mt: 0.5 }}>
+                                {formData.items.map((item, index) => {
+                                    const isSerial = isSerialItem(item);
+                                    const isLot = item.tracking_type === "LOT" && !isSerial;
+                                    const serialCount = (item.serials || []).length;
+                                    const acceptedQty = item.accepted_quantity || 0;
+                                    const isSerialExpanded = expandedSerialRowIndex === index;
+                                    const isCardCollapsed = collapsedCardItems.has(index);
+                                    const hasError = !!(errors[`item_${index}_received`] || errors[`item_${index}_rejected`] || errors[`item_${index}_serials`]);
+
+                                    return (
+                                        <Card
+                                            key={index}
+                                            sx={{ mb: 1.5, border: 1, borderColor: hasError ? "error.main" : "divider" }}
+                                            variant="outlined"
+                                        >
+                                            {/* ── Tappable card header (always visible) ── */}
+                                            <Box
+                                                sx={{
+                                                    display: "flex", alignItems: "center", gap: 1,
+                                                    px: 1.5, py: 1.25, cursor: "pointer",
+                                                    borderBottom: isCardCollapsed ? "none" : 1,
+                                                    borderColor: "divider",
+                                                    minHeight: 48,
+                                                }}
+                                                onClick={() => toggleCardCollapse(index)}
+                                            >
+                                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                    <Typography variant="subtitle2" fontWeight={600} noWrap>
+                                                        {index + 1}. {item.product_name}
+                                                    </Typography>
+                                                    {/* Compact summary shown when collapsed */}
+                                                    {isCardCollapsed && (
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Ordered {item.ordered_quantity}
+                                                            {acceptedQty > 0 && ` · Accepted ${acceptedQty}`}
+                                                            {isSerial && acceptedQty > 0 && ` · Serials ${serialCount}/${acceptedQty}`}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+                                                    {isSerial && <Chip label="SERIAL" size="small" color="primary" sx={{ height: 18, fontSize: "0.6rem" }} />}
+                                                    {isLot && <Chip label="LOT" size="small" color="secondary" sx={{ height: 18, fontSize: "0.6rem" }} />}
+                                                    {hasError && <Chip label="!" size="small" color="error" sx={{ height: 18, fontSize: "0.6rem", minWidth: 18 }} />}
+                                                    {isCardCollapsed ? <ExpandMoreIcon fontSize="small" color="action" /> : <ExpandLessIcon fontSize="small" color="action" />}
+                                                </Box>
+                                            </Box>
+
+                                            {/* ── Collapsible card body ── */}
+                                            <Collapse in={!isCardCollapsed} timeout="auto" unmountOnExit>
+                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+
+                                                    {/* Read-only stats */}
+                                                    <Box sx={{ display: "flex", gap: 2, mb: 1.25 }}>
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary" display="block">Ordered</Typography>
+                                                            <Typography variant="body2">{item.ordered_quantity}</Typography>
+                                                        </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary" display="block">Accepted</Typography>
+                                                            <Typography variant="body2" fontWeight="medium" color="success.main">{acceptedQty}</Typography>
+                                                        </Box>
+                                                    </Box>
+
+                                                    {/* Received / Rejected inputs side by side */}
+                                                    <Box sx={{ display: "flex", gap: 1, mb: 1 }}>
+                                                        <Input
+                                                            type="number"
+                                                            size="small"
+                                                            label="Received"
+                                                            fullWidth
+                                                            value={item.received_quantity}
+                                                            onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
+                                                            inputProps={{ min: 0, max: item.ordered_quantity }}
+                                                            error={!!errors[`item_${index}_received`]}
+                                                            helperText={errors[`item_${index}_received`]}
+                                                        />
+                                                        <Input
+                                                            type="number"
+                                                            size="small"
+                                                            label="Rejected"
+                                                            fullWidth
+                                                            value={item.rejected_quantity}
+                                                            onChange={(e) => handleItemChange(index, "rejected_quantity", e.target.value)}
+                                                            inputProps={{ min: 0, max: item.received_quantity }}
+                                                            error={!!errors[`item_${index}_rejected`]}
+                                                            helperText={errors[`item_${index}_rejected`]}
+                                                        />
+                                                    </Box>
+
+                                                    {/* LOT: lot number input */}
+                                                    {isLot && (
+                                                        <Input
+                                                            size="small"
+                                                            fullWidth
+                                                            label="Lot/Batch Number (Optional)"
+                                                            value={item.lot_number || ""}
+                                                            onChange={(e) => handleItemChange(index, "lot_number", e.target.value)}
+                                                        />
+                                                    )}
+
+                                                    {/* SERIAL: tap-to-expand serial entry */}
+                                                    {isSerial && acceptedQty > 0 && (
+                                                        <Box sx={{ mt: 1.25 }}>
+                                                            <Box
+                                                                sx={{
+                                                                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                                    p: 1.25, borderRadius: 1, border: 1,
+                                                                    borderColor: errors[`item_${index}_serials`] ? "error.main" : "divider",
+                                                                    bgcolor: "action.hover", cursor: "pointer", minHeight: 44,
+                                                                }}
+                                                                onClick={() => toggleSerialRowExpand(index)}
+                                                            >
+                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                    <QrCodeScannerIcon fontSize="small" color={serialCount === acceptedQty ? "success" : "action"} />
+                                                                    <Typography variant="body2">Serials: {serialCount} / {acceptedQty}</Typography>
+                                                                </Box>
+                                                                {isSerialExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                            </Box>
+                                                            {errors[`item_${index}_serials`] && (
+                                                                <FormHelperText error sx={{ mt: 0.5 }}>{errors[`item_${index}_serials`]}</FormHelperText>
+                                                            )}
+
+                                                            <Collapse in={isSerialExpanded} timeout="auto" unmountOnExit>
+                                                                <Box sx={{ pt: 1.5 }}>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full mb-3 min-h-[44px] touch-manipulation flex items-center justify-center gap-1.5"
+                                                                        onClick={openScanner}
+                                                                    >
+                                                                        <QrCodeScannerIcon sx={{ fontSize: 20 }} />
+                                                                        Scan Barcode / QR Code
+                                                                    </Button>
+                                                                    <Divider sx={{ mb: 1.5 }}>
+                                                                        <Typography variant="caption" color="text.secondary">or type manually</Typography>
+                                                                    </Divider>
+                                                                    {serialDrawerError && (
+                                                                        <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
+                                                                            {serialDrawerError}
+                                                                        </Alert>
+                                                                    )}
+                                                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mb: 1.5 }}>
+                                                                        {isSerialExpanded && serialDrawerValues.length === acceptedQty && serialDrawerValues.map((value, idx) => (
+                                                                            <TextField
+                                                                                key={idx}
+                                                                                size="small"
+                                                                                fullWidth
+                                                                                label={`Serial ${idx + 1} of ${acceptedQty}`}
+                                                                                value={value}
+                                                                                onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
+                                                                                inputRef={(el) => { serialInputRefs.current[idx] = el; }}
+                                                                                variant="outlined"
+                                                                                InputProps={{
+                                                                                    endAdornment: value?.trim()
+                                                                                        ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                            <ClearIcon fontSize="small" />
+                                                                                          </IconButton>
+                                                                                        : null,
+                                                                                }}
+                                                                            />
+                                                                        ))}
+                                                                    </Box>
+                                                                    <Box sx={{ display: "flex", gap: 1 }}>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="flex-1 min-h-[44px] touch-manipulation"
+                                                                            onClick={closeSerialRowExpand}
+                                                                        >
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            className="flex-1 min-h-[44px] touch-manipulation"
+                                                                            onClick={handleSerialDrawerDone}
+                                                                        >
+                                                                            Done
+                                                                        </Button>
+                                                                    </Box>
+                                                                </Box>
+                                                            </Collapse>
+                                                        </Box>
+                                                    )}
+
+                                                </CardContent>
+                                            </Collapse>
+                                        </Card>
+                                    );
+                                })}
+                            </Box>
+
+                            {/* ── Desktop table (sm+) ────────────────────────── */}
+                            <Box sx={{ display: { xs: "none", sm: "block" } }}>
                             <TableContainer component={Paper} sx={{ mt: 0.5 }}>
                                 <Table size="small">
                                     <TableHead>
@@ -728,9 +975,21 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                             <TableCell colSpan={6} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
                                                                 <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                                                     <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
-                                                                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                                                                            Enter exactly {acceptedQty} serial number(s). Use TAB or ENTER to move to the next.
-                                                                        </Typography>
+                                                                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
+                                                                            <Typography variant="subtitle2" color="text.secondary">
+                                                                                Enter exactly {acceptedQty} serial number(s). Use TAB or ENTER to move to the next.
+                                                                            </Typography>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="flex items-center gap-1.5 min-h-[36px] touch-manipulation"
+                                                                                onClick={openScanner}
+                                                                            >
+                                                                                <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                                                                                Scan Barcode
+                                                                            </Button>
+                                                                        </Box>
                                                                         {serialDrawerError && (
                                                                             <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
                                                                                 {serialDrawerError}
@@ -748,6 +1007,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                                                     onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
                                                                                     inputRef={(el) => { serialInputRefs.current[idx] = el; }}
                                                                                     variant="outlined"
+                                                                                    InputProps={{
+                                                                                        endAdornment: value?.trim()
+                                                                                            ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                                <ClearIcon fontSize="small" />
+                                                                                              </IconButton>
+                                                                                            : null,
+                                                                                    }}
                                                                                 />
                                                                             ))}
                                                                         </Box>
@@ -770,6 +1036,8 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                     </TableBody>
                                 </Table>
                             </TableContainer>
+                            </Box>
+                            </>
                         ) : (
                             <Alert severity="info" sx={{ mt: 2 }}>
                                 Select a Purchase Order to load items
@@ -820,6 +1088,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                     </LoadingButton>
                 </FormActions>
             </FormContainer>
+
+            <BarcodeScanner
+                open={scannerOpen}
+                onScan={handleScanResult}
+                onClose={() => { setScannerOpen(false); setScanTargetIndex(null); }}
+                hint={scanHint}
+            />
         </Box>
     );
 }

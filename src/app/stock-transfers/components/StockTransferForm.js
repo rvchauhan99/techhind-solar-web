@@ -23,6 +23,9 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import BarcodeScanner from "@/components/common/BarcodeScanner";
+import { toastError } from "@/utils/toast";
 import stockService from "@/services/stockService";
 import companyService from "@/services/companyService";
 import productService from "@/services/productService";
@@ -66,6 +69,7 @@ export default function StockTransferForm({
     quantity: "",
     serials: [],
   });
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
     const loadWarehouses = async () => {
@@ -296,6 +300,22 @@ export default function StockTransferForm({
         serial_number: s.serial_number,
       })),
     }));
+  };
+
+  const handleScanResult = (value) => {
+    const trimmed = (value || "").trim();
+    if (!trimmed) return;
+    const match = availableSerials.find(
+      (s) => s.serial_number?.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (!match) { toastError(`Serial "${trimmed}" not found in this warehouse.`); return; }
+    const alreadySelected = currentItem.serials.some((s) => s.stock_serial_id === match.id);
+    if (alreadySelected) { toastError("Serial already selected."); return; }
+    const qty = Number(currentItem.quantity) || 0;
+    if (currentItem.serials.length >= qty) { toastError(`Already have ${qty} serial(s) selected.`); return; }
+    const updated = [...currentItem.serials, { stock_serial_id: match.id, serial_number: match.serial_number }];
+    setCurrentItem((prev) => ({ ...prev, serials: updated }));
+    if (updated.length >= qty) setScannerOpen(false);
   };
 
   const handleAddItem = (e) => {
@@ -621,41 +641,61 @@ export default function StockTransferForm({
                   const quantity = Number(currentItem.quantity) || 0;
                   
                   return isSerial && formData.from_warehouse_id && quantity > 0 ? (
-                    <Grid item size={{ xs: 12, md: 5 }}>
-                      <Autocomplete
-                        multiple
-                        options={availableSerials}
-                        getOptionLabel={(option) => option.serial_number || ""}
-                        value={availableSerials.filter((s) =>
-                          currentItem.serials.some((sel) => sel.stock_serial_id === s.id)
-                        )}
-                        onChange={(e, newValue) => {
-                          handleSerialSelection(newValue);
-                        }}
-                        loading={loadingSerials}
-                        disabled={loadingSerials || !formData.from_warehouse_id}
-                        renderInput={(params) => (
-                          <Input
-                            {...params}
-                            label={`Select ${quantity} Serial${quantity > 1 ? "s" : ""}`}
-                            error={!!itemErrors.serials}
-                            helperText={itemErrors.serials || `${currentItem.serials.length} / ${quantity} selected`}
-                            placeholder={loadingSerials ? "Loading serials..." : "Select serial numbers"}
-                          />
-                        )}
-                        renderTags={(value, getTagProps) =>
-                          value.map((option, index) => (
-                            <Chip
-                              {...getTagProps({ index })}
-                              key={option.id}
-                              label={option.serial_number}
-                              size="small"
+                    <>
+                      <Grid item size={{ xs: 12, md: 5 }}>
+                        <Autocomplete
+                          multiple
+                          options={availableSerials}
+                          getOptionLabel={(option) => option.serial_number || ""}
+                          value={availableSerials.filter((s) =>
+                            currentItem.serials.some((sel) => sel.stock_serial_id === s.id)
+                          )}
+                          onChange={(e, newValue) => {
+                            handleSerialSelection(newValue);
+                          }}
+                          loading={loadingSerials}
+                          disabled={loadingSerials || !formData.from_warehouse_id}
+                          renderInput={(params) => (
+                            <Input
+                              {...params}
+                              label={`Select ${quantity} Serial${quantity > 1 ? "s" : ""}`}
+                              error={!!itemErrors.serials}
+                              helperText={itemErrors.serials || `${currentItem.serials.length} / ${quantity} selected`}
+                              placeholder={loadingSerials ? "Loading serials..." : "Select serial numbers"}
                             />
-                          ))
-                        }
-                        limitTags={3}
-                      />
-                    </Grid>
+                          )}
+                          renderTags={(value, getTagProps) =>
+                            value.map((option, index) => (
+                              <Chip
+                                {...getTagProps({ index })}
+                                key={option.id}
+                                label={option.serial_number}
+                                size="small"
+                              />
+                            ))
+                          }
+                          limitTags={3}
+                        />
+                      </Grid>
+                      <Grid item size={{ xs: 12, md: "auto" }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1.5 min-h-[36px] touch-manipulation"
+                            disabled={loadingSerials || !formData.from_warehouse_id || !currentItem.quantity}
+                            onClick={() => setScannerOpen(true)}
+                          >
+                            <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                            Scan Barcode
+                          </Button>
+                          <Typography variant="caption" color="text.secondary">
+                            {currentItem.serials.length} / {quantity} scanned
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </>
                   ) : null;
                 })()}
 
@@ -781,6 +821,17 @@ export default function StockTransferForm({
           </LoadingButton>
         </FormActions>
       </FormContainer>
+
+      <BarcodeScanner
+        open={scannerOpen}
+        onScan={handleScanResult}
+        onClose={() => setScannerOpen(false)}
+        hint={
+          currentItem.serials.length > 0
+            ? `Scanned ${currentItem.serials.length} of ${Number(currentItem.quantity) || 0}`
+            : ""
+        }
+      />
     </Box>
   );
 }

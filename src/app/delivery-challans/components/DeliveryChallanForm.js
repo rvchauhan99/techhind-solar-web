@@ -26,6 +26,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import ClearIcon from "@mui/icons-material/Clear";
 import BarcodeScanner from "@/components/common/BarcodeScanner";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -417,6 +418,14 @@ export default function DeliveryChallanForm({
     const handleScanResult = (value) => {
         const trimmed = (value || "").trim();
         if (!trimmed || scanTargetIndex == null) return;
+
+        const alreadyEntered = serialDrawerValues.some(
+            (v) => (v || "").trim().toLowerCase() === trimmed.toLowerCase()
+        );
+        if (alreadyEntered) {
+            toastError("Serial number already entered.");
+            return;
+        }
 
         // Fill the slot and validate
         handleSerialDrawerValueChange(scanTargetIndex, trimmed);
@@ -903,9 +912,13 @@ export default function DeliveryChallanForm({
                                                                                 error={!!serialDrawerFieldErrors[idx]}
                                                                                 helperText={serialDrawerFieldErrors[idx]}
                                                                                 InputProps={{
-                                                                                    endAdornment: serialDrawerValidating === idx ? (
-                                                                                        <CircularProgress size={16} sx={{ ml: 0.5 }} />
-                                                                                    ) : null,
+                                                                                    endAdornment: serialDrawerValidating === idx
+                                                                                        ? <CircularProgress size={16} sx={{ ml: 0.5 }} />
+                                                                                        : value?.trim()
+                                                                                            ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                                <ClearIcon fontSize="small" />
+                                                                                              </IconButton>
+                                                                                            : null,
                                                                                 }}
                                                                             />
                                                                         ))}
@@ -1093,9 +1106,13 @@ export default function DeliveryChallanForm({
                                                                                             error={!!serialDrawerFieldErrors[idx]}
                                                                                             helperText={serialDrawerFieldErrors[idx]}
                                                                                             InputProps={{
-                                                                                                endAdornment: serialDrawerValidating === idx ? (
-                                                                                                    <CircularProgress size={16} sx={{ ml: 0.5 }} />
-                                                                                                ) : null,
+                                                                                                endAdornment: serialDrawerValidating === idx
+                                                                                                    ? <CircularProgress size={16} sx={{ ml: 0.5 }} />
+                                                                                                    : value?.trim()
+                                                                                                        ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                                            <ClearIcon fontSize="small" />
+                                                                                                          </IconButton>
+                                                                                                        : null,
                                                                                             }}
                                                                                         />
                                                                                     </Box>
