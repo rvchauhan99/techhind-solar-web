@@ -234,7 +234,12 @@ export default function ChallanDetailsDrawer({
     };
 
     return (
-        <DetailsSidebar open={open} onClose={onClose} title={title}>
+        <DetailsSidebar
+            open={open}
+            onClose={onClose}
+            title={title}
+            closeOnBackdropClick={false}
+        >
             {renderBody()}
         </DetailsSidebar>
     );
