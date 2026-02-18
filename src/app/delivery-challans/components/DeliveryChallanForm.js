@@ -21,9 +21,12 @@ import {
     Collapse,
     TextField,
     IconButton,
+    Divider,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import BarcodeScanner from "@/components/common/BarcodeScanner";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
@@ -85,6 +88,10 @@ export default function DeliveryChallanForm({
     const [serialDrawerFieldErrors, setSerialDrawerFieldErrors] = useState({});
     const [serialDrawerValidating, setSerialDrawerValidating] = useState(null);
     const serialInputRefs = useRef([]);
+
+    /** Barcode / QR scanner */
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scanTargetIndex, setScanTargetIndex] = useState(null);
 
     // ── Build BOM lines from order data ────────────────────────────────
     const buildLinesFromOrder = (data, stockMap = stockByProductId) => {
@@ -396,6 +403,43 @@ export default function DeliveryChallanForm({
         serialInputRefs.current = [];
     };
 
+    /** Open the camera scanner pointing at the first empty serial slot */
+    const openScanner = () => {
+        const firstEmpty = serialDrawerValues.findIndex((v) => !(v || "").trim());
+        setScanTargetIndex(firstEmpty !== -1 ? firstEmpty : 0);
+        setScannerOpen(true);
+    };
+
+    /**
+     * Called by BarcodeScanner each time a code is decoded.
+     * Fills the current target slot, validates it, then advances to the next empty slot.
+     */
+    const handleScanResult = (value) => {
+        const trimmed = (value || "").trim();
+        if (!trimmed || scanTargetIndex == null) return;
+
+        // Fill the slot and validate
+        handleSerialDrawerValueChange(scanTargetIndex, trimmed);
+        validateSerialWithBackend(scanTargetIndex, trimmed);
+
+        // Build an updated snapshot to find the next empty index
+        const updated = serialDrawerValues.map((v, i) => (i === scanTargetIndex ? trimmed : v));
+        const nextEmpty = updated.findIndex((v, i) => i > scanTargetIndex && !(v || "").trim());
+
+        if (nextEmpty === -1) {
+            // All slots will be filled — close scanner
+            setScannerOpen(false);
+            setScanTargetIndex(null);
+        } else {
+            setScanTargetIndex(nextEmpty);
+        }
+    };
+
+    const scanHint =
+        scanTargetIndex != null && serialDrawerValues.length > 0
+            ? `Scanning serial ${scanTargetIndex + 1} of ${serialDrawerValues.length}`
+            : "";
+
     const validateSerialWithBackend = async (drawerValueIndex, value) => {
         const trimmed = (value || "").trim();
         if (!trimmed || expandedSerialLineIndex == null) {
@@ -604,7 +648,7 @@ export default function DeliveryChallanForm({
     return (
         <Box component="form" onSubmit={handleSubmit} noValidate>
             <FormContainer>
-                <Box sx={{ p: 1 }}>
+                <Box sx={{ p: { xs: 1.5, sm: 1 } }}>
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {serverError}
@@ -727,6 +771,178 @@ export default function DeliveryChallanForm({
                             )}
 
                             {lines.length > 0 ? (
+                              <Fragment>
+                                {/* ── Mobile card list (xs only) ─────────────────── */}
+                                <Box sx={{ display: { xs: "block", sm: "none" }, mt: 0.5 }}>
+                                    {lines.map((line, index) => {
+                                        const shipNow = Number(line.ship_now) || 0;
+                                        const serialCount = (line.serials || []).length;
+                                        const isSerialLine = line.serial_required && shipNow > 0;
+                                        const isExpanded = expandedSerialLineIndex === index;
+
+                                        return (
+                                            <Card key={line.product_id || index} sx={{ mb: 1, border: 1, borderColor: "divider" }} variant="outlined">
+                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                                                    {/* Product header */}
+                                                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, mb: 0.75 }}>
+                                                        <Box sx={{ flex: 1 }}>
+                                                            <Typography variant="subtitle2" fontWeight={600}>
+                                                                {index + 1}. {line.product_name}
+                                                            </Typography>
+                                                            {(line.product_type_name || line.make_name) && (
+                                                                <Typography variant="caption" color="text.secondary">
+                                                                    {[line.product_type_name, line.make_name].filter(Boolean).join(" · ")}
+                                                                </Typography>
+                                                            )}
+                                                        </Box>
+                                                        {line.serial_required && (
+                                                            <Chip label="SERIAL" size="small" color="primary" sx={{ height: 20, fontSize: "0.65rem", flexShrink: 0 }} />
+                                                        )}
+                                                    </Box>
+
+                                                    {/* Stats row */}
+                                                    <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 1.25 }}>
+                                                        {[
+                                                            { label: "Planned", value: line.required_qty },
+                                                            { label: "Avail", value: Number(line.available_qty) || 0 },
+                                                            { label: "Shipped", value: line.shipped_qty },
+                                                        ].map(({ label, value }) => (
+                                                            <Box key={label}>
+                                                                <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
+                                                                <Typography variant="body2">{value}</Typography>
+                                                            </Box>
+                                                        ))}
+                                                        <Box>
+                                                            <Typography variant="caption" color="text.secondary" display="block">Remaining</Typography>
+                                                            <Typography variant="body2" fontWeight="medium" color={line.pending_qty > 0 ? "warning.main" : "success.main"}>
+                                                                {line.pending_qty} {line.unit_name || ""}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+
+                                                    {/* Ship Now input */}
+                                                    <Input
+                                                        type="number"
+                                                        size="small"
+                                                        label="Ship Now"
+                                                        value={line.ship_now}
+                                                        onChange={(e) => handleShipNowChange(index, e.target.value)}
+                                                        inputProps={{ min: 0, max: line.pending_qty }}
+                                                        error={!!errors[`line_${index}_ship_now`]}
+                                                        helperText={errors[`line_${index}_ship_now`]}
+                                                        disabled={!order}
+                                                        fullWidth
+                                                    />
+
+                                                    {/* Serial section (only when serial_required and qty > 0) */}
+                                                    {isSerialLine && (
+                                                        <Box sx={{ mt: 1.5 }}>
+                                                            {/* Tap-to-expand serial header */}
+                                                            <Box
+                                                                sx={{
+                                                                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                                                                    p: 1.25, borderRadius: 1, border: 1,
+                                                                    borderColor: errors[`line_${index}_serials`] ? "error.main" : "divider",
+                                                                    bgcolor: "action.hover", cursor: "pointer", minHeight: 44,
+                                                                }}
+                                                                onClick={() => toggleSerialRowExpand(index)}
+                                                            >
+                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                    <QrCodeScannerIcon fontSize="small" color={serialCount === shipNow ? "success" : "action"} />
+                                                                    <Typography variant="body2">
+                                                                        Serials: {serialCount} / {shipNow}
+                                                                    </Typography>
+                                                                </Box>
+                                                                {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                                                            </Box>
+                                                            {errors[`line_${index}_serials`] && (
+                                                                <FormHelperText error sx={{ mt: 0.5 }}>
+                                                                    {errors[`line_${index}_serials`]}
+                                                                </FormHelperText>
+                                                            )}
+
+                                                            {/* Expanded entry panel */}
+                                                            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                                                <Box sx={{ pt: 1.5 }}>
+                                                                    {/* Scan button */}
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="w-full mb-3 min-h-[44px] touch-manipulation flex items-center justify-center gap-1.5"
+                                                                        onClick={openScanner}
+                                                                    >
+                                                                        <QrCodeScannerIcon sx={{ fontSize: 20 }} />
+                                                                        Scan Barcode / QR Code
+                                                                    </Button>
+
+                                                                    <Divider sx={{ mb: 1.5 }}>
+                                                                        <Typography variant="caption" color="text.secondary">or type manually</Typography>
+                                                                    </Divider>
+
+                                                                    {serialDrawerError && (
+                                                                        <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
+                                                                            {serialDrawerError}
+                                                                        </Alert>
+                                                                    )}
+
+                                                                    {/* Serial text fields */}
+                                                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mb: 1.5 }}>
+                                                                        {isExpanded && serialDrawerValues.length === shipNow && serialDrawerValues.map((value, idx) => (
+                                                                            <TextField
+                                                                                key={idx}
+                                                                                size="small"
+                                                                                fullWidth
+                                                                                label={`Serial ${idx + 1} of ${shipNow}`}
+                                                                                value={value}
+                                                                                onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                onBlur={() => value?.trim() && validateSerialWithBackend(idx, value)}
+                                                                                onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
+                                                                                inputRef={(el) => { serialInputRefs.current[idx] = el; }}
+                                                                                variant="outlined"
+                                                                                error={!!serialDrawerFieldErrors[idx]}
+                                                                                helperText={serialDrawerFieldErrors[idx]}
+                                                                                InputProps={{
+                                                                                    endAdornment: serialDrawerValidating === idx ? (
+                                                                                        <CircularProgress size={16} sx={{ ml: 0.5 }} />
+                                                                                    ) : null,
+                                                                                }}
+                                                                            />
+                                                                        ))}
+                                                                    </Box>
+
+                                                                    {/* Done / Cancel */}
+                                                                    <Box sx={{ display: "flex", gap: 1 }}>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="flex-1 min-h-[44px] touch-manipulation"
+                                                                            onClick={closeSerialRowExpand}
+                                                                        >
+                                                                            Cancel
+                                                                        </Button>
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            className="flex-1 min-h-[44px] touch-manipulation"
+                                                                            onClick={handleSerialDrawerDone}
+                                                                        >
+                                                                            Done
+                                                                        </Button>
+                                                                    </Box>
+                                                                </Box>
+                                                            </Collapse>
+                                                        </Box>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })}
+                                </Box>
+
+                                {/* ── Desktop table (sm+) ────────────────────────── */}
+                                <Box sx={{ display: { xs: "none", sm: "block" } }}>
                                 <TableContainer component={Paper} sx={{ mt: 0.5 }}>
                                     <Table size="small">
                                         <TableHead>
@@ -839,16 +1055,28 @@ export default function DeliveryChallanForm({
                                                             <TableRow sx={{ "& > td": { borderBottom: isExpanded ? undefined : "none", py: 0, verticalAlign: "top" } }}>
                                                                 <TableCell colSpan={10} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
                                                                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                                                                        <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
-                                                                            <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-                                                                                Enter exactly {shipNow} serial number(s). Use TAB or ENTER to move to the next. Each serial is validated against stock at this warehouse.
-                                                                            </Typography>
-                                                                            {serialDrawerError && (
-                                                                                <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
-                                                                                    {serialDrawerError}
-                                                                                </Alert>
-                                                                            )}
-                                                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 1.5 }}>
+                                        <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
+                                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
+                                                <Typography variant="subtitle2" color="text.secondary">
+                                                    Enter exactly {shipNow} serial number(s). Use TAB or ENTER to move to the next.
+                                                </Typography>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="flex items-center gap-1.5 min-h-[36px] touch-manipulation"
+                                                    onClick={openScanner}
+                                                >
+                                                    <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                                                    Scan Barcode
+                                                </Button>
+                                            </Box>
+                                            {serialDrawerError && (
+                                                <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
+                                                    {serialDrawerError}
+                                                </Alert>
+                                            )}
+                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 1.5 }}>
                                                                                 {isExpanded && serialDrawerValues.length === shipNow && serialDrawerValues.map((value, idx) => (
                                                                                     <Box key={idx} sx={{ minWidth: 200 }}>
                                                                                         <TextField
@@ -892,6 +1120,8 @@ export default function DeliveryChallanForm({
                                         </TableBody>
                                     </Table>
                                 </TableContainer>
+                                </Box>
+                              </Fragment>
                             ) : (
                                 <Alert severity="info" sx={{ mt: 2 }}>
                                     {order ? "No BOM lines found for this order" : "Select an Order to load BOM lines"}
@@ -933,20 +1163,28 @@ export default function DeliveryChallanForm({
                 {/* ─── Sticky Action Buttons ──────────────────────────── */}
                 <FormActions className="p-2 gap-2">
                     {onCancel && (
-                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading} className="min-h-[44px] touch-manipulation">
                             Cancel
                         </Button>
                     )}
                     <LoadingButton
                         type="submit"
                         loading={loading}
-                        className="min-w-[120px]"
+                        className="min-w-[120px] min-h-[44px] touch-manipulation"
                         disabled={!order}
                     >
                         Save Challan
                     </LoadingButton>
                 </FormActions>
             </FormContainer>
+
+            {/* ─── Barcode / QR Scanner modal ─────────────────────── */}
+            <BarcodeScanner
+                open={scannerOpen}
+                onScan={handleScanResult}
+                onClose={() => { setScannerOpen(false); setScanTargetIndex(null); }}
+                hint={scanHint}
+            />
         </Box>
     );
 }
