@@ -13,7 +13,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
-import mastersService from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
@@ -30,32 +30,12 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
         service_visit_scheduled_on: "",
         service_assign_to: "",
     });
-    const [users, setUsers] = useState([]);
-    const [selectedUser, setSelectedUser] = useState(null);
     const [document, setDocument] = useState(null);
     const [existingDocument, setExistingDocument] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const hasFetchedRef = useRef(false);
-
-    const fetchUsers = useCallback(async () => {
-        if (hasFetchedRef.current) return;
-        hasFetchedRef.current = true;
-        try {
-            const response = await mastersService.getList("user.model");
-            setUsers(response?.result?.data || response?.data || []);
-        } catch (err) {
-            console.error("Failed to fetch users:", err);
-            toastError(err?.response?.data?.message || err?.message || "Failed to load users");
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
-
     useEffect(() => {
         if (orderData) {
             setFormData({
@@ -74,13 +54,6 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
             });
         }
     }, [orderData]);
-
-    useEffect(() => {
-        if (users.length > 0 && orderData?.service_assign_to) {
-            const user = users.find((u) => u.id == orderData.service_assign_to);
-            setSelectedUser(user || null);
-        }
-    }, [users, orderData]);
 
     useEffect(() => {
         if (orderDocuments?.length > 0) {
@@ -110,7 +83,6 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
             service_assign_to: isChecked ? prev.service_assign_to : "",
         }));
         if (!isChecked) {
-            setSelectedUser(null);
             setFieldErrors((prev) => {
                 const next = { ...prev };
                 delete next.service_visit_scheduled_on;
@@ -327,12 +299,12 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
                         <AutocompleteField
                             name="service_assign_to"
                             label="Service Assign To"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
-                            value={selectedUser}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={(option) => option?.name ?? option?.username ?? option?.email ?? ""}
+                            value={formData.service_assign_to ? { id: formData.service_assign_to } : null}
                             onChange={(event, newValue) => {
-                                setFormData((prev) => ({ ...prev, service_assign_to: newValue?.id || "" }));
-                                setSelectedUser(newValue);
+                                setFormData((prev) => ({ ...prev, service_assign_to: newValue?.id ?? "" }));
                                 if (fieldErrors.service_assign_to) {
                                     setFieldErrors((prev) => {
                                         const next = { ...prev };
@@ -341,6 +313,7 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
                                     });
                                 }
                             }}
+                            placeholder="Type to search..."
                             error={!!fieldErrors.service_assign_to}
                             helperText={fieldErrors.service_assign_to}
                             fullWidth

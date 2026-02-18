@@ -17,7 +17,8 @@ import {
   Alert,
   Snackbar,
 } from "@mui/material";
-import Select, { MenuItem as SelectMenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import Checkbox from "@/components/common/Checkbox";
 import { Button } from "@/components/ui/button";
 import PhoneIcon from "@mui/icons-material/Phone";
@@ -156,7 +157,6 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
   });
   const [assignmentErrors, setAssignmentErrors] = useState({});
   const [assigning, setAssigning] = useState(false);
-  const [users, setUsers] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
@@ -295,19 +295,6 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedInquiry(null);
-  }, []);
-
-  useEffect(() => {
-    const loadUsers = async () => {
-      try {
-        const response = await mastersService.getReferenceOptions("user.model");
-        const usersData = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
-        setUsers(usersData);
-      } catch (err) {
-        console.error("Failed to load users", err);
-      }
-    };
-    loadUsers();
   }, []);
 
   const fetchInquiries = useCallback(
@@ -742,58 +729,49 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
           <Box sx={{ mb: 1, p: FORM_PADDING, bgcolor: "background.default", borderRadius: 2, flexShrink: 0 }}>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-start" sx={{ width: "100%" }}>
               <div className="min-w-[200px] flex-1">
-                <Select
+                <AutocompleteField
                   name="handled_by"
                   label="Handled By"
-                  value={assignmentData.handled_by || ""}
-                  onChange={(e) => handleAssignmentChange("handled_by", e.target.value)}
+                  required
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  referenceModel="user.model"
+                  getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
+                  value={assignmentData.handled_by ? { id: assignmentData.handled_by } : null}
+                  onChange={(e, newValue) => handleAssignmentChange("handled_by", newValue?.id ?? "")}
+                  placeholder="Type to search..."
                   error={!!assignmentErrors.handled_by}
                   helperText={assignmentErrors.handled_by}
-                  required
-                >
-                  <SelectMenuItem value="">-- Select --</SelectMenuItem>
-                  {users.map((user) => (
-                    <SelectMenuItem key={user.id} value={user.id}>
-                      {user.name || user.email || `User ${user.id}`}
-                    </SelectMenuItem>
-                  ))}
-                </Select>
+                />
               </div>
               <div className="min-w-[200px] flex-1">
-                <Select
+                <AutocompleteField
                   name="channel_partner"
                   label="Channel Partner"
-                  value={assignmentData.channel_partner || ""}
-                  onChange={(e) => handleAssignmentChange("channel_partner", e.target.value)}
+                  required
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  referenceModel="user.model"
+                  getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
+                  value={assignmentData.channel_partner ? { id: assignmentData.channel_partner } : null}
+                  onChange={(e, newValue) => handleAssignmentChange("channel_partner", newValue?.id ?? "")}
+                  placeholder="Type to search..."
                   error={!!assignmentErrors.channel_partner}
                   helperText={assignmentErrors.channel_partner}
-                  required
-                >
-                  <SelectMenuItem value="">-- Select --</SelectMenuItem>
-                  {users.map((user) => (
-                    <SelectMenuItem key={user.id} value={user.id}>
-                      {user.name || user.email || `User ${user.id}`}
-                    </SelectMenuItem>
-                  ))}
-                </Select>
+                />
               </div>
               <div className="min-w-[200px] flex-1">
-                <Select
+                <AutocompleteField
                   name="inquiry_by"
                   label="Inquired By"
-                  value={assignmentData.inquiry_by || ""}
-                  onChange={(e) => handleAssignmentChange("inquiry_by", e.target.value)}
+                  required
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  referenceModel="user.model"
+                  getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
+                  value={assignmentData.inquiry_by ? { id: assignmentData.inquiry_by } : null}
+                  onChange={(e, newValue) => handleAssignmentChange("inquiry_by", newValue?.id ?? "")}
+                  placeholder="Type to search..."
                   error={!!assignmentErrors.inquiry_by}
                   helperText={assignmentErrors.inquiry_by}
-                  required
-                >
-                  <SelectMenuItem value="">-- Select --</SelectMenuItem>
-                  {users.map((user) => (
-                    <SelectMenuItem key={user.id} value={user.id}>
-                      {user.name || user.email || `User ${user.id}`}
-                    </SelectMenuItem>
-                  ))}
-                </Select>
+                />
               </div>
               <Button
                 size="sm"

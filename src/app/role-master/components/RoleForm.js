@@ -3,7 +3,6 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react";
 import {
   Box,
-  MenuItem,
   Alert,
   Typography,
   Checkbox,
@@ -23,7 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 
 const RoleForm = forwardRef(function RoleForm({
   defaultValues = {},
@@ -380,16 +379,15 @@ const RoleForm = forwardRef(function RoleForm({
             fullWidth
           />
 
-          <Select
+          <AutocompleteField
             name="status"
             label="Status"
-            value={formData.status || "active"}
-            onChange={handleChange}
+            options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]}
+            getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+            value={formData.status ? { value: formData.status, label: formData.status === "active" ? "Active" : "Inactive" } : { value: "active", label: "Active" }}
+            onChange={(e, newValue) => handleChange({ target: { name: "status", value: newValue?.value ?? "active" } })}
             disabled={viewMode}
-          >
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-          </Select>
+          />
 
           <Divider sx={{ my: 2 }} />
 
@@ -400,34 +398,27 @@ const RoleForm = forwardRef(function RoleForm({
           {!viewMode && (
             <Box sx={{ mb: 2 }}>
               <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
-                <Select
+                <AutocompleteField
                   label="Select Module"
-                  value={selectedModuleId}
-                  onChange={(e) => {
-                    setSelectedModuleId(e.target.value);
-                    // Reset permissions when module changes (unless we're editing and it's the same module)
-                    if (editingIndex === null || e.target.value !== String(modulePermissionsList[editingIndex]?.module_id)) {
+                  options={availableModules}
+                  getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+                  value={availableModules.find((m) => String(m.id) === String(selectedModuleId)) || (selectedModuleId ? { id: selectedModuleId } : null)}
+                  onChange={(e, newValue) => {
+                    const id = newValue?.id != null ? String(newValue.id) : "";
+                    setSelectedModuleId(id);
+                    if (editingIndex === null || id !== String(modulePermissionsList[editingIndex]?.module_id)) {
                       setSelectedPermissions({
                         can_create: false,
                         can_read: false,
                         can_update: false,
                         can_delete: false,
                       });
-                      // If module changed while editing, cancel the edit
-                      if (editingIndex !== null) {
-                        setEditingIndex(null);
-                      }
+                      if (editingIndex !== null) setEditingIndex(null);
                     }
                   }}
+                  placeholder="Select a module"
                   sx={{ minWidth: 200, flex: 1 }}
-                >
-                  <MenuItem value="">Select a module</MenuItem>
-                  {availableModules.map((module) => (
-                    <MenuItem key={module.id} value={module.id}>
-                      {module.name}
-                    </MenuItem>
-                  ))}
-                </Select>
+                />
                 <FormControlLabel
                   control={
                     <Checkbox

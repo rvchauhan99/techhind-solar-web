@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { MenuItem } from "@/components/common/Select";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import mastersService, { getDefaultState } from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { getNextSupplierCode } from "@/services/supplierService";
 import {
   validateGSTIN,
@@ -46,10 +46,6 @@ export default function SupplierForm({
     is_active: true,
   });
   const [errors, setErrors] = useState({});
-  const [options, setOptions] = useState({
-    states: [],
-  });
-  const [loadingOptions, setLoadingOptions] = useState(false);
   const [loadingNextCode, setLoadingNextCode] = useState(false);
 
   useEffect(() => {
@@ -92,24 +88,6 @@ export default function SupplierForm({
       .catch(() => {})
       .finally(() => setLoadingNextCode(false));
   };
-
-  useEffect(() => {
-    const loadOptions = async () => {
-      setLoadingOptions(true);
-      try {
-        const statesRes = await mastersService.getReferenceOptions("state.model");
-        const statesData = statesRes?.result || statesRes?.data || statesRes || [];
-        setOptions({
-          states: Array.isArray(statesData) ? statesData : [],
-        });
-      } catch (err) {
-        console.error("Failed to load reference options", err);
-      } finally {
-        setLoadingOptions(false);
-      }
-    };
-    loadOptions();
-  }, []);
 
   useEffect(() => {
     const loadDefaultState = async () => {
@@ -281,14 +259,6 @@ export default function SupplierForm({
     onSubmit(submitData);
   };
 
-  if (loadingOptions) {
-    return (
-      <div className="flex justify-center items-center min-h-[200px]">
-        <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
       <FormContainer>
@@ -382,19 +352,16 @@ export default function SupplierForm({
               error={!!errors.email}
               helperText={errors.email}
             />
-            <Select
+            <AutocompleteField
               name="state_id"
               label="State"
-              value={formData.state_id}
-              onChange={handleChange}
-            >
-              <MenuItem value="">-- Select --</MenuItem>
-              {options.states.map((state) => (
-                <MenuItem key={state.id} value={state.id}>
-                  {state.name}
-                </MenuItem>
-              ))}
-            </Select>
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+              referenceModel="state.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={formData.state_id ? { id: formData.state_id } : null}
+              onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+              placeholder="Type to search..."
+            />
             <Input
               fullWidth
               name="city"

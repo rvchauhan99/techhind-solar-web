@@ -5,7 +5,6 @@ import {
     Box,
     Grid,
     Typography,
-    MenuItem,
     Alert,
     Table,
     TableBody,
@@ -26,7 +25,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
@@ -62,6 +61,7 @@ export default function DeliveryChallanForm({
 
     // ── State ──────────────────────────────────────────────────────────
     const [order, setOrder] = useState(null);
+    const [selectedOrderOption, setSelectedOrderOption] = useState(null);
     const [availableOrders, setAvailableOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
@@ -151,6 +151,7 @@ export default function DeliveryChallanForm({
             }
             setStockByProductId(stockMap);
             setOrder(data);
+            setSelectedOrderOption(null);
             const newLines = buildLinesFromOrder(data, stockMap);
             setLines(newLines);
 
@@ -622,24 +623,22 @@ export default function DeliveryChallanForm({
                                 {/* Order selection / display */}
                                 <Grid item size={{ xs: 12, md: 4 }}>
                                     {!order ? (
-                                        <Select
-                                            size="small"
+                                        <AutocompleteField
                                             name="order_id"
                                             label="Order"
-                                            value=""
-                                            onChange={(e) => loadOrderById(e.target.value)}
+                                            options={availableOrders}
+                                            getOptionLabel={(o) => `${o.order_number || ""} – ${o.customer_name || "N/A"} – ${o.planned_warehouse_name || ""}`}
+                                            value={selectedOrderOption}
+                                            onChange={(e, newValue) => {
+                                                setSelectedOrderOption(newValue);
+                                                if (newValue?.id) loadOrderById(newValue.id);
+                                            }}
+                                            placeholder="Type to search..."
                                             required
                                             error={!!errors.order_id}
                                             helperText={errors.order_id}
                                             disabled={ordersLoading || availableOrders.length === 0}
-                                        >
-                                            <MenuItem value="">-- Select Order --</MenuItem>
-                                            {availableOrders.map((o) => (
-                                                <MenuItem key={o.id} value={o.id}>
-                                                    {o.order_number} – {o.customer_name || "N/A"} – {o.planned_warehouse_name || ""}
-                                                </MenuItem>
-                                            ))}
-                                        </Select>
+                                        />
                                     ) : (
                                         <Input
                                             size="small"

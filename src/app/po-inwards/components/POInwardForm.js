@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import {
     Box,
     Typography,
-    MenuItem,
     Alert,
     Table,
     TableBody,
@@ -29,7 +28,8 @@ import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
 import { toastError } from "@/utils/toast";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
 import FormGrid from "@/components/common/FormGrid";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
@@ -57,32 +57,12 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
     });
 
     const [errors, setErrors] = useState({});
-    const [purchaseOrders, setPurchaseOrders] = useState([]);
     const [warehouses, setWarehouses] = useState([]);
     const [selectedPO, setSelectedPO] = useState(null);
-    const [loadingOptions, setLoadingOptions] = useState(false);
     const [expandedSerialRowIndex, setExpandedSerialRowIndex] = useState(null);
     const [serialDrawerValues, setSerialDrawerValues] = useState([]);
     const [serialDrawerError, setSerialDrawerError] = useState("");
     const serialInputRefs = useRef([]);
-
-    useEffect(() => {
-        const loadOptions = async () => {
-            setLoadingOptions(true);
-            try {
-                // Use masters reference-options so inward team can select PO without purchase-orders module access
-                const res = await mastersService.getReferenceOptions("purchaseOrder.model", { status: "APPROVED" });
-                const options = res?.result ?? res ?? [];
-                setPurchaseOrders(Array.isArray(options) ? options : []);
-                setWarehouses([]);
-            } catch (err) {
-                console.error("Failed to load PO options", err);
-            } finally {
-                setLoadingOptions(false);
-            }
-        };
-        loadOptions();
-    }, []);
 
     useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -521,14 +501,6 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
         onSubmit(payload);
     };
 
-    if (loadingOptions) {
-        return (
-            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 200 }}>
-                <CircularProgress />
-            </Box>
-        );
-    }
-
     return (
         <Box component="form" onSubmit={handleSubmit} noValidate>
             <FormContainer>
@@ -541,40 +513,36 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
                 <div className="w-full mb-2">
                     <FormGrid cols={2} className="lg:grid-cols-4">
-                        <Select
+                        <AutocompleteField
                             name="purchase_order_id"
                             label="Purchase Order"
-                            value={formData.purchase_order_id}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("purchaseOrder.model", { q, limit: 20, status: "APPROVED" })}
+                            referenceModel="purchaseOrder.model"
+                            getOptionLabel={(po) => po?.label ?? `${po?.po_number ?? po?.id ?? ""} - ${po?.supplier?.supplier_name ?? ""}`}
+                            value={selectedPO || (formData.purchase_order_id ? { id: formData.purchase_order_id } : null)}
+                            onChange={(e, newValue) => {
+                                handleChange({ target: { name: "purchase_order_id", value: newValue?.id ?? "" } });
+                                if (newValue?.id) loadPurchaseOrder(newValue.id);
+                            }}
+                            placeholder="Type to search..."
                             disabled={!!(defaultValues && defaultValues.id)}
                             required
                             error={!!errors.purchase_order_id}
                             helperText={errors.purchase_order_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {purchaseOrders.map((po) => (
-                                <MenuItem key={po.id} value={po.id}>
-                                    {po.label ?? `${po.po_number ?? po.id} - ${po.supplier?.supplier_name ?? ""}`}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
 
-                        <Select
+                        <AutocompleteField
                             name="warehouse_id"
                             label="Warehouse"
-                            value={formData.warehouse_id}
-                            onChange={handleChange}
+                            options={warehouses}
+                            getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
+                            value={warehouses.find((w) => w.id === formData.warehouse_id) || (formData.warehouse_id ? { id: formData.warehouse_id } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "warehouse_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             required
                             error={!!errors.warehouse_id}
                             helperText={errors.warehouse_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {warehouses.map((warehouse) => (
-                                <MenuItem key={warehouse.id} value={warehouse.id}>
-                                    {warehouse.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
 
                         <DateField
                             name="received_at"

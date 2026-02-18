@@ -4,15 +4,12 @@ import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Alert,
   Typography,
   CircularProgress,
 } from "@mui/material";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import mastersService from "@/services/mastersService";
 
 export default function DocumentUploadForm({
@@ -154,26 +151,19 @@ export default function DocumentUploadForm({
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%" }}>
-      <FormControl fullWidth margin="normal" error={!!errors.doc_type} required>
-        <InputLabel>Document Type <Box component="span" sx={{ color: "error.main" }}>*</Box></InputLabel>
-        <Select
-          name="doc_type"
-          value={formData.doc_type}
-          onChange={handleDocTypeChange}
-          disabled={loading || loadingTypes}
-        >
-          {documentTypesList.map((type) => (
-            <MenuItem key={type.id} value={type.type}>
-              {type.type}
-            </MenuItem>
-          ))}
-        </Select>
-        {errors.doc_type && (
-          <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.75 }}>
-            {errors.doc_type}
-          </Typography>
-        )}
-      </FormControl>
+      <AutocompleteField
+        name="doc_type"
+        label="Document Type *"
+        options={documentTypesList}
+        getOptionLabel={(t) => t?.type ?? t?.label ?? ""}
+        value={documentTypesList.find((t) => t.type === formData.doc_type) || (formData.doc_type ? { type: formData.doc_type } : null)}
+        onChange={(e, newValue) => handleDocTypeChange({ target: { name: "doc_type", value: newValue?.type ?? "" } })}
+        placeholder="Select document type"
+        disabled={loading || loadingTypes}
+        required
+        error={!!errors.doc_type}
+        helperText={errors.doc_type}
+      />
 
       <Box sx={{ mt: 2, mb: 2 }}>
         <input

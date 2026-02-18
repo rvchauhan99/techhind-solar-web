@@ -14,12 +14,11 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
-import { MenuItem } from "@mui/material";
 import productService from "@/services/productService";
 import companyService from "@/services/companyService";
-import mastersService from "@/services/mastersService";
 
 const SERIAL_STATUSES = [
   { value: "AVAILABLE", label: "Available" },
@@ -33,7 +32,6 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onCle
   const [localFilters, setLocalFilters] = useState(filters || {});
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
-  const [productTypes, setProductTypes] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -47,19 +45,16 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onCle
   const loadFilterOptions = async () => {
     setLoading(true);
     try {
-      const [productsRes, warehousesRes, productTypesRes] = await Promise.all([
+      const [productsRes, warehousesRes] = await Promise.all([
         productService.getProducts({ limit: 1000 }),
         companyService.listWarehouses(),
-        mastersService.getReferenceOptions("product_type.model"),
       ]);
 
       const productsData = productsRes?.result?.data || productsRes?.data || [];
       const warehousesData = warehousesRes?.result || warehousesRes?.data || warehousesRes || [];
-      const productTypesData = productTypesRes?.result || productTypesRes?.data || productTypesRes || [];
 
       setProducts(Array.isArray(productsData) ? productsData : []);
       setWarehouses(Array.isArray(warehousesData) ? warehousesData : []);
-      setProductTypes(Array.isArray(productTypesData) ? productTypesData : []);
     } catch (err) {
       console.error("Failed to load filter options", err);
     } finally {
@@ -124,76 +119,53 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onCle
       <Collapse in={expanded}>
         <Grid container spacing={2}>
           <Grid item size={{ xs: 12, md: 3 }}>
-            <Select
+            <AutocompleteField
               name="product_id"
               label="Product"
-              value={localFilters.product_id || ""}
-              onChange={(e) => handleFilterChange("product_id", e.target.value || null)}
-            >
-              <MenuItem value="">All Products</MenuItem>
-              {products.map((product) => (
-                <MenuItem key={product.id} value={product.id}>
-                  {product.product_name}
-                </MenuItem>
-              ))}
-            </Select>
+              options={products}
+              getOptionLabel={(p) => p?.product_name ?? p?.name ?? ""}
+              value={localFilters.product_id ? { id: localFilters.product_id } : null}
+              onChange={(e, newValue) => handleFilterChange("product_id", newValue?.id ?? null)}
+              placeholder="All Products"
+            />
           </Grid>
 
           <Grid item size={{ xs: 12, md: 3 }}>
-            <Select
+            <AutocompleteField
               name="warehouse_id"
               label="Warehouse"
-              value={localFilters.warehouse_id || ""}
-              onChange={(e) => handleFilterChange("warehouse_id", e.target.value || null)}
-            >
-              <MenuItem value="">All Warehouses</MenuItem>
-              {warehouses.map((warehouse) => (
-                <MenuItem key={warehouse.id} value={warehouse.id}>
-                  {warehouse.name}
-                </MenuItem>
-              ))}
-            </Select>
+              options={warehouses}
+              getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
+              value={localFilters.warehouse_id ? { id: localFilters.warehouse_id } : null}
+              onChange={(e, newValue) => handleFilterChange("warehouse_id", newValue?.id ?? null)}
+              placeholder="All Warehouses"
+            />
           </Grid>
 
           <Grid item size={{ xs: 12, md: 3 }}>
-            <Select
+            <AutocompleteField
               name="product_type_id"
               label="Product Type"
-              value={localFilters.product_type_id || ""}
-              onChange={(e) => handleFilterChange("product_type_id", e.target.value || null)}
-            >
-              <MenuItem value="">All Product Types</MenuItem>
-              {productTypes.map((type) => (
-                <MenuItem key={type.id} value={type.id}>
-                  {type.name}
-                </MenuItem>
-              ))}
-            </Select>
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
+              referenceModel="product_type.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={localFilters.product_type_id ? { id: localFilters.product_type_id } : null}
+              onChange={(e, newValue) => handleFilterChange("product_type_id", newValue?.id ?? null)}
+              placeholder="All Product Types"
+            />
           </Grid>
 
           <Grid item size={{ xs: 12, md: 3 }}>
-            <Select
-              multiple
+            <AutocompleteField
               name="status"
               label="Status"
-              value={localFilters.status || []}
-              onChange={(e) => {
-                const value = typeof e.target.value === "string" ? e.target.value.split(",") : e.target.value;
-                handleFilterChange("status", value.length > 0 ? value : null);
-              }}
-              renderValue={(selected) => {
-                if (!selected || selected.length === 0) return "All Statuses";
-                return selected
-                  .map((s) => SERIAL_STATUSES.find((st) => st.value === s)?.label || s)
-                  .join(", ");
-              }}
-            >
-              {SERIAL_STATUSES.map((status) => (
-                <MenuItem key={status.value} value={status.value}>
-                  {status.label}
-                </MenuItem>
-              ))}
-            </Select>
+              multiple
+              options={SERIAL_STATUSES}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={(Array.isArray(localFilters.status) ? localFilters.status : []).map((v) => SERIAL_STATUSES.find((s) => s.value === v)).filter(Boolean)}
+              onChange={(e, newValue) => handleFilterChange("status", newValue?.length ? newValue.map((o) => o.value) : null)}
+              placeholder="All Statuses"
+            />
           </Grid>
 
           <Grid item size={{ xs: 12, md: 3 }}>

@@ -3,18 +3,14 @@
 import { useState, useEffect } from "react";
 import {
   Box,
-  TextField,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Checkbox,
   FormControlLabel,
   Alert,
   Typography,
 } from "@mui/material";
 import Link from "next/link";
+import AutocompleteField from "@/components/common/AutocompleteField";
 
 export default function RoleModuleForm({ defaultValues = null, onSubmit, loading, roles = [], modules = [], serverError = null, onClearServerError = () => {} }) {
   const base = {
@@ -71,35 +67,37 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
       <Typography variant="h5">{defaultValues?.id ? 'Update Role-Module' : 'Add Role-Module'}</Typography>
       {serverError ? <Alert severity="error">{serverError}</Alert> : null}
 
-      <FormControl>
-        <InputLabel id="role-label">Role</InputLabel>
-        <Select labelId="role-label" name="role_id" value={formData.role_id ?? ""} label="Role" onChange={handleChange} required>
-          <MenuItem value="">Select Role</MenuItem>
-          {roles.map((r) => (<MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>))}
-        </Select>
-      </FormControl>
+      <AutocompleteField
+        name="role_id"
+        label="Role"
+        options={roles}
+        getOptionLabel={(r) => r?.name ?? r?.label ?? ""}
+        value={roles.find((r) => r.id === formData.role_id) || (formData.role_id != null ? { id: formData.role_id } : null)}
+        onChange={(e, newValue) => handleChange({ target: { name: "role_id", value: newValue?.id ?? "" } })}
+        placeholder="Select Role"
+        required
+      />
 
-      <FormControl>
-        <InputLabel id="module-label">Module</InputLabel>
-        <Select labelId="module-label" name="module_id" value={formData.module_id ?? ""} label="Module" onChange={handleChange} required>
-          <MenuItem value="">Select Module</MenuItem>
-          {modules.map((m) => (<MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>))}
-        </Select>
-      </FormControl>
+      <AutocompleteField
+        name="module_id"
+        label="Module"
+        options={modules}
+        getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+        value={modules.find((m) => m.id === formData.module_id) || (formData.module_id != null ? { id: formData.module_id } : null)}
+        onChange={(e, newValue) => handleChange({ target: { name: "module_id", value: newValue?.id ?? "" } })}
+        placeholder="Select Module"
+        required
+      />
 
-      <FormControl>
-        <InputLabel id="listing-criteria-label">Listing Criteria</InputLabel>
-        <Select
-          labelId="listing-criteria-label"
-          name="listing_criteria"
-          value={formData.listing_criteria ?? "my_team"}
-          label="Listing Criteria"
-          onChange={handleChange}
-        >
-          <MenuItem value="all">All</MenuItem>
-          <MenuItem value="my_team">My Team</MenuItem>
-        </Select>
-      </FormControl>
+      <AutocompleteField
+        name="listing_criteria"
+        label="Listing Criteria"
+        options={[{ value: "all", label: "All" }, { value: "my_team", label: "My Team" }]}
+        getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+        value={formData.listing_criteria ? { value: formData.listing_criteria, label: formData.listing_criteria === "all" ? "All" : "My Team" } : { value: "my_team", label: "My Team" }}
+        onChange={(e, newValue) => handleChange({ target: { name: "listing_criteria", value: newValue?.value ?? "my_team" } })}
+        placeholder="Listing Criteria"
+      />
 
   <FormControlLabel control={<Checkbox name="can_create" checked={!!formData.can_create} onChange={(e) => handleCheckboxChange('can_create', e.target.checked)} />} label="Can Create" />
   <FormControlLabel control={<Checkbox name="can_read" checked={!!formData.can_read} onChange={(e) => handleCheckboxChange('can_read', e.target.checked)} />} label="Can Read" />

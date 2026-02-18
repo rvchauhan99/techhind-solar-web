@@ -5,7 +5,7 @@ import { Box, Alert, Typography } from "@mui/material";
 import { usePathname } from "next/navigation";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -256,78 +256,66 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                         fullWidth
                         disabled={disabled}
                     />
-                    <Select
+                    <AutocompleteField
                         name="inverter_installation_location"
                         label="Inverter Installation Location"
-                        value={formData.inverter_installation_location}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_INVERTER_LOCATIONS}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.inverter_installation_location || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "inverter_installation_location", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_INVERTER_LOCATIONS.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="earthing_type"
                         label="Earthing Type"
-                        value={formData.earthing_type}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_EARTHING_TYPES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.earthing_type || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "earthing_type", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_EARTHING_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="wiring_type"
                         label="Wiring Type"
-                        value={formData.wiring_type}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_WIRING_TYPES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.wiring_type || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "wiring_type", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_WIRING_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="acdb_dcdb_make"
                         label="ACDB / DCDB Make"
-                        value={formData.acdb_dcdb_make}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_ACDB_DCDB_MAKES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.acdb_dcdb_make || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "acdb_dcdb_make", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_ACDB_DCDB_MAKES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="panel_mounting_type"
                         label="Panel Mounting Type"
-                        value={formData.panel_mounting_type}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_PANEL_MOUNTING_TYPES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.panel_mounting_type || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "panel_mounting_type", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_PANEL_MOUNTING_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="netmeter_readiness_status"
                         label="Netmeter Readiness Status"
-                        value={formData.netmeter_readiness_status}
-                        onChange={handleInputChange}
+                        options={INSTALLATION_NETMETER_READINESS}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.netmeter_readiness_status || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "netmeter_readiness_status", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {INSTALLATION_NETMETER_READINESS.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
+                    />
                     <Input
                         name="total_panels_installed"
                         label="Total Panels Installed"

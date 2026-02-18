@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import moment from "moment";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -333,35 +333,30 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 helperText={fieldErrors.planned_delivery_date}
                                 required
                             />
-                            <Select
+                            <AutocompleteField
                                 name="planned_priority"
                                 label="Priority"
-                                value={formData.planned_priority}
-                                onChange={handleInputChange}
+                                options={[{ value: "High", label: "High" }, { value: "Medium", label: "Medium" }, { value: "Low", label: "Low" }]}
+                                getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+                                value={formData.planned_priority ? { value: formData.planned_priority, label: formData.planned_priority } : null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "planned_priority", value: newValue?.value ?? "" } })}
                                 disabled={isCompleted || isReadOnly}
                                 error={!!fieldErrors.planned_priority}
                                 helperText={fieldErrors.planned_priority}
                                 required
-                            >
-                                <MenuItem value="High">High</MenuItem>
-                                <MenuItem value="Medium">Medium</MenuItem>
-                                <MenuItem value="Low">Low</MenuItem>
-                            </Select>
-                            <Select
+                            />
+                            <AutocompleteField
                                 name="planned_warehouse_id"
                                 label="Warehouse"
-                                value={formData.planned_warehouse_id}
-                                onChange={handleInputChange}
+                                options={warehouses}
+                                getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
+                                value={warehouses.find((w) => w.id === formData.planned_warehouse_id) || (formData.planned_warehouse_id ? { id: formData.planned_warehouse_id } : null)}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "planned_warehouse_id", value: newValue?.id ?? "" } })}
                                 disabled={isCompleted || isReadOnly}
                                 error={!!fieldErrors.planned_warehouse_id}
                                 helperText={fieldErrors.planned_warehouse_id}
                                 required
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {warehouses.map(w => (
-                                    <MenuItem key={w.id} value={w.id}>{w.name}</MenuItem>
-                                ))}
-                            </Select>
+                            />
                         </FormGrid>
 
                         <div className="mt-3">

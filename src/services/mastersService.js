@@ -56,6 +56,43 @@ export const getReferenceOptions = (model, params = {}) => {
   return apiClient.get(`/masters/reference-options?${searchParams.toString()}`).then((r) => r.data);
 };
 
+/**
+ * Fetch reference options with search and limit (for async/API-backed selects).
+ * @param {string} model - Master model name (e.g. 'user.model')
+ * @param {{ q?: string, limit?: number, status?: string }} params - q: search term; limit: max results (default 20); status: optional filter
+ * @returns {Promise<Array>} - Array of option objects { id, label, value, ... }
+ */
+export const getReferenceOptionsSearch = (model, { q = '', limit = 20, status, id } = {}) => {
+  const params = { model };
+  if (q != null && String(q).trim() !== '') params.q = String(q).trim();
+  if (limit != null) params.limit = limit;
+  if (status != null && status !== '') params.status = status;
+  if (id != null && id !== '') params.id = id;
+  const searchParams = new URLSearchParams(params);
+  return apiClient
+    .get(`/masters/reference-options?${searchParams.toString()}`)
+    .then((r) => r.data?.result ?? r.data?.data ?? r.data ?? []);
+};
+
+/**
+ * Fetch a single reference option by id (for resolving default selection display).
+ * @param {string} model - Master model name (e.g. 'user.model')
+ * @param {string|number} id - Option id
+ * @returns {Promise<Object|null>} - Single option object { id, label, value, ... } or null
+ */
+export const getReferenceOptionById = (model, id) => {
+  if (id == null || id === '') return Promise.resolve(null);
+  const params = { model, id };
+  const searchParams = new URLSearchParams(params);
+  return apiClient
+    .get(`/masters/reference-options?${searchParams.toString()}`)
+    .then((r) => {
+      const options = r.data?.result ?? r.data?.data ?? r.data ?? [];
+      const arr = Array.isArray(options) ? options : [];
+      return arr[0] ?? null;
+    });
+};
+
 export const getConstants = () => apiClient.get(`/masters/constants`).then((r) => r.data);
 
 export const getDefaultState = () => apiClient.get(`/masters/state/default`).then((r) => r.data);
@@ -108,4 +145,4 @@ export const uploadMasterCsv = async (model, file) => {
 export const getFileUrl = (model, id) =>
   apiClient.get(`/masters/${id}/file-url`, { params: { model } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getConstants, getDefaultState, downloadSampleCsv, uploadMasterCsv, getFileUrl };
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, downloadSampleCsv, uploadMasterCsv, getFileUrl };
