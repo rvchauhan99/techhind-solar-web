@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
     Box,
     Grid,
-    MenuItem,
     Typography,
     Accordion,
     AccordionSummary,
@@ -12,12 +11,12 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
-import mastersService, { getDefaultState } from "@/services/mastersService";
+import mastersService, { getDefaultState, getReferenceOptionsSearch } from "@/services/mastersService";
 import quotationService from "@/services/quotationService";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -71,14 +70,9 @@ export default function QuotationForm({
         buildPayload,
     } = useQuotationState({ user, defaultValues });
 
+    const getOptionLabel = (opt) => opt?.name ?? opt?.label ?? opt?.project_capacity ?? (opt?.id != null ? String(opt.id) : "");
+
     const [options, setOptions] = useState({
-        users: [],
-        branches: [],
-        inquiries: [],
-        customers: [],
-        states: [],
-        orderTypes: [],
-        projectSchemes: [],
         projectPrices: [],
         productMakes: [],
         products: [],
@@ -92,26 +86,13 @@ export default function QuotationForm({
         setExpandedAccordions((prev) => ({ ...prev, [panel]: isExpanded }));
     }, []);
 
-    // Load all options ONCE — productMakes included; never filter by productType.
+    // Load productMakes and products for TechnicalSection; masters use async AutocompleteField.
     useEffect(() => {
         let cancelled = false;
         const loadOptions = async () => {
             setLoadingOptions(true);
             try {
-                const [
-                    usersRes,
-                    branchesRes,
-                    statesRes,
-                    orderTypesRes,
-                    schemesRes,
-                    makesRes,
-                    productsRes,
-                ] = await Promise.all([
-                    mastersService.getReferenceOptions("user.model"),
-                    mastersService.getReferenceOptions("company_branch.model"),
-                    mastersService.getReferenceOptions("state.model"),
-                    mastersService.getReferenceOptions("order_type.model"),
-                    mastersService.getReferenceOptions("project_scheme.model"),
+                const [makesRes, productsRes] = await Promise.all([
                     quotationService.getAllProductMakes(),
                     quotationService.getAllProducts(),
                 ]);
@@ -125,11 +106,6 @@ export default function QuotationForm({
                 if (!cancelled) {
                     setOptions((vv) => ({
                         ...vv,
-                        users: Array.isArray(normalize(usersRes)) ? normalize(usersRes) : [],
-                        branches: Array.isArray(normalize(branchesRes)) ? normalize(branchesRes) : [],
-                        states: Array.isArray(normalize(statesRes)) ? normalize(statesRes) : [],
-                        orderTypes: Array.isArray(normalize(orderTypesRes)) ? normalize(orderTypesRes) : [],
-                        projectSchemes: Array.isArray(normalize(schemesRes)) ? normalize(schemesRes) : [],
                         productMakes: Array.isArray(makesRes?.result) ? makesRes.result : (Array.isArray(normalize(makesRes)) ? normalize(makesRes) : []),
                         products: productList,
                     }));
@@ -254,16 +230,32 @@ export default function QuotationForm({
                         <Input fullWidth label="Quotation Number" name="quotation_number" value={formData.quotation_number} onChange={handleChange} error={!!errors.quotation_number} helperText={errors.quotation_number} disabled sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select name="user_id" label="Quotation By" value={formData.user_id || ""} onChange={handleChange} required error={!!errors.user_id} helperText={errors.user_id} disabled sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.200" } }}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.users || []).map((u) => <MenuItem key={u.id} value={u.id}>{u.name}</MenuItem>)}
-                        </Select>
+                        <AutocompleteField
+                            name="user_id"
+                            label="Quotation By"
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.user_id ? (user?.id === formData.user_id ? { id: user.id, name: user.name } : { id: formData.user_id }) : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "user_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                            required
+                            error={!!errors.user_id}
+                            helperText={errors.user_id}
+                            disabled
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select name="branch_id" label="Branch" value={formData.branch_id ?? ""} onChange={handleChange}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.branches || []).map((b) => <MenuItem key={b.id} value={b.id}>{b.name}</MenuItem>)}
-                        </Select>
+                        <AutocompleteField
+                            name="branch_id"
+                            label="Branch"
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                            referenceModel="company_branch.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.branch_id ? { id: formData.branch_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "branch_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <DateField name="valid_till" label="Valid Till" value={formData.valid_till} onChange={handleChange} error={!!errors.valid_till} helperText={errors.valid_till} />
@@ -287,10 +279,19 @@ export default function QuotationForm({
                         <Input fullWidth label="Company Name" name="company_name" value={formData.company_name} onChange={handleChange} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select name="state_id" label="State" value={formData.state_id || ""} onChange={handleChange} required error={!!errors.state_id} helperText={errors.state_id}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.states || []).map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-                        </Select>
+                        <AutocompleteField
+                            name="state_id"
+                            label="State"
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+                            referenceModel="state.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.state_id ? { id: formData.state_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                            required
+                            error={!!errors.state_id}
+                            helperText={errors.state_id}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 6 }}>
                         <Input fullWidth label="Address" name="address" value={formData.address} onChange={handleChange} multiline rows={1} />
@@ -302,32 +303,43 @@ export default function QuotationForm({
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select name="order_type_id" label="Order Type" value={formData.order_type_id || ""} onChange={handleChange}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.orderTypes || []).map((o) => <MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>)}
-                        </Select>
+                        <AutocompleteField
+                            name="order_type_id"
+                            label="Order Type"
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
+                            referenceModel="order_type.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.order_type_id ? { id: formData.order_type_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "order_type_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select name="project_scheme_id" label="Project Scheme" value={formData.project_scheme_id || ""} onChange={handleChange}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.projectSchemes || []).map((p) => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
-                        </Select>
+                        <AutocompleteField
+                            name="project_scheme_id"
+                            label="Project Scheme"
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+                            referenceModel="project_scheme.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "project_scheme_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             name="project_price_id"
                             label="Select Project"
-                            value={formData.project_price_id || ""}
-                            onChange={(e) => {
-                                handleChange(e);
-                                handleProjectPriceChange(e.target.value);
+                            options={options.projectPrices || []}
+                            getOptionLabel={(p) => p?.project_capacity != null ? String(p.project_capacity) : (p?.name ?? "")}
+                            value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || (formData.project_price_id ? { id: formData.project_price_id } : null)}
+                            onChange={(e, newValue) => {
+                                handleChange({ target: { name: "project_price_id", value: newValue?.id ?? "" } });
+                                handleProjectPriceChange(newValue?.id ?? "");
                             }}
+                            placeholder="Type to search..."
                             disabled={!formData.project_scheme_id || loadingOptions}
-                            sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {(options.projectPrices || []).map((p) => <MenuItem key={p.id} value={p.id}>{p.project_capacity}</MenuItem>)}
-                        </Select>
+                        />
                     </Grid>
                 </Grid>
 
@@ -387,11 +399,16 @@ export default function QuotationForm({
                         <Input fullWidth type="number" label="State Government Amount" name="state_government_amount" value={formData.state_government_amount} onChange={handleChange} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select fullWidth name="discount_type" label="Discount Type" value={formData.discount_type || ""} onChange={handleChange}>
-                            <MenuItem value="">-- Select --</MenuItem>
-                            <MenuItem value="Before Tax">Before Tax</MenuItem>
-                            <MenuItem value="After Tax">After Tax</MenuItem>
-                        </Select>
+                        <AutocompleteField
+                            fullWidth
+                            name="discount_type"
+                            label="Discount Type"
+                            options={[{ value: "Before Tax", label: "Before Tax" }, { value: "After Tax", label: "After Tax" }]}
+                            getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+                            value={formData.discount_type ? { value: formData.discount_type, label: formData.discount_type } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "discount_type", value: newValue?.value ?? "" } })}
+                            placeholder="Type to search..."
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth type="number" label="Discount" name="discount" value={formData.discount} onChange={handleChange} />

@@ -1,8 +1,8 @@
 "use client";
 
-import { Grid, MenuItem } from "@mui/material";
+import { Grid } from "@mui/material";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { COMPACT_FORM_SPACING } from "@/utils/formConstants";
 import MakeAutocomplete from "./MakeAutocomplete";
 
@@ -53,26 +53,24 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="structure_product"
                             label="Product"
-                            value={formData.structure_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "structure")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "structure").find((p) => p.id == formData.structure_product) || (formData.structure_product ? { id: formData.structure_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
                                     structure_material: findProduct?.properties?.structure?.material ?? "",
-                                    structure_product: e.target.value,
+                                    structure_product: findProduct?.id ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "structure").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Height" name="structure_height" value={formData.structure_height} onChange={handleChange} />
@@ -87,16 +85,17 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="panel_product"
                             label="Product"
-                            value={formData.panel_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "panel")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "panel").find((p) => p.id == formData.panel_product) || (formData.panel_product ? { id: formData.panel_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    panel_product: e.target.value,
+                                    panel_product: findProduct?.id ?? "",
                                     panel_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     panel_size: findProduct?.capacity ?? "",
                                     panel_type: findProduct?.properties?.panel?.type ?? "",
@@ -104,13 +103,10 @@ export default function TechnicalSection({
                                     panel_performance_warranty: findProduct?.properties?.panel?.performance_warranty ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "panel").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Size" name="panel_size" value={formData.panel_size} onChange={handleChange} />
@@ -159,28 +155,26 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="inverter_product"
                             label="Product"
-                            value={formData.inverter_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "inverter")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "inverter").find((p) => p.id == formData.inverter_product) || (formData.inverter_product ? { id: formData.inverter_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    inverter_product: e.target.value,
+                                    inverter_product: findProduct?.id ?? "",
                                     inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     inverter_size: findProduct?.capacity ?? "",
                                     inverter_warranty: findProduct?.properties?.inverter?.warranty ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "inverter").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Size" name="inverter_size" value={formData.inverter_size} onChange={handleChange} />
@@ -208,16 +202,17 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="battery_product"
                             label="Product"
-                            value={formData.battery_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "battery")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "battery").find((p) => p.id == formData.battery_product) || (formData.battery_product ? { id: formData.battery_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    battery_product: e.target.value,
+                                    battery_product: findProduct?.id ?? "",
                                     battery_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     battery_size: findProduct?.capacity ?? "",
                                     battery_type: findProduct?.properties?.battery?.type ?? "",
@@ -225,13 +220,10 @@ export default function TechnicalSection({
                                     battery_description_text: findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "battery").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Size" name="battery_size" value={formData.battery_size} onChange={handleChange} />
@@ -265,28 +257,26 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="hybrid_inverter_product"
                             label="Product"
-                            value={formData.hybrid_inverter_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "hybrid inverter")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "hybrid inverter").find((p) => p.id == formData.hybrid_inverter_product) || (formData.hybrid_inverter_product ? { id: formData.hybrid_inverter_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    hybrid_inverter_product: e.target.value,
+                                    hybrid_inverter_product: findProduct?.id ?? "",
                                     hybrid_inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     hybrid_inverter_size: findProduct?.capacity ?? "",
                                     hybrid_inverter_warranty: findProduct?.properties?.hybrid_inverter?.warranty ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "hybrid inverter").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Size" name="hybrid_inverter_size" value={formData.hybrid_inverter_size} onChange={handleChange} />
@@ -314,27 +304,25 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="acdb_product"
                             label="Product"
-                            value={formData.acdb_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "acdb")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "acdb").find((p) => p.id == formData.acdb_product) || (formData.acdb_product ? { id: formData.acdb_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    acdb_product: e.target.value,
+                                    acdb_product: findProduct?.id ?? "",
                                     acdb_quantity: findProduct?.properties?.acdb?.quantity ?? "",
                                     acdb_description: findProduct?.properties?.acdb?.description ?? findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "acdb").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Quantity" name="acdb_quantity" value={formData.acdb_quantity} onChange={handleChange} />
@@ -349,27 +337,25 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="dcdb_product"
                             label="Product"
-                            value={formData.dcdb_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "dcdb")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "dcdb").find((p) => p.id == formData.dcdb_product) || (formData.dcdb_product ? { id: formData.dcdb_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    dcdb_product: e.target.value,
+                                    dcdb_product: findProduct?.id ?? "",
                                     dcdb_quantity: findProduct?.properties?.dcdb?.quantity ?? "",
                                     dcdb_description: findProduct?.properties?.dcdb?.description ?? findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "dcdb").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input fullWidth label="Quantity" name="dcdb_quantity" value={formData.dcdb_quantity} onChange={handleChange} />
@@ -384,28 +370,26 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="cable_ac_product"
                             label="Ac Cable"
-                            value={formData.cable_ac_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "ac cable")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "ac cable").find((p) => p.id == formData.cable_ac_product) || (formData.cable_ac_product ? { id: formData.cable_ac_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    cable_ac_product: e.target.value,
+                                    cable_ac_product: findProduct?.id ?? "",
                                     cable_ac_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     cable_ac_quantity: findProduct?.properties?.ac_cable?.ac_quantity ?? "",
                                     cable_ac_description: findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "ac cable").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="AC Quantity" name="cable_ac_quantity" value={formData.cable_ac_quantity} onChange={handleChange} />
@@ -424,28 +408,26 @@ export default function TechnicalSection({
                         <Input fullWidth label="AC Description" name="cable_ac_description" value={formData.cable_ac_description} onChange={handleChange} multiline rows={1} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="cable_dc_product"
                             label="Product"
-                            value={formData.cable_dc_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "dc cable")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "dc cable").find((p) => p.id == formData.cable_dc_product) || (formData.cable_dc_product ? { id: formData.cable_dc_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    cable_dc_product: e.target.value,
+                                    cable_dc_product: findProduct?.id ?? "",
                                     cable_dc_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     cable_dc_quantity: findProduct?.properties?.dc_cable?.dc_quantity ?? "",
                                     cable_dc_description: findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "dc cable").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="DC Quantity" name="cable_dc_quantity" value={formData.cable_dc_quantity} onChange={handleChange} />
@@ -470,28 +452,26 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="earthing_product"
                             label="Product"
-                            value={formData.earthing_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "earthing")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "earthing").find((p) => p.id == formData.earthing_product) || (formData.earthing_product ? { id: formData.earthing_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    earthing_product: e.target.value,
+                                    earthing_product: findProduct?.id ?? "",
                                     earthing_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     earthing_quantity: findProduct?.properties?.earthing?.quantity ?? "",
                                     earthing_description: findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "earthing").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Quantity" name="earthing_quantity" value={formData.earthing_quantity} onChange={handleChange} />
@@ -516,28 +496,26 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             fullWidth
                             name="la_product"
                             label="Product"
-                            value={formData.la_product || ""}
-                            disabled={disabled}
-                            onChange={(e) => {
-                                const findProduct = products.find((p) => p.id == e.target.value);
+                            options={getProducts(products, "la")}
+                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            value={getProducts(products, "la").find((p) => p.id == formData.la_product) || (formData.la_product ? { id: formData.la_product } : null)}
+                            onChange={(e, newValue) => {
+                                const findProduct = newValue;
                                 patchForm({
-                                    la_product: e.target.value,
+                                    la_product: findProduct?.id ?? "",
                                     la_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     la_quantity: findProduct?.properties?.la?.quantity ?? "",
                                     la_description: findProduct?.product_description ?? "",
                                 });
                             }}
+                            placeholder="Type to search..."
+                            disabled={disabled}
                             sx={disabledSx}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {getProducts(products, "la").map((product) => (
-                                <MenuItem key={product.id} value={product.id}>{product.product_name}</MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Quantity" name="la_quantity" value={formData.la_quantity} onChange={handleChange} />

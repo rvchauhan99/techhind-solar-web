@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { Box, Grid } from "@mui/material";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
-import { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
@@ -226,59 +225,28 @@ export default function ModuleForm({
             />
           </Grid>
           <Grid item size={{ xs: 12, md: 6 }}>
-            <Select
+            <AutocompleteField
               name="parent_id"
               label="Parent Module"
-              value={formData.parent_id ?? ""}
-              onChange={handleChange}
-            >
-              <MenuItem value="">None</MenuItem>
-              {parentOptions.filter((p) => p.id !== defaultValues?.id).map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.name}
-                </MenuItem>
-              ))}
-            </Select>
+              options={parentOptions.filter((p) => p.id !== defaultValues?.id)}
+              getOptionLabel={(p) => p?.name ?? p?.label ?? ""}
+              value={parentOptions.find((p) => p.id === formData.parent_id) || (formData.parent_id != null ? { id: formData.parent_id } : null)}
+              onChange={(e, newValue) => handleChange({ target: { name: "parent_id", value: newValue?.id ?? "" } })}
+              placeholder="None"
+            />
           </Grid>
           <Grid item size={{ xs: 12, md: 6 }}>
-            <Select
+            <AutocompleteField
               name="icon"
               label="Icon"
-              value={formData.icon || ""}
-              onChange={handleChange}
+              options={iconOptionsWithCurrent}
+              getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+              value={iconOptionsWithCurrent.find((i) => i.name === formData.icon) || (formData.icon ? { name: formData.icon, label: formData.icon } : null)}
+              onChange={(e, newValue) => handleChange({ target: { name: "icon", value: newValue?.name ?? "" } })}
+              placeholder="Select an icon"
               error={!!iconError}
               helperText={iconError}
-              placeholder="Select an icon"
-              renderValue={(val) => {
-                if (!val) return "Select an icon";
-                const IconC = getIcon(val);
-                return (
-                  <span className="flex items-center gap-2">
-                    <IconC className="size-4 shrink-0" />
-                    <span>{val}</span>
-                  </span>
-                );
-              }}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {iconOptionsWithCurrent
-                .map((icon) => {
-                  const IconC = icon.component;
-                  return (
-                    <MenuItem key={icon.name} value={icon.name}>
-                      <span className="flex items-center gap-2 w-full">
-                        <IconC className="size-4 shrink-0" />
-                      <span className="flex flex-col">
-                        <span className="text-sm">{icon.label}</span>
-                        <span className="text-xs text-muted-foreground">{icon.category}</span>
-                      </span>
-                    </span>
-                  </MenuItem>
-                  );
-                })}
-            </Select>
+            />
           </Grid>
           <Grid item size={{ xs: 12, md: 6 }}>
             <Input
@@ -300,15 +268,15 @@ export default function ModuleForm({
             />
           </Grid>
           <Grid item size={{ xs: 12, md: 6 }}>
-            <Select
+            <AutocompleteField
               name="status"
               label="Status"
-              value={formData.status || "active"}
-              onChange={handleChange}
-            >
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
-            </Select>
+              options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={formData.status ? { value: formData.status, label: formData.status === "active" ? "Active" : "Inactive" } : { value: "active", label: "Active" }}
+              onChange={(e, newValue) => handleChange({ target: { name: "status", value: newValue?.value ?? "active" } })}
+              placeholder="Status"
+            />
           </Grid>
           <Grid item size={12}>
             <Checkbox

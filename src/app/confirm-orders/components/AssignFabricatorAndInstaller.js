@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Box, Alert, Switch, FormControlLabel } from "@mui/material";
 import { usePathname } from "next/navigation";
 import Input from "@/components/common/Input";
@@ -10,7 +10,7 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
-import mastersService from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
@@ -34,7 +34,6 @@ export default function AssignFabricatorAndInstaller({
         installation_due_date: "",
         fabrication_remarks: "",
     });
-    const [users, setUsers] = useState([]);
     const [selectedFabricatorInstaller, setSelectedFabricatorInstaller] = useState(null);
     const [selectedFabricator, setSelectedFabricator] = useState(null);
     const [selectedInstaller, setSelectedInstaller] = useState(null);
@@ -42,23 +41,14 @@ export default function AssignFabricatorAndInstaller({
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const hasFetchedRef = useRef(false);
 
-    const fetchUsers = useCallback(async () => {
-        if (hasFetchedRef.current) return;
-        hasFetchedRef.current = true;
-        try {
-            const response = await mastersService.getList("user.model");
-            setUsers(response?.result?.data || response?.data || []);
-        } catch (err) {
-            console.error("Failed to fetch users:", err);
-            toastError(err?.response?.data?.message || err?.message || "Failed to load users");
-        }
+    const loadUserOptions = useCallback(async (inputValue) => {
+        const list = await getReferenceOptionsSearch("user.model", {
+            q: inputValue || "",
+            limit: 20,
+        });
+        return Array.isArray(list) ? list : [];
     }, []);
-
-    useEffect(() => {
-        fetchUsers();
-    }, [fetchUsers]);
 
     useEffect(() => {
         if (orderData) {
@@ -75,25 +65,35 @@ export default function AssignFabricatorAndInstaller({
                     : "",
                 fabrication_remarks: orderData.fabrication_remarks || "",
             });
-        }
-    }, [orderData]);
-
-    useEffect(() => {
-        if (users.length > 0 && orderData) {
             if (orderData.fabricator_installer_id) {
-                const user = users.find((u) => u.id == orderData.fabricator_installer_id);
-                setSelectedFabricatorInstaller(user || null);
+                setSelectedFabricatorInstaller((prev) =>
+                    prev?.id === orderData.fabricator_installer_id
+                        ? prev
+                        : { id: orderData.fabricator_installer_id, name: "", username: "" }
+                );
+            } else {
+                setSelectedFabricatorInstaller(null);
             }
             if (orderData.fabricator_id) {
-                const user = users.find((u) => u.id == orderData.fabricator_id);
-                setSelectedFabricator(user || null);
+                setSelectedFabricator((prev) =>
+                    prev?.id === orderData.fabricator_id
+                        ? prev
+                        : { id: orderData.fabricator_id, name: "", username: "" }
+                );
+            } else {
+                setSelectedFabricator(null);
             }
             if (orderData.installer_id) {
-                const user = users.find((u) => u.id == orderData.installer_id);
-                setSelectedInstaller(user || null);
+                setSelectedInstaller((prev) =>
+                    prev?.id === orderData.installer_id
+                        ? prev
+                        : { id: orderData.installer_id, name: "", username: "" }
+                );
+            } else {
+                setSelectedInstaller(null);
             }
         }
-    }, [users, orderData]);
+    }, [orderData]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -219,8 +219,9 @@ export default function AssignFabricatorAndInstaller({
                         <AutocompleteField
                             name="fabricator_installer_id"
                             label="Fabricator/Installer"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
+                            asyncLoadOptions={loadUserOptions}
+                            referenceModel="user.model"
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
                             value={selectedFabricatorInstaller}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, fabricator_installer_id: newValue?.id || "" }));
@@ -245,8 +246,9 @@ export default function AssignFabricatorAndInstaller({
                         <AutocompleteField
                             name="fabricator_id"
                             label="Fabricator"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
+                            asyncLoadOptions={loadUserOptions}
+                            referenceModel="user.model"
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
                             value={selectedFabricator}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, fabricator_id: newValue?.id || "" }));
@@ -268,8 +270,9 @@ export default function AssignFabricatorAndInstaller({
                         <AutocompleteField
                             name="installer_id"
                             label="Installer"
-                            options={users}
-                            getOptionLabel={(option) => option.name || option.username || ""}
+                            asyncLoadOptions={loadUserOptions}
+                            referenceModel="user.model"
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
                             value={selectedInstaller}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, installer_id: newValue?.id || "" }));

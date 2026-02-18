@@ -1,13 +1,9 @@
 "use client";
 
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react";
-import {
-  Box,
-  MenuItem,
-  Alert,
-} from "@mui/material";
+import { Box, Alert } from "@mui/material";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
@@ -217,47 +213,39 @@ const UserForm = forwardRef(function UserForm({
             disabled={viewMode}
           />
 
-          <Select
+          <AutocompleteField
             name="role_id"
             label="Role"
-            value={formData.role_id ?? ""}
-            onChange={handleChange}
+            options={roles}
+            getOptionLabel={(r) => r?.name ?? r?.label ?? ""}
+            value={roles.find((r) => r.id === formData.role_id) || (formData.role_id ? { id: formData.role_id } : null)}
+            onChange={(e, newValue) => handleChange({ target: { name: "role_id", value: newValue?.id ?? "" } })}
+            placeholder="Type to search..."
             required={!viewMode}
             disabled={viewMode}
-          >
-            <MenuItem value="">Select Role</MenuItem>
-            {roles.map((r) => (
-              <MenuItem key={r.id} value={r.id}>
-                {r.name}
-              </MenuItem>
-            ))}
-          </Select>
+          />
 
-          <Select
+          <AutocompleteField
             name="manager_id"
             label="Manager"
-            value={formData.manager_id ?? ""}
-            onChange={handleChange}
+            options={managers}
+            getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+            value={managers.find((m) => m.id === formData.manager_id) || (formData.manager_id ? { id: formData.manager_id } : null)}
+            onChange={(e, newValue) => handleChange({ target: { name: "manager_id", value: newValue?.id ?? "" } })}
+            placeholder="Type to search..."
             disabled={viewMode}
-          >
-            <MenuItem value="">Select Manager</MenuItem>
-            {managers.map((m) => (
-              <MenuItem key={m.id} value={m.id}>
-                {m.name}
-              </MenuItem>
-            ))}
-          </Select>
+          />
 
-          <Select
+          <AutocompleteField
             name="status"
             label="Status"
-            value={formData.status || "active"}
-            onChange={handleChange}
+            options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]}
+            getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+            value={formData.status ? { value: formData.status, label: formData.status === "active" ? "Active" : "Inactive" } : null}
+            onChange={(e, newValue) => handleChange({ target: { name: "status", value: newValue?.value ?? "" } })}
+            placeholder="Type to search..."
             disabled={viewMode}
-          >
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-          </Select>
+          />
 
           {/* First Time Logged In is handled by the backend; don't render control in add/edit */}
           {viewMode && (

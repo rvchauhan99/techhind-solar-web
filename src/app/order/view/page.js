@@ -20,7 +20,8 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import PrintIcon from "@mui/icons-material/Print";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
@@ -31,6 +32,14 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
+const DOC_TYPE_OPTIONS = [
+    { value: "aadhar_card", label: "Aadhar Card" },
+    { value: "pan_card", label: "PAN Card" },
+    { value: "electricity_bill", label: "Electricity Bill" },
+    { value: "registration_letter", label: "Registration Letter" },
+    { value: "payment_receipt", label: "Payment Receipt" },
+    { value: "other", label: "Other" },
+];
 
 function TabPanel({ children, value, index }) {
     return (
@@ -55,11 +64,6 @@ function RegistrationForm({ orderData, orderId }) {
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
 
-    // Master data states
-    const [discoms, setDiscoms] = useState([]);
-    const [divisions, setDivisions] = useState([]);
-    const [subDivisions, setSubDivisions] = useState([]);
-
     useEffect(() => {
         if (orderData) {
             setFormData({
@@ -72,31 +76,6 @@ function RegistrationForm({ orderData, orderId }) {
             });
         }
     }, [orderData]);
-
-    const hasLoadedRef = useRef(false);
-
-    useEffect(() => {
-        // Only fetch if not already loaded
-        if (hasLoadedRef.current) return;
-        hasLoadedRef.current = true; // Set immediately to prevent duplicate calls
-
-        // Fetch master data
-        const fetchMasterData = async () => {
-            try {
-                const [discomsRes, divisionsRes, subDivisionsRes] = await Promise.all([
-                    mastersService.getReferenceOptions("discom.model"),
-                    mastersService.getReferenceOptions("division.model"),
-                    mastersService.getReferenceOptions("sub_division.model"),
-                ]);
-                setDiscoms(Array.isArray(discomsRes?.result) ? discomsRes.result : []);
-                setDivisions(Array.isArray(divisionsRes?.result) ? divisionsRes.result : []);
-                setSubDivisions(Array.isArray(subDivisionsRes?.result) ? subDivisionsRes.result : []);
-            } catch (err) {
-                console.error("Failed to fetch master data:", err);
-            }
-        };
-        fetchMasterData();
-    }, []);
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -163,54 +142,45 @@ function RegistrationForm({ orderData, orderId }) {
         <Box p={2}>
             <Grid container spacing={3}>
                 <Grid size={4}>
-                    <Select
+                    <AutocompleteField
                         name="discom_id"
                         label="Discom"
                         required
-                        value={formData.discom_id}
-                        onChange={(e) => handleChange('discom_id', e.target.value)}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("discom.model", { q, limit: 20 })}
+                        referenceModel="discom.model"
+                        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                        value={formData.discom_id ? { id: formData.discom_id } : null}
+                        onChange={(e, newValue) => handleChange("discom_id", newValue?.id ?? "")}
+                        placeholder="Type to search..."
                         error={!!errors.discom_id}
                         helperText={errors.discom_id}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        {discoms.map((discom) => (
-                            <MenuItem key={discom.id} value={discom.id}>
-                                {discom.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                    />
                 </Grid>
 
                 <Grid size={4}>
-                    <Select
+                    <AutocompleteField
                         name="division_id"
                         label="Division"
-                        value={formData.division_id}
-                        onChange={(e) => handleChange('division_id', e.target.value)}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        {divisions.map((division) => (
-                            <MenuItem key={division.id} value={division.id}>
-                                {division.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("division.model", { q, limit: 20 })}
+                        referenceModel="division.model"
+                        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                        value={formData.division_id ? { id: formData.division_id } : null}
+                        onChange={(e, newValue) => handleChange("division_id", newValue?.id ?? "")}
+                        placeholder="Type to search..."
+                    />
                 </Grid>
 
                 <Grid size={4}>
-                    <Select
+                    <AutocompleteField
                         name="sub_division_id"
                         label="Sub Division"
-                        value={formData.sub_division_id}
-                        onChange={(e) => handleChange('sub_division_id', e.target.value)}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        {subDivisions.map((subDivision) => (
-                            <MenuItem key={subDivision.id} value={subDivision.id}>
-                                {subDivision.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("sub_division.model", { q, limit: 20 })}
+                        referenceModel="sub_division.model"
+                        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                        value={formData.sub_division_id ? { id: formData.sub_division_id } : null}
+                        onChange={(e, newValue) => handleChange("sub_division_id", newValue?.id ?? "")}
+                        placeholder="Type to search..."
+                    />
                 </Grid>
 
                 <Grid size={4}>
@@ -321,26 +291,19 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
 
-    const [paymentModes, setPaymentModes] = useState([]);
     const [companyBankAccounts, setCompanyBankAccounts] = useState([]);
 
     const hasLoadedRef = useRef(false);
 
     useEffect(() => {
-        // Only fetch if not already loaded
         if (hasLoadedRef.current) return;
-        hasLoadedRef.current = true; // Set immediately to prevent duplicate calls
+        hasLoadedRef.current = true;
 
         const fetchMasterData = async () => {
             try {
-                const [paymentModesRes, bankAccountsRes] = await Promise.all([
-                    mastersService.getReferenceOptions("payment_mode.model"),
-                    companyService.listBankAccounts(),
-                ]);
-                setPaymentModes(Array.isArray(paymentModesRes?.result) ? paymentModesRes.result : []);
+                const bankAccountsRes = await companyService.listBankAccounts();
                 const accounts = Array.isArray(bankAccountsRes?.result) ? bankAccountsRes.result : (Array.isArray(bankAccountsRes?.data) ? bankAccountsRes.data : []);
                 setCompanyBankAccounts(accounts);
-                // If only one company bank account, select it by default
                 if (accounts.length === 1) {
                     setFormData((prev) => ({ ...prev, company_bank_account_id: String(accounts[0].id) }));
                 }
@@ -480,42 +443,34 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
                 </Grid>
 
                 <Grid size={3}>
-                    <Select
+                    <AutocompleteField
                         name="payment_mode_id"
                         label="Payment Mode"
                         required
-                        value={formData.payment_mode_id}
-                        onChange={(e) => handleChange('payment_mode_id', e.target.value)}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+                        referenceModel="payment_mode.model"
+                        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                        value={formData.payment_mode_id ? { id: formData.payment_mode_id } : null}
+                        onChange={(e, newValue) => handleChange("payment_mode_id", newValue?.id ?? "")}
+                        placeholder="Type to search..."
                         error={!!errors.payment_mode_id}
                         helperText={errors.payment_mode_id}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        {paymentModes.map((mode) => (
-                            <MenuItem key={mode.id} value={mode.id}>
-                                {mode.name}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                    />
                 </Grid>
 
                 <Grid size={3}>
-                    <Select
+                    <AutocompleteField
                         name="company_bank_account_id"
                         label="Company Bank Account"
                         required
-                        value={formData.company_bank_account_id}
-                        onChange={(e) => handleChange('company_bank_account_id', e.target.value)}
+                        options={companyBankAccounts}
+                        getOptionLabel={(acc) => `${acc?.bank_name ?? ""} - ${acc?.bank_account_number ?? ""}${acc?.bank_account_name ? ` (${acc.bank_account_name})` : ""}`}
+                        value={companyBankAccounts.find((acc) => String(acc.id) === formData.company_bank_account_id) || (formData.company_bank_account_id ? { id: formData.company_bank_account_id } : null)}
+                        onChange={(e, newValue) => handleChange("company_bank_account_id", newValue?.id != null ? String(newValue.id) : "")}
+                        placeholder="Type to search..."
                         error={!!errors.company_bank_account_id}
                         helperText={errors.company_bank_account_id}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        {companyBankAccounts.map((acc) => (
-                            <MenuItem key={acc.id} value={String(acc.id)}>
-                                {acc.bank_name} - {acc.bank_account_number}
-                                {acc.bank_account_name ? ` (${acc.bank_account_name})` : ""}
-                            </MenuItem>
-                        ))}
-                    </Select>
+                    />
                 </Grid>
 
                 <Grid size={3}>
@@ -856,23 +811,18 @@ function UploadDocumentsForm({ orderId }) {
         <Box p={2}>
             <Grid container spacing={3}>
                 <Grid size={6}>
-                    <Select
+                    <AutocompleteField
                         name="doc_type"
                         label="Document Type"
                         required
-                        value={formData.doc_type}
-                        onChange={(e) => handleChange('doc_type', e.target.value)}
+                        options={DOC_TYPE_OPTIONS}
+                        getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+                        value={formData.doc_type ? DOC_TYPE_OPTIONS.find((o) => o.value === formData.doc_type) || { value: formData.doc_type, label: formData.doc_type } : null}
+                        onChange={(e, newValue) => handleChange("doc_type", newValue?.value ?? "")}
+                        placeholder="Type to search..."
                         error={!!errors.doc_type}
                         helperText={errors.doc_type}
-                    >
-                        <MenuItem value="">-- Select --</MenuItem>
-                        <MenuItem value="aadhar_card">Aadhar Card</MenuItem>
-                        <MenuItem value="pan_card">PAN Card</MenuItem>
-                        <MenuItem value="electricity_bill">Electricity Bill</MenuItem>
-                        <MenuItem value="registration_letter">Registration Letter</MenuItem>
-                        <MenuItem value="payment_receipt">Payment Receipt</MenuItem>
-                        <MenuItem value="other">Other</MenuItem>
-                    </Select>
+                    />
                 </Grid>
 
                 <Grid size={6}>

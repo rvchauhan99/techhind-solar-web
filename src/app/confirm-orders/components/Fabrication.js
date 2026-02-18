@@ -5,7 +5,7 @@ import { Box, Alert, Typography } from "@mui/material";
 import { usePathname } from "next/navigation";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -227,78 +227,66 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                         fullWidth
                         disabled={disabled}
                     />
-                    <Select
+                    <AutocompleteField
                         name="structure_type"
                         label="Structure Type"
-                        value={formData.structure_type}
-                        onChange={handleInputChange}
+                        options={FABRICATION_STRUCTURE_TYPES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.structure_type || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "structure_type", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_STRUCTURE_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="structure_material"
                         label="Structure Material"
-                        value={formData.structure_material}
-                        onChange={handleInputChange}
+                        options={FABRICATION_STRUCTURE_MATERIALS}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.structure_material || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "structure_material", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_STRUCTURE_MATERIALS.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="coating_type"
                         label="Coating Type"
-                        value={formData.coating_type}
-                        onChange={handleInputChange}
+                        options={FABRICATION_COATING_TYPES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.coating_type || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "coating_type", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_COATING_TYPES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="tilt_angle"
                         label="Tilt Angle"
-                        value={formData.tilt_angle}
-                        onChange={handleInputChange}
+                        options={FABRICATION_TILT_ANGLES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.tilt_angle || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "tilt_angle", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_TILT_ANGLES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="height_from_roof"
                         label="Height from Roof (mm)"
-                        value={formData.height_from_roof}
-                        onChange={handleInputChange}
+                        options={FABRICATION_HEIGHT_FROM_ROOF}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.height_from_roof || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "height_from_roof", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_HEIGHT_FROM_ROOF.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
-                    <Select
+                    />
+                    <AutocompleteField
                         name="labour_category"
                         label="Labour Category"
-                        value={formData.labour_category}
-                        onChange={handleInputChange}
+                        options={FABRICATION_LABOUR_CATEGORIES}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.labour_category || null}
+                        onChange={(e, newValue) => handleInputChange({ target: { name: "labour_category", value: newValue ?? "" } })}
                         fullWidth
                         disabled={disabled}
-                    >
-                        {FABRICATION_LABOUR_CATEGORIES.map((opt) => (
-                            <MenuItem key={opt} value={opt}>{opt}</MenuItem>
-                        ))}
-                    </Select>
+                    />
                     <Input
                         name="labour_count"
                         label="Labour Count"

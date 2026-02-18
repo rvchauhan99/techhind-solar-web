@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
-import mastersService from "@/services/mastersService";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import productService from "@/services/productService";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
@@ -38,7 +38,6 @@ export default function BillOfMaterialForm({
   const [currentDetailErrors, setCurrentDetailErrors] = useState({});
 
   const [options, setOptions] = useState({
-    productTypes: [],
     products: {},
     allProducts: [],
   });
@@ -50,12 +49,7 @@ export default function BillOfMaterialForm({
       setLoadingOptions(true);
       setOptionsReady(false);
       try {
-        const [productTypesRes, productsRes] = await Promise.all([
-          mastersService.getReferenceOptions("product_type.model"),
-          productService.getProducts(),
-        ]);
-        const productTypesData = productTypesRes?.result || productTypesRes?.data || productTypesRes || [];
-        const productTypes = Array.isArray(productTypesData) ? productTypesData : [];
+        const productsRes = await productService.getProducts();
         const productsPayload = productsRes?.result || productsRes;
         const allProducts = productsPayload?.data || [];
 
@@ -69,7 +63,6 @@ export default function BillOfMaterialForm({
         });
 
         setOptions({
-          productTypes,
           products: productsByType,
           allProducts: allProducts || [],
         });
@@ -390,39 +383,32 @@ export default function BillOfMaterialForm({
 
         <FormSection title="BOM Details">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-2">
-            <Select
+            <AutocompleteField
               name="product_type_id"
               label="Product Type"
-              value={currentDetail.product_type_id}
-              onChange={(e) => handleCurrentDetailChange("product_type_id", e.target.value)}
               required
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
+              referenceModel="product_type.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={currentDetail.product_type_id ? { id: currentDetail.product_type_id } : null}
+              onChange={(e, newValue) => handleCurrentDetailChange("product_type_id", newValue?.id ?? "")}
+              placeholder="Type to search..."
               error={!!currentDetailErrors.product_type_id}
               helperText={currentDetailErrors.product_type_id}
-              placeholder="-- Select --"
-            >
-              {options.productTypes.map((type) => (
-                <MenuItem key={type.id} value={type.id}>
-                  {type.name}
-                </MenuItem>
-              ))}
-            </Select>
-            <Select
+            />
+            <AutocompleteField
               name="product_id"
               label="Product"
-              value={currentDetail.product_id}
-              onChange={(e) => handleCurrentDetailChange("product_id", e.target.value)}
               required
+              options={options.products[currentDetail.product_type_id] || []}
+              getOptionLabel={(p) => p?.product_name ?? p?.name ?? ""}
+              value={(options.products[currentDetail.product_type_id] || []).find((p) => p.id === currentDetail.product_id) || (currentDetail.product_id ? { id: currentDetail.product_id } : null)}
+              onChange={(e, newValue) => handleCurrentDetailChange("product_id", newValue?.id ?? "")}
+              placeholder="Type to search..."
+              disabled={!currentDetail.product_type_id}
               error={!!currentDetailErrors.product_id}
               helperText={currentDetailErrors.product_id}
-              disabled={!currentDetail.product_type_id}
-              placeholder="-- Select --"
-            >
-              {(options.products[currentDetail.product_type_id] || []).map((product) => (
-                <MenuItem key={product.id} value={product.id}>
-                  {product.product_name}
-                </MenuItem>
-              ))}
-            </Select>
+            />
             <Input
               type="number"
               label="Qty"

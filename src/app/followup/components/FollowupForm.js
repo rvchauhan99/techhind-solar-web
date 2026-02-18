@@ -2,12 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { getReferenceOptions } from "@/services/mastersService";
 import userService from "@/services/userMasterService";
 import followupService from "@/services/followupService";
 import { useAuth } from "@/hooks/useAuth";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -223,74 +222,46 @@ export default function FollowupForm({
         noValidate
         className={cn("grid gap-4 max-w-[700px]")}
       >
-        {loadingOptions.inquiries ? (
-          <div className="flex items-center gap-2">
-            <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span className="text-sm text-muted-foreground">Loading inquiries...</span>
-          </div>
-        ) : (
-          <Select
-            name="inquiry_id"
-            label="Inquiry"
-            value={formData.inquiry_id}
-            onChange={handleChange}
-            disabled={loadingOptions.inquiries || formData.isFromInquiry}
-            required
-            error={!!errors.inquiry_id}
-            helperText={errors.inquiry_id}
-          >
-            <MenuItem value="">Select Inquiry</MenuItem>
-            {inquiries.map((inquiry) => (
-              <MenuItem key={inquiry.id} value={inquiry.id}>
-                Inquiry #{inquiry.inquiry_number}
-              </MenuItem>
-            ))}
-          </Select>
-        )}
+        <AutocompleteField
+          name="inquiry_id"
+          label="Inquiry"
+          options={inquiries}
+          getOptionLabel={(i) => (i?.inquiry_number != null ? `Inquiry #${i.inquiry_number}` : i?.id ?? "")}
+          value={inquiries.find((i) => i.id == formData.inquiry_id) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
+          onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+          placeholder="Select Inquiry"
+          disabled={loadingOptions.inquiries || formData.isFromInquiry}
+          required
+          error={!!errors.inquiry_id}
+          helperText={errors.inquiry_id}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {loadingOptions.ratings ? (
-            <div className="flex items-center gap-2">
-              <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              <span className="text-sm text-muted-foreground">Loading ratings...</span>
-            </div>
-          ) : (
-            <Select
-              name="rating"
-              label="Rating"
-              value={formData.rating}
-              onChange={handleChange}
-              disabled={loadingOptions.ratings}
-              error={!!errors.rating}
-              helperText={errors.rating}
-            >
-              <MenuItem value="">Select Rating</MenuItem>
-              {ratingOptions.map((option) => (
-                <MenuItem
-                  key={option.id || option.value}
-                  value={option.value || option.id}
-                >
-                  {option.label || option.value || option.id}
-                </MenuItem>
-              ))}
-            </Select>
-          )}
+          <AutocompleteField
+            name="rating"
+            label="Rating"
+            options={ratingOptions}
+            getOptionLabel={(o) => o?.label ?? o?.value ?? o?.id ?? ""}
+            value={ratingOptions.find((o) => (o.value || o.id) == formData.rating) || (formData.rating ? { value: formData.rating, label: formData.rating } : null)}
+            onChange={(e, newValue) => handleChange({ target: { name: "rating", value: newValue?.value ?? newValue?.id ?? "" } })}
+            placeholder="Select Rating"
+            disabled={loadingOptions.ratings}
+            error={!!errors.rating}
+            helperText={errors.rating}
+          />
 
-          <Select
+          <AutocompleteField
             name="inquiry_status"
             label="Inquiry Status"
-            value={formData.inquiry_status}
-            onChange={handleChange}
+            options={inquiryStatusOptions}
+            getOptionLabel={(o) => o?.value ?? o?.key ?? ""}
+            value={inquiryStatusOptions.find((o) => o.value === formData.inquiry_status) || (formData.inquiry_status ? { key: formData.inquiry_status, value: formData.inquiry_status } : null)}
+            onChange={(e, newValue) => handleChange({ target: { name: "inquiry_status", value: newValue?.value ?? "" } })}
+            placeholder="Inquiry Status"
             required
             error={!!errors.inquiry_status}
             helperText={errors.inquiry_status}
-          >
-            {inquiryStatusOptions.map((option) => (
-              <MenuItem key={option.key} value={option.value}>
-                {option.value}
-              </MenuItem>
-            ))}
-          </Select>
+          />
         </div>
 
         <DateField

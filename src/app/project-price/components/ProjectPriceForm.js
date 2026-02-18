@@ -5,7 +5,6 @@ import {
   Box,
   Grid,
   Button,
-  MenuItem,
   Typography,
   FormControlLabel,
   Checkbox,
@@ -13,9 +12,10 @@ import {
   Alert,
 } from "@mui/material";
 import mastersService, { getDefaultState } from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import projectPriceService from "@/services/projectPriceService";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 
@@ -45,9 +45,6 @@ export default function ProjectPriceForm({
 
   const [errors, setErrors] = useState({});
   const [options, setOptions] = useState({
-    states: [],
-    projectSchemes: [],
-    orderTypes: [],
     billOfMaterials: [],
   });
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -92,38 +89,6 @@ export default function ProjectPriceForm({
       });
     }
   }, [defaultValues]);
-
-  useEffect(() => {
-    const loadOptions = async () => {
-      setLoadingOptions(true);
-      try {
-        const [statesRes, schemesRes, orderTypesRes] = await Promise.all([
-          mastersService.getReferenceOptions("state.model"),
-          mastersService.getReferenceOptions("project_scheme.model"),
-          mastersService.getReferenceOptions("order_type.model"),
-        ]);
-        console.log(statesRes, schemesRes, orderTypesRes)
-        const normalize = (res) => res?.result || res?.data || res || [];
-
-        setOptions((vv) => ({
-          ...vv,
-          states: Array.isArray(normalize(statesRes)) ? normalize(statesRes) : [],
-          projectSchemes: Array.isArray(normalize(schemesRes))
-            ? normalize(schemesRes)
-            : [],
-          orderTypes: Array.isArray(normalize(orderTypesRes))
-            ? normalize(orderTypesRes)
-            : [],
-        }));
-      } catch (err) {
-        console.error("Failed to load reference options", err);
-      } finally {
-        setLoadingOptions(false);
-      }
-    };
-
-    loadOptions();
-  }, []);
 
   // Auto-populate default state for new project prices
   useEffect(() => {
@@ -289,80 +254,67 @@ export default function ProjectPriceForm({
         </Box>
         <Grid container spacing={COMPACT_FORM_SPACING}>
           <Grid item size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <Select
+            <AutocompleteField
               name="state_id"
               label="State"
-              value={formData.state_id}
-              onChange={handleChange}
               required
-              disabled={loadingOptions}
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+              referenceModel="state.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={formData.state_id ? { id: formData.state_id } : null}
+              onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+              placeholder="Type to search..."
               error={!!errors.state_id}
               helperText={errors.state_id}
-            >
-              {options.states.map((s) => (
-                <MenuItem key={s.id} value={s.id}>
-                  {s.name}
-                </MenuItem>
-              ))}
-            </Select>
+            />
           </Grid>
           <Grid item size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <Select
+            <AutocompleteField
               name="project_for_id"
               label="Project For"
-              value={formData.project_for_id}
-              onChange={handleChange}
               required
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+              referenceModel="project_scheme.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={formData.project_for_id ? { id: formData.project_for_id } : null}
+              onChange={(e, newValue) => handleChange({ target: { name: "project_for_id", value: newValue?.id ?? "" } })}
+              placeholder="Type to search..."
               error={!!errors.project_for_id}
               helperText={errors.project_for_id}
-              disabled={loadingOptions}
-            >
-              {options.projectSchemes.map((p) => (
-                <MenuItem key={p.id} value={p.id}>
-                  {p.name}
-                </MenuItem>
-              ))}
-            </Select>
+            />
           </Grid>
           <Grid item size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <Select
+            <AutocompleteField
               name="order_type_id"
               label="Order Type"
-              value={formData.order_type_id}
-              onChange={handleChange}
               required
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
+              referenceModel="order_type.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={formData.order_type_id ? { id: formData.order_type_id } : null}
+              onChange={(e, newValue) => handleChange({ target: { name: "order_type_id", value: newValue?.id ?? "" } })}
+              placeholder="Type to search..."
               error={!!errors.order_type_id}
               helperText={errors.order_type_id}
-              disabled={loadingOptions}
-            >
-              {options.orderTypes.map((o) => (
-                <MenuItem key={o.id} value={o.id}>
-                  {o.name}
-                </MenuItem>
-              ))}
-            </Select>
+            />
           </Grid>
           <Grid item size={{ xs: 12, sm: 6, md: 2.4 }}>
-            <Select
+            <AutocompleteField
               name="bill_of_material_id"
               label="Bill Of Material"
-              value={formData.bill_of_material_id}
-              onChange={(e) => {
-                handleChange(e);
-                handleBomChange(e.target.value);
-              }}
               required
+              options={options.billOfMaterials}
+              getOptionLabel={(b) => b?.bom_name ?? b?.name ?? ""}
+              value={options.billOfMaterials.find((b) => b.id === formData.bill_of_material_id) || (formData.bill_of_material_id ? { id: formData.bill_of_material_id } : null)}
+              onChange={(e, newValue) => {
+                handleChange({ target: { name: "bill_of_material_id", value: newValue?.id ?? "" } });
+                handleBomChange(newValue?.id ?? "");
+              }}
+              placeholder="None"
               error={!!errors.bill_of_material_id}
               helperText={errors.bill_of_material_id}
               disabled={loadingOptions}
-            >
-              <MenuItem value="">None</MenuItem>
-              {options.billOfMaterials.map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.bom_name}
-                </MenuItem>
-              ))}
-            </Select>
+            />
           </Grid>
           <Grid item size={{ xs: 12, sm: 6, md: 2.4 }}>
             <Input

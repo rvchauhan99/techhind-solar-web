@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { Box } from "@mui/material";
 import { Button } from "@/components/ui/button";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import challanService from "@/services/challanService";
 import { printChallanById } from "@/utils/challanPrintUtils";
 import { formatDate } from "@/utils/dataTableUtils";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
 export default function ChallanDetailsDrawer({
     open,
@@ -19,8 +21,11 @@ export default function ChallanDetailsDrawer({
     const [error, setError] = useState(null);
     const [challan, setChallan] = useState(null);
     const [printing, setPrinting] = useState(false);
+    /** Expanded row index for serial numbers (expandable row pattern). */
+    const [expandedRowIndex, setExpandedRowIndex] = useState(null);
 
     useEffect(() => {
+        setExpandedRowIndex(null);
         const fetchChallan = async () => {
             if (!open || !challanId) {
                 setChallan(null);
@@ -137,23 +142,81 @@ export default function ChallanDetailsDrawer({
                             <table className="w-full text-xs">
                                 <thead>
                                     <tr className="border-b border-border bg-muted/40">
+                                        <th className="w-8 px-1 py-1" aria-label="Expand" />
                                         <th className="px-2 py-1 text-left font-semibold">Product</th>
                                         <th className="px-2 py-1 text-left font-semibold">UOM</th>
                                         <th className="px-2 py-1 text-right font-semibold">Qty</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {items.map((item, index) => (
-                                        <tr key={item.id || index} className="border-b border-border last:border-b-0">
-                                            <td className="px-2 py-1">
-                                                {item?.product?.product_name || item?.product_snapshot?.product_name || "-"}
-                                            </td>
-                                            <td className="px-2 py-1">
-                                                {item?.product?.measurementUnit?.unit || item?.product_snapshot?.uom || "-"}
-                                            </td>
-                                            <td className="px-2 py-1 text-right">{item.quantity ?? 0}</td>
-                                        </tr>
-                                    ))}
+                                    {items.map((item, index) => {
+                                        const serialsStr = item.serials?.trim?.() || "";
+                                        const serialList = serialsStr
+                                            ? serialsStr.split(",").map((s) => s.trim()).filter(Boolean)
+                                            : [];
+                                        const hasSerials = serialList.length > 0;
+                                        const isExpanded = expandedRowIndex === index;
+                                        const productName =
+                                            item?.product?.product_name || item?.product_snapshot?.product_name || "-";
+                                        return (
+                                            <Fragment key={item.id || index}>
+                                                <tr
+                                                    className="border-b border-border last:border-b-0"
+                                                >
+                                                    <td className="w-8 px-1 py-1 align-middle">
+                                                        {hasSerials ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setExpandedRowIndex(isExpanded ? null : index)
+                                                                }
+                                                                className="flex items-center justify-center rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                                                aria-expanded={isExpanded}
+                                                                aria-label={isExpanded ? "Collapse serial numbers" : "View serial numbers"}
+                                                            >
+                                                                {isExpanded ? (
+                                                                    <ExpandLessIcon fontSize="small" />
+                                                                ) : (
+                                                                    <ExpandMoreIcon fontSize="small" />
+                                                                )}
+                                                            </button>
+                                                        ) : (
+                                                            <span className="inline-block w-5" />
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-1">{productName}</td>
+                                                    <td className="px-2 py-1">
+                                                        {item?.product?.measurementUnit?.unit ||
+                                                            item?.product_snapshot?.uom ||
+                                                            "-"}
+                                                    </td>
+                                                    <td className="px-2 py-1 text-right">{item.quantity ?? 0}</td>
+                                                </tr>
+                                                {hasSerials && isExpanded && (
+                                                    <tr
+                                                        key={`${item.id || index}-serials`}
+                                                        className="border-b border-border bg-muted/30 last:border-b-0"
+                                                    >
+                                                        <td colSpan={4} className="px-2 py-2">
+                                                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                                                                Serial numbers captured
+                                                            </p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {serialList.map((sn, i) => (
+                                                                    <span
+                                                                        key={i}
+                                                                        className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-mono"
+                                                                    >
+                                                                        {sn}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </Fragment>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

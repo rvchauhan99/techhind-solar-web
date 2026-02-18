@@ -10,20 +10,14 @@ import {
   Typography,
   IconButton,
   Paper,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Select as MuiSelect,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
-import mastersService from "@/services/mastersService";
-import companyService from "@/services/companyService";
-import userMasterService from "@/services/userMasterService";
 import { FORM_PADDING, COMPACT_FORM_SPACING } from "@/utils/formConstants";
 
 const PAYMENT_STATUSES = [
@@ -56,34 +50,10 @@ export default function PaymentsReportFilters({
   const isDrawer = variant === "drawer";
   const [expanded, setExpanded] = useState(true);
   const [localFilters, setLocalFilters] = useState(filters || {});
-  const [branches, setBranches] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [paymentModes, setPaymentModes] = useState([]);
 
   useEffect(() => {
     setLocalFilters(filters || {});
   }, [filters]);
-
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const [branchesRes, usersRes, modesRes] = await Promise.all([
-          companyService.listBranches(),
-          userMasterService.listUserMasters({ limit: 1000 }),
-          mastersService.getReferenceOptions("payment_mode.model"),
-        ]);
-        const branchesData = branchesRes?.result || branchesRes?.data || branchesRes || [];
-        const usersData = usersRes?.result?.data || usersRes?.data || usersRes?.rows || [];
-        const modesData = modesRes?.result || modesRes?.data || modesRes || [];
-        setBranches(Array.isArray(branchesData) ? branchesData : []);
-        setUsers(Array.isArray(usersData) ? usersData : []);
-        setPaymentModes(Array.isArray(modesData) ? modesData : []);
-      } catch (err) {
-        console.error("Failed to load payments filter options", err);
-      }
-    };
-    loadOptions();
-  }, []);
 
   const handleFilterChange = (name, value) => {
     const newFilters = { ...localFilters, [name]: value };
@@ -132,79 +102,52 @@ export default function PaymentsReportFilters({
             />
           </Grid>
       <Grid item xs={12} md={isDrawer ? 12 : 3}>
-            <Select
+            <AutocompleteField
               name="branch_id"
               label="Branch"
-              value={localFilters.branch_id || ""}
-              onChange={(e) => handleFilterChange("branch_id", e.target.value || null)}
-            >
-              <MenuItem value="">All Branches</MenuItem>
-              {branches.map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.name}
-                </MenuItem>
-              ))}
-            </Select>
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+              referenceModel="company_branch.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={localFilters.branch_id ? { id: localFilters.branch_id } : null}
+              onChange={(e, newValue) => handleFilterChange("branch_id", newValue?.id ?? null)}
+              placeholder="Type to search..."
+            />
           </Grid>
       <Grid item xs={12} md={isDrawer ? 12 : 3}>
-            <Select
+            <AutocompleteField
               name="handled_by"
               label="Handled By"
-              value={localFilters.handled_by || ""}
-              onChange={(e) => handleFilterChange("handled_by", e.target.value || null)}
-            >
-              <MenuItem value="">All Users</MenuItem>
-              {users.map((u) => (
-                <MenuItem key={u.id} value={u.id}>
-                  {u.name}
-                </MenuItem>
-              ))}
-            </Select>
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+              referenceModel="user.model"
+              getOptionLabel={(o) => o?.name ?? o?.email ?? o?.username ?? ""}
+              value={localFilters.handled_by ? { id: localFilters.handled_by } : null}
+              onChange={(e, newValue) => handleFilterChange("handled_by", newValue?.id ?? null)}
+              placeholder="Type to search..."
+            />
           </Grid>
       <Grid item xs={12} md={isDrawer ? 12 : 3}>
-            <Select
+            <AutocompleteField
               name="payment_mode_id"
               label="Payment Mode"
-              value={localFilters.payment_mode_id || ""}
-              onChange={(e) => handleFilterChange("payment_mode_id", e.target.value || null)}
-            >
-              <MenuItem value="">All Modes</MenuItem>
-              {paymentModes.map((m) => (
-                <MenuItem key={m.id} value={m.id}>
-                  {m.name}
-                </MenuItem>
-              ))}
-            </Select>
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+              referenceModel="payment_mode.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={localFilters.payment_mode_id ? { id: localFilters.payment_mode_id } : null}
+              onChange={(e, newValue) => handleFilterChange("payment_mode_id", newValue?.id ?? null)}
+              placeholder="Type to search..."
+            />
           </Grid>
       <Grid item xs={12} md={isDrawer ? 12 : 3}>
-            <FormControl fullWidth size="small">
-              <InputLabel id="payments-report-status-label">Status</InputLabel>
-              <MuiSelect
-                labelId="payments-report-status-label"
-                id="payments-report-status"
-                name="status"
-                label="Status"
-                multiple
-                value={Array.isArray(localFilters.status) ? localFilters.status : []}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  const arr = typeof value === "string" ? value.split(",") : value ?? [];
-                  handleFilterChange("status", arr.length > 0 ? arr : null);
-                }}
-                renderValue={(selected) => {
-                  if (!selected || selected.length === 0) return "All Statuses";
-                  return selected
-                    .map((s) => PAYMENT_STATUSES.find((st) => st.value === s)?.label || s)
-                    .join(", ");
-                }}
-              >
-                {PAYMENT_STATUSES.map((status) => (
-                  <MenuItem key={status.value} value={status.value}>
-                    {status.label}
-                  </MenuItem>
-                ))}
-              </MuiSelect>
-            </FormControl>
+            <AutocompleteField
+              name="status"
+              label="Status"
+              multiple
+              options={PAYMENT_STATUSES}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={(Array.isArray(localFilters.status) ? localFilters.status : []).map((v) => PAYMENT_STATUSES.find((s) => s.value === v)).filter(Boolean)}
+              onChange={(e, newValue) => handleFilterChange("status", newValue?.length ? newValue.map((o) => o.value) : null)}
+              placeholder="All Statuses"
+            />
           </Grid>
       <Grid item xs={12} md={isDrawer ? 12 : 3}>
             <Input
@@ -283,73 +226,46 @@ export default function PaymentsReportFilters({
             onChange={(e) => handleFilterChange("end_date", e.target.value || null)}
             minDate={localFilters.start_date || undefined}
           />
-          <Select
+          <AutocompleteField
             name="branch_id"
             label="Branch"
-            value={localFilters.branch_id || ""}
-            onChange={(e) => handleFilterChange("branch_id", e.target.value || null)}
-          >
-            <MenuItem value="">All Branches</MenuItem>
-            {branches.map((b) => (
-              <MenuItem key={b.id} value={b.id}>
-                {b.name}
-              </MenuItem>
-            ))}
-          </Select>
-          <Select
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+            referenceModel="company_branch.model"
+            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+            value={localFilters.branch_id ? { id: localFilters.branch_id } : null}
+            onChange={(e, newValue) => handleFilterChange("branch_id", newValue?.id ?? null)}
+            placeholder="Type to search..."
+          />
+          <AutocompleteField
             name="handled_by"
             label="Handled By"
-            value={localFilters.handled_by || ""}
-            onChange={(e) => handleFilterChange("handled_by", e.target.value || null)}
-          >
-            <MenuItem value="">All Users</MenuItem>
-            {users.map((u) => (
-              <MenuItem key={u.id} value={u.id}>
-                {u.name}
-              </MenuItem>
-            ))}
-          </Select>
-          <Select
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+            referenceModel="user.model"
+            getOptionLabel={(o) => o?.name ?? o?.email ?? o?.username ?? ""}
+            value={localFilters.handled_by ? { id: localFilters.handled_by } : null}
+            onChange={(e, newValue) => handleFilterChange("handled_by", newValue?.id ?? null)}
+            placeholder="Type to search..."
+          />
+          <AutocompleteField
             name="payment_mode_id"
             label="Payment Mode"
-            value={localFilters.payment_mode_id || ""}
-            onChange={(e) => handleFilterChange("payment_mode_id", e.target.value || null)}
-          >
-            <MenuItem value="">All Modes</MenuItem>
-            {paymentModes.map((m) => (
-              <MenuItem key={m.id} value={m.id}>
-                {m.name}
-              </MenuItem>
-            ))}
-          </Select>
-          <FormControl fullWidth size="small">
-            <InputLabel id="payments-report-status-label">Status</InputLabel>
-            <MuiSelect
-              labelId="payments-report-status-label"
-              id="payments-report-status"
-              name="status"
-              label="Status"
-              multiple
-              value={Array.isArray(localFilters.status) ? localFilters.status : []}
-              onChange={(e) => {
-                const value = e.target.value;
-                const arr = typeof value === "string" ? value.split(",") : value ?? [];
-                handleFilterChange("status", arr.length > 0 ? arr : null);
-              }}
-              renderValue={(selected) => {
-                if (!selected || selected.length === 0) return "All Statuses";
-                return selected
-                  .map((s) => PAYMENT_STATUSES.find((st) => st.value === s)?.label || s)
-                  .join(", ");
-              }}
-            >
-              {PAYMENT_STATUSES.map((status) => (
-                <MenuItem key={status.value} value={status.value}>
-                  {status.label}
-                </MenuItem>
-              ))}
-            </MuiSelect>
-          </FormControl>
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+            referenceModel="payment_mode.model"
+            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+            value={localFilters.payment_mode_id ? { id: localFilters.payment_mode_id } : null}
+            onChange={(e, newValue) => handleFilterChange("payment_mode_id", newValue?.id ?? null)}
+            placeholder="Type to search..."
+          />
+          <AutocompleteField
+            name="status"
+            label="Status"
+            multiple
+            options={PAYMENT_STATUSES}
+            getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+            value={(Array.isArray(localFilters.status) ? localFilters.status : []).map((v) => PAYMENT_STATUSES.find((s) => s.value === v)).filter(Boolean)}
+            onChange={(e, newValue) => handleFilterChange("status", newValue?.length ? newValue.map((o) => o.value) : null)}
+            placeholder="All Statuses"
+          />
           <Input
             name="order_number"
             label="Order Number"
