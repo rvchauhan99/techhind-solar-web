@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import BucketImage from "@/components/common/BucketImage";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
+import companyService from "@/services/companyService";
+import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import {
@@ -38,10 +40,13 @@ function getDocumentUrlById(id) {
 
 export default function Fabrication({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
+    const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders");
     const isCompleted = orderData?.stages?.fabrication === "completed";
     const canComplete = orderData?.stages?.planner === "completed" && !isCompleted && !isReadOnly;
 
+    const [canPerform, setCanPerform] = useState(false);
+    const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
     const [formData, setFormData] = useState({
         fabrication_start_date: "",
         fabrication_end_date: "",
@@ -107,6 +112,54 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         loadFabrication();
     }, [loadFabrication]);
 
+    useEffect(() => {
+        if (!orderData?.id || !user?.id) {
+            setPermissionCheckLoading(false);
+            setCanPerform(false);
+            return;
+        }
+        const assignedFabricatorId = orderData.fabricator_installer_are_same
+            ? orderData.fabricator_installer_id
+            : orderData.fabricator_id;
+        const isAssignedFabricator = Number(assignedFabricatorId) === Number(user.id);
+        const plannedWarehouseId = orderData.planned_warehouse_id;
+
+        if (!plannedWarehouseId) {
+            setCanPerform(!!isAssignedFabricator);
+            setPermissionCheckLoading(false);
+            return;
+        }
+
+        let cancelled = false;
+        setPermissionCheckLoading(true);
+        companyService
+            .getWarehouseManagers(plannedWarehouseId)
+            .then((res) => {
+                if (cancelled) return;
+                const data = res?.result ?? res ?? {};
+                const managers = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
+                const isManager = managers.some((m) => Number(m.id) === Number(user.id));
+                setCanPerform(!!isManager || !!isAssignedFabricator);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setCanPerform(!!isAssignedFabricator);
+            })
+            .finally(() => {
+                if (!cancelled) setPermissionCheckLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        orderData?.id,
+        orderData?.planned_warehouse_id,
+        orderData?.fabricator_id,
+        orderData?.fabricator_installer_id,
+        orderData?.fabricator_installer_are_same,
+        user?.id,
+    ]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -154,6 +207,12 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
     const handleSubmit = async (e, complete = false) => {
         e.preventDefault();
         if (isReadOnly) return;
+        if (!canPerform) {
+            toastError(
+                "Only warehouse managers of the planned warehouse or the assigned fabricator can fill and complete Fabrication. Contact your administrator if you need access."
+            );
+            return;
+        }
         if (complete && !canComplete) return;
         if (complete && !validate()) return;
 
@@ -189,7 +248,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         }
     };
 
-    const disabled = isCompleted || isReadOnly;
+    const disabled = isCompleted || isReadOnly || (!isReadOnly && !canPerform);
 
     if (loading) {
         return (
@@ -199,8 +258,28 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         );
     }
 
+    if (permissionCheckLoading) {
+        return (
+            <Box className="p-4">
+                <Typography color="text.secondary">Checking permissions…</Typography>
+            </Box>
+        );
+    }
+
+    if (!isReadOnly && !canPerform) {
+        return (
+            <Box className="p-4">
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                    Only warehouse managers of the planned warehouse or the assigned fabricator can fill and complete
+                    Fabrication. You do not have permission to perform this action. Contact your administrator if you
+                    need access.
+                </Alert>
+            </Box>
+        );
+    }
+
     return (
-        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} className="p-4">
+        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} className="p-3 sm:p-4 max-w-4xl">
             {orderData?.fabricator_id || orderData?.fabricator_installer_id ? (
                 <FormSection title="Fabricator (from assignment)">
                     <Typography variant="body2" color="text.secondary">
@@ -328,11 +407,12 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                                         alt={label}
                                     />
                                     {!disabled && (
-                                        <label className="text-xs text-muted-foreground cursor-pointer">
+                                        <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
                                             Replace:{" "}
                                             <input
                                                 type="file"
                                                 accept="image/*"
+                                                capture="environment"
                                                 className="hidden"
                                                 onChange={(e) => {
                                                     const f = e.target.files?.[0];
@@ -340,7 +420,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                                                     e.target.value = "";
                                                 }}
                                             />
-                                            <span className="underline">Choose file</span>
+                                            <span className="underline">Take photo or choose file</span>
                                         </label>
                                     )}
                                 </Box>
@@ -350,6 +430,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                                         <input
                                             type="file"
                                             accept="image/*"
+                                            capture="environment"
                                             className="hidden"
                                             disabled={uploadingKey === key}
                                             onChange={(e) => {
@@ -358,8 +439,8 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                                                 e.target.value = "";
                                             }}
                                         />
-                                        <span className="inline-flex items-center h-9 px-2.5 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent">
-                                            {uploadingKey === key ? "Uploading…" : "Upload"}
+                                        <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
+                                            {uploadingKey === key ? "Uploading…" : "Take photo or upload"}
                                         </span>
                                     </label>
                                 )
@@ -390,6 +471,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                     <Button
                         type="submit"
                         size="sm"
+                        className="min-h-[44px] touch-manipulation"
                         loading={submitting}
                         disabled={disabled}
                     >
@@ -400,6 +482,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                             type="button"
                             size="sm"
                             variant="default"
+                            className="min-h-[44px] touch-manipulation"
                             loading={submitting}
                             onClick={(e) => handleSubmit(e, true)}
                         >
