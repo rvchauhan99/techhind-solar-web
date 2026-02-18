@@ -27,6 +27,7 @@ import {
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import ClearIcon from "@mui/icons-material/Clear";
 import BarcodeScanner from "@/components/common/BarcodeScanner";
 import mastersService from "@/services/mastersService";
 import poInwardService from "@/services/poInwardService";
@@ -382,6 +383,15 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
     const handleScanResult = (value) => {
         const trimmed = (value || "").trim();
         if (!trimmed || scanTargetIndex == null) return;
+
+        const alreadyEntered = serialDrawerValues.some(
+            (v) => (v || "").trim().toLowerCase() === trimmed.toLowerCase()
+        );
+        if (alreadyEntered) {
+            toastError("Serial number already entered.");
+            return;
+        }
+
         handleSerialDrawerValueChange(scanTargetIndex, trimmed);
         const updated = serialDrawerValues.map((v, i) => (i === scanTargetIndex ? trimmed : v));
         const nextEmpty = updated.findIndex((v, i) => i > scanTargetIndex && !(v || "").trim());
@@ -802,6 +812,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                                                 onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
                                                                                 inputRef={(el) => { serialInputRefs.current[idx] = el; }}
                                                                                 variant="outlined"
+                                                                                InputProps={{
+                                                                                    endAdornment: value?.trim()
+                                                                                        ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                            <ClearIcon fontSize="small" />
+                                                                                          </IconButton>
+                                                                                        : null,
+                                                                                }}
                                                                             />
                                                                         ))}
                                                                     </Box>
@@ -990,6 +1007,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                                                     onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
                                                                                     inputRef={(el) => { serialInputRefs.current[idx] = el; }}
                                                                                     variant="outlined"
+                                                                                    InputProps={{
+                                                                                        endAdornment: value?.trim()
+                                                                                            ? <IconButton size="small" tabIndex={-1} edge="end" onClick={() => handleSerialDrawerValueChange(idx, "")}>
+                                                                                                <ClearIcon fontSize="small" />
+                                                                                              </IconButton>
+                                                                                            : null,
+                                                                                    }}
                                                                                 />
                                                                             ))}
                                                                         </Box>
