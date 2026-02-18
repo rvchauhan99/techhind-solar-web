@@ -11,20 +11,24 @@ import { cn } from "@/lib/utils";
  * @param {boolean} open
  * @param {function(): void} onClose
  * @param {string} [title] - optional sidebar title
+ * @param {boolean} [closeOnBackdropClick=true] - if false, drawer stays open when clicking backdrop (close only via X)
  * @param {React.ReactNode} children - entity-specific content
  */
-export default function DetailsSidebar({ open, onClose, title, children }) {
+export default function DetailsSidebar({ open, onClose, title, closeOnBackdropClick = true, children }) {
   if (!open) return null;
+
+  const handleBackdropClick = closeOnBackdropClick ? onClose : undefined;
+  const handleBackdropKeyDown = closeOnBackdropClick ? (e) => e.key === "Escape" && onClose() : undefined;
 
   return (
     <>
       <div
         className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[2px]"
-        onClick={onClose}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
-        role="button"
-        tabIndex={0}
-        aria-label="Close sidebar"
+        onClick={handleBackdropClick}
+        onKeyDown={handleBackdropKeyDown}
+        role={handleBackdropClick ? "button" : "presentation"}
+        tabIndex={handleBackdropClick ? 0 : undefined}
+        aria-label={handleBackdropClick ? "Close sidebar" : undefined}
       />
       <aside
         className={cn(
