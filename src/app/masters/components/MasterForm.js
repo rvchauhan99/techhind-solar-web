@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -8,14 +8,12 @@ import {
   Checkbox,
   Alert,
   Typography,
-  MenuItem,
-  CircularProgress,
   FormHelperText,
 } from "@mui/material";
 import Link from "next/link";
-import { getReferenceOptions } from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 
 export default function MasterForm({ 
@@ -52,81 +50,10 @@ export default function MasterForm({
   };
 
   const [formData, setFormData] = useState({ ...getInitialFormData(), ...(defaultValues || {}) });
-  const [referenceOptions, setReferenceOptions] = useState({}); // Store options for each reference field
-  const [loadingOptions, setLoadingOptions] = useState({}); // Track loading state for each field
   const [errors, setErrors] = useState({}); // Track validation errors
   const [selectedFile, setSelectedFile] = useState(null); // Store selected file for upload
-  const fetchedModelsRef = useRef(new Set()); // Track which models have been fetched
-  const fetchingRef = useRef(false); // Track if we're currently fetching
 
-  // Fetch reference options when fields change
-  useEffect(() => {
-    // Prevent duplicate calls
-    if (fetchingRef.current) {
-      return;
-    }
-
-    const fetchReferenceOptions = async () => {
-      const optionsMap = {};
-      const modelsToFetch = [];
-
-      // Collect unique models that need to be fetched
-      for (const field of fields) {
-        if (field.reference && field.reference.model) {
-          // Only fetch if we haven't fetched this model yet and don't have options
-          if (!fetchedModelsRef.current.has(field.reference.model) && !referenceOptions[field.name]) {
-            modelsToFetch.push({ fieldName: field.name, model: field.reference.model });
-            fetchedModelsRef.current.add(field.reference.model);
-          }
-        }
-      }
-
-      // If no new models to fetch, return early
-      if (modelsToFetch.length === 0) {
-        return;
-      }
-
-      fetchingRef.current = true;
-
-      // Fetch options for each unique model
-      for (const { fieldName, model } of modelsToFetch) {
-        setLoadingOptions((prev) => ({ ...prev, [fieldName]: true }));
-
-        try {
-          const response = await getReferenceOptions(model);
-          const options = response.result || response.data || response || [];
-          optionsMap[fieldName] = Array.isArray(options) ? options : [];
-        } catch (error) {
-          console.error(`Error fetching options for ${fieldName}:`, error);
-          optionsMap[fieldName] = [];
-        } finally {
-          setLoadingOptions((prev) => ({ ...prev, [fieldName]: false }));
-        }
-      }
-
-      // Update reference options for all fields that use the fetched models
-      setReferenceOptions((prev) => {
-        const updated = { ...prev };
-        for (const field of fields) {
-          if (field.reference && field.reference.model) {
-            // Find the field that fetched this model
-            const fetchedField = modelsToFetch.find(m => m.model === field.reference.model);
-            if (fetchedField && optionsMap[fetchedField.fieldName]) {
-              updated[field.name] = optionsMap[fetchedField.fieldName];
-            }
-          }
-        }
-        return updated;
-      });
-
-      fetchingRef.current = false;
-    };
-
-    if (fields.length > 0) {
-      fetchReferenceOptions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fields]);
+  const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.username ?? (opt?.id != null ? String(opt.id) : '');
 
   useEffect(() => {
     if (defaultValues && (defaultValues.id || Object.keys(defaultValues).length)) {
@@ -264,47 +191,27 @@ export default function MasterForm({
     }
 
     // Render based on field type
-    // Multiselect (custom)
+    // Multiselect (custom) – async search
     if (field.isMultiSelect && field.reference) {
-      const options = referenceOptions[fieldName] || [];
-      const isLoading = loadingOptions[fieldName];
+      const model = field.reference.model;
+      const arr = Array.isArray(fieldValue) ? fieldValue : [];
+      const valueObjs = arr.map((v) => (typeof v === 'object' && v !== null && (v.id != null || v.value != null) ? v : { id: v, value: v }));
       return (
-        isLoading ? (
-          <Box key={fieldName} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
-            <CircularProgress size={20} />
-            <Typography variant="body2">Loading options...</Typography>
-          </Box>
-        ) : (
-          <Select
-            key={fieldName}
-            name={fieldName}
-            label={displayLabel}
-            value={Array.isArray(fieldValue) ? fieldValue.map(v => String(v)) : []}
-            onChange={handleChange}
-            disabled={viewMode || isLoading}
-            required={isRequired && !viewMode}
-            error={hasError}
-            helperText={hasError ? errors[fieldName] : null}
-            multiple
-            renderValue={(selected) => {
-              const selectedLabels = (selected || []).map(val => {
-                const opt = options.find(o => String(o.value) === String(val));
-                return opt ? opt.label : val;
-              });
-              return selectedLabels.join(', ');
-            }}
-          >
-            {options.length === 0 ? (
-              <MenuItem value="" disabled>No options available</MenuItem>
-            ) : (
-              options.map((option) => (
-                <MenuItem key={option.id || option.value} value={String(option.value)}>
-                  {option.label}
-                </MenuItem>
-              ))
-            )}
-          </Select>
-        )
+        <AutocompleteField
+          key={fieldName}
+          name={fieldName}
+          label={displayLabel}
+          multiple
+          asyncLoadOptions={(q) => getReferenceOptionsSearch(model, { q, limit: 20 })}
+          getOptionLabel={getOptionLabel}
+          value={valueObjs}
+          onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: (newValue || []).map((o) => o?.id ?? o?.value) } })}
+          disabled={viewMode}
+          required={isRequired && !viewMode}
+          error={hasError}
+          helperText={hasError ? errors[fieldName] : null}
+          placeholder="Type to search..."
+        />
       );
     }
 
@@ -328,40 +235,25 @@ export default function MasterForm({
       case 'INTEGER':
       case 'DECIMAL':
       case 'FLOAT':
-        // Check if this is a reference field (foreign key)
+        // Check if this is a reference field (foreign key) – async search
         if (field.reference) {
-          const options = referenceOptions[fieldName] || [];
-          const isLoading = loadingOptions[fieldName];
-
+          const model = field.reference.model;
           return (
-            isLoading ? (
-              <Box key={fieldName} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 2 }}>
-                <CircularProgress size={20} />
-                <Typography variant="body2">Loading options...</Typography>
-              </Box>
-            ) : (
-              <Select
-                key={fieldName}
-                name={fieldName}
-                label={displayLabel}
-                value={fieldValue !== null && fieldValue !== undefined ? String(fieldValue) : ''}
-                onChange={handleChange}
-                disabled={viewMode || isLoading}
-                required={isRequired && !viewMode}
-                error={hasError}
-                helperText={hasError ? errors[fieldName] : null}
-              >
-                {options.length === 0 ? (
-                  <MenuItem value="" disabled>No options available</MenuItem>
-                ) : (
-                  options.map((option) => (
-                    <MenuItem key={option.id || option.value} value={String(option.value)}>
-                      {option.label}
-                    </MenuItem>
-                  ))
-                )}
-              </Select>
-            )
+            <AutocompleteField
+              key={fieldName}
+              name={fieldName}
+              label={displayLabel}
+              asyncLoadOptions={(q) => getReferenceOptionsSearch(model, { q, limit: 20 })}
+              referenceModel={model}
+              getOptionLabel={getOptionLabel}
+              value={fieldValue !== null && fieldValue !== undefined && fieldValue !== '' ? { id: fieldValue } : null}
+              onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: newValue?.id ?? newValue?.value ?? '' } })}
+              disabled={viewMode}
+              required={isRequired && !viewMode}
+              error={hasError}
+              helperText={hasError ? errors[fieldName] : null}
+              placeholder="Type to search..."
+            />
           );
         }
 
@@ -463,21 +355,23 @@ export default function MasterForm({
         
         // Check if it's a status field or enum-like field
         if (fieldName.toLowerCase().includes('status')) {
+          const statusOptions = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
+          const val = fieldValue || 'active';
           return (
-            <Select
+            <AutocompleteField
               key={fieldName}
               name={fieldName}
               label={displayLabel}
-              value={fieldValue || 'active'}
-              onChange={handleChange}
+              options={statusOptions}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ''}
+              value={statusOptions.find((o) => o.value === val) || { value: val, label: val === 'active' ? 'Active' : 'Inactive' }}
+              onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: newValue?.value ?? 'active' } })}
               disabled={viewMode}
               required={isRequired && !viewMode}
               error={hasError}
               helperText={hasError ? errors[fieldName] : null}
-            >
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
-            </Select>
+              placeholder="Status"
+            />
           );
         }
         

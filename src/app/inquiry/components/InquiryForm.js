@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import moment from "moment";
-import mastersService from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import { validatePhone, validateEmail, formatPhone, validateE164Phone } from "@/utils/validators";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import Checkbox from "@/components/common/Checkbox";
 import PhoneField from "@/components/common/PhoneField";
@@ -22,13 +22,9 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const [formData, setFormData] = useState(defaultValues);
     const [errors, setErrors] = useState({});
 
+    const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
+
     const [options, setOptions] = useState({
-        inquirySources: [],
-        users: [],
-        branches: [],
-        projectSchemes: [],
-        orderTypes: [],
-        discoms: [],
         states: [],
         cities: [],
     });
@@ -57,39 +53,15 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     useEffect(() => {
         const loadOptions = async () => {
             try {
-                const [
-                    inquirySourceRes,
-                    usersRes,
-                    branchesRes,
-                    projectSchemesRes,
-                    orderTypesRes,
-                    discomsRes,
-                    statesRes,
-                    citiesRes,
-                    constantsRes,
-                ] = await Promise.all([
-                    mastersService.getReferenceOptions("inquiry_source.model"),
-                    mastersService.getReferenceOptions("user.model"),
-                    mastersService.getReferenceOptions("company_branch.model"),
-                    mastersService.getReferenceOptions("project_scheme.model"),
-                    mastersService.getReferenceOptions("order_type.model"),
-                    mastersService.getReferenceOptions("discom.model"),
+                const [statesRes, citiesRes, constantsRes] = await Promise.all([
                     mastersService.getReferenceOptions("state.model"),
                     mastersService.getReferenceOptions("city.model"),
                     mastersService.getConstants(),
                 ]);
-
                 setOptions({
-                    inquirySources: inquirySourceRes?.result || [],
-                    users: usersRes?.result || [],
-                    branches: branchesRes?.result || [],
-                    projectSchemes: projectSchemesRes?.result || [],
-                    orderTypes: orderTypesRes?.result || [],
-                    discoms: discomsRes?.result || [],
                     states: statesRes?.result || [],
                     cities: citiesRes?.result || [],
                 });
-
                 const payload = constantsRes?.result || constantsRes;
                 setRatingOptions(payload?.ratings || []);
                 setPaymentTypeOptions(payload?.paymentTypes || []);
@@ -97,7 +69,6 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                 console.error("Failed to load reference options", err);
             }
         };
-
         loadOptions();
     }, [isEdit]);
 
@@ -350,21 +321,19 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
             >
                 <FormSection title="Inquiry Details">
                 <FormGrid cols={3}>
-                        <Select
+                        <AutocompleteField
                             name="inquiry_source_id"
                             label="Inquiry Source"
-                            value={formData.inquiry_source_id || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("inquiry_source.model", { q, limit: 20 })}
+                            referenceModel="inquiry_source.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.inquiry_source_id ? { id: formData.inquiry_source_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "inquiry_source_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.inquiry_source_id}
                             helperText={errors.inquiry_source_id}
                             required
-                        >
-                            {options.inquirySources.map((opt) => (
-                                <MenuItem key={opt.id} value={opt.id}>
-                                    {opt.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                         <DateField
                             name="date_of_inquiry"
                             label="Date of Inquiry"
@@ -374,78 +343,68 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             helperText={errors.date_of_inquiry}
                             required
                         />
-                        <Select
+                        <AutocompleteField
                             name="inquiry_by"
                             label="Inquiry By"
-                            value={formData.inquiry_by || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.inquiry_by ? { id: formData.inquiry_by } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "inquiry_by", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.inquiry_by}
                             helperText={errors.inquiry_by}
                             required
-                        >
-                            {options.users.map((u) => (
-                                <MenuItem key={u.id} value={u.id}>
-                                    {u.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="handled_by"
                             label="Handled By"
-                            value={formData.handled_by || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.handled_by ? { id: formData.handled_by } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "handled_by", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.handled_by}
                             helperText={errors.handled_by}
                             required
-                        >
-                            {options.users.map((u) => (
-                                <MenuItem key={u.id} value={u.id}>
-                                    {u.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="channel_partner"
                             label="Channel Partner"
-                            value={formData.channel_partner || ""}
-                            onChange={handleChange}
-                        >
-                            {options.users.map((u) => (
-                                <MenuItem key={u.id} value={u.id}>
-                                    {u.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.channel_partner ? { id: formData.channel_partner } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "channel_partner", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="branch_id"
                             label="Branch"
-                            value={formData.branch_id || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                            referenceModel="company_branch.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.branch_id ? { id: formData.branch_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "branch_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.branch_id}
                             helperText={errors.branch_id}
                             required
-                        >
-                            {options.branches.map((b) => (
-                                <MenuItem key={b.id} value={b.id}>
-                                    {b.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="project_scheme_id"
                             label="Project Scheme"
-                            value={formData.project_scheme_id || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+                            referenceModel="project_scheme.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "project_scheme_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.project_scheme_id}
                             helperText={errors.project_scheme_id}
                             required
-                        >
-                            {options.projectSchemes.map((p) => (
-                                <MenuItem key={p.id} value={p.id}>
-                                    {p.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                         <Input
                             type="tel"
                             name="capacity"
@@ -457,45 +416,38 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             helperText={errors.capacity}
                             required
                         />
-                        <Select
+                        <AutocompleteField
                             name="order_type"
                             label="Order Type"
-                            value={formData.order_type || ""}
-                            onChange={handleChange}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
+                            referenceModel="order_type.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.order_type ? { id: formData.order_type } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "order_type", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.order_type}
                             helperText={errors.order_type}
                             required
-                        >
-                            {options.orderTypes.map((o) => (
-                                <MenuItem key={o.id} value={o.id}>
-                                    {o.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="discom_id"
                             label="Discom"
-                            value={formData.discom_id || ""}
-                            onChange={handleChange}
-                        >
-                            {options.discoms.map((d) => (
-                                <MenuItem key={d.id} value={d.id}>
-                                    {d.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("discom.model", { q, limit: 20 })}
+                            referenceModel="discom.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.discom_id ? { id: formData.discom_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "discom_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="rating"
                             label="Customer Eagerness"
-                            value={formData.rating || ""}
-                            onChange={handleChange}
-                        >
-                            {ratingOptions.map((r) => (
-                                <MenuItem key={r} value={r}>
-                                    {r}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            options={ratingOptions.map((r) => ({ value: r, label: r }))}
+                            getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? o?.value ?? "")}
+                            value={formData.rating ? { value: formData.rating, label: formData.rating } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "rating", value: newValue?.value ?? newValue ?? "" } })}
+                            placeholder="Type to search..."
+                        />
                 </FormGrid>
                 </FormSection>
                 <FormSection title="Customer Details">
@@ -550,46 +502,44 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             value={formData.pin_code || ""}
                             onChange={handleChange}
                         />
-                        <Select
+                        <AutocompleteField
                             name="state_id"
                             label="State"
-                            value={formData.state_id || ""}
-                            onChange={handleChange}
+                            options={options.states}
+                            getOptionLabel={getOptionLabel}
+                            value={options.states.find((s) => s.id == formData.state_id) || (formData.state_id ? { id: formData.state_id } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.state_id}
                             helperText={errors.state_id}
                             required
-                        >
-                            {options.states.map((s) => (
-                                <MenuItem key={s.id} value={s.id}>
-                                    {s.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="city_id"
                             label="City"
-                            value={formData.city_id || ""}
-                            onChange={handleChange}
+                            options={options.cities.filter((c) => {
+                                if (!formData.state_id) return false;
+                                const cityStateId = typeof c.state_id === "string" ? parseInt(c.state_id, 10) : c.state_id;
+                                const selectedStateId = typeof formData.state_id === "string" ? parseInt(formData.state_id, 10) : formData.state_id;
+                                return cityStateId === selectedStateId;
+                            })}
+                            getOptionLabel={getOptionLabel}
+                            value={(() => {
+                                const filtered = options.cities.filter((c) => {
+                                    if (!formData.state_id) return false;
+                                    const cityStateId = typeof c.state_id === "string" ? parseInt(c.state_id, 10) : c.state_id;
+                                    const selectedStateId = typeof formData.state_id === "string" ? parseInt(formData.state_id, 10) : formData.state_id;
+                                    return cityStateId === selectedStateId;
+                                });
+                                return filtered.find((c) => c.id == formData.city_id) || (formData.city_id ? { id: formData.city_id } : null);
+                            })()}
+                            onChange={(e, newValue) => handleChange({ target: { name: "city_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             error={!!errors.city_id}
                             helperText={errors.city_id}
                             disabled={!formData.state_id}
                             required
-                        >
-                            {options.cities
-                                .filter((c) => {
-                                    // Filter cities by selected state
-                                    if (!formData.state_id) return false;
-                                    // Handle both string and number comparison
-                                    const cityStateId = typeof c.state_id === 'string' ? parseInt(c.state_id) : c.state_id;
-                                    const selectedStateId = typeof formData.state_id === 'string' ? parseInt(formData.state_id) : formData.state_id;
-                                    return cityStateId === selectedStateId;
-                                })
-                                .map((c) => (
-                                    <MenuItem key={c.id} value={c.id}>
-                                        {c.label}
-                                    </MenuItem>
-                                ))}
-                        </Select>
+                        />
                         <Input
                             name="taluka"
                             label="Taluka"
@@ -648,18 +598,15 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             onChange={handleChange}
                             inputProps={{ min: 0, step: 0.01 }}
                         />
-                        <Select
+                        <AutocompleteField
                             name="payment_type"
                             label="Payment Type"
-                            value={formData.payment_type || ""}
-                            onChange={handleChange}
-                        >
-                            {paymentTypeOptions.map((p) => (
-                                <MenuItem key={p} value={p}>
-                                    {p}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            options={paymentTypeOptions.map((p) => ({ value: p, label: p }))}
+                            getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? o?.value ?? "")}
+                            value={formData.payment_type ? { value: formData.payment_type, label: formData.payment_type } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "payment_type", value: newValue?.value ?? newValue ?? "" } })}
+                            placeholder="Type to search..."
+                        />
 
                         <Checkbox
                             name="do_not_send_message"

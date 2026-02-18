@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import { IconUpload } from "@tabler/icons-react";
-import mastersService, { getDefaultState } from "@/services/mastersService";
+import mastersService, { getDefaultState, getReferenceOptionsSearch } from "@/services/mastersService";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
@@ -105,90 +105,36 @@ export default function OrderForm({
 
     const [errors, setErrors] = useState({});
     const [dropdowns, setDropdowns] = useState({
-        projectSchemes: [],
-        orderTypes: [],
-        products: [],
         solarPanels: [],
         inverters: [],
-        projectPhases: [],
-        inquirySources: [],
-        users: [],
-        branches: [],
-        discoms: [],
-        divisions: [],
-        subDivisions: [],
-        loanTypes: [],
-        states: [],
-        cities: [],
     });
     const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
     const hasLoaded = useRef(false);
 
-    // Load all dropdown options
+    const getOptionLabel = (opt) =>
+        opt?.source_name ?? opt?.type_name ?? opt?.name ?? opt?.label ?? opt?.username ?? (opt?.id != null ? String(opt.id) : "");
+
+    // Load only non-master dropdown options (solar panels, inverters, payment types)
     useEffect(() => {
         const loadDropdowns = async () => {
             if (hasLoaded.current) return;
             hasLoaded.current = true;
             try {
-                const [
-                    projectSchemes,
-                    orderTypes,
-                    products,
-                    projectPhases,
-                    inquirySources,
-                    users,
-                    branches,
-                    discoms,
-                    divisions,
-                    subDivisions,
-                    loanTypes,
-                    states,
-                    constantsRes,
-                    solarPanelsRes,
-                    invertersRes,
-                ] = await Promise.all([
-                    mastersService.getReferenceOptions("project_scheme.model"),
-                    mastersService.getReferenceOptions("order_type.model"),
-                    mastersService.getReferenceOptions("product.model"),
-                    mastersService.getReferenceOptions("project_phase.model"),
-                    mastersService.getReferenceOptions("inquiry_source.model"),
-                    mastersService.getReferenceOptions("user.model"),
-                    mastersService.getReferenceOptions("company_branch.model"),
-                    mastersService.getReferenceOptions("discom.model"),
-                    mastersService.getReferenceOptions("division.model"),
-                    mastersService.getReferenceOptions("sub_division.model"),
-                    mastersService.getReferenceOptions("loan_type.model"),
-                    mastersService.getReferenceOptions("state.model"),
+                const [constantsRes, solarPanelsRes, invertersRes] = await Promise.all([
                     mastersService.getConstants(),
                     orderService.getSolarPanels(),
                     orderService.getInverters(),
                 ]);
-
                 setDropdowns({
-                    projectSchemes: Array.isArray(projectSchemes?.result) ? projectSchemes.result : [],
-                    orderTypes: Array.isArray(orderTypes?.result) ? orderTypes.result : [],
-                    products: Array.isArray(products?.result) ? products.result : [],
-                    projectPhases: Array.isArray(projectPhases?.result) ? projectPhases.result : [],
-                    inquirySources: Array.isArray(inquirySources?.result) ? inquirySources.result : [],
-                    users: Array.isArray(users?.result) ? users.result : [],
-                    branches: Array.isArray(branches?.result) ? branches.result : [],
-                    discoms: Array.isArray(discoms?.result) ? discoms.result : [],
-                    divisions: Array.isArray(divisions?.result) ? divisions.result : [],
-                    subDivisions: Array.isArray(subDivisions?.result) ? subDivisions.result : [],
-                    loanTypes: Array.isArray(loanTypes?.result) ? loanTypes.result : [],
-                    states: Array.isArray(states?.result) ? states.result : [],
-                    cities: [],
                     solarPanels: Array.isArray(solarPanelsRes?.result) ? solarPanelsRes.result : [],
                     inverters: Array.isArray(invertersRes?.result) ? invertersRes.result : [],
                 });
-
                 const payload = constantsRes?.result || constantsRes;
                 setPaymentTypeOptions(payload?.paymentTypes || []);
             } catch (err) {
                 console.error("Failed to load dropdown options", err);
             }
         };
-
         loadDropdowns();
     }, []);
 
@@ -348,54 +294,45 @@ export default function OrderForm({
 
                 <FormSection title="Inquiry Information">
                     <FormGrid cols={3}>
-                        <Select
+                        <AutocompleteField
                             name="inquiry_source_id"
                             label="Inquiry Source"
-                            value={formData.inquiry_source_id || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("inquiry_source.model", { q, limit: 20 })}
+                            referenceModel="inquiry_source.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.inquiry_source_id ? { id: formData.inquiry_source_id } : null}
+                            onChange={(e, newValue) => handleChange("inquiry_source_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.inquiry_source_id}
                             helperText={errors.inquiry_source_id}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.inquirySources.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.source_name || item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="inquiry_by"
                             label="Inquiry By"
-                            value={formData.inquiry_by || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.inquiry_by ? { id: formData.inquiry_by } : null}
+                            onChange={(e, newValue) => handleChange("inquiry_by", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.inquiry_by}
                             helperText={errors.inquiry_by}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.users.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="handled_by"
                             label="Handled By"
-                            value={formData.handled_by || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.handled_by ? { id: formData.handled_by } : null}
+                            onChange={(e, newValue) => handleChange("handled_by", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.handled_by}
                             helperText={errors.handled_by}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.users.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                         <Input
                             name="reference_from"
                             label="Reference From"
@@ -416,51 +353,42 @@ export default function OrderForm({
                             helperText={errors.order_date}
                             required
                         />
-                        <Select
+                        <AutocompleteField
                             name="branch_id"
                             label="Branch"
-                            value={formData.branch_id || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                            referenceModel="company_branch.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.branch_id ? { id: formData.branch_id } : null}
+                            onChange={(e, newValue) => handleChange("branch_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.branch_id}
                             helperText={errors.branch_id}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.branches.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="channel_partner_id"
                             label="Channel Partner"
-                            value={formData.channel_partner_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.users.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            referenceModel="user.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.channel_partner_id ? { id: formData.channel_partner_id } : null}
+                            onChange={(e, newValue) => handleChange("channel_partner_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="project_scheme_id"
                             label="Project Scheme"
-                            value={formData.project_scheme_id || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+                            referenceModel="project_scheme.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
+                            onChange={(e, newValue) => handleChange("project_scheme_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.project_scheme_id}
                             helperText={errors.project_scheme_id}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.projectSchemes.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                         <Input
                             type="number"
                             name="capacity"
@@ -499,48 +427,37 @@ export default function OrderForm({
                             onChange={handleChangeEvent}
                             inputProps={{ min: 0, step: 0.01 }}
                         />
-                        <Select
+                        <AutocompleteField
                             name="order_type_id"
                             label="Order Type"
-                            value={formData.order_type_id || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
+                            referenceModel="order_type.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.order_type_id ? { id: formData.order_type_id } : null}
+                            onChange={(e, newValue) => handleChange("order_type_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.order_type_id}
                             helperText={errors.order_type_id}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.orderTypes.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                        />
+                        <AutocompleteField
                             name="solar_panel_id"
                             label="Solar Panel"
-                            value={formData.solar_panel_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.solarPanels.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.label || item.product_name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            options={dropdowns.solarPanels}
+                            getOptionLabel={(item) => item?.label || item?.product_name || item?.name ?? ""}
+                            value={dropdowns.solarPanels.find((p) => p.id === formData.solar_panel_id) || (formData.solar_panel_id ? { id: formData.solar_panel_id } : null)}
+                            onChange={(e, newValue) => handleChange("solar_panel_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="inverter_id"
                             label="Inverter"
-                            value={formData.inverter_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.inverters.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.label || item.product_name || item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            options={dropdowns.inverters}
+                            getOptionLabel={(item) => item?.label || item?.product_name || item?.name ?? ""}
+                            value={dropdowns.inverters.find((p) => p.id === formData.inverter_id) || (formData.inverter_id ? { id: formData.inverter_id } : null)}
+                            onChange={(e, newValue) => handleChange("inverter_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
                         <Input
                             name="order_remarks"
                             label="Order Remarks"
@@ -638,22 +555,18 @@ export default function OrderForm({
 
                 <FormSection title="Connection Details">
                     <FormGrid cols={3}>
-                        <Select
+                        <AutocompleteField
                             name="discom_id"
                             label="Discom"
-                            value={formData.discom_id || ""}
-                            onChange={handleChangeEvent}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("discom.model", { q, limit: 20 })}
+                            getOptionLabel={getOptionLabel}
+                            value={formData.discom_id ? { id: formData.discom_id } : null}
+                            onChange={(e, newValue) => handleChange("discom_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                             error={!!errors.discom_id}
                             helperText={errors.discom_id}
                             required
-                            placeholder="Select..."
-                        >
-                            {dropdowns.discoms.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                         <Input
                             name="consumer_no"
                             label="Consumer No"
@@ -663,32 +576,24 @@ export default function OrderForm({
                             helperText={errors.consumer_no}
                             required
                         />
-                        <Select
+                        <AutocompleteField
                             name="division_id"
                             label="Division"
-                            value={formData.division_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.divisions.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("division.model", { q, limit: 20 })}
+                            getOptionLabel={getOptionLabel}
+                            value={formData.division_id ? { id: formData.division_id } : null}
+                            onChange={(e, newValue) => handleChange("division_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="sub_division_id"
                             label="Sub Division"
-                            value={formData.sub_division_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.subDivisions.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("sub_division.model", { q, limit: 20 })}
+                            getOptionLabel={getOptionLabel}
+                            value={formData.sub_division_id ? { id: formData.sub_division_id } : null}
+                            onChange={(e, newValue) => handleChange("sub_division_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
                         <Input
                             name="circle"
                             label="Circle"
@@ -703,19 +608,15 @@ export default function OrderForm({
                             onChange={handleChangeEvent}
                             inputProps={{ min: 0, step: 0.01 }}
                         />
-                        <Select
+                        <AutocompleteField
                             name="project_phase_id"
                             label="Project Phase"
-                            value={formData.project_phase_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.projectPhases.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_phase.model", { q, limit: 20 })}
+                            getOptionLabel={getOptionLabel}
+                            value={formData.project_phase_id ? { id: formData.project_phase_id } : null}
+                            onChange={(e, newValue) => handleChange("project_phase_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
                         <DateField
                             name="date_of_registration_gov"
                             label="Date of Registration Gov"
@@ -751,32 +652,24 @@ export default function OrderForm({
 
                 <FormSection title="Loan Process / Payment Mode">
                     <FormGrid cols={3}>
-                        <Select
+                        <AutocompleteField
                             name="payment_type"
                             label="Payment Type"
-                            value={formData.payment_type || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {paymentTypeOptions.map((item) => (
-                                <MenuItem key={item} value={item}>
-                                    {item}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                        <Select
+                            options={paymentTypeOptions.map((item) => ({ value: item, label: item }))}
+                            getOptionLabel={(opt) => (typeof opt === "string" ? opt : opt?.label ?? opt?.value ?? "")}
+                            value={formData.payment_type ? { value: formData.payment_type, label: formData.payment_type } : null}
+                            onChange={(e, newValue) => handleChange("payment_type", newValue?.value ?? newValue ?? "")}
+                            placeholder="Type to search..."
+                        />
+                        <AutocompleteField
                             name="loan_type_id"
                             label="Loan Type"
-                            value={formData.loan_type_id || ""}
-                            onChange={handleChangeEvent}
-                            placeholder="Select..."
-                        >
-                            {dropdowns.loanTypes.map((item) => (
-                                <MenuItem key={item.id} value={item.id}>
-                                    {item.type_name || item.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("loan_type.model", { q, limit: 20 })}
+                            getOptionLabel={getOptionLabel}
+                            value={formData.loan_type_id ? { id: formData.loan_type_id } : null}
+                            onChange={(e, newValue) => handleChange("loan_type_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                        />
                     </FormGrid>
                 </FormSection>
 

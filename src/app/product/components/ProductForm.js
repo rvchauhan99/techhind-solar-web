@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import {
     Box,
     Grid,
-    MenuItem,
     Typography,
     FormControlLabel,
     Checkbox,
@@ -13,7 +12,7 @@ import {
 } from "@mui/material";
 import mastersService from "@/services/mastersService";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -477,82 +476,69 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     {/* Product Type */}
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             name="product_type_id"
                             label="Product Type"
-                            value={formData.product_type_id}
-                            onChange={handleChange}
+                            options={options.productTypes}
+                            getOptionLabel={(t) => t?.name ?? t?.label ?? ""}
+                            value={options.productTypes.find((t) => t.id === formData.product_type_id) || (formData.product_type_id ? { id: formData.product_type_id } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "product_type_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             required
                             error={!!errors.product_type_id}
                             helperText={errors.product_type_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {options.productTypes.map((type) => (
-                                <MenuItem key={type.id} value={type.id}>
-                                    {type.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
 
                     {/* Product Make */}
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             name="product_make_id"
                             label="Product Make"
-                            value={formData.product_make_id}
-                            onChange={handleChange}
+                            options={options.productMakes}
+                            getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+                            value={options.productMakes.find((m) => m.id === formData.product_make_id) || (formData.product_make_id ? { id: formData.product_make_id } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "product_make_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             required
                             disabled={!formData.product_type_id}
                             error={!!errors.product_make_id}
                             helperText={errors.product_make_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {options.productMakes.map((make) => (
-                                <MenuItem key={make.id} value={make.id}>
-                                    {make.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
 
                     {/* Panel Type (Panel Only) */}
                     {selectedTypeName === "panel" && (
                         <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
+                            <AutocompleteField
                                 name="panel_type"
                                 label="Panel Type"
-                                value={formData.panel_type}
-                                onChange={handleChange}
+                                options={[{ value: "DCR", label: "DCR" }, { value: "NON DCR", label: "NON DCR" }]}
+                                getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+                                value={formData.panel_type ? { value: formData.panel_type, label: formData.panel_type } : null}
+                                onChange={(e, newValue) => handleChange({ target: { name: "panel_type", value: newValue?.value ?? "" } })}
+                                placeholder="Type to search..."
                                 required
                                 error={!!errors.panel_type}
                                 helperText={errors.panel_type}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                <MenuItem value="DCR">DCR</MenuItem>
-                                <MenuItem value="NON DCR">NON DCR</MenuItem>
-                            </Select>
+                            />
                         </Grid>
                     )}
 
                     {/* Product Technology (Panel Only) */}
                     {selectedTypeName === "panel" && (
                         <Grid item size={{ xs: 12, md: 3 }}>
-                            <Select
+                            <AutocompleteField
                                 name="panel_technology_id"
                                 label="Product Technology"
-                                value={formData.panel_technology_id}
-                                onChange={handleChange}
+                                options={options.panelTechnologies}
+                                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                                value={options.panelTechnologies.find((o) => o.id === formData.panel_technology_id) || (formData.panel_technology_id ? { id: formData.panel_technology_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "panel_technology_id", value: newValue?.id ?? "" } })}
+                                placeholder="Type to search..."
                                 error={!!errors.panel_technology_id}
                                 helperText={errors.panel_technology_id}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.panelTechnologies.map((opt) => (
-                                    <MenuItem key={opt.id} value={opt.id}>
-                                        {opt.label ?? opt.name ?? opt.id}
-                                    </MenuItem>
-                                ))}
-                            </Select>
+                            />
                         </Grid>
                     )}
 
@@ -598,38 +584,34 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
 
                     {/* Measurement Unit */}
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             name="measurement_unit_id"
                             label="Measurement Unit"
-                            value={formData.measurement_unit_id}
-                            onChange={handleChange}
+                            options={options.measurementUnits}
+                            getOptionLabel={(u) => u?.unit ?? u?.name ?? u?.label ?? ""}
+                            value={options.measurementUnits.find((u) => u.id === formData.measurement_unit_id) || (formData.measurement_unit_id ? { id: formData.measurement_unit_id } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "measurement_unit_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
                             required
                             error={!!errors.measurement_unit_id}
                             helperText={errors.measurement_unit_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {options.measurementUnits.map((unit) => (
-                                <MenuItem key={unit.id} value={unit.id}>
-                                    {unit.unit}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
 
                     {/* Tracking Type */}
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Select
+                        <AutocompleteField
                             name="tracking_type"
                             label="Tracking Type"
-                            value={formData.tracking_type}
-                            onChange={handleChange}
+                            options={[{ value: "LOT", label: "LOT" }, { value: "SERIAL", label: "SERIAL" }]}
+                            getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+                            value={formData.tracking_type ? { value: formData.tracking_type, label: formData.tracking_type } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "tracking_type", value: newValue?.value ?? "" } })}
+                            placeholder="Type to search..."
                             required
                             error={!!errors.tracking_type}
                             helperText={errors.tracking_type}
-                        >
-                            <MenuItem value="LOT">LOT</MenuItem>
-                            <MenuItem value="SERIAL">SERIAL</MenuItem>
-                        </Select>
+                        />
                     </Grid>
 
                     {/* Serial Required - Auto-set based on tracking_type, but show for visibility */}

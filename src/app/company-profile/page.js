@@ -6,8 +6,8 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import Loader from "@/components/common/Loader";
 import Checkbox from "@/components/common/Checkbox";
-import CommonSelect from "@/components/common/Select";
-import { MenuItem as CommonMenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import {
     Box,
     Card,
@@ -57,7 +57,7 @@ import { DIALOG_FORM_SMALL, DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 // import AppLayout from "@/components/layout/AppLayout";
 import companyService from "@/services/companyService";
 import userMasterService from "@/services/userMasterService";
-import { getReferenceOptions, getDefaultState } from "@/services/mastersService";
+import { getDefaultState } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
 
@@ -66,7 +66,6 @@ export default function CompanyProfilePage() {
     const [bankAccounts, setBankAccounts] = useState([]);
     const [branches, setBranches] = useState([]);
     const [warehouses, setWarehouses] = useState([]);
-    const [states, setStates] = useState([]);
     const [branchesLoaded, setBranchesLoaded] = useState(false);
     const [warehousesLoaded, setWarehousesLoaded] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -136,7 +135,6 @@ export default function CompanyProfilePage() {
     useEffect(() => {
         loadCompanyProfile();
         loadBankAccounts();
-        loadStates(); // Load states for warehouse dropdown
     }, []);
 
     const loadCompanyProfile = async () => {
@@ -217,20 +215,6 @@ export default function CompanyProfilePage() {
         } catch (err) {
             console.error("Error loading warehouses:", err);
             toastError(err?.response?.data?.message || "Failed to load warehouses");
-        }
-    };
-
-    const loadStates = async () => {
-        try {
-            const response = await getReferenceOptions("state");
-            console.log("States response:", response); // Debug log
-            const statesData = response.result || response.data || response;
-            console.log("States data:", statesData); // Debug log
-            setStates(Array.isArray(statesData) ? statesData : []);
-        } catch (err) {
-            console.error("Error loading states:", err);
-            toastError(err?.response?.data?.message || "Failed to load states");
-            setStates([]);
         }
     };
 
@@ -2418,23 +2402,19 @@ export default function CompanyProfilePage() {
                                             error={!!warehouseErrors.mobile}
                                             helperText={warehouseErrors.mobile || ""}
                                         />
-                                        <CommonSelect
+                                        <AutocompleteField
                                             name="state_id"
                                             label="State"
-                                            value={warehouseFormData.state_id ?? ""}
-                                            onChange={handleWarehouseInputChange}
+                                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+                                            referenceModel="state.model"
+                                            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                                            value={warehouseFormData.state_id ? { id: warehouseFormData.state_id } : null}
+                                            onChange={(e, newValue) => handleWarehouseInputChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+                                            placeholder="Type to search..."
                                             required
                                             error={!!warehouseErrors.state_id}
                                             helperText={warehouseErrors.state_id || ""}
-                                            placeholder={!states?.length ? "Loading states..." : "Select state"}
-                                        >
-                                            {states?.length > 0 &&
-                                                states.map((state) => (
-                                                    <CommonMenuItem key={state.id} value={state.id}>
-                                                        {state.name || state.label || `State ${state.id}`}
-                                                    </CommonMenuItem>
-                                                ))}
-                                        </CommonSelect>
+                                        />
                                         <Input
                                             name="email"
                                             label="Email"
