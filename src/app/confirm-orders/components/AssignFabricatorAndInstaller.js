@@ -10,7 +10,9 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
+import companyService from "@/services/companyService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
@@ -24,7 +26,11 @@ export default function AssignFabricatorAndInstaller({
     successMessage = "Fabricator & Installer assignment saved successfully!"
 }) {
     const pathname = usePathname();
+    const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders");
+    const [canAssign, setCanAssign] = useState(false);
+    const [managerCheckLoading, setManagerCheckLoading] = useState(true);
+    const [managerCheckError, setManagerCheckError] = useState(null);
     const [formData, setFormData] = useState({
         fabricator_installer_are_same: true,
         fabricator_installer_id: "",
@@ -95,6 +101,61 @@ export default function AssignFabricatorAndInstaller({
         }
     }, [orderData]);
 
+    useEffect(() => {
+        if (!orderData?.id || !user?.id) {
+            setManagerCheckLoading(false);
+            setCanAssign(false);
+            if (orderData?.id && !user?.id) {
+                setManagerCheckError("Unable to verify user. Please sign in again.");
+            } else {
+                setManagerCheckError(null);
+            }
+            return;
+        }
+        const plannedWarehouseId = orderData.planned_warehouse_id;
+        const plannerCompleted = orderData.stages?.planner === "completed";
+        if (!plannedWarehouseId || !plannerCompleted) {
+            setManagerCheckLoading(false);
+            setCanAssign(false);
+            setManagerCheckError(
+                "A planned warehouse must be set in the Planner step before you can assign fabricator and installer."
+            );
+            return;
+        }
+        let cancelled = false;
+        setManagerCheckLoading(true);
+        setManagerCheckError(null);
+        companyService
+            .getWarehouseManagers(plannedWarehouseId)
+            .then((res) => {
+                if (cancelled) return;
+                const data = res?.result ?? res ?? {};
+                const managers = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
+                const isManager = managers.some((m) => Number(m.id) === Number(user.id));
+                setCanAssign(!!isManager);
+                if (!isManager) {
+                    setManagerCheckError(
+                        "Only warehouse managers of the planned warehouse (selected in the Planner step) can assign fabricator and installer. You are not assigned as a manager for this order's warehouse. Please contact your administrator if you need access."
+                    );
+                }
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setCanAssign(false);
+                setManagerCheckError(
+                    err?.response?.data?.message ||
+                        err?.message ||
+                        "Unable to verify permissions. Please try again or contact your administrator."
+                );
+            })
+            .finally(() => {
+                if (!cancelled) setManagerCheckLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [orderData?.id, orderData?.planned_warehouse_id, orderData?.stages?.planner, user?.id]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
@@ -134,6 +195,12 @@ export default function AssignFabricatorAndInstaller({
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isReadOnly) return;
+        if (!canAssign) {
+            toastError(
+                "Only warehouse managers of the planned warehouse can perform this assignment. Please contact your administrator if you need access."
+            );
+            return;
+        }
         setSubmitting(true);
         setError(null);
         setFieldErrors({});
@@ -194,6 +261,25 @@ export default function AssignFabricatorAndInstaller({
     };
 
     const isCompleted = orderData?.stages?.[currentStage] === "completed";
+
+    if (managerCheckLoading) {
+        return (
+            <Box className="p-4">
+                <p className="text-sm text-muted-foreground">Checking permissions…</p>
+            </Box>
+        );
+    }
+
+    if (!isReadOnly && !canAssign) {
+        return (
+            <Box className="p-4">
+                <Alert severity="warning" sx={{ mt: 1 }}>
+                    {managerCheckError ||
+                        "Only warehouse managers of the planned warehouse (selected in the Planner step) can assign fabricator and installer. You are not assigned as a manager for this order's warehouse. Please contact your administrator if you need access."}
+                </Alert>
+            </Box>
+        );
+    }
 
     return (
         <Box component="form" onSubmit={handleSubmit} className="p-4">
