@@ -444,7 +444,7 @@ export default function OrderForm({
                             name="solar_panel_id"
                             label="Solar Panel"
                             options={dropdowns.solarPanels}
-                            getOptionLabel={(item) => item?.label || item?.product_name || item?.name ?? ""}
+                            getOptionLabel={(item) => (item?.label || item?.product_name || item?.name) ?? ""}
                             value={dropdowns.solarPanels.find((p) => p.id === formData.solar_panel_id) || (formData.solar_panel_id ? { id: formData.solar_panel_id } : null)}
                             onChange={(e, newValue) => handleChange("solar_panel_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
@@ -453,7 +453,7 @@ export default function OrderForm({
                             name="inverter_id"
                             label="Inverter"
                             options={dropdowns.inverters}
-                            getOptionLabel={(item) => item?.label || item?.product_name || item?.name ?? ""}
+                            getOptionLabel={(item) => (item?.label || item?.product_name || item?.name) ?? ""}
                             value={dropdowns.inverters.find((p) => p.id === formData.inverter_id) || (formData.inverter_id ? { id: formData.inverter_id } : null)}
                             onChange={(e, newValue) => handleChange("inverter_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
