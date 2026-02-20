@@ -101,6 +101,16 @@ export const validateEmail = (email) => {
 };
 
 /**
+ * Normalizes email for storage and comparison: trim and lowercase.
+ * Use before validation and when sending to API so user email is always processed as lowercase.
+ *
+ * @param {string} email - Email to normalize
+ * @returns {string} - Trimmed lowercase email or empty string
+ */
+export const normalizeEmail = (email) =>
+  (email && String(email).trim().toLowerCase()) || "";
+
+/**
  * Validates phone number in Indian format.
  * Kept for backward compatibility for fields that still expect a 10‑digit Indian mobile.
  *

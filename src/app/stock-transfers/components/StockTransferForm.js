@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Box,
   Grid,
   Typography,
-  MenuItem,
   Alert,
   CircularProgress,
   IconButton,
@@ -20,17 +19,19 @@ import {
   Checkbox,
   FormControlLabel,
   Autocomplete,
+  TextField,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import BarcodeScanner from "@/components/common/BarcodeScanner";
 import { toastError } from "@/utils/toast";
+import { splitSerialInput } from "@/utils/serialInput";
 import stockService from "@/services/stockService";
 import companyService from "@/services/companyService";
 import productService from "@/services/productService";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,8 @@ export default function StockTransferForm({
     serials: [],
   });
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [gunScanValue, setGunScanValue] = useState("");
+  const gunScanRef = useRef(null);
 
   useEffect(() => {
     const loadWarehouses = async () => {
@@ -142,6 +145,15 @@ export default function StockTransferForm({
       setAvailableStocks({});
     }
   }, [formData.from_warehouse_id]);
+
+  useEffect(() => {
+    const product = products.find((p) => p.id === parseInt(currentItem.product_id));
+    const quantity = Number(currentItem.quantity) || 0;
+    if (formData.from_warehouse_id && currentItem.product_id && quantity > 0 && product?.serial_required) {
+      const t = setTimeout(() => gunScanRef.current?.focus(), 200);
+      return () => clearTimeout(t);
+    }
+  }, [currentItem.product_id, currentItem.quantity, formData.from_warehouse_id, products]);
 
   const loadAvailableStocks = async (warehouseId) => {
     if (!warehouseId) {
@@ -303,19 +315,82 @@ export default function StockTransferForm({
   };
 
   const handleScanResult = (value) => {
-    const trimmed = (value || "").trim();
-    if (!trimmed) return;
-    const match = availableSerials.find(
-      (s) => s.serial_number?.trim().toLowerCase() === trimmed.toLowerCase()
+    const tokens = splitSerialInput(value || "");
+    if (!tokens.length) return;
+
+    const productId = parseInt(currentItem.product_id, 10);
+    const stock = productId ? availableStocks[productId] : null;
+    const maxAllowed = stock && stock.quantity_available != null ? Number(stock.quantity_available) : 0;
+
+    if (!productId || !maxAllowed) {
+      toastError("Select a product with available stock first.");
+      return;
+    }
+
+    if (tokens.length > maxAllowed) {
+      toastError(`Too many serials (${tokens.length}). Cannot exceed available quantity (${maxAllowed}).`);
+      return;
+    }
+
+    const existingIds = new Set((currentItem.serials || []).map((s) => s.stock_serial_id));
+    const existingSerialsLower = new Set(
+      (currentItem.serials || []).map((s) => (s.serial_number || "").trim().toLowerCase())
     );
-    if (!match) { toastError(`Serial "${trimmed}" not found in this warehouse.`); return; }
-    const alreadySelected = currentItem.serials.some((s) => s.stock_serial_id === match.id);
-    if (alreadySelected) { toastError("Serial already selected."); return; }
-    const qty = Number(currentItem.quantity) || 0;
-    if (currentItem.serials.length >= qty) { toastError(`Already have ${qty} serial(s) selected.`); return; }
-    const updated = [...currentItem.serials, { stock_serial_id: match.id, serial_number: match.serial_number }];
-    setCurrentItem((prev) => ({ ...prev, serials: updated }));
-    if (updated.length >= qty) setScannerOpen(false);
+    const toAdd = [];
+    const notFound = [];
+
+    for (const token of tokens) {
+      const key = token.trim().toLowerCase();
+      if (existingSerialsLower.has(key)) continue;
+      const match = availableSerials.find(
+        (s) => (s.serial_number || "").trim().toLowerCase() === key
+      );
+      if (match) {
+        if (!existingIds.has(match.id)) {
+          toAdd.push({ stock_serial_id: match.id, serial_number: match.serial_number });
+          existingIds.add(match.id);
+          existingSerialsLower.add(key);
+        }
+      } else {
+        notFound.push(token);
+      }
+    }
+
+    if (notFound.length) {
+      toastError(
+        `Serial(s) not found in this warehouse: ${notFound.slice(0, 3).join(", ")}${notFound.length > 3 ? "…" : ""}`
+      );
+      return;
+    }
+
+    if (toAdd.length === 0) {
+      toastError("All serials already selected.");
+      return;
+    }
+
+    const newSerials = [...(currentItem.serials || []), ...toAdd];
+    const newQty = Number(currentItem.quantity) || 0;
+    const suggestedQty = Math.max(newQty, newSerials.length);
+    const cappedQty = Math.min(suggestedQty, maxAllowed);
+
+    setCurrentItem((prev) => ({
+      ...prev,
+      quantity: prev.quantity ? String(cappedQty) : String(cappedQty),
+      serials: newSerials,
+    }));
+
+    if (newSerials.length >= cappedQty) setScannerOpen(false);
+  };
+
+  const handleGunScanKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === "Tab") {
+      e.preventDefault();
+      if ((gunScanValue || "").trim()) {
+        handleScanResult(gunScanValue);
+        setGunScanValue("");
+      }
+      gunScanRef.current?.focus();
+    }
   };
 
   const handleAddItem = (e) => {
@@ -369,6 +444,7 @@ export default function StockTransferForm({
       quantity: "",
       serials: [],
     });
+    setGunScanValue("");
     setItemErrors({});
     setAvailableSerials([]);
   };
@@ -510,51 +586,33 @@ export default function StockTransferForm({
           </Grid>
 
           <Grid item size={{ xs: 12, md: 4 }}>
-            <Select
-              name="from_warehouse_id"
-              label="From Warehouse"
-              value={formData.from_warehouse_id ? String(formData.from_warehouse_id) : ""}
-              onChange={handleChange}
+            <AutocompleteField
+              label="From Warehouse *"
+              placeholder="Type to search..."
+              options={warehouses}
+              getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+              value={warehouses.find((w) => w.id === parseInt(formData.from_warehouse_id)) || (formData.from_warehouse_id ? { id: parseInt(formData.from_warehouse_id) } : null)}
+              onChange={(e, newValue) => handleChange({ target: { name: "from_warehouse_id", value: newValue?.id ?? "" } })}
               required
               error={!!errors.from_warehouse_id}
               helperText={errors.from_warehouse_id || (loadingOptions ? "Loading warehouses..." : warehouses.length === 0 ? "No warehouses available" : "")}
               disabled={!!(defaultValues && defaultValues.id && defaultValues.status !== "DRAFT") || loadingOptions}
-            >
-              <MenuItem value="">-- Select --</MenuItem>
-              {warehouses.length > 0 ? (
-                warehouses.map((warehouse) => (
-                  <MenuItem key={warehouse.id} value={String(warehouse.id)}>
-                    {warehouse.name}
-                  </MenuItem>
-                ))
-              ) : (
-                !loadingOptions && <MenuItem disabled>No warehouses available</MenuItem>
-              )}
-            </Select>
+            />
           </Grid>
 
           <Grid item size={{ xs: 12, md: 4 }}>
-            <Select
-              name="to_warehouse_id"
-              label="To Warehouse"
-              value={formData.to_warehouse_id ? String(formData.to_warehouse_id) : ""}
-              onChange={handleChange}
+            <AutocompleteField
+              label="To Warehouse *"
+              placeholder="Type to search..."
+              options={warehouses}
+              getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+              value={warehouses.find((w) => w.id === parseInt(formData.to_warehouse_id)) || (formData.to_warehouse_id ? { id: parseInt(formData.to_warehouse_id) } : null)}
+              onChange={(e, newValue) => handleChange({ target: { name: "to_warehouse_id", value: newValue?.id ?? "" } })}
               required
               error={!!errors.to_warehouse_id}
               helperText={errors.to_warehouse_id || (loadingOptions ? "Loading warehouses..." : warehouses.length === 0 ? "No warehouses available" : "")}
               disabled={!!(defaultValues && defaultValues.id && defaultValues.status !== "DRAFT") || loadingOptions}
-            >
-              <MenuItem value="">-- Select --</MenuItem>
-              {warehouses.length > 0 ? (
-                warehouses.map((warehouse) => (
-                  <MenuItem key={warehouse.id} value={String(warehouse.id)}>
-                    {warehouse.name}
-                  </MenuItem>
-                ))
-              ) : (
-                !loadingOptions && <MenuItem disabled>No warehouses available</MenuItem>
-              )}
-            </Select>
+            />
           </Grid>
 
           <Grid item size={12}>
@@ -583,41 +641,30 @@ export default function StockTransferForm({
             <Paper sx={{ p: FORM_PADDING, mb: 1 }}>
               <Grid container spacing={COMPACT_FORM_SPACING} alignItems="flex-start">
                 <Grid item size={{ xs: 12, md: 3 }}>
-                  <Select
-                    name="product_id"
+                  <AutocompleteField
                     label="Product"
-                    value={currentItem.product_id ? String(currentItem.product_id) : ""}
-                    onChange={handleItemChange}
+                    placeholder="Type to search..."
+                    options={products}
+                    getOptionLabel={(p) => {
+                      if (!p) return "";
+                      const stock = availableStocks[p.id];
+                      return `${p.product_name ?? ""} (Available: ${stock?.quantity_available ?? 0})${p.serial_required ? " [Serial]" : ""}`;
+                    }}
+                    value={products.find((p) => p.id === parseInt(currentItem.product_id)) || (currentItem.product_id ? { id: parseInt(currentItem.product_id) } : null)}
+                    onChange={(e, newValue) => handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } })}
                     error={!!itemErrors.product_id}
                     helperText={
-                      itemErrors.product_id || 
-                      (!formData.from_warehouse_id 
-                        ? "Please select From Warehouse first" 
-                        : loadingProducts 
-                        ? "Loading products..." 
-                        : products.length === 0 
-                        ? "No products available in this warehouse" 
+                      itemErrors.product_id ||
+                      (!formData.from_warehouse_id
+                        ? "Please select From Warehouse first"
+                        : loadingProducts
+                        ? "Loading products..."
+                        : products.length === 0
+                        ? "No products available in this warehouse"
                         : `${products.length} product${products.length !== 1 ? "s" : ""} available`)
                     }
                     disabled={!formData.from_warehouse_id || loadingProducts}
-                  >
-                    <MenuItem value="">-- Select Product --</MenuItem>
-                    {products.length > 0 ? (
-                      products.map((product) => {
-                        const stock = availableStocks[product.id];
-                        return (
-                          <MenuItem key={product.id} value={String(product.id)}>
-                            {product.product_name} (Available: {stock?.quantity_available || 0})
-                            {product.serial_required && (
-                              <Chip label="Serial" size="small" sx={{ ml: 1 }} />
-                            )}
-                          </MenuItem>
-                        );
-                      })
-                    ) : (
-                      !loadingProducts && <MenuItem disabled>No products available</MenuItem>
-                    )}
-                  </Select>
+                  />
                 </Grid>
 
                 <Grid item size={{ xs: 12, md: 2 }}>
@@ -694,6 +741,20 @@ export default function StockTransferForm({
                             {currentItem.serials.length} / {quantity} scanned
                           </Typography>
                         </Box>
+                      </Grid>
+                      <Grid item size={{ xs: 12, md: 4 }}>
+                        <TextField
+                          inputRef={gunScanRef}
+                          size="small"
+                          fullWidth
+                          label="Scan with gun"
+                          placeholder="Scanner gun types here, then Enter"
+                          value={gunScanValue}
+                          onChange={(e) => setGunScanValue(e.target.value)}
+                          onKeyDown={handleGunScanKeyDown}
+                          variant="outlined"
+                          helperText="Point scanner here; it will type and press Enter."
+                        />
                       </Grid>
                     </>
                   ) : null;

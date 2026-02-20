@@ -253,6 +253,24 @@ export default function ProductPage() {
         render: (row) => formatCurrency(row.purchase_price),
       },
       {
+        field: "min_purchase_price",
+        label: "Min Purchase",
+        sortable: true,
+        render: (row) => formatCurrency(row.min_purchase_price),
+      },
+      {
+        field: "avg_purchase_price",
+        label: "Avg Purchase",
+        sortable: true,
+        render: (row) => formatCurrency(row.avg_purchase_price),
+      },
+      {
+        field: "max_purchase_price",
+        label: "Max Purchase",
+        sortable: true,
+        render: (row) => formatCurrency(row.max_purchase_price),
+      },
+      {
         field: "selling_price",
         label: "Selling Price",
         sortable: true,
@@ -484,6 +502,9 @@ export default function ProductPage() {
         <hr className="border-border" />
         <p className="text-xs font-semibold text-muted-foreground">Pricing</p>
         <p className="text-sm">Purchase: {formatCurrency(p.purchase_price)}</p>
+        <p className="text-sm">Min Purchase: {formatCurrency(p.min_purchase_price)}</p>
+        <p className="text-sm">Avg Purchase: {formatCurrency(p.avg_purchase_price)}</p>
+        <p className="text-sm">Max Purchase: {formatCurrency(p.max_purchase_price)}</p>
         <p className="text-sm">Selling: {formatCurrency(p.selling_price)}</p>
         <p className="text-sm">MRP: {formatCurrency(p.mrp)}</p>
         <p className="text-sm">GST: {p.gst_percent != null ? `${p.gst_percent}%` : "-"}</p>

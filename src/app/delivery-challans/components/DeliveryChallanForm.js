@@ -35,6 +35,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { toastError } from "@/utils/toast";
+import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
@@ -93,6 +94,8 @@ export default function DeliveryChallanForm({
     /** Barcode / QR scanner */
     const [scannerOpen, setScannerOpen] = useState(false);
     const [scanTargetIndex, setScanTargetIndex] = useState(null);
+    const [gunScanValue, setGunScanValue] = useState("");
+    const gunScanRef = useRef(null);
 
     // ── Build BOM lines from order data ────────────────────────────────
     const buildLinesFromOrder = (data, stockMap = stockByProductId) => {
@@ -380,6 +383,7 @@ export default function DeliveryChallanForm({
             setSerialDrawerError("");
             setSerialDrawerFieldErrors({});
             setSerialDrawerValidating(null);
+            setGunScanValue("");
             serialInputRefs.current = [];
             return;
         }
@@ -391,8 +395,9 @@ export default function DeliveryChallanForm({
         setSerialDrawerFieldErrors({});
         setSerialDrawerValidating(null);
         setExpandedSerialLineIndex(lineIndex);
+        setGunScanValue("");
         serialInputRefs.current = [];
-        setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
+        setTimeout(() => gunScanRef.current?.focus(), 100);
     };
 
     const closeSerialRowExpand = () => {
@@ -401,7 +406,21 @@ export default function DeliveryChallanForm({
         setSerialDrawerError("");
         setSerialDrawerFieldErrors({});
         setSerialDrawerValidating(null);
+        setGunScanValue("");
         serialInputRefs.current = [];
+    };
+
+    const handleGunScanKeyDown = (e) => {
+        if (e.key === "Enter" || e.key === "Tab") {
+            e.preventDefault();
+            const firstEmpty = serialDrawerValues.findIndex((v) => !(v || "").trim());
+            const idx = firstEmpty !== -1 ? firstEmpty : 0;
+            if ((gunScanValue || "").trim()) {
+                handleSerialDrawerBulkOrSingle(idx, gunScanValue);
+                setGunScanValue("");
+            }
+            gunScanRef.current?.focus();
+        }
     };
 
     /** Open the camera scanner pointing at the first empty serial slot */
@@ -413,35 +432,111 @@ export default function DeliveryChallanForm({
 
     /**
      * Called by BarcodeScanner each time a code is decoded.
-     * Fills the current target slot, validates it, then advances to the next empty slot.
+     * Supports single serial or multi-serial (pallet) barcode; fills slots and validates.
      */
     const handleScanResult = (value) => {
-        const trimmed = (value || "").trim();
-        if (!trimmed || scanTargetIndex == null) return;
+        const tokens = splitSerialInput(value || "");
+        if (!tokens.length || scanTargetIndex == null || expandedSerialLineIndex == null) return;
 
-        const alreadyEntered = serialDrawerValues.some(
-            (v) => (v || "").trim().toLowerCase() === trimmed.toLowerCase()
-        );
-        if (alreadyEntered) {
-            toastError("Serial number already entered.");
+        const line = lines[expandedSerialLineIndex];
+        const pending = Number(line?.pending_qty) ?? 0;
+        const available = line?.available_qty != null && !Number.isNaN(Number(line.available_qty))
+            ? Number(line.available_qty) : Infinity;
+        const maxAllowed = Math.min(pending, available);
+        const shipNow = serialDrawerValues.length;
+
+        if (tokens.length > maxAllowed) {
+            toastError(`Too many serials (${tokens.length}). Cannot exceed remaining (${pending}) or available (${available === Infinity ? "—" : available}).`);
             return;
         }
 
-        // Fill the slot and validate
-        handleSerialDrawerValueChange(scanTargetIndex, trimmed);
-        validateSerialWithBackend(scanTargetIndex, trimmed);
-
-        // Build an updated snapshot to find the next empty index
-        const updated = serialDrawerValues.map((v, i) => (i === scanTargetIndex ? trimmed : v));
-        const nextEmpty = updated.findIndex((v, i) => i > scanTargetIndex && !(v || "").trim());
-
-        if (nextEmpty === -1) {
-            // All slots will be filled — close scanner
-            setScannerOpen(false);
-            setScanTargetIndex(null);
-        } else {
-            setScanTargetIndex(nextEmpty);
+        if (tokens.length === 1) {
+            const trimmed = tokens[0];
+            const alreadyEntered = serialDrawerValues.some(
+                (v) => (v || "").trim().toLowerCase() === trimmed.toLowerCase()
+            );
+            if (alreadyEntered) {
+                toastError("Serial number already entered.");
+                return;
+            }
+            handleSerialDrawerValueChange(scanTargetIndex, trimmed);
+            validateSerialWithBackend(scanTargetIndex, trimmed);
+            const updated = serialDrawerValues.map((v, i) => (i === scanTargetIndex ? trimmed : v));
+            const nextEmpty = updated.findIndex((v, i) => i > scanTargetIndex && !(v || "").trim());
+            if (nextEmpty === -1) {
+                setScannerOpen(false);
+                setScanTargetIndex(null);
+            } else {
+                setScanTargetIndex(nextEmpty);
+            }
+            return;
         }
+
+        // Multi-serial (pallet) barcode
+        const existingLower = new Set(
+            serialDrawerValues.map((v) => (v || "").trim().toLowerCase()).filter(Boolean)
+        );
+        const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
+        if (uniqueNew.length === 0) {
+            toastError("All serials already entered.");
+            return;
+        }
+        const newShipNow = Math.min(shipNow + uniqueNew.length, maxAllowed);
+        if (newShipNow > maxAllowed) {
+            toastError(`Too many serials. Cannot exceed remaining (${pending}) or available.`);
+            return;
+        }
+
+        if (newShipNow > shipNow) {
+            setLines((prev) =>
+                prev.map((l, i) =>
+                    i !== expandedSerialLineIndex
+                        ? l
+                        : { ...l, ship_now: String(newShipNow), serials: (l.serials || []).slice(0, newShipNow) }
+                )
+            );
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next[`line_${expandedSerialLineIndex}_ship_now`];
+                return next;
+            });
+            const paddedSlots = [...serialDrawerValues, ...Array(newShipNow - shipNow).fill("")];
+            const { nextSlots, overflow } = fillSerialSlots({
+                slots: paddedSlots,
+                startIndex: shipNow,
+                incoming: uniqueNew,
+                caseInsensitive: true,
+            });
+            if (overflow.length) {
+                toastError(`Too many serials. ${overflow.length} not filled (limit ${maxAllowed}).`);
+                return;
+            }
+            setSerialDrawerValues(nextSlots);
+            setSerialDrawerFieldErrors({});
+            nextSlots.forEach((val, idx) => {
+                if ((val || "").trim()) validateSerialWithBackend(idx, val);
+            });
+        } else {
+            const { nextSlots, overflow, duplicates } = fillSerialSlots({
+                slots: serialDrawerValues,
+                startIndex: scanTargetIndex,
+                incoming: uniqueNew,
+                caseInsensitive: true,
+            });
+            if (duplicates.length) {
+                toastError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
+            }
+            if (overflow.length) {
+                toastError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
+                return;
+            }
+            setSerialDrawerValues(nextSlots);
+            nextSlots.forEach((val, idx) => {
+                if ((val || "").trim()) validateSerialWithBackend(idx, val);
+            });
+        }
+        setScannerOpen(false);
+        setScanTargetIndex(null);
     };
 
     const scanHint =
@@ -499,6 +594,88 @@ export default function DeliveryChallanForm({
             return next;
         });
         setSerialDrawerError("");
+    };
+
+    /** Handle serial field change or paste: if value splits into multiple serials, distribute (same rules as scan). */
+    const handleSerialDrawerBulkOrSingle = (index, value) => {
+        const tokens = splitSerialInput(value);
+        if (tokens.length <= 1) {
+            handleSerialDrawerValueChange(index, value);
+            return;
+        }
+        if (expandedSerialLineIndex == null) return;
+        const line = lines[expandedSerialLineIndex];
+        const pending = Number(line?.pending_qty) ?? 0;
+        const available = line?.available_qty != null && !Number.isNaN(Number(line.available_qty))
+            ? Number(line.available_qty) : Infinity;
+        const maxAllowed = Math.min(pending, available);
+        const shipNow = serialDrawerValues.length;
+
+        if (tokens.length > maxAllowed) {
+            setSerialDrawerError(`Too many serials (${tokens.length}). Cannot exceed remaining (${pending}) or available.`);
+            return;
+        }
+
+        const existingLower = new Set(
+            serialDrawerValues.map((v) => (v || "").trim().toLowerCase()).filter(Boolean)
+        );
+        const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
+        if (uniqueNew.length === 0) {
+            setSerialDrawerError("All serials already entered.");
+            return;
+        }
+        const newShipNow = Math.min(shipNow + uniqueNew.length, maxAllowed);
+
+        if (newShipNow > shipNow) {
+            setLines((prev) =>
+                prev.map((l, i) =>
+                    i !== expandedSerialLineIndex
+                        ? l
+                        : { ...l, ship_now: String(newShipNow), serials: (l.serials || []).slice(0, newShipNow) }
+                )
+            );
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next[`line_${expandedSerialLineIndex}_ship_now`];
+                return next;
+            });
+            const paddedSlots = [...serialDrawerValues, ...Array(newShipNow - shipNow).fill("")];
+            const { nextSlots, overflow } = fillSerialSlots({
+                slots: paddedSlots,
+                startIndex: shipNow,
+                incoming: uniqueNew,
+                caseInsensitive: true,
+            });
+            if (overflow.length) {
+                setSerialDrawerError(`Too many serials. ${overflow.length} not filled (limit ${maxAllowed}).`);
+                return;
+            }
+            setSerialDrawerValues(nextSlots);
+            setSerialDrawerFieldErrors({});
+            setSerialDrawerError("");
+            nextSlots.forEach((val, idx) => {
+                if ((val || "").trim()) validateSerialWithBackend(idx, val);
+            });
+        } else {
+            const { nextSlots, overflow, duplicates } = fillSerialSlots({
+                slots: serialDrawerValues,
+                startIndex: index,
+                incoming: uniqueNew,
+                caseInsensitive: true,
+            });
+            if (duplicates.length) {
+                setSerialDrawerError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
+            }
+            if (overflow.length) {
+                setSerialDrawerError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
+                return;
+            }
+            setSerialDrawerValues(nextSlots);
+            setSerialDrawerError("");
+            nextSlots.forEach((val, idx) => {
+                if ((val || "").trim()) validateSerialWithBackend(idx, val);
+            });
+        }
     };
 
     const handleSerialDrawerKeyDown = (index, e) => {
@@ -884,7 +1061,19 @@ export default function DeliveryChallanForm({
                                                                         <QrCodeScannerIcon sx={{ fontSize: 20 }} />
                                                                         Scan Barcode / QR Code
                                                                     </Button>
-
+                                                                    <TextField
+                                                                        inputRef={gunScanRef}
+                                                                        size="small"
+                                                                        fullWidth
+                                                                        label="Scan with gun"
+                                                                        placeholder="Scanner gun types here, then Enter"
+                                                                        value={gunScanValue}
+                                                                        onChange={(e) => setGunScanValue(e.target.value)}
+                                                                        onKeyDown={handleGunScanKeyDown}
+                                                                        variant="outlined"
+                                                                        sx={{ mb: 1.5 }}
+                                                                        helperText="Point scanner here; it will type and press Enter."
+                                                                    />
                                                                     <Divider sx={{ mb: 1.5 }}>
                                                                         <Typography variant="caption" color="text.secondary">or type manually</Typography>
                                                                     </Divider>
@@ -904,7 +1093,7 @@ export default function DeliveryChallanForm({
                                                                                 fullWidth
                                                                                 label={`Serial ${idx + 1} of ${shipNow}`}
                                                                                 value={value}
-                                                                                onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                onChange={(e) => handleSerialDrawerBulkOrSingle(idx, e.target.value)}
                                                                                 onBlur={() => value?.trim() && validateSerialWithBackend(idx, value)}
                                                                                 onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
                                                                                 inputRef={(el) => { serialInputRefs.current[idx] = el; }}
@@ -1084,6 +1273,18 @@ export default function DeliveryChallanForm({
                                                     Scan Barcode
                                                 </Button>
                                             </Box>
+                                            <TextField
+                                                inputRef={gunScanRef}
+                                                size="small"
+                                                label="Scan with gun"
+                                                placeholder="Scanner gun types here, then Enter"
+                                                value={gunScanValue}
+                                                onChange={(e) => setGunScanValue(e.target.value)}
+                                                onKeyDown={handleGunScanKeyDown}
+                                                variant="outlined"
+                                                sx={{ mb: 1, minWidth: 280 }}
+                                                helperText="Point scanner here; it will type and press Enter."
+                                            />
                                             {serialDrawerError && (
                                                 <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSerialDrawerError("")}>
                                                     {serialDrawerError}
@@ -1098,7 +1299,7 @@ export default function DeliveryChallanForm({
                                                                                             sx={{ minWidth: 180 }}
                                                                                             label={`Serial ${idx + 1} of ${shipNow}`}
                                                                                             value={value}
-                                                                                            onChange={(e) => handleSerialDrawerValueChange(idx, e.target.value)}
+                                                                                            onChange={(e) => handleSerialDrawerBulkOrSingle(idx, e.target.value)}
                                                                                             onBlur={() => value?.trim() && validateSerialWithBackend(idx, value)}
                                                                                             onKeyDown={(e) => handleSerialDrawerKeyDown(idx, e)}
                                                                                             inputRef={(el) => { serialInputRefs.current[idx] = el; }}

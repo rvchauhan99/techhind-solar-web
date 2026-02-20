@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/common/Loader";
+import { normalizeEmail } from "@/utils/validators";
 import {
   IconMail,
   IconLock,
@@ -69,7 +70,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const loginBody = { email, password };
+      const normalizedEmail = normalizeEmail(email);
+      const loginBody = { email: normalizedEmail, password };
       if (process.env.NEXT_PUBLIC_TENANT_KEY) {
         loginBody.tenant_key = process.env.NEXT_PUBLIC_TENANT_KEY;
       }

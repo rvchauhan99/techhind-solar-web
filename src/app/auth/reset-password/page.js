@@ -9,13 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/common/Loader";
+import { normalizeEmail } from "@/utils/validators";
 import { IconLock, IconArrowLeft } from "@tabler/icons-react";
 
 function ResetPasswordPageContent() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
+  const email = normalizeEmail(searchParams.get("email") || "");
   const otp = searchParams.get("otp") || "";
 
   const [newPassword, setNewPassword] = useState("");

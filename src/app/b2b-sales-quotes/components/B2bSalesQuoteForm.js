@@ -23,8 +23,6 @@ import FormContainer from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
-import { MenuItem } from "@mui/material";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -350,36 +348,26 @@ export default function B2bSalesQuoteForm({
                                 helperText={errors.valid_till}
                                 minDate={formData.quote_date || undefined}
                             />
-                            <Select
-                                name="client_id"
-                                label="Client"
-                                value={formData.client_id}
-                                onChange={handleChange}
+                            <AutocompleteField
+                                label="Client *"
+                                placeholder="Type to search..."
+                                options={clients}
+                                getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
+                                value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
                                 required
                                 error={!!errors.client_id}
                                 helperText={errors.client_id}
-                            >
-                                <MenuItem value="">-- Select Client --</MenuItem>
-                                {clients.map((c) => (
-                                    <MenuItem key={c.id} value={c.id}>
-                                        {c.client_code} – {c.client_name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                            <Select
-                                name="ship_to_id"
+                            />
+                            <AutocompleteField
                                 label="Ship To"
-                                value={formData.ship_to_id}
-                                onChange={handleChange}
+                                placeholder="Type to search..."
+                                options={shipTos}
+                                getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
+                                value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                                 disabled={!formData.client_id}
-                            >
-                                <MenuItem value="">-- Select Ship-to (Optional) --</MenuItem>
-                                {shipTos.map((s) => (
-                                    <MenuItem key={s.id} value={s.id}>
-                                        {s.ship_to_name || s.address || `Ship-to #${s.id}`}
-                                    </MenuItem>
-                                ))}
-                            </Select>
+                            />
                             <Input
                                 name="payment_terms"
                                 label="Payment Terms"
