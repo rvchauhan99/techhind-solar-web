@@ -6,7 +6,7 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
-import { validateE164Phone, validateEmail } from "@/utils/validators";
+import { validateE164Phone, validateEmail, normalizeEmail } from "@/utils/validators";
 
 const UserForm = forwardRef(function UserForm({
   defaultValues = null,
@@ -52,11 +52,14 @@ const UserForm = forwardRef(function UserForm({
   }, [defaultValues?.id]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
     if (serverError) onClearServerError();
-    
+
+    // Auto-lowercase email so it is always stored and submitted in lowercase
+    if (name === "email") value = normalizeEmail(value);
+
     // Real-time validation
-    if (name === "email" && value && value.trim() !== "") {
+    if (name === "email" && value !== "") {
       const emailValidation = validateEmail(value);
       if (!emailValidation.isValid) {
         setErrors((prev) => ({ ...prev, [name]: emailValidation.message }));

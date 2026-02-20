@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import {
     Box,
     Typography,
-    MenuItem,
     Alert,
     CircularProgress,
     IconButton,
@@ -31,7 +30,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
-import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -123,26 +122,18 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         }
     }, [defaultValues]);
 
-    // Load initial options (suppliers, companies, products)
+    // Load initial options (company profile for Bill To; Supplier and Product use async search)
     useEffect(() => {
         const loadInitialOptions = async () => {
             setLoadingOptions(true);
             try {
-                const [suppliersRes, companyProfileRes, productsRes] = await Promise.all([
-                    supplierService.getSuppliers(),
-                    companyService.getCompanyProfile(),
-                    productService.getProducts(),
-                ]);
-
-                // Get company profile - there should be only one company
+                const companyProfileRes = await companyService.getCompanyProfile();
                 const companyProfile = companyProfileRes?.result || companyProfileRes?.data || companyProfileRes;
                 const companies = companyProfile ? [companyProfile] : [];
 
                 setOptions((prev) => ({
                     ...prev,
-                    suppliers: suppliersRes?.result?.data || suppliersRes?.data || [],
-                    companies: companies,
-                    products: productsRes?.result?.data || productsRes?.data || [],
+                    companies,
                 }));
 
                 // Auto-select first company if not already set
@@ -603,54 +594,50 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 helperText={errors.due_date}
                                 minDate={formData.po_date || undefined}
                             />
-                            <Select
-                                name="supplier_id"
-                                label="Supplier"
-                                value={formData.supplier_id}
-                                onChange={handleChange}
+                            <AutocompleteField
+                                label="Supplier *"
+                                placeholder="Type to search..."
+                                options={[]}
+                                asyncLoadOptions={async (q) => {
+                                    const res = await supplierService.getSuppliers({ q: q || undefined, limit: 20 });
+                                    const data = res?.result?.data ?? res?.data ?? [];
+                                    return Array.isArray(data) ? data : [];
+                                }}
+                                resolveOptionById={async (id) => {
+                                    if (id == null || id === "") return null;
+                                    const s = await supplierService.getSupplierById(id);
+                                    const row = s?.result ?? s;
+                                    return row ? { id: row.id, supplier_name: row.supplier_name, supplier_code: row.supplier_code } : null;
+                                }}
+                                getOptionLabel={(s) => (s?.supplier_name ? `${s.supplier_name} (${s.supplier_code ?? ""})` : String(s?.id ?? ""))}
+                                value={formData.supplier_id ? { id: formData.supplier_id } : null}
+                                onChange={(e, newValue) => handleChange({ target: { name: "supplier_id", value: newValue?.id ?? "" } })}
                                 required
                                 error={!!errors.supplier_id}
                                 helperText={errors.supplier_id}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.suppliers.map((supplier) => (
-                                    <MenuItem key={supplier.id} value={supplier.id}>
-                                        {supplier.supplier_name} ({supplier.supplier_code})
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                            <Select
-                                name="bill_to_id"
-                                label="Bill To (Company)"
-                                value={formData.bill_to_id}
-                                onChange={handleChange}
+                            />
+                            <AutocompleteField
+                                label="Bill To (Company) *"
+                                placeholder="Type to search..."
+                                options={options.companies}
+                                getOptionLabel={(c) => (c?.company_name ? `${c.company_name} (${c.company_code ?? ""})` : String(c?.id ?? ""))}
+                                value={options.companies.find((c) => c.id === parseInt(formData.bill_to_id)) || (formData.bill_to_id ? { id: formData.bill_to_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "bill_to_id", value: newValue?.id ?? "" } })}
                                 required
                                 error={!!errors.bill_to_id}
                                 helperText={errors.bill_to_id}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.companies.map((company) => (
-                                    <MenuItem key={company.id} value={company.id}>
-                                        {company.company_name} ({company.company_code})
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                            <Select
-                                name="ship_to_id"
-                                label="Ship To (Warehouse)"
-                                value={formData.ship_to_id}
-                                onChange={handleChange}
+                            />
+                            <AutocompleteField
+                                label="Ship To (Warehouse) *"
+                                placeholder="Type to search..."
+                                options={options.warehouses}
+                                getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+                                value={options.warehouses.find((w) => w.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                                 required
                                 error={!!errors.ship_to_id}
                                 helperText={errors.ship_to_id}
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {options.warehouses.map((warehouse) => (
-                                    <MenuItem key={warehouse.id} value={warehouse.id}>
-                                        {warehouse.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
+                            />
                             <Input
                                 name="payment_terms"
                                 label="Payment Terms"
@@ -692,22 +679,38 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         {/* Add Item Form */}
                         <Paper sx={{ p: 1, mb: 1 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
-                                <Select
-                                    name="product_id"
-                                    label="Product"
-                                    value={currentItem.product_id}
-                                    onChange={handleItemChange}
+                                <AutocompleteField
+                                    label="Product *"
+                                    placeholder="Type to search..."
+                                    options={[]}
+                                    asyncLoadOptions={async (q) => {
+                                        const res = await productService.getProducts({ q: q || undefined, limit: 20 });
+                                        const data = res?.result?.data ?? res?.data ?? [];
+                                        return Array.isArray(data) ? data : [];
+                                    }}
+                                    resolveOptionById={async (id) => {
+                                        if (id == null || id === "") return null;
+                                        const p = await productService.getProductById(id);
+                                        const row = p?.result ?? p;
+                                        return row ? { id: row.id, product_name: row.product_name, hsn_ssn_code: row.hsn_ssn_code, gst_percent: row.gst_percent } : null;
+                                    }}
+                                    getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
+                                    value={currentItem.product_id ? { id: currentItem.product_id } : null}
+                                    onChange={(e, newValue) => {
+                                        handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
+                                        if (newValue && (newValue.hsn_ssn_code != null || newValue.gst_percent != null)) {
+                                            setCurrentItem((prev) => ({
+                                                ...prev,
+                                                product_id: newValue.id ?? prev.product_id,
+                                                hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
+                                                gst_percent: newValue.gst_percent ?? prev.gst_percent,
+                                            }));
+                                        }
+                                    }}
                                     error={!!itemErrors.product_id}
                                     helperText={itemErrors.product_id}
                                     required
-                                >
-                                    <MenuItem value="">-- Select --</MenuItem>
-                                    {options.products.map((product) => (
-                                        <MenuItem key={product.id} value={product.id}>
-                                            {product.product_name}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
+                                />
                                 <Input
                                     name="hsn_code"
                                     label="HSN Code"

@@ -28,6 +28,7 @@ import {
     Snackbar,
 } from "@mui/material";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import { Button as ActionButton } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -413,62 +414,34 @@ export default function SiteSurveyForm({
 
                 {/* Surveyor Selection */}
                 <Grid size={{ xs: 12, md: 4 }}>
-                    <FormControl fullWidth required error={!!errors.surveyor_id}>
-                        <InputLabel>Surveyor Name</InputLabel>
-                        {loadingUsers ? (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                                <CircularProgress size={20} />
-                                <Typography variant="body2">Loading users...</Typography>
-                            </Box>
-                        ) : (
-                            <Select
-                                name="surveyor_id"
-                                value={formData.surveyor_id}
-                                onChange={handleChange}
-                                label="Surveyor Name"
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {users.map((u) => (
-                                    <MenuItem key={u.id} value={u.id}>
-                                        {u.name} ({u.email})
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        )}
-                        {errors.surveyor_id && (
-                            <FormHelperText error>{errors.surveyor_id}</FormHelperText>
-                        )}
-                    </FormControl>
+                    <AutocompleteField
+                        label="Surveyor Name *"
+                        placeholder="Type to search..."
+                        options={users}
+                        getOptionLabel={(u) => (u ? `${u.name ?? ""} (${u.email ?? ""})`.trim() || String(u?.id ?? "") : "")}
+                        value={users.find((u) => u.id === parseInt(formData.surveyor_id)) || (formData.surveyor_id ? { id: formData.surveyor_id } : null)}
+                        onChange={(e, newValue) => handleChange({ target: { name: "surveyor_id", value: newValue?.id ?? "" } })}
+                        required
+                        error={!!errors.surveyor_id}
+                        helperText={errors.surveyor_id}
+                        loading={loadingUsers}
+                    />
                 </Grid>
 
                 {/* Type of Roof - Required */}
                 <Grid size={{ xs: 12, md: 4 }}>
-                    <FormControl fullWidth required error={!!errors.type_of_roof}>
-                        <InputLabel>Type of Roof</InputLabel>
-                        {loadingRoofTypes ? (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                                <CircularProgress size={20} />
-                                <Typography variant="body2">Loading roof types...</Typography>
-                            </Box>
-                        ) : (
-                            <Select
-                                name="type_of_roof"
-                                value={formData.type_of_roof}
-                                onChange={handleChange}
-                                label="Type of Roof"
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {roofTypes.map((type) => (
-                                    <MenuItem key={type} value={type}>
-                                        {type}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        )}
-                        {errors.type_of_roof && (
-                            <FormHelperText error>{errors.type_of_roof}</FormHelperText>
-                        )}
-                    </FormControl>
+                    <AutocompleteField
+                        label="Type of Roof *"
+                        placeholder="Type to search..."
+                        options={roofTypes.map((t) => ({ id: t, label: t }))}
+                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                        value={formData.type_of_roof ? { id: formData.type_of_roof, label: formData.type_of_roof } : null}
+                        onChange={(e, newValue) => handleChange({ target: { name: "type_of_roof", value: newValue?.id ?? "" } })}
+                        required
+                        error={!!errors.type_of_roof}
+                        helperText={errors.type_of_roof}
+                        loading={loadingRoofTypes}
+                    />
                 </Grid>
 
                 {/* Height of Structure */}
@@ -698,28 +671,15 @@ export default function SiteSurveyForm({
 
                 {/* BOM Selection */}
                 <Grid size={{ xs: 12, md: 11 }}>
-                    <FormControl fullWidth>
-                        <InputLabel>Bill of Material</InputLabel>
-                        {loadingBoms ? (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                                <CircularProgress size={20} />
-                                <Typography variant="body2">Loading BOMs...</Typography>
-                            </Box>
-                        ) : (
-                            <Select
-                                value={selectedBomId}
-                                onChange={(e) => setSelectedBomId(e.target.value)}
-                                label="Bill of Material"
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {boms.map((bom) => (
-                                    <MenuItem key={bom.id} value={bom.id}>
-                                        {bom.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        )}
-                    </FormControl>
+                    <AutocompleteField
+                        label="Bill of Material"
+                        placeholder="Type to search..."
+                        options={boms}
+                        getOptionLabel={(b) => b?.name ?? String(b?.id ?? "")}
+                        value={boms.find((b) => b.id === parseInt(selectedBomId)) || (selectedBomId ? { id: selectedBomId } : null)}
+                        onChange={(e, newValue) => setSelectedBomId(newValue?.id ?? "")}
+                        loading={loadingBoms}
+                    />
                 </Grid>
 
                 {/* BOM Select Button */}
@@ -744,53 +704,28 @@ export default function SiteSurveyForm({
 
                 {/* Product Type Selection */}
                 <Grid size={{ xs: 12, md: 5.5 }}>
-                    <FormControl fullWidth>
-                        <InputLabel>Products Type</InputLabel>
-                        {loadingProductTypes ? (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                                <CircularProgress size={20} />
-                                <Typography variant="body2">Loading product types...</Typography>
-                            </Box>
-                        ) : (
-                            <Select
-                                value={selectedProductTypeId}
-                                onChange={(e) => setSelectedProductTypeId(e.target.value)}
-                                label="Products Type"
-                            >
-                                <MenuItem value="">-- Select --</MenuItem>
-                                {productTypes.map((type) => (
-                                    <MenuItem key={type.id} value={type.id}>
-                                        {type.name}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        )}
-                    </FormControl>
+                    <AutocompleteField
+                        label="Products Type"
+                        placeholder="Type to search..."
+                        options={productTypes}
+                        getOptionLabel={(t) => t?.name ?? String(t?.id ?? "")}
+                        value={productTypes.find((t) => t.id === parseInt(selectedProductTypeId)) || (selectedProductTypeId ? { id: selectedProductTypeId } : null)}
+                        onChange={(e, newValue) => setSelectedProductTypeId(newValue?.id ?? "")}
+                        loading={loadingProductTypes}
+                    />
                 </Grid>
 
                 {/* Product Selection */}
                 <Grid size={{ xs: 12, md: 5.5 }}>
-                    <FormControl fullWidth>
-                        <InputLabel>Products</InputLabel>
-                        <Select
-                            value={selectedProductId}
-                            onChange={(e) => setSelectedProductId(e.target.value)}
-                            label="Products"
-                            disabled={!selectedProductTypeId}
-                            sx={{
-                                '&.Mui-disabled': {
-                                    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                                }
-                            }}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {filteredProducts.map((product) => (
-                                <MenuItem key={product.id} value={product.id}>
-                                    {product.product_name}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
+                    <AutocompleteField
+                        label="Products"
+                        placeholder="Type to search..."
+                        options={filteredProducts}
+                        getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
+                        value={filteredProducts.find((p) => p.id === parseInt(selectedProductId)) || (selectedProductId ? { id: selectedProductId } : null)}
+                        onChange={(e, newValue) => setSelectedProductId(newValue?.id ?? "")}
+                        disabled={!selectedProductTypeId}
+                    />
                 </Grid>
 
                 {/* Add Product Button */}

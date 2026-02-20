@@ -19,6 +19,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import { Button as ActionButton } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -410,32 +411,19 @@ export default function SiteVisitForm({
           <>
             {/* Inquiry ID - Required */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth required error={!!errors.inquiry_id}>
-                <InputLabel>Inquiry</InputLabel>
-                {loadingInquiries ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                    <CircularProgress size={20} />
-                    <Typography variant="body2">Loading inquiries...</Typography>
-                  </Box>
-                ) : (
-                  <Select
-                    name="inquiry_id"
-                    value={formData.inquiry_id}
-                    onChange={handleChange}
-                    label="Inquiry"
-                    disabled={formData.isFromInquiry}
-                  >
-                    {inquiries.map((inquiry) => (
-                      <MenuItem key={inquiry.id} value={inquiry.id}>
-                        Inquiry #{inquiry.inquiry_number}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-                {errors.inquiry_id && (
-                  <FormHelperText error>{errors.inquiry_id}</FormHelperText>
-                )}
-              </FormControl>
+              <AutocompleteField
+                label="Inquiry *"
+                placeholder="Type to search..."
+                options={inquiries}
+                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
+                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                required
+                error={!!errors.inquiry_id}
+                helperText={errors.inquiry_id}
+                disabled={formData.isFromInquiry}
+                loading={loadingInquiries}
+              />
             </Grid>
 
             {/* Pending Date - Mandatory */}
@@ -453,32 +441,18 @@ export default function SiteVisitForm({
 
             {/* Visit Assign To - Mandatory when Pending */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth required error={!!errors.visit_assign_to}>
-                <InputLabel>Visit Assign To</InputLabel>
-                {loadingUsers ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                    <CircularProgress size={20} />
-                    <Typography variant="body2">Loading users...</Typography>
-                  </Box>
-                ) : (
-                  <Select
-                    name="visit_assign_to"
-                    value={formData.visit_assign_to}
-                    onChange={handleChange}
-                    label="Visit Assign To"
-                  >
-                    <MenuItem value="">-- Select --</MenuItem>
-                    {users.map((user) => (
-                      <MenuItem key={user.id} value={user.id}>
-                        {user.name || user.email || `User #${user.id}`}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-                {errors.visit_assign_to && (
-                  <FormHelperText error>{errors.visit_assign_to}</FormHelperText>
-                )}
-              </FormControl>
+              <AutocompleteField
+                label="Visit Assign To *"
+                placeholder="Type to search..."
+                options={users}
+                getOptionLabel={(u) => u?.name || u?.email || (u?.id ? `User #${u.id}` : "")}
+                value={users.find((u) => u.id === parseInt(formData.visit_assign_to)) || (formData.visit_assign_to ? { id: formData.visit_assign_to } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "visit_assign_to", value: newValue?.id ?? "" } })}
+                required
+                error={!!errors.visit_assign_to}
+                helperText={errors.visit_assign_to}
+                loading={loadingUsers}
+              />
             </Grid>
 
             {/* Pending Remarks - Optional */}
@@ -519,32 +493,19 @@ export default function SiteVisitForm({
           <>
             {/* Inquiry ID - Required */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl fullWidth required error={!!errors.inquiry_id}>
-                <InputLabel>Inquiry</InputLabel>
-                {loadingInquiries ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                    <CircularProgress size={20} />
-                    <Typography variant="body2">Loading inquiries...</Typography>
-                  </Box>
-                ) : (
-                  <Select
-                    name="inquiry_id"
-                    value={formData.inquiry_id}
-                    onChange={handleChange}
-                    label="Inquiry"
-                    disabled={formData.isFromInquiry}
-                  >
-                    {inquiries.map((inquiry) => (
-                      <MenuItem key={inquiry.id} value={inquiry.id}>
-                        Inquiry #{inquiry.inquiry_number}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-                {errors.inquiry_id && (
-                  <FormHelperText error>{errors.inquiry_id}</FormHelperText>
-                )}
-              </FormControl>
+              <AutocompleteField
+                label="Inquiry *"
+                placeholder="Type to search..."
+                options={inquiries}
+                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
+                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                required
+                error={!!errors.inquiry_id}
+                helperText={errors.inquiry_id}
+                disabled={formData.isFromInquiry}
+                loading={loadingInquiries}
+              />
             </Grid>
 
             {/* Remarks - Required - Full Width */}
@@ -586,32 +547,19 @@ export default function SiteVisitForm({
 
             {/* Inquiry ID - Required */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth required error={!!errors.inquiry_id}>
-                <InputLabel>Inquiry</InputLabel>
-                {loadingInquiries ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                    <CircularProgress size={20} />
-                    <Typography variant="body2">Loading inquiries...</Typography>
-                  </Box>
-                ) : (
-                  <Select
-                    name="inquiry_id"
-                    value={formData.inquiry_id}
-                    onChange={handleChange}
-                    label="Inquiry"
-                    disabled={formData.isFromInquiry}
-                  >
-                    {inquiries.map((inquiry) => (
-                      <MenuItem key={inquiry.id} value={inquiry.id}>
-                        Inquiry #{inquiry.inquiry_number}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-                {errors.inquiry_id && (
-                  <FormHelperText error>{errors.inquiry_id}</FormHelperText>
-                )}
-              </FormControl>
+              <AutocompleteField
+                label="Inquiry *"
+                placeholder="Type to search..."
+                options={inquiries}
+                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
+                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                required
+                error={!!errors.inquiry_id}
+                helperText={errors.inquiry_id}
+                disabled={formData.isFromInquiry}
+                loading={loadingInquiries}
+              />
             </Grid>
 
             {/* Next Reminder Date - Required */}
@@ -732,29 +680,15 @@ export default function SiteVisitForm({
 
             {/* Type of Roof */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel>Type of Roof</InputLabel>
-                {loadingRoofTypes ? (
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 2 }}>
-                    <CircularProgress size={20} />
-                    <Typography variant="body2">Loading roof types...</Typography>
-                  </Box>
-                ) : (
-                  <Select
-                    name="roof_type"
-                    value={formData.roof_type}
-                    onChange={handleChange}
-                    label="Type of Roof"
-                  >
-                    <MenuItem value="">-- Select --</MenuItem>
-                    {roofTypes.map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                )}
-              </FormControl>
+              <AutocompleteField
+                label="Type of Roof"
+                placeholder="Type to search..."
+                options={roofTypes.map((t) => ({ id: t, label: t }))}
+                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                value={formData.roof_type ? { id: formData.roof_type, label: formData.roof_type } : null}
+                onChange={(e, newValue) => handleChange({ target: { name: "roof_type", value: newValue?.id ?? "" } })}
+                loading={loadingRoofTypes}
+              />
             </Grid>
 
             {/* Approx Roof Area */}

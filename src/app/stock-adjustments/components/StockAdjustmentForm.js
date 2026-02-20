@@ -25,6 +25,7 @@ import companyService from "@/services/companyService";
 import productService from "@/services/productService";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
@@ -257,22 +258,17 @@ export default function StockAdjustmentForm({ defaultValues = {}, onSubmit, load
                     </Grid>
 
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Select
-                            name="warehouse_id"
-                            label="Warehouse"
-                            value={formData.warehouse_id}
-                            onChange={handleChange}
+                        <AutocompleteField
+                            label="Warehouse *"
+                            placeholder="Type to search..."
+                            options={warehouses}
+                            getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+                            value={warehouses.find((w) => w.id === parseInt(formData.warehouse_id)) || (formData.warehouse_id ? { id: parseInt(formData.warehouse_id) } : null)}
+                            onChange={(e, newValue) => handleChange({ target: { name: "warehouse_id", value: newValue?.id ?? "" } })}
                             required
                             error={!!errors.warehouse_id}
                             helperText={errors.warehouse_id}
-                        >
-                            <MenuItem value="">-- Select --</MenuItem>
-                            {warehouses.map((warehouse) => (
-                                <MenuItem key={warehouse.id} value={warehouse.id}>
-                                    {warehouse.name}
-                                </MenuItem>
-                            ))}
-                        </Select>
+                        />
                     </Grid>
 
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -301,33 +297,26 @@ export default function StockAdjustmentForm({ defaultValues = {}, onSubmit, load
                         <Paper sx={{ p: FORM_PADDING, mb: 1 }}>
                             <Grid container spacing={COMPACT_FORM_SPACING} alignItems="center">
                                 <Grid item size={{ xs: 12, md: 3 }}>
-                                    <Select
-                                        name="product_id"
+                                    <AutocompleteField
                                         label="Product"
-                                        value={currentItem.product_id}
-                                        onChange={handleItemChange}
+                                        placeholder="Type to search..."
+                                        options={products.filter((p) => {
+                                            if (currentItem.adjustment_direction === "OUT") {
+                                                const stock = availableStocks[p.id];
+                                                return stock && stock.quantity_available > 0;
+                                            }
+                                            return true;
+                                        })}
+                                        getOptionLabel={(p) => {
+                                            if (!p) return "";
+                                            const stock = availableStocks[p.id];
+                                            return `${p.product_name ?? ""}${currentItem.adjustment_direction === "OUT" && stock ? ` (Available: ${stock.quantity_available})` : ""}`;
+                                        }}
+                                        value={products.find((p) => p.id === parseInt(currentItem.product_id)) || (currentItem.product_id ? { id: parseInt(currentItem.product_id) } : null)}
+                                        onChange={(e, newValue) => handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } })}
                                         error={!!itemErrors.product_id}
                                         helperText={itemErrors.product_id}
-                                    >
-                                        <MenuItem value="">-- Select --</MenuItem>
-                                        {products
-                                            .filter((p) => {
-                                                if (currentItem.adjustment_direction === "OUT") {
-                                                    const stock = availableStocks[p.id];
-                                                    return stock && stock.quantity_available > 0;
-                                                }
-                                                return true;
-                                            })
-                                            .map((product) => {
-                                                const stock = availableStocks[product.id];
-                                                return (
-                                                    <MenuItem key={product.id} value={product.id}>
-                                                        {product.product_name}
-                                                        {currentItem.adjustment_direction === "OUT" && stock && ` (Available: ${stock.quantity_available})`}
-                                                    </MenuItem>
-                                                );
-                                            })}
-                                    </Select>
+                                    />
                                 </Grid>
 
                                 <Grid item size={{ xs: 12, md: 2 }}>
