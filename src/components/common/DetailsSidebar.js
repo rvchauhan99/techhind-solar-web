@@ -11,10 +11,11 @@ import { cn } from "@/lib/utils";
  * @param {boolean} open
  * @param {function(): void} onClose
  * @param {string} [title] - optional sidebar title
+ * @param {React.ReactNode} [headerActions] - optional actions (e.g. Download PDF) shown in header top-right, left of close
  * @param {boolean} [closeOnBackdropClick=true] - if false, drawer stays open when clicking backdrop (close only via X)
  * @param {React.ReactNode} children - entity-specific content
  */
-export default function DetailsSidebar({ open, onClose, title, closeOnBackdropClick = true, children }) {
+export default function DetailsSidebar({ open, onClose, title, headerActions, closeOnBackdropClick = true, children }) {
   if (!open) return null;
 
   const handleBackdropClick = closeOnBackdropClick ? onClose : undefined;
@@ -38,19 +39,22 @@ export default function DetailsSidebar({ open, onClose, title, closeOnBackdropCl
           open ? "translate-x-0" : "translate-x-full"
         )}
       >
-        <div className="flex items-center justify-between px-4 lg:px-6 py-4 border-b border-border flex-shrink-0">
+        <div className="flex items-center justify-between gap-2 px-4 lg:px-6 py-4 border-b border-border flex-shrink-0">
           {title && (
-            <h2 className="text-xl font-semibold">{title}</h2>
+            <h2 className="text-xl font-semibold truncate flex-1 min-w-0">{title}</h2>
           )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onClose}
-            aria-label="Close"
-            className="size-8"
-          >
-            <IconX className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            {headerActions}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClose}
+              aria-label="Close"
+              className="size-8"
+            >
+              <IconX className="size-4" />
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-3 scrollbar-thin">
           {children}
