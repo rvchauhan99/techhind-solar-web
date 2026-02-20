@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import companyService from "@/services/companyService";
 
 export default function B2bSalesOrderEditForm({
@@ -45,11 +45,6 @@ export default function B2bSalesOrderEditForm({
     onSubmit(payload);
   };
 
-  const warehouseOptions = warehouses.map((w) => ({
-    value: w.id,
-    label: w.name || `Warehouse ${w.id}`,
-  }));
-
   const isDraft = defaultValues?.status === "DRAFT";
   const canConfirm = isDraft && plannedWarehouseId;
 
@@ -62,17 +57,14 @@ export default function B2bSalesOrderEditForm({
         <p className="text-sm text-muted-foreground">
           Order #{defaultValues?.order_no || defaultValues?.id}. Set planned warehouse to enable shipment creation.
         </p>
-        <Select
+        <AutocompleteField
           label="Planned Warehouse"
-          value={plannedWarehouseId}
-          onChange={(e) => setPlannedWarehouseId(e.target.value)}
-          placeholder="Select warehouse"
-        >
-          <MenuItem value="">Select warehouse</MenuItem>
-          {warehouseOptions.map((o) => (
-            <MenuItem key={o.value} value={String(o.value)}>{o.label}</MenuItem>
-          ))}
-        </Select>
+          placeholder="Type to search..."
+          options={warehouses}
+          getOptionLabel={(w) => w?.name ?? `Warehouse ${w?.id ?? ""}`}
+          value={warehouses.find((w) => w.id === parseInt(plannedWarehouseId)) || (plannedWarehouseId ? { id: parseInt(plannedWarehouseId) } : null)}
+          onChange={(e, newValue) => setPlannedWarehouseId(newValue?.id ?? "")}
+        />
         <FormActions>
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>

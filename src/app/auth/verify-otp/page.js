@@ -8,13 +8,14 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Loader from "@/components/common/Loader";
+import { normalizeEmail } from "@/utils/validators";
 import { IconKey, IconArrowLeft } from "@tabler/icons-react";
 
 function VerifyOtpPageContent() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
+  const email = normalizeEmail(searchParams.get("email") || "");
 
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");

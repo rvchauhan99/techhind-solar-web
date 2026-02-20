@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/common/Loader";
+import { normalizeEmail } from "@/utils/validators";
 import { IconMail, IconSolarElectricity, IconArrowLeft } from "@tabler/icons-react";
 
 export default function ForgotPasswordPage() {
@@ -37,14 +38,15 @@ export default function ForgotPasswordPage() {
     setSuccess("");
     setLoading(true);
 
-    if (!email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
       setError("Email is required");
       setLoading(false);
       return;
     }
 
     try {
-      const res = await authService.sendPasswordResetOtp(email);
+      const res = await authService.sendPasswordResetOtp(normalizedEmail);
 
       if (res.status === false) {
         const msg = res.message || "Failed to send OTP";
@@ -58,7 +60,7 @@ export default function ForgotPasswordPage() {
       toastSuccess(successMsg);
 
       setTimeout(() => {
-        router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`);
+        router.push(`/auth/verify-otp?email=${encodeURIComponent(normalizedEmail)}`);
       }, 2000);
     } catch (err) {
       const msg = err.response?.data?.message || "Failed to send OTP. Please try again.";

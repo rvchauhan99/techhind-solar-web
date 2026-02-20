@@ -26,6 +26,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import serializedInventoryService from "@/services/serializedInventoryService";
 import { toastError } from "@/utils/toast";
+import { formatCurrency } from "@/utils/dataTableUtils";
 import SerialLedgerDialog from "./SerialLedgerDialog";
 import PaginationControls from "@/components/common/PaginationControls";
 
@@ -210,6 +211,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
                   <TableCell><strong>HSN Code</strong></TableCell>
                   <TableCell><strong>Warehouse</strong></TableCell>
                   <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Unit Price</strong></TableCell>
                   <TableCell><strong>Inward Date</strong></TableCell>
                   <TableCell><strong>Outward Date</strong></TableCell>
                   <TableCell><strong>Actions</strong></TableCell>
@@ -247,6 +249,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
                         color={SERIAL_STATUS_COLORS[item.status] || "default"}
                       />
                     </TableCell>
+                    <TableCell>{formatCurrency(item.unit_price)}</TableCell>
                     <TableCell>
                       {item.inward_date ? new Date(item.inward_date).toLocaleDateString() : "-"}
                     </TableCell>

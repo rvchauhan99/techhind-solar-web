@@ -6,7 +6,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { usePathname } from "next/navigation";
 import moment from "moment";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -129,18 +129,20 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                         fullWidth
                         disabled
                     />
-                    <Select
-                        name="estimate_paid_by"
+                    <AutocompleteField
                         label="Paid By"
-                        value={formData.estimate_paid_by}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, estimate_paid_by: e.target.value }))}
+                        placeholder="Type to search..."
+                        options={[
+                            { id: "customer", label: "Customer" },
+                            { id: "company", label: "Company" },
+                        ]}
+                        getOptionLabel={(o) => o?.label ?? ""}
+                        value={formData.estimate_paid_by
+                            ? { id: formData.estimate_paid_by, label: formData.estimate_paid_by === "customer" ? "Customer" : "Company" }
+                            : null}
+                        onChange={(e, newValue) => setFormData((prev) => ({ ...prev, estimate_paid_by: newValue?.id ?? "" }))}
                         disabled={isCompleted || isReadOnly}
-                        placeholder="-- Select --"
-                        fullWidth
-                    >
-                        <MenuItem value="customer">Customer</MenuItem>
-                        <MenuItem value="company">Company</MenuItem>
-                    </Select>
+                    />
                 </FormGrid>
 
                 <div className="mt-3">

@@ -19,7 +19,6 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
-import Select, { MenuItem } from "@/components/common/Select";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
@@ -262,11 +261,6 @@ export default function B2bSalesOrderForm({
     onSubmit(payload);
   };
 
-  const warehouseOptions = warehouses.map((w) => ({
-    value: w.id,
-    label: w.name || `Warehouse ${w.id}`,
-  }));
-
   if (fromQuoteId) {
     return (
       <FormContainer>
@@ -277,19 +271,17 @@ export default function B2bSalesOrderForm({
           <p className="text-sm text-muted-foreground">
             Creating order from quote. Select the planned warehouse for fulfillment.
           </p>
-          <Select
-            label="Planned Warehouse"
-            value={plannedWarehouseId}
-            onChange={(e) => setPlannedWarehouseId(e.target.value)}
-            placeholder="Select warehouse"
-            error={errors.planned_warehouse_id}
+          <AutocompleteField
+            label="Planned Warehouse *"
+            placeholder="Type to search..."
+            options={warehouses}
+            getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+            value={warehouses.find((w) => w.id === parseInt(plannedWarehouseId)) || (plannedWarehouseId ? { id: parseInt(plannedWarehouseId) } : null)}
+            onChange={(e, newValue) => setPlannedWarehouseId(newValue?.id ?? "")}
+            error={!!errors.planned_warehouse_id}
+            helperText={errors.planned_warehouse_id}
             required
-          >
-            <MenuItem value="">Select warehouse</MenuItem>
-            {warehouseOptions.map((o) => (
-              <MenuItem key={o.value} value={String(o.value)}>{o.label}</MenuItem>
-            ))}
-          </Select>
+          />
           <FormActions>
             {onCancel && (
               <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
@@ -339,36 +331,26 @@ export default function B2bSalesOrderForm({
                 error={!!errors.order_date}
                 helperText={errors.order_date}
               />
-              <Select
-                name="client_id"
-                label="Client"
-                value={formData.client_id}
-                onChange={handleChange}
+              <AutocompleteField
+                label="Client *"
+                placeholder="Type to search..."
+                options={clients}
+                getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
+                value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
                 required
                 error={!!errors.client_id}
                 helperText={errors.client_id}
-              >
-                <MenuItem value="">-- Select Client --</MenuItem>
-                {clients.map((c) => (
-                  <MenuItem key={c.id} value={c.id}>
-                    {c.client_code} – {c.client_name}
-                  </MenuItem>
-                ))}
-              </Select>
-              <Select
-                name="ship_to_id"
+              />
+              <AutocompleteField
                 label="Ship To"
-                value={formData.ship_to_id}
-                onChange={handleChange}
+                placeholder="Type to search..."
+                options={shipTos}
+                getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
+                value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                 disabled={!formData.client_id}
-              >
-                <MenuItem value="">-- Select Ship-to (Optional) --</MenuItem>
-                {shipTos.map((s) => (
-                  <MenuItem key={s.id} value={s.id}>
-                    {s.ship_to_name || s.address || `Ship-to #${s.id}`}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
               <Input
                 name="payment_terms"
                 label="Payment Terms"
