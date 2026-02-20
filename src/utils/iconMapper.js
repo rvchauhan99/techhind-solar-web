@@ -221,6 +221,15 @@ const iconMap = {
   view_grid: IconGridDots,
   assignment: IconClipboardList,
   campaign: IconMessageCircle,
+  business: IconBriefcase,
+  people: IconUsers,
+  local_shipping: IconTruckDelivery,
+  b2b_trading: IconBriefcase,
+  b2b_clients: IconUsers,
+  b2b_sales_quotes: IconFileDescription,
+  b2b_sales_orders: IconShoppingCart,
+  b2b_shipments: IconTruckDelivery,
+  b2b_invoices: IconReceipt2,
 };
 
 /**
