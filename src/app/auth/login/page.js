@@ -34,6 +34,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [tenantKey, setTenantKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [requirePasswordChange, setRequirePasswordChange] = useState(false);
@@ -72,8 +73,10 @@ export default function LoginPage() {
     try {
       const normalizedEmail = normalizeEmail(email);
       const loginBody = { email: normalizedEmail, password };
-      if (process.env.NEXT_PUBLIC_TENANT_KEY) {
-        loginBody.tenant_key = process.env.NEXT_PUBLIC_TENANT_KEY;
+      const effectiveTenantKey =
+        (process.env.NEXT_PUBLIC_TENANT_KEY || "").trim() || (tenantKey || "").trim();
+      if (effectiveTenantKey) {
+        loginBody.tenant_key = effectiveTenantKey;
       }
       const loginRes = await apiClient.post("/auth/login", loginBody);
 
@@ -270,6 +273,19 @@ export default function LoginPage() {
 
       {!requirePasswordChange && !requireTwoFactor && !setupTwoFactor && (
         <form onSubmit={login} className="flex flex-col gap-4">
+          {!process.env.NEXT_PUBLIC_TENANT_KEY && (
+            <div className="space-y-2">
+              <Label htmlFor="tenant_key">TENANT KEY (optional for multi-tenant)</Label>
+              <Input
+                id="tenant_key"
+                type="text"
+                placeholder="e.g. acme"
+                value={tenantKey}
+                onChange={(e) => setTenantKey(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">EMAIL ADDRESS</Label>
             <div className="relative">

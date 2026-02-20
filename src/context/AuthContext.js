@@ -37,6 +37,14 @@ export default function AuthProvider({ children }) {
       }
 
       const isAuthRoute = pathname?.startsWith("/auth");
+      const isAdminRoute = pathname?.startsWith("/admin");
+
+      // Admin UI uses admin API key only; no login required (allows creating first tenant when 0 tenants).
+      if (isAdminRoute) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
       if (isAuthRoute) {
         // On auth routes: restore session from token if present

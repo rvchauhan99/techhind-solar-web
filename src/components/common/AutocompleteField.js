@@ -1,16 +1,12 @@
 "use client";
 
-import { forwardRef, useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { forwardRef, useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 import mastersService from "@/services/mastersService";
-
-const DROPDOWN_Z_INDEX = 9999;
-const DROPDOWN_MAX_HEIGHT = 192; // max-h-48 = 12rem = 192px
 
 /**
  * AutocompleteField (shadcn-based). Same API: options, getOptionLabel, value, onChange(e, newValue), label, placeholder, error, helperText, multiple.
@@ -46,8 +42,6 @@ const AutocompleteField = forwardRef(function AutocompleteField(
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const containerRef = useRef(null);
-  const dropdownRef = useRef(null);
-  const [dropdownPosition, setDropdownPosition] = useState(null);
 
   const isAsyncMode = Boolean(asyncLoadOptions);
   const resolveById = resolveOptionById ?? (referenceModel ? (id) => mastersService.getReferenceOptionById(referenceModel, id) : null);
@@ -279,42 +273,10 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     };
   }, []);
 
-  // Update dropdown position for portal (viewport coordinates for position: fixed)
-  const updateDropdownPosition = useCallback(() => {
-    if (!containerRef.current || !open) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const openDown = spaceBelow >= Math.min(DROPDOWN_MAX_HEIGHT, spaceAbove) || spaceBelow >= spaceAbove;
-    setDropdownPosition({
-      top: openDown ? rect.bottom : rect.top - DROPDOWN_MAX_HEIGHT,
-      left: rect.left,
-      width: rect.width,
-      openDown,
-    });
-  }, [open]);
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setDropdownPosition(null);
-      return;
-    }
-    updateDropdownPosition();
-    const onScrollOrResize = () => updateDropdownPosition();
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-    return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [open, updateDropdownPosition]);
-
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
-      const inContainer = containerRef.current?.contains(e.target);
-      const inDropdown = dropdownRef.current?.contains(e.target);
-      if (!inContainer && !inDropdown) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
         if (isAsyncMode) initialOptionsLoadedRef.current = false;
       }
@@ -377,50 +339,35 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             className="flex-1 min-w-[120px] border-0 bg-transparent outline-none text-sm"
           />
         </div>
-        {open &&
-          dropdownPosition &&
-          typeof document !== "undefined" &&
-          createPortal(
-            <ul
-              ref={dropdownRef}
-              className="max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
-              style={{
-                position: "fixed",
-                top: dropdownPosition.top,
-                left: dropdownPosition.left,
-                width: dropdownPosition.width,
-                zIndex: DROPDOWN_Z_INDEX,
-              }}
-            >
-              {isLoading && (
-                <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-                  Loading options...
+        {open && (
+          <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50">
+            {isLoading && (
+              <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+                <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
+                Loading options...
+              </li>
+            )}
+            {asyncError && !isLoading && (
+              <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
+            )}
+            {!isLoading && !asyncError && filterOptions.length === 0 && (
+              <li className="px-3 py-2 text-sm text-muted-foreground">
+                {isAsyncMode ? "No options found. Try a different search." : "No options found"}
+              </li>
+            )}
+            {!isLoading && !asyncError &&
+              filterOptions.map((opt, i) => (
+                <li
+                  key={i}
+                  role="option"
+                  className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => handleSelect(opt)}
+                >
+                  {getOptionLabel(opt)}
                 </li>
-              )}
-              {asyncError && !isLoading && (
-                <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
-              )}
-              {!isLoading && !asyncError && filterOptions.length === 0 && (
-                <li className="px-3 py-2 text-sm text-muted-foreground">
-                  {isAsyncMode ? "No options found. Try a different search." : "No options found"}
-                </li>
-              )}
-              {!isLoading &&
-                !asyncError &&
-                filterOptions.map((opt, i) => (
-                  <li
-                    key={i}
-                    role="option"
-                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
-                    onClick={() => handleSelect(opt)}
-                  >
-                    {getOptionLabel(opt)}
-                  </li>
-                ))}
-            </ul>,
-            document.body
-          )}
+              ))}
+          </ul>
+        )}
         {error && helperText && (
           <p className="mt-1.5 text-xs text-destructive">{helperText}</p>
         )}
@@ -460,50 +407,36 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           </div>
         )}
       </div>
-      {open &&
-        dropdownPosition &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <ul
-            ref={dropdownRef}
-            className="max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
-            style={{
-              position: "fixed",
-              top: dropdownPosition.top,
-              left: dropdownPosition.left,
-              width: dropdownPosition.width,
-              zIndex: DROPDOWN_Z_INDEX,
-            }}
-          >
-            {isLoading && (
-              <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-                Loading options...
+      {open && (
+        <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0 top-full">
+          {isLoading && (
+            <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+              <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
+              Loading options...
+            </li>
+          )}
+          {asyncError && !isLoading && (
+            <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
+          )}
+          {!isLoading && !asyncError && filterOptions.length === 0 && (
+            <li className="px-3 py-2 text-sm text-muted-foreground">
+              {isAsyncMode ? "No options found. Try a different search." : "No options found"}
+            </li>
+          )}
+          {!isLoading &&
+            !asyncError &&
+            filterOptions.map((opt, i) => (
+              <li
+                key={i}
+                role="option"
+                className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                onClick={() => handleSelect(opt)}
+              >
+                {getOptionLabel(opt)}
               </li>
-            )}
-            {asyncError && !isLoading && (
-              <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
-            )}
-            {!isLoading && !asyncError && filterOptions.length === 0 && (
-              <li className="px-3 py-2 text-sm text-muted-foreground">
-                {isAsyncMode ? "No options found. Try a different search." : "No options found"}
-              </li>
-            )}
-            {!isLoading &&
-              !asyncError &&
-              filterOptions.map((opt, i) => (
-                <li
-                  key={i}
-                  role="option"
-                  className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
-                  onClick={() => handleSelect(opt)}
-                >
-                  {getOptionLabel(opt)}
-                </li>
-              ))}
-          </ul>,
-          document.body
-        )}
+            ))}
+        </ul>
+      )}
       {error && helperText && (
         <p className="mt-1.5 text-xs text-destructive">{helperText}</p>
       )}
