@@ -33,7 +33,6 @@ import { cn } from "@/lib/utils";
 import { getIcon } from "@/utils/iconMapper";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { adminApiKey } from "@/lib/api/adminAxios";
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -319,21 +318,6 @@ export default function Sidebar({
                 </Link>
               );
             })}
-            {adminApiKey && (
-              <Link
-                href="/admin/tenants"
-                onClick={() => setSidebarOpen?.(false)}
-                title="Tenant Management"
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                  pathname?.startsWith("/admin")
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <IconCircle className="h-5 w-5" />
-              </Link>
-            )}
           </nav>
 
           {sidebarToggleButton}
@@ -487,24 +471,6 @@ export default function Sidebar({
             />
           ))}
         </nav>
-
-        {adminApiKey && (
-          <div className="mb-4 border-t border-border pt-2">
-            <Link
-              href="/admin/tenants"
-              onClick={() => setSidebarOpen?.(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                pathname?.startsWith("/admin")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-              )}
-            >
-              <IconCircle className="h-5 w-5 shrink-0" />
-              <span>Tenant Management</span>
-            </Link>
-          </div>
-        )}
 
         {/* Collapse button: desktop only */}
         <div className="mt-auto flex justify-end pt-2">
