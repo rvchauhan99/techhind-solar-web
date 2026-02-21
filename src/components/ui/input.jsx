@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
 // MUI-style props that must not be forwarded to the DOM (strip and apply inputProps contents instead)
@@ -8,9 +9,11 @@ const DOM_EXCLUDED_PROPS = [
   "FormControlProps",
   "FormHelperTextProps",
   "SelectProps",
+  "startAdornment",
+  "endAdornment",
 ];
 
-export function Input({ className, type, ...props }) {
+const Input = forwardRef(function Input({ className, type, ...props }, ref) {
   const domProps = { ...props };
   const inputProps = domProps.inputProps;
   DOM_EXCLUDED_PROPS.forEach((key) => delete domProps[key]);
@@ -23,6 +26,7 @@ export function Input({ className, type, ...props }) {
   }
   return (
     <input
+      ref={ref}
       type={type}
       data-slot="input"
       className={cn(
@@ -32,4 +36,6 @@ export function Input({ className, type, ...props }) {
       {...domProps}
     />
   );
-}
+});
+
+export { Input };

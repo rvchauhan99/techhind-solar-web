@@ -11,7 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsSearch, getReferenceOptionById } from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
@@ -100,6 +100,44 @@ export default function AssignFabricatorAndInstaller({
             }
         }
     }, [orderData]);
+
+    // Resolve user display names when we have IDs but no name (e.g. after stage completed, coming back to view)
+    useEffect(() => {
+        const resolveUser = async (id, setter) => {
+            if (!id) return;
+            try {
+                const user = await getReferenceOptionById("user.model", id);
+                if (user) {
+                    setter((prev) => {
+                        const merged = { ...(prev || {}), id: Number(id), ...user };
+                        return merged;
+                    });
+                }
+            } catch (e) {
+                console.warn("Could not resolve user", id, e);
+            }
+        };
+        if (formData.fabricator_installer_are_same && formData.fabricator_installer_id) {
+            if (!selectedFabricatorInstaller?.name && !selectedFabricatorInstaller?.username) {
+                resolveUser(formData.fabricator_installer_id, setSelectedFabricatorInstaller);
+            }
+        } else {
+            if (formData.fabricator_id && (!selectedFabricator?.name && !selectedFabricator?.username)) {
+                resolveUser(formData.fabricator_id, setSelectedFabricator);
+            }
+            if (formData.installer_id && (!selectedInstaller?.name && !selectedInstaller?.username)) {
+                resolveUser(formData.installer_id, setSelectedInstaller);
+            }
+        }
+    }, [
+        formData.fabricator_installer_are_same,
+        formData.fabricator_installer_id,
+        formData.fabricator_id,
+        formData.installer_id,
+        selectedFabricatorInstaller?.id,
+        selectedFabricator?.id,
+        selectedInstaller?.id,
+    ]);
 
     useEffect(() => {
         if (!orderData?.id || !user?.id) {
@@ -307,7 +345,7 @@ export default function AssignFabricatorAndInstaller({
                             label="Fabricator/Installer"
                             asyncLoadOptions={loadUserOptions}
                             referenceModel="user.model"
-                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || (option?.id ? `User #${option.id}` : "")}
                             value={selectedFabricatorInstaller}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, fabricator_installer_id: newValue?.id || "" }));
@@ -334,7 +372,7 @@ export default function AssignFabricatorAndInstaller({
                             label="Fabricator"
                             asyncLoadOptions={loadUserOptions}
                             referenceModel="user.model"
-                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || (option?.id ? `User #${option.id}` : "")}
                             value={selectedFabricator}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, fabricator_id: newValue?.id || "" }));
@@ -358,7 +396,7 @@ export default function AssignFabricatorAndInstaller({
                             label="Installer"
                             asyncLoadOptions={loadUserOptions}
                             referenceModel="user.model"
-                            getOptionLabel={(option) => option?.name || option?.username || option?.label || ""}
+                            getOptionLabel={(option) => option?.name || option?.username || option?.label || (option?.id ? `User #${option.id}` : "")}
                             value={selectedInstaller}
                             onChange={(event, newValue) => {
                                 setFormData((prev) => ({ ...prev, installer_id: newValue?.id || "" }));

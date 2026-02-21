@@ -1066,7 +1066,8 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
         </MenuItem>
         {(() => {
           const inquiry = inquiries.find((inq) => String(inq.id) === menuInquiryId);
-          return inquiry?.status === "Quotation" ? (
+          const canConvert = inquiry?.status === "Quotation" || inquiry?.status === "Under Discussion";
+          return canConvert ? (
             <MenuItem onClick={handleConvertToOrder}>
               <ListItemIcon>
                 <ShoppingCartIcon fontSize="small" />

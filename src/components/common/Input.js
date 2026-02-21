@@ -30,10 +30,15 @@ const Input = forwardRef(function Input(
     required = false,
     className,
     inputProps = {},
+    InputProps, // MUI convention - merge valid DOM props, ignore sx etc.
     ...otherProps
   },
   ref
 ) {
+  // Merge InputProps (MUI convention) - extract valid input/textarea DOM attributes, exclude sx
+  const { sx, ...inputPropsFromMUI } = InputProps || {};
+  const mergedInputProps = { ...inputProps, ...inputPropsFromMUI };
+
   // For type="number", always use string so controlled input works reliably across all forms
   const safeValue =
     type === "number"
@@ -41,8 +46,8 @@ const Input = forwardRef(function Input(
       : (value == null ? "" : value);
   const numberInputProps =
     type === "number"
-      ? { inputMode: "decimal", step: inputProps.step ?? "0.01", ...inputProps }
-      : inputProps;
+      ? { inputMode: "decimal", step: mergedInputProps.step ?? "0.01", ...mergedInputProps }
+      : mergedInputProps;
 
   if (multiline) {
     return (
@@ -66,7 +71,7 @@ const Input = forwardRef(function Input(
             error && "border-destructive focus-visible:ring-destructive",
             className
           )}
-          {...inputProps}
+          {...mergedInputProps}
           {...otherProps}
         />
         {error && helperText && (
@@ -97,7 +102,7 @@ const Input = forwardRef(function Input(
           error && "border-destructive focus-visible:ring-destructive",
           className
         )}
-        {...(type === "number" ? numberInputProps : inputProps)}
+        {...(type === "number" ? numberInputProps : mergedInputProps)}
         {...otherProps}
       />
       {error && helperText && (

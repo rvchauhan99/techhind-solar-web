@@ -465,13 +465,7 @@ export default function SiteSurveyForm({
                         onChange={handleChange}
                         multiline
                         rows={1}
-                        InputProps={{
-                            sx: {
-                                '& textarea': {
-                                    resize: 'vertical'
-                                }
-                            }
-                        }}
+                        className="resize-y"
                     />
                 </Grid>
 

@@ -118,6 +118,9 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
 
     const isCompleted = orderData?.stages?.estimate_generated === "completed";
     const isZeroAmountOrder = orderData?.zero_amount_estimate === true;
+    const estimateAmountValue = orderData?.estimate_amount ?? formData.estimate_amount ?? "";
+    const hasZeroAmount = isZeroAmountOrder || Number(estimateAmountValue) === 0;
+    const showZeroAmountHighlight = isCompleted && hasZeroAmount;
     const isReadOnly = isReadOnlyRoute;
 
     const handleZeroAmountCheckboxChange = (e) => {
@@ -171,7 +174,22 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
     };
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-4">
+        <Box
+            component="form"
+            onSubmit={handleSubmit}
+            className="p-4"
+            sx={showZeroAmountHighlight ? {
+                borderRadius: 1.5,
+                border: "2px solid",
+                borderColor: "warning.main",
+                bgcolor: "warning.light",
+            } : {}}
+        >
+            {showZeroAmountHighlight && (
+                <Alert severity="warning" sx={{ mb: 2 }} icon={false}>
+                    <strong>Zero amount estimate</strong> — This stage was completed with ₹0. Review as needed when going through completed stages.
+                </Alert>
+            )}
             <FormSection title="Estimate details">
                 <FormGrid cols={3}>
                     <Input
