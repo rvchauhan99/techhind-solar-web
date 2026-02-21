@@ -62,11 +62,12 @@ export const getReferenceOptions = (model, params = {}) => {
  * @param {{ q?: string, limit?: number, status?: string }} params - q: search term; limit: max results (default 20); status: optional filter
  * @returns {Promise<Array>} - Array of option objects { id, label, value, ... }
  */
-export const getReferenceOptionsSearch = (model, { q = '', limit = 20, status, id } = {}) => {
+export const getReferenceOptionsSearch = (model, { q = '', limit = 20, status, status_in, id } = {}) => {
   const params = { model };
   if (q != null && String(q).trim() !== '') params.q = String(q).trim();
   if (limit != null) params.limit = limit;
   if (status != null && status !== '') params.status = status;
+  if (status_in != null && status_in !== '') params.status_in = status_in;
   if (id != null && id !== '') params.id = id;
   const searchParams = new URLSearchParams(params);
   return apiClient
@@ -96,6 +97,8 @@ export const getReferenceOptionById = (model, id) => {
 export const getConstants = () => apiClient.get(`/masters/constants`).then((r) => r.data);
 
 export const getDefaultState = () => apiClient.get(`/masters/state/default`).then((r) => r.data);
+
+export const getDefaultBranch = () => apiClient.get(`/masters/branch/default`).then((r) => r.data);
 
 export const downloadSampleCsv = async (model) => {
   const res = await apiClient.get(`/masters/sample-file?model=${encodeURIComponent(model)}`, {
@@ -145,4 +148,4 @@ export const uploadMasterCsv = async (model, file) => {
 export const getFileUrl = (model, id) =>
   apiClient.get(`/masters/${id}/file-url`, { params: { model } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, downloadSampleCsv, uploadMasterCsv, getFileUrl };
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, uploadMasterCsv, getFileUrl };

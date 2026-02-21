@@ -5,9 +5,7 @@ export const getOrderDocuments = (params = {}) =>
 
 export const createOrderDocument = (formData) =>
     apiClient.post("/order-documents", formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": undefined },
     }).then((r) => r.data);
 
 export const getOrderDocumentById = (id) =>
@@ -15,9 +13,7 @@ export const getOrderDocumentById = (id) =>
 
 export const updateOrderDocument = (id, formData) =>
     apiClient.put(`/order-documents/${id}`, formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": undefined },
     }).then((r) => r.data);
 
 export const deleteOrderDocument = (id) =>

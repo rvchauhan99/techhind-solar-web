@@ -14,14 +14,17 @@ import { Box } from "@mui/material";
 export default function BucketImage({ path, getUrl, alt = "Image", sx = {}, onClick }) {
   const [url, setUrl] = useState(null);
   const [error, setError] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!path || typeof getUrl !== "function") {
       setUrl(null);
+      setLoadError(false);
       return;
     }
     let cancelled = false;
     setError(false);
+    setLoadError(false);
     getUrl(path)
       .then((u) => {
         if (!cancelled && u) setUrl(u);
@@ -33,14 +36,18 @@ export default function BucketImage({ path, getUrl, alt = "Image", sx = {}, onCl
     return () => { cancelled = true; };
   }, [path, getUrl]);
 
+  const handleImgError = () => setLoadError(true);
+
   if (error || !path) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>—</Box>;
   if (!url) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>;
+  if (loadError) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Image unavailable</Box>;
 
   return (
     <Box
       component="img"
       src={url}
       alt={alt}
+      onError={handleImgError}
       sx={{
         width: 50,
         height: 50,

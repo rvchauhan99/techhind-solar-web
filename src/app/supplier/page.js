@@ -79,9 +79,9 @@ export default function SupplierPage() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [supplierToDelete, setSupplierToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [supplierToDeactivate, setSupplierToDeactivate] = useState(null);
+  const [deactivating, setDeactivating] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -261,11 +261,11 @@ export default function SupplierPage() {
                 className="size-8 text-destructive hover:text-destructive"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSupplierToDelete(row);
-                  setShowDeleteDialog(true);
+                  setSupplierToDeactivate(row);
+                  setShowDeactivateDialog(true);
                 }}
-                title="Delete"
-                aria-label="Delete"
+                title="Deactivate"
+                aria-label="Deactivate"
               >
                 <IconTrash className="size-4" />
               </Button>
@@ -374,30 +374,30 @@ export default function SupplierPage() {
     }
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!supplierToDelete) return;
+  const handleDeactivateConfirm = async () => {
+    if (!supplierToDeactivate) return;
 
-    setDeleting(true);
+    setDeactivating(true);
     try {
-      await supplierService.deleteSupplier(supplierToDelete.id);
+      await supplierService.deleteSupplier(supplierToDeactivate.id);
       setTableKey((prev) => prev + 1);
-      setShowDeleteDialog(false);
-      const name = supplierToDelete.supplier_name;
-      setSupplierToDelete(null);
-      toast.success(`Supplier "${name}" deleted successfully`);
+      setShowDeactivateDialog(false);
+      const name = supplierToDeactivate.supplier_name;
+      setSupplierToDeactivate(null);
+      toast.success(`Supplier "${name}" deactivated successfully`);
     } catch (error) {
-      console.error("Delete error:", error);
+      console.error("Deactivate error:", error);
       const errorMsg =
-        error.response?.data?.message || error.message || "Failed to delete supplier";
+        error.response?.data?.message || error.message || "Failed to deactivate supplier";
       toast.error(errorMsg);
     } finally {
-      setDeleting(false);
+      setDeactivating(false);
     }
   };
 
-  const handleDeleteCancel = () => {
-    setShowDeleteDialog(false);
-    setSupplierToDelete(null);
+  const handleDeactivateCancel = () => {
+    setShowDeactivateDialog(false);
+    setSupplierToDeactivate(null);
   };
 
   const sidebarContent = useMemo(() => {
@@ -528,25 +528,25 @@ export default function SupplierPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={(open) => !open && handleDeleteCancel()}>
+      <AlertDialog open={showDeactivateDialog} onOpenChange={(open) => !open && handleDeactivateCancel()}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Delete</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Deactivate</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the supplier{" "}
-              <strong>&quot;{supplierToDelete?.supplier_name}&quot;</strong>? This action cannot be
-              undone.
+              Are you sure you want to deactivate the supplier{" "}
+              <strong>&quot;{supplierToDeactivate?.supplier_name}&quot;</strong>? The supplier will
+              be hidden from the active list but can be viewed under inactive.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deactivating}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               size="sm"
-              loading={deleting}
-              onClick={handleDeleteConfirm}
+              loading={deactivating}
+              onClick={handleDeactivateConfirm}
             >
-              Delete
+              Deactivate
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

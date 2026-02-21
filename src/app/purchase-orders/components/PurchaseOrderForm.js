@@ -67,6 +67,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     // Current item being added
     const [currentItem, setCurrentItem] = useState({
         product_id: "",
+        product_name: "",
         hsn_code: "",
         rate: "",
         quantity: "",
@@ -244,13 +245,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             });
         }
 
-        // Auto-fill HSN and GST from product
+        // Auto-fill HSN and GST from product (product_name set via AutocompleteField onChange)
         if (name === "product_id" && value) {
             const product = options.products.find((p) => p.id === parseInt(value));
             if (product) {
                 setCurrentItem((prev) => ({
                     ...prev,
                     product_id: value,
+                    product_name: product.product_name || prev.product_name,
                     hsn_code: product.hsn_ssn_code || "",
                     gst_percent: product.gst_percent || "",
                 }));
@@ -307,6 +309,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         
         const newItem = {
             product_id: parseInt(currentItem.product_id),
+            product_name: currentItem.product_name || product?.product_name || "",
             hsn_code: currentItem.hsn_code || (product?.hsn_ssn_code || ""),
             rate: parseFloat(currentItem.rate),
             quantity: parseInt(currentItem.quantity),
@@ -321,6 +324,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         // Clear the input fields and errors
         setCurrentItem({
             product_id: "",
+            product_name: "",
             hsn_code: "",
             rate: "",
             quantity: "",
@@ -698,10 +702,11 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     value={currentItem.product_id ? { id: currentItem.product_id } : null}
                                     onChange={(e, newValue) => {
                                         handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
-                                        if (newValue && (newValue.hsn_ssn_code != null || newValue.gst_percent != null)) {
+                                        if (newValue) {
                                             setCurrentItem((prev) => ({
                                                 ...prev,
                                                 product_id: newValue.id ?? prev.product_id,
+                                                product_name: newValue.product_name ?? prev.product_name,
                                                 hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
                                                 gst_percent: newValue.gst_percent ?? prev.gst_percent,
                                             }));
@@ -786,7 +791,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     </TableHead>
                                     <TableBody>
                                         {formData.items.map((item, index) => {
-                                            const product = options.products.find((p) => p.id === item.product_id);
+                                            const displayLabel = item.product_name ?? item.product?.product_name;
                                             const itemTaxable = item.rate * item.quantity;
                                             const itemGst = (itemTaxable * item.gst_percent) / 100;
                                             const itemTotal = itemTaxable + itemGst;
@@ -804,7 +809,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                     }}
                                                 >
                                                     <TableCell>
-                                                        {product?.product_name || <Typography color="error" variant="caption">- Select Product -</Typography>}
+                                                        {displayLabel || <Typography color="error" variant="caption">- Select Product -</Typography>}
                                                         {rowErrors.product_id && (
                                                             <Typography variant="caption" color="error" display="block">
                                                                 {rowErrors.product_id}

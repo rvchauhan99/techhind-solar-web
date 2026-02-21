@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Autocomplete, Chip } from "@mui/material";
-import Input from "@/components/common/Input";
+import { Autocomplete, Chip, TextField } from "@mui/material";
 
 /**
  * Reusable Make Autocomplete. Display does NOT depend on productMakes option list.
@@ -56,7 +55,7 @@ export default function MakeAutocomplete({
             onChange={(e, newValue) => {
                 onChange((newValue || []).map((v) => v.id));
             }}
-            renderInput={(params) => <Input {...params} label={label} />}
+            renderInput={(params) => <TextField {...params} label={label} size="small" />}
             renderTags={(value, getTagProps) =>
                 value.map((option, index) => {
                     const { key, ...tagProps } = getTagProps({ index });

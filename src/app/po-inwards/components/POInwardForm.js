@@ -725,7 +725,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                         <AutocompleteField
                             name="purchase_order_id"
                             label="Purchase Order"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("purchaseOrder.model", { q, limit: 20, status: "APPROVED" })}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("purchaseOrder.model", { q, limit: 20, status_in: "APPROVED,PARTIAL_RECEIVED" })}
                             referenceModel="purchaseOrder.model"
                             getOptionLabel={(po) => po?.label ?? `${po?.po_number ?? po?.id ?? ""} - ${po?.supplier?.supplier_name ?? ""}`}
                             value={selectedPO || (formData.purchase_order_id ? { id: formData.purchase_order_id } : null)}
@@ -854,7 +854,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                     {isCardCollapsed && (
                                                         <Typography variant="caption" color="text.secondary">
                                                             Ordered {item.ordered_quantity}
-                                                            {acceptedQty > 0 && ` · Accepted ${acceptedQty}`}
+                                                            {acceptedQty > 0 && ` · Received ${acceptedQty}`}
                                                             {isSerial && acceptedQty > 0 && ` · Serials ${serialCount}/${acceptedQty}`}
                                                         </Typography>
                                                     )}
@@ -871,20 +871,22 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                             <Collapse in={!isCardCollapsed} timeout="auto" unmountOnExit>
                                                 <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
 
-                                                    {/* Read-only stats */}
+                                                    {/* Read-only stats: Ordered, Pending */}
                                                     <Box sx={{ display: "flex", gap: 2, mb: 1.25 }}>
                                                         <Box>
                                                             <Typography variant="caption" color="text.secondary" display="block">Ordered</Typography>
                                                             <Typography variant="body2">{item.ordered_quantity}</Typography>
                                                         </Box>
                                                         <Box>
-                                                            <Typography variant="caption" color="text.secondary" display="block">Accepted</Typography>
-                                                            <Typography variant="body2" fontWeight="medium" color="success.main">{acceptedQty}</Typography>
+                                                            <Typography variant="caption" color="text.secondary" display="block">Pending</Typography>
+                                                            <Typography variant="body2" fontWeight="medium">
+                                                                {Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.received_quantity) || 0))}
+                                                            </Typography>
                                                         </Box>
                                                     </Box>
 
-                                                    {/* Received / Rejected inputs side by side */}
-                                                    <Box sx={{ display: "flex", gap: 1, mb: 1 }}>
+                                                    {/* Received input (Rejected default 0, Accepted = Received) */}
+                                                    <Box sx={{ mb: 1 }}>
                                                         <Input
                                                             type="number"
                                                             size="small"
@@ -895,17 +897,6 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                             inputProps={{ min: 0, max: item.ordered_quantity }}
                                                             error={!!errors[`item_${index}_received`]}
                                                             helperText={errors[`item_${index}_received`]}
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            size="small"
-                                                            label="Rejected"
-                                                            fullWidth
-                                                            value={item.rejected_quantity}
-                                                            onChange={(e) => handleItemChange(index, "rejected_quantity", e.target.value)}
-                                                            inputProps={{ min: 0, max: item.received_quantity }}
-                                                            error={!!errors[`item_${index}_rejected`]}
-                                                            helperText={errors[`item_${index}_rejected`]}
                                                         />
                                                     </Box>
 
@@ -1036,9 +1027,8 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                         <TableRow>
                                             <TableCell><strong>Product</strong></TableCell>
                                             <TableCell align="right"><strong>Ordered</strong></TableCell>
+                                            <TableCell align="right"><strong>Pending</strong></TableCell>
                                             <TableCell align="right"><strong>Received</strong></TableCell>
-                                            <TableCell align="right"><strong>Rejected</strong></TableCell>
-                                            <TableCell align="right"><strong>Accepted</strong></TableCell>
                                             <TableCell><strong>Tracking</strong></TableCell>
                                         </TableRow>
                                     </TableHead>
@@ -1084,6 +1074,9 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                             </Box>
                                                         </TableCell>
                                                         <TableCell align="right">{item.ordered_quantity}</TableCell>
+                                                        <TableCell align="right">
+                                                            {Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.received_quantity) || 0))}
+                                                        </TableCell>
                                                         <TableCell data-no-row-toggle>
                                                             <Input
                                                                 type="number"
@@ -1095,23 +1088,6 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                                 error={!!errors[`item_${index}_received`]}
                                                                 helperText={errors[`item_${index}_received`]}
                                                             />
-                                                        </TableCell>
-                                                        <TableCell data-no-row-toggle>
-                                                            <Input
-                                                                type="number"
-                                                                size="small"
-                                                                fullWidth
-                                                                value={item.rejected_quantity}
-                                                                onChange={(e) => handleItemChange(index, "rejected_quantity", e.target.value)}
-                                                                inputProps={{ min: 0, max: item.received_quantity }}
-                                                                error={!!errors[`item_${index}_rejected`]}
-                                                                helperText={errors[`item_${index}_rejected`]}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            <Typography variant="body2" fontWeight="medium" color="success.main">
-                                                                {item.accepted_quantity}
-                                                            </Typography>
                                                         </TableCell>
                                                         <TableCell>
                                                             {isSerial ? (
@@ -1147,7 +1123,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                     </TableRow>
                                                     {isSerial && (
                                                         <TableRow sx={{ "& > td": { borderBottom: isExpanded ? undefined : "none", py: 0, verticalAlign: "top" } }}>
-                                                            <TableCell colSpan={6} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
+                                                            <TableCell colSpan={5} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
                                                                 <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                                                     <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
                                                                         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
@@ -1243,15 +1219,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                 </Typography>
                             </div>
                             <div>
-                                <Typography variant="body2" color="text.secondary">Total Accepted Quantity</Typography>
-                                <Typography variant="h6" color="success.main">
-                                    {formData.items.reduce((sum, item) => sum + (parseInt(item.accepted_quantity) || 0), 0)}
-                                </Typography>
-                            </div>
-                            <div>
-                                <Typography variant="body2" color="text.secondary">Total Rejected Quantity</Typography>
-                                <Typography variant="h6" color="error.main">
-                                    {formData.items.reduce((sum, item) => sum + (parseInt(item.rejected_quantity) || 0), 0)}
+                                <Typography variant="body2" color="text.secondary">Total Pending Quantity</Typography>
+                                <Typography variant="h6">
+                                    {formData.items.reduce((sum, item) => {
+                                        const ordered = parseInt(item.ordered_quantity) || 0;
+                                        const received = parseInt(item.received_quantity) || 0;
+                                        return sum + Math.max(0, ordered - received);
+                                    }, 0)}
                                 </Typography>
                             </div>
                         </FormGrid>
