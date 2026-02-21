@@ -16,7 +16,7 @@ import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
-import mastersService, { getDefaultState, getReferenceOptionsSearch } from "@/services/mastersService";
+import mastersService, { getDefaultState, getDefaultBranch, getReferenceOptionsSearch } from "@/services/mastersService";
 import quotationService from "@/services/quotationService";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -178,6 +178,15 @@ export default function QuotationForm({
         }).catch(() => {});
     }, [defaultValues, formData.state_id, patchForm]);
 
+    useEffect(() => {
+        if (defaultValues && Object.keys(defaultValues).length > 0) return;
+        if (formData.branch_id) return;
+        getDefaultBranch().then((res) => {
+            const defaultBranch = res?.result ?? res?.data ?? res;
+            if (defaultBranch?.id) patchForm({ branch_id: defaultBranch.id });
+        }).catch(() => {});
+    }, [defaultValues, formData.branch_id, patchForm]);
+
     const sortedTechnicalSections = useMemo(() => {
         const products = options.products || [];
         const typeOrderMap = {};
@@ -331,7 +340,11 @@ export default function QuotationForm({
                             name="project_price_id"
                             label="Select Project"
                             options={options.projectPrices || []}
-                            getOptionLabel={(p) => p?.project_capacity != null ? String(p.project_capacity) : (p?.name ?? "")}
+                            getOptionLabel={(p) => {
+                                const name = p?.name ?? "";
+                                const cap = p?.project_capacity != null ? String(p.project_capacity) : "";
+                                return name && cap ? `${name} - ${cap}` : (name || cap || "");
+                            }}
                             value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || (formData.project_price_id ? { id: formData.project_price_id } : null)}
                             onChange={(e, newValue) => {
                                 handleChange({ target: { name: "project_price_id", value: newValue?.id ?? "" } });

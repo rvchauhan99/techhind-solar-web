@@ -66,12 +66,12 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     });
     const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
     const [images, setImages] = useState({});
+    const [pendingImages, setPendingImages] = useState({});
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const [uploadingKey, setUploadingKey] = useState(null);
 
     const loadInstallation = useCallback(async () => {
         if (!orderId) return;
@@ -126,6 +126,19 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     useEffect(() => {
         loadInstallation();
     }, [loadInstallation]);
+
+    const [pendingPreviewUrls, setPendingPreviewUrls] = useState({});
+    useEffect(() => {
+        const next = {};
+        Object.entries(pendingImages).forEach(([k, f]) => {
+            if (f) next[k] = URL.createObjectURL(f);
+        });
+        setPendingPreviewUrls((prev) => {
+            Object.values(prev).forEach((u) => typeof u === "string" && URL.revokeObjectURL(u));
+            return next;
+        });
+        return () => Object.values(next).forEach((u) => URL.revokeObjectURL(u));
+    }, [pendingImages]);
 
     useEffect(() => {
         if (!orderData?.id || !user?.id) {
@@ -187,33 +200,34 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         );
     };
 
-    const handleImageUpload = async (key, file) => {
-        if (!file || !orderId) return;
-        setUploadingKey(key);
-        try {
-            const fd = new FormData();
-            fd.append("document", file);
-            fd.append("order_id", orderId);
-            fd.append("doc_type", `installation_${key}`);
-            fd.append("remarks", `Installation - ${key}`);
-            const res = await orderDocumentsService.createOrderDocument(fd);
-            const docId = res?.result?.id ?? res?.id;
-            if (docId) {
-                setImages((prev) => ({ ...prev, [key]: docId }));
-                toastSuccess("Image uploaded");
-            }
-        } catch (err) {
-            toastError(err?.response?.data?.message || err?.message || "Upload failed");
-        } finally {
-            setUploadingKey(null);
-        }
+    const handleImageSelect = (key, file) => {
+        if (!file) return;
+        setPendingImages((prev) => ({ ...prev, [key]: file }));
+        setFieldErrors((prev) => {
+            const next = { ...prev };
+            if (next[`image_${key}`]) delete next[`image_${key}`];
+            return next;
+        });
+    };
+
+    const handleImageRemove = (key) => {
+        setPendingImages((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+        setImages((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
     };
 
     const validate = () => {
         const errs = {};
         const requiredImages = INSTALLATION_IMAGE_KEYS.filter((k) => k.required).map((k) => k.key);
         for (const key of requiredImages) {
-            if (!images[key]) errs[`image_${key}`] = "Required";
+            if (!images[key] && !pendingImages[key]) errs[`image_${key}`] = "Required";
         }
         setFieldErrors(errs);
         return Object.keys(errs).length === 0;
@@ -241,6 +255,28 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         setSuccessMsg(null);
 
         try {
+            let finalImages = { ...images };
+            for (const [key, file] of Object.entries(pendingImages)) {
+                const fd = new FormData();
+                fd.append("document", file);
+                fd.append("order_id", orderId);
+                fd.append("doc_type", `installation_${key}`);
+                fd.append("remarks", `Installation - ${key}`);
+                try {
+                    const res = await orderDocumentsService.createOrderDocument(fd);
+                    const docId = res?.result?.id ?? res?.id ?? res?.data?.id;
+                    if (!docId) {
+                        throw new Error(`Image upload succeeded but no document ID returned for ${key}`);
+                    }
+                    finalImages[key] = docId;
+                } catch (uploadErr) {
+                    const msg = uploadErr?.response?.data?.message || uploadErr?.message || "Image upload failed";
+                    toastError(`Failed to upload ${INSTALLATION_IMAGE_KEYS.find((k) => k.key === key)?.label || key}. ${msg}`);
+                    throw new Error(`Image upload failed: ${msg}`);
+                }
+            }
+            setPendingImages({});
+
             const panelText = formData.panel_serial_numbers_text?.trim() || "";
             const panelSerials = panelText
                 ? panelText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
@@ -261,10 +297,11 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 initial_generation: formData.initial_generation ? parseFloat(formData.initial_generation) : null,
                 remarks: formData.remarks || null,
                 checklist,
-                images,
+                images: finalImages,
                 complete,
             };
             await orderService.saveInstallation(orderId, payload);
+            setImages(finalImages);
             setSuccessMsg(complete ? "Installation stage completed successfully!" : "Installation saved.");
             toastSuccess(complete ? "Installation stage completed successfully!" : "Saved.");
             if (onSuccess) onSuccess();
@@ -457,22 +494,65 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
                 <Box className="mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {INSTALLATION_IMAGE_KEYS.map(({ key, label, required }) => (
-                        <Box key={key}>
-                            <Typography variant="body2" className="mb-1">
-                                {label}
-                                {required && <span className="text-destructive ml-0.5">*</span>}
-                            </Typography>
-                            {images[key] ? (
-                                <Box className="flex items-center gap-2">
-                                    <BucketImage
-                                        path={images[key]}
-                                        getUrl={getDocumentUrlById}
-                                        alt={label}
-                                    />
-                                    {!disabled && (
-                                        <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
-                                            Replace:{" "}
+                    {INSTALLATION_IMAGE_KEYS.map(({ key, label, required }) => {
+                        const hasPending = !!pendingImages[key];
+                        const hasSaved = !!images[key];
+                        const previewUrl = pendingPreviewUrls[key];
+                        return (
+                            <Box key={key}>
+                                <Typography variant="body2" className="mb-1">
+                                    {label}
+                                    {required && <span className="text-destructive ml-0.5">*</span>}
+                                </Typography>
+                                {(hasPending || hasSaved) ? (
+                                    <Box className="flex items-center gap-2 flex-wrap">
+                                        {hasPending && previewUrl ? (
+                                            <Box
+                                                component="img"
+                                                src={previewUrl}
+                                                alt={label}
+                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                            />
+                                        ) : hasPending ? (
+                                            <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>
+                                        ) : hasSaved ? (
+                                            <BucketImage
+                                                path={images[key]}
+                                                getUrl={getDocumentUrlById}
+                                                alt={label}
+                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                            />
+                                        ) : null}
+                                        {!disabled && (
+                                            <>
+                                                <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
+                                                    Replace:{" "}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0];
+                                                            if (f) handleImageSelect(key, f);
+                                                            e.target.value = "";
+                                                        }}
+                                                    />
+                                                    <span className="underline">Take photo or choose file</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleImageRemove(key)}
+                                                    className="text-xs text-destructive underline cursor-pointer"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </>
+                                        )}
+                                    </Box>
+                                ) : (
+                                    !disabled && (
+                                        <label className="inline-block">
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -480,40 +560,22 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                                                 className="hidden"
                                                 onChange={(e) => {
                                                     const f = e.target.files?.[0];
-                                                    if (f) handleImageUpload(key, f);
+                                                    if (f) handleImageSelect(key, f);
                                                     e.target.value = "";
                                                 }}
                                             />
-                                            <span className="underline">Take photo or choose file</span>
+                                            <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
+                                                Take photo or upload
+                                            </span>
                                         </label>
-                                    )}
-                                </Box>
-                            ) : (
-                                !disabled && (
-                                    <label className="inline-block">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            className="hidden"
-                                            disabled={uploadingKey === key}
-                                            onChange={(e) => {
-                                                const f = e.target.files?.[0];
-                                                if (f) handleImageUpload(key, f);
-                                                e.target.value = "";
-                                            }}
-                                        />
-                                        <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
-                                            {uploadingKey === key ? "Uploading…" : "Take photo or upload"}
-                                        </span>
-                                    </label>
-                                )
-                            )}
-                            {fieldErrors[`image_${key}`] && (
-                                <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
-                            )}
-                        </Box>
-                    ))}
+                                    )
+                                )}
+                                {fieldErrors[`image_${key}`] && (
+                                    <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
+                                )}
+                            </Box>
+                        );
+                    })}
                 </Box>
 
                 <Input

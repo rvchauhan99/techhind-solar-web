@@ -19,7 +19,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     value,
     onChange,
     label,
-    placeholder = "Type to search...",
+    placeholder = "Select...",
     error = false,
     helperText = null,
     fullWidth = true,
@@ -277,6 +277,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     if (!open) return;
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setInputValue("");
         setOpen(false);
         if (isAsyncMode) initialOptionsLoadedRef.current = false;
       }
@@ -336,23 +337,15 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             onFocus={() => setOpen(true)}
             placeholder={selected.length === 0 ? placeholder : ""}
             disabled={disabled}
+            autoComplete="off"
             className="flex-1 min-w-[120px] border-0 bg-transparent outline-none text-sm"
           />
         </div>
         {open && (
           <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50">
             {isLoading && (
-              <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+              <li className="px-3 py-2 flex items-center justify-center">
                 <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-                Loading options...
-              </li>
-            )}
-            {asyncError && !isLoading && (
-              <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
-            )}
-            {!isLoading && !asyncError && filterOptions.length === 0 && (
-              <li className="px-3 py-2 text-sm text-muted-foreground">
-                {isAsyncMode ? "No options found. Try a different search." : "No options found"}
               </li>
             )}
             {!isLoading && !asyncError &&
@@ -367,9 +360,6 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                 </li>
               ))}
           </ul>
-        )}
-        {error && helperText && (
-          <p className="mt-1.5 text-xs text-destructive">{helperText}</p>
         )}
       </div>
     );
@@ -394,6 +384,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           onFocus={() => setOpen(true)}
           placeholder={defaultResolving ? "" : placeholder}
           disabled={disabled}
+          autoComplete="off"
           className={cn(
             size === "small" && `${FIELD_HEIGHT_CLASS_SMALL} ${FIELD_TEXT_SMALL}`,
             error && "border-destructive",
@@ -410,17 +401,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       {open && (
         <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0 top-full">
           {isLoading && (
-            <li className="px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
+            <li className="px-3 py-2 flex items-center justify-center">
               <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-              Loading options...
-            </li>
-          )}
-          {asyncError && !isLoading && (
-            <li className="px-3 py-2 text-sm text-destructive">{asyncError}</li>
-          )}
-          {!isLoading && !asyncError && filterOptions.length === 0 && (
-            <li className="px-3 py-2 text-sm text-muted-foreground">
-              {isAsyncMode ? "No options found. Try a different search." : "No options found"}
             </li>
           )}
           {!isLoading &&
@@ -436,9 +418,6 @@ const AutocompleteField = forwardRef(function AutocompleteField(
               </li>
             ))}
         </ul>
-      )}
-      {error && helperText && (
-        <p className="mt-1.5 text-xs text-destructive">{helperText}</p>
       )}
     </div>
   );

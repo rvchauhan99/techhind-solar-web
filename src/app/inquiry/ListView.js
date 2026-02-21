@@ -839,7 +839,8 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
           </MenuItem>
           {(() => {
             const inquiry = currentPageRows.find((row) => row.id === menuInquiryId);
-            return inquiry?.status === "Quotation" ? (
+            const canConvert = inquiry?.status === "Quotation" || inquiry?.status === "Under Discussion";
+            return canConvert ? (
               <MenuItem onClick={handleConvertToOrder}>
                 <ListItemIcon>
                   <ShoppingCartIcon fontSize="small" />

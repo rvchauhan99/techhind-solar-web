@@ -19,6 +19,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import QuotationDetailsContent from "./components/QuotationDetailsContent";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/utils/dataTableUtils";
@@ -105,6 +106,8 @@ export default function QuotationList() {
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [fullQuotation, setFullQuotation] = useState(null);
+  const [loadingQuotation, setLoadingQuotation] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [quotationToDelete, setQuotationToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -179,6 +182,7 @@ export default function QuotationList() {
       await quotationService.approveQuotation(quotationToApprove);
       setReloadTrigger((prev) => prev + 1);
       setSelectedRecord((prev) => (prev?.id === quotationToApprove ? { ...prev, is_approved: true } : prev));
+      setFullQuotation((prev) => (prev?.id === quotationToApprove ? { ...prev, is_approved: true } : prev));
       setApproveDialogOpen(false);
       setQuotationToApprove(null);
       toast.success("Quotation approved");
@@ -202,6 +206,7 @@ export default function QuotationList() {
       await quotationService.unapproveQuotation(quotationToUnapprove);
       setReloadTrigger((prev) => prev + 1);
       setSelectedRecord((prev) => (prev?.id === quotationToUnapprove ? { ...prev, is_approved: false } : prev));
+      setFullQuotation((prev) => (prev?.id === quotationToUnapprove ? { ...prev, is_approved: false } : prev));
       setUnapproveDialogOpen(false);
       setQuotationToUnapprove(null);
       toast.success("Quotation unapproved");
@@ -216,11 +221,25 @@ export default function QuotationList() {
   const handleOpenSidebar = useCallback(async (row) => {
     setSelectedRecord(row);
     setSidebarOpen(true);
+    setFullQuotation(null);
+    setLoadingQuotation(true);
+    try {
+      const response = await quotationService.getQuotationById(row.id);
+      const data = response?.result ?? response?.data ?? response;
+      setFullQuotation(data ?? null);
+    } catch (err) {
+      console.error("Failed to fetch quotation details", err);
+      setFullQuotation(null);
+    } finally {
+      setLoadingQuotation(false);
+    }
   }, []);
 
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedRecord(null);
+    setFullQuotation(null);
+    setLoadingQuotation(false);
   }, []);
 
   const fetcher = useMemo(
@@ -445,14 +464,14 @@ export default function QuotationList() {
                     Unapprove
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => handleEdit(row.id)}>
+                {/* <DropdownMenuItem onClick={() => handleEdit(row.id)}>
                   <IconEdit className="size-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => handleDeleteClick(row.id)} className="text-destructive focus:text-destructive">
                   <IconTrash className="size-4 mr-2" />
                   Delete
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
                 <DropdownMenuItem onClick={() => handlePdfDownload(row.id)}>
                   <IconFileTypePdf className="size-4 mr-2" />
                   View PDF
@@ -466,37 +485,16 @@ export default function QuotationList() {
     [handleOpenSidebar, handleApproveClick, handleUnapproveClick, actionId, router]
   );
 
-  const sidebarContent = useMemo(() => {
-    if (!selectedRecord) return null;
-    const r = selectedRecord;
-    return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">{r.quotation_number || r.id}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Date</p>
-        <p className="text-sm">{formatDate(r.quotation_date) ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Valid Till</p>
-        <p className="text-sm">{formatDate(r.valid_till) ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Customer</p>
-        <p className="text-sm">{r.customer_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Mobile</p>
-        <p className="text-sm">{r.mobile_number ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Capacity</p>
-        <p className="text-sm">{r.project_capacity != null ? `${r.project_capacity} kW` : "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Total Value</p>
-        <p className="text-sm">
-          {r.total_project_value != null ? `₹${Number(r.total_project_value).toLocaleString()}` : "-"}
-        </p>
-        <p className="text-xs font-semibold text-muted-foreground">Approved</p>
-        <p className="text-sm">{r.is_approved ? "Yes" : "No"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Created By</p>
-        <p className="text-sm">{r.user_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Branch</p>
-        <p className="text-sm">{r.branch_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Inquiry #</p>
-        <p className="text-sm">{r.inquiry_number ?? "-"}</p>
-      </div>
-    );
-  }, [selectedRecord]);
+  const sidebarHeaderActions = useMemo(
+    () =>
+      selectedRecord?.id ? (
+        <Button variant="outline" size="sm" onClick={() => router.push(`/quotation/${selectedRecord.id}`)}>
+          <IconFileTypePdf className="size-4 mr-1.5" />
+          View PDF
+        </Button>
+      ) : null,
+    [selectedRecord, router]
+  );
 
   const calculatePaginatedTableHeight = () => `calc(100vh - 150px)`;
 
@@ -551,8 +549,13 @@ export default function QuotationList() {
           />
         </div>
 
-        <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Quotation Details">
-          {sidebarContent}
+        <DetailsSidebar
+          open={sidebarOpen}
+          onClose={handleCloseSidebar}
+          title="Quotation Details"
+          headerActions={sidebarHeaderActions}
+        >
+          <QuotationDetailsContent quotation={fullQuotation} loading={loadingQuotation} />
         </DetailsSidebar>
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

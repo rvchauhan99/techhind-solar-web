@@ -47,9 +47,10 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
 
     const [canPerform, setCanPerform] = useState(false);
     const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
+    const today = moment().format("YYYY-MM-DD");
     const [formData, setFormData] = useState({
-        fabrication_start_date: "",
-        fabrication_end_date: "",
+        fabrication_start_date: today,
+        fabrication_end_date: today,
         structure_type: "",
         structure_material: "",
         coating_type: "",
@@ -61,12 +62,12 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
     });
     const [checklist, setChecklist] = useState(DEFAULT_CHECKLIST);
     const [images, setImages] = useState({});
+    const [pendingImages, setPendingImages] = useState({}); // { key: File } - selected but not yet uploaded
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const [uploadingKey, setUploadingKey] = useState(null);
 
     const loadFabrication = useCallback(async () => {
         if (!orderId) return;
@@ -74,13 +75,14 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         try {
             const data = await orderService.getFabricationByOrderId(orderId);
             if (data) {
+                const todayStr = moment().format("YYYY-MM-DD");
                 setFormData({
                     fabrication_start_date: data.fabrication_start_date
                         ? moment(data.fabrication_start_date).format("YYYY-MM-DD")
-                        : "",
+                        : todayStr,
                     fabrication_end_date: data.fabrication_end_date
                         ? moment(data.fabrication_end_date).format("YYYY-MM-DD")
-                        : "",
+                        : todayStr,
                     structure_type: data.structure_type || "",
                     structure_material: data.structure_material || "",
                     coating_type: data.coating_type || "",
@@ -97,6 +99,12 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                 );
                 setImages(data.images && typeof data.images === "object" ? { ...data.images } : {});
             } else {
+                const todayStr = moment().format("YYYY-MM-DD");
+                setFormData((prev) => ({
+                    ...prev,
+                    fabrication_start_date: todayStr,
+                    fabrication_end_date: todayStr,
+                }));
                 setImages({});
                 setChecklist(DEFAULT_CHECKLIST);
             }
@@ -111,6 +119,19 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
     useEffect(() => {
         loadFabrication();
     }, [loadFabrication]);
+
+    const [pendingPreviewUrls, setPendingPreviewUrls] = useState({});
+    useEffect(() => {
+        const next = {};
+        Object.entries(pendingImages).forEach(([k, f]) => {
+            if (f) next[k] = URL.createObjectURL(f);
+        });
+        setPendingPreviewUrls((prev) => {
+            Object.values(prev).forEach((u) => typeof u === "string" && URL.revokeObjectURL(u));
+            return next;
+        });
+        return () => Object.values(next).forEach((u) => URL.revokeObjectURL(u));
+    }, [pendingImages]);
 
     useEffect(() => {
         if (!orderData?.id || !user?.id) {
@@ -172,33 +193,36 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         );
     };
 
-    const handleImageUpload = async (key, file) => {
-        if (!file || !orderId) return;
-        setUploadingKey(key);
-        try {
-            const formData = new FormData();
-            formData.append("document", file);
-            formData.append("order_id", orderId);
-            formData.append("doc_type", `fabrication_${key}`);
-            formData.append("remarks", `Fabrication - ${key}`);
-            const res = await orderDocumentsService.createOrderDocument(formData);
-            const docId = res?.result?.id ?? res?.id;
-            if (docId) {
-                setImages((prev) => ({ ...prev, [key]: docId }));
-                toastSuccess("Image uploaded");
-            }
-        } catch (err) {
-            toastError(err?.response?.data?.message || err?.message || "Upload failed");
-        } finally {
-            setUploadingKey(null);
-        }
+    const handleImageSelect = (key, file) => {
+        if (!file) return;
+        setPendingImages((prev) => ({ ...prev, [key]: file }));
+        setFieldErrors((prev) => {
+            const next = { ...prev };
+            if (next[`image_${key}`]) delete next[`image_${key}`];
+            return next;
+        });
+    };
+
+    const handleImageRemove = (key) => {
+        setPendingImages((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+        setImages((prev) => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
     };
 
     const validate = () => {
         const errs = {};
+        if (!formData.fabrication_start_date) errs.fabrication_start_date = "Start date is required";
+        if (!formData.fabrication_end_date) errs.fabrication_end_date = "End date is required";
         const requiredImages = FABRICATION_IMAGE_KEYS.filter((k) => k.required).map((k) => k.key);
         for (const key of requiredImages) {
-            if (!images[key]) errs[`image_${key}`] = "Required";
+            if (!images[key] && !pendingImages[key]) errs[`image_${key}`] = "Required";
         }
         setFieldErrors(errs);
         return Object.keys(errs).length === 0;
@@ -214,7 +238,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
             return;
         }
         if (complete && !canComplete) return;
-        if (complete && !validate()) return;
+        if (!validate()) return;
 
         setSubmitting(true);
         setError(null);
@@ -226,16 +250,40 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         setSuccessMsg(null);
 
         try {
+            let finalImages = { ...images };
+
+            for (const [key, file] of Object.entries(pendingImages)) {
+                const formDataUpload = new FormData();
+                formDataUpload.append("document", file);
+                formDataUpload.append("order_id", orderId);
+                formDataUpload.append("doc_type", `fabrication_${key}`);
+                formDataUpload.append("remarks", `Fabrication - ${key}`);
+                try {
+                    const res = await orderDocumentsService.createOrderDocument(formDataUpload);
+                    const docId = res?.result?.id ?? res?.id ?? res?.data?.id;
+                    if (!docId) {
+                        throw new Error(`Image upload succeeded but no document ID returned for ${key}`);
+                    }
+                    finalImages[key] = docId;
+                } catch (uploadErr) {
+                    const msg = uploadErr?.response?.data?.message || uploadErr?.message || "Image upload failed";
+                    toastError(`Failed to upload ${FABRICATION_IMAGE_KEYS.find((k) => k.key === key)?.label || key}. ${msg}`);
+                    throw new Error(`Image upload failed: ${msg}`);
+                }
+            }
+            setPendingImages({});
+
             const payload = {
                 ...formData,
                 labour_count: formData.labour_count ? parseInt(formData.labour_count, 10) : null,
                 tilt_angle: formData.tilt_angle ? parseFloat(String(formData.tilt_angle).replace(/[^\d.-]/g, "")) || null : null,
                 height_from_roof: formData.height_from_roof ? parseFloat(String(formData.height_from_roof).replace(/[^\d.-]/g, "")) || null : null,
                 checklist,
-                images,
+                images: finalImages,
                 complete,
             };
             await orderService.saveFabrication(orderId, payload);
+            setImages(finalImages);
             setSuccessMsg(complete ? "Fabrication stage completed successfully!" : "Fabrication saved.");
             toastSuccess(complete ? "Fabrication stage completed successfully!" : "Saved.");
             if (onSuccess) onSuccess();
@@ -296,6 +344,9 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                         value={formData.fabrication_start_date}
                         onChange={handleInputChange}
                         fullWidth
+                        required
+                        error={!!fieldErrors.fabrication_start_date}
+                        helperText={fieldErrors.fabrication_start_date}
                         disabled={disabled}
                     />
                     <DateField
@@ -304,6 +355,9 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                         value={formData.fabrication_end_date}
                         onChange={handleInputChange}
                         fullWidth
+                        required
+                        error={!!fieldErrors.fabrication_end_date}
+                        helperText={fieldErrors.fabrication_end_date}
                         disabled={disabled}
                     />
                     <AutocompleteField
@@ -393,22 +447,65 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
 
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
                 <Box className="mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {FABRICATION_IMAGE_KEYS.map(({ key, label, required }) => (
-                        <Box key={key}>
-                            <Typography variant="body2" className="mb-1">
-                                {label}
-                                {required && <span className="text-destructive ml-0.5">*</span>}
-                            </Typography>
-                            {images[key] ? (
-                                <Box className="flex items-center gap-2">
-                                    <BucketImage
-                                        path={images[key]}
-                                        getUrl={getDocumentUrlById}
-                                        alt={label}
-                                    />
-                                    {!disabled && (
-                                        <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
-                                            Replace:{" "}
+                    {FABRICATION_IMAGE_KEYS.map(({ key, label, required }) => {
+                        const hasPending = !!pendingImages[key];
+                        const hasSaved = !!images[key];
+                        const previewUrl = pendingPreviewUrls[key];
+                        return (
+                            <Box key={key}>
+                                <Typography variant="body2" className="mb-1">
+                                    {label}
+                                    {required && <span className="text-destructive ml-0.5">*</span>}
+                                </Typography>
+                                {(hasPending || hasSaved) ? (
+                                    <Box className="flex items-center gap-2 flex-wrap">
+                                        {hasPending && previewUrl ? (
+                                            <Box
+                                                component="img"
+                                                src={previewUrl}
+                                                alt={label}
+                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                            />
+                                        ) : hasPending ? (
+                                            <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>
+                                        ) : hasSaved ? (
+                                            <BucketImage
+                                                path={images[key]}
+                                                getUrl={getDocumentUrlById}
+                                                alt={label}
+                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                            />
+                                        ) : null}
+                                        {!disabled && (
+                                            <>
+                                                <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
+                                                    Replace:{" "}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        capture="environment"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0];
+                                                            if (f) handleImageSelect(key, f);
+                                                            e.target.value = "";
+                                                        }}
+                                                    />
+                                                    <span className="underline">Take photo or choose file</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleImageRemove(key)}
+                                                    className="text-xs text-destructive underline cursor-pointer"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </>
+                                        )}
+                                    </Box>
+                                ) : (
+                                    !disabled && (
+                                        <label className="inline-block">
                                             <input
                                                 type="file"
                                                 accept="image/*"
@@ -416,40 +513,22 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                                                 className="hidden"
                                                 onChange={(e) => {
                                                     const f = e.target.files?.[0];
-                                                    if (f) handleImageUpload(key, f);
+                                                    if (f) handleImageSelect(key, f);
                                                     e.target.value = "";
                                                 }}
                                             />
-                                            <span className="underline">Take photo or choose file</span>
+                                            <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
+                                                Take photo or upload
+                                            </span>
                                         </label>
-                                    )}
-                                </Box>
-                            ) : (
-                                !disabled && (
-                                    <label className="inline-block">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            className="hidden"
-                                            disabled={uploadingKey === key}
-                                            onChange={(e) => {
-                                                const f = e.target.files?.[0];
-                                                if (f) handleImageUpload(key, f);
-                                                e.target.value = "";
-                                            }}
-                                        />
-                                        <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
-                                            {uploadingKey === key ? "Uploading…" : "Take photo or upload"}
-                                        </span>
-                                    </label>
-                                )
-                            )}
-                            {fieldErrors[`image_${key}`] && (
-                                <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
-                            )}
-                        </Box>
-                    ))}
+                                    )
+                                )}
+                                {fieldErrors[`image_${key}`] && (
+                                    <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
+                                )}
+                            </Box>
+                        );
+                    })}
                 </Box>
 
                 <Input
