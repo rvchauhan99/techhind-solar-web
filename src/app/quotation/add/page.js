@@ -27,7 +27,7 @@ function AddQuotationContent() {
           company_name: datas.company_name,
           email: datas.email_id,
           state_id: datas.state_id,
-          branch_id: datas.city_id,
+          branch_id: datas.branch_id,
           order_type_id: datas.order_type_id,
           inquiry_id: datas.id,
           project_scheme_id: datas.project_scheme_id,
