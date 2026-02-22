@@ -268,7 +268,6 @@ export default function StockAdjustmentPage() {
               <Button
                 size="icon"
                 variant="success"
-                size="icon"
                 onClick={() => {
                   setAdjustmentToPost(row);
                   setShowPostDialog(true);
@@ -404,7 +403,7 @@ export default function StockAdjustmentPage() {
             </div>
             <div className="mt-2 flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
               <span>Total Quantity</span>
-              <span className="font-semibold">{a.total_quantity ?? a.items.reduce((s, i) => s + (i.adjustment_quantity ?? i.quantity || 0), 0)}</span>
+              <span className="font-semibold">{a.total_quantity ?? a.items.reduce((s, i) => s + (i.adjustment_quantity ?? (i.quantity || 0)), 0)}</span>
             </div>
           </div>
         )}
