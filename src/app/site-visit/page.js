@@ -10,7 +10,6 @@ import PaginationControls from "@/components/common/PaginationControls";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import siteVisitService from "@/services/siteVisitService";
-import BucketImage from "@/components/common/BucketImage";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { Box, Tooltip, Snackbar, Alert } from "@mui/material";
 import {
@@ -295,14 +294,7 @@ export default function SiteVisitPage() {
         render: (row) => {
           const photo = row.site_visit_visit_photo;
           if (!photo) return "-";
-          return (
-            <BucketImage
-              path={photo}
-              getUrl={siteVisitService.getDocumentUrl}
-              alt="Visit Photo"
-              sx={{ maxWidth: "80px", maxHeight: "80px" }}
-            />
-          );
+          return <span className="text-muted-foreground">Yes</span>;
         },
       },
       {
