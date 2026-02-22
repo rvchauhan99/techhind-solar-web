@@ -40,6 +40,18 @@ import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
 
+/** Replace product id N with product names from lines for user-friendly error display */
+const makeErrorUserFriendly = (msg, lines) => {
+    if (!msg || !Array.isArray(lines)) return msg;
+    let result = String(msg);
+    lines.forEach((l) => {
+        if (l?.product_id != null && l?.product_name) {
+            result = result.replace(new RegExp(`product id ${l.product_id}\\b`, "gi"), l.product_name);
+        }
+    });
+    return result;
+};
+
 /**
  * DeliveryChallanForm
  *
@@ -324,13 +336,16 @@ export default function DeliveryChallanForm({
         const trimmed = (serialNumber || "").trim();
         if (!trimmed) return;
 
+        const currentLineForToast = lines[lineIndex];
+        const productLabel = currentLineForToast?.product_name ? ` for ${currentLineForToast.product_name}` : "";
+
         const availableList = availableSerialsByLineIndex[lineIndex];
         if (Array.isArray(availableList) && availableList.length > 0) {
             const isAvailable = availableList.some(
                 (s) => (s.serial_number || "").trim() === trimmed
             );
             if (!isAvailable) {
-                toastError("This serial is not available at this warehouse");
+                toastError(`Serial is not available${productLabel} at this warehouse`);
                 return;
             }
         }
@@ -338,19 +353,18 @@ export default function DeliveryChallanForm({
         setLines((prev) => {
             const currentLine = prev[lineIndex];
             const shipNow = Number(currentLine?.ship_now) || 0;
+            const label = currentLine?.product_name ? ` for ${currentLine.product_name}` : "";
             if (currentLine && currentLine.serials.length >= shipNow) {
-                toastError(`Maximum ${shipNow} serial numbers allowed for ship quantity`);
+                toastError(`Maximum ${shipNow} serial numbers allowed for ship quantity${label}`);
                 return prev;
             }
             if (currentLine && currentLine.serials.includes(trimmed)) {
-                toastError("Serial number already added");
+                toastError(`Serial number already added${label}`);
                 return prev;
             }
-            const usedInOtherLine = prev.some(
-                (line, i) => i !== lineIndex && (line.serials || []).includes(trimmed)
-            );
+            const usedInOtherLine = prev.find((l, i) => i !== lineIndex && (l.serials || []).includes(trimmed));
             if (usedInOtherLine) {
-                toastError("This serial is already used in another line");
+                toastError(`This serial is already used for ${usedInOtherLine.product_name || "another product"}`);
                 return prev;
             }
             return prev.map((line, i) => {
@@ -571,12 +585,13 @@ export default function DeliveryChallanForm({
             setSerialDrawerFieldErrors((prev) => {
                 const next = { ...prev };
                 if (valid) delete next[drawerValueIndex];
-                else next[drawerValueIndex] = result?.message || "Serial is not available at this warehouse";
+                else next[drawerValueIndex] = result?.message || (line?.product_name ? `Serial is not available for ${line.product_name} at this warehouse` : "Serial is not available at this warehouse");
                 return next;
             });
         } catch (err) {
             const msg = err?.response?.data?.message || err?.message || "Validation failed";
-            setSerialDrawerFieldErrors((prev) => ({ ...prev, [drawerValueIndex]: msg }));
+            const displayMsg = makeErrorUserFriendly(msg, lines);
+            setSerialDrawerFieldErrors((prev) => ({ ...prev, [drawerValueIndex]: displayMsg }));
         } finally {
             setSerialDrawerValidating(null);
         }
@@ -739,24 +754,25 @@ export default function DeliveryChallanForm({
 
             hasShipItems = true;
 
+            const productLabel = line.product_name ? ` for ${line.product_name}` : "";
             if (!Number.isInteger(shipNow)) {
-                validationErrors[`line_${index}_ship_now`] = "Must be a whole number";
+                validationErrors[`line_${index}_ship_now`] = `Must be a whole number${productLabel}`;
             }
             if (shipNow > line.pending_qty) {
-                validationErrors[`line_${index}_ship_now`] = `Cannot exceed remaining (${line.pending_qty})`;
+                validationErrors[`line_${index}_ship_now`] = `Cannot exceed remaining (${line.pending_qty})${productLabel}`;
             } else if (line.available_qty != null && !Number.isNaN(Number(line.available_qty)) && shipNow > line.available_qty) {
-                validationErrors[`line_${index}_ship_now`] = `Cannot exceed available stock (${line.available_qty})`;
+                validationErrors[`line_${index}_ship_now`] = `Cannot exceed available stock (${line.available_qty})${productLabel}`;
             }
 
             if (line.serial_required) {
                 const serialCount = (line.serials || []).length;
                 if (serialCount !== shipNow) {
-                    validationErrors[`line_${index}_serials`] = `Serial count (${serialCount}) must match quantity (${shipNow})`;
+                    validationErrors[`line_${index}_serials`] = `Serial count (${serialCount}) must match quantity (${shipNow})${productLabel}`;
                 }
                 // Check for duplicates
                 const uniqueSerials = new Set(line.serials);
                 if (uniqueSerials.size !== line.serials.length) {
-                    validationErrors[`line_${index}_serials`] = "Duplicate serial numbers are not allowed";
+                    validationErrors[`line_${index}_serials`] = `Duplicate serial numbers are not allowed${productLabel}`;
                 }
             }
         });
@@ -837,7 +853,7 @@ export default function DeliveryChallanForm({
                 <Box sx={{ p: { xs: 1.5, sm: 1 } }}>
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
-                            {serverError}
+                            {makeErrorUserFriendly(serverError, lines)}
                         </Alert>
                     )}
 

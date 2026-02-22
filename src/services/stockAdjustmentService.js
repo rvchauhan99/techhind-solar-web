@@ -9,6 +9,9 @@ export const exportStockAdjustments = (params = {}) =>
 export const createStockAdjustment = (payload) =>
   apiClient.post("/stock-adjustments", payload).then((r) => r.data);
 
+export const updateStockAdjustment = (id, payload) =>
+  apiClient.put(`/stock-adjustments/${id}`, payload).then((r) => r.data);
+
 export const getStockAdjustmentById = (id) =>
   apiClient.get(`/stock-adjustments/${id}`).then((r) => r.data);
 
@@ -22,6 +25,7 @@ export default {
   getStockAdjustments,
   exportStockAdjustments,
   createStockAdjustment,
+  updateStockAdjustment,
   getStockAdjustmentById,
   approveStockAdjustment,
   postStockAdjustment,
