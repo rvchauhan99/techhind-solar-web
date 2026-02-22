@@ -23,8 +23,6 @@ import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 
 const COLUMN_FILTER_KEYS = [
-  "id",
-  "id_op",
   "date_of_inquiry_from",
   "date_of_inquiry_to",
   "date_of_inquiry_op",
@@ -146,17 +144,6 @@ export default function FollowupPage() {
     }
   };
 
-  const formatDateOnly = (dateString) => {
-    if (!dateString) return "N/A";
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "N/A";
-      return date.toLocaleDateString();
-    } catch {
-      return "N/A";
-    }
-  };
-
   const filterParams = useMemo(() => {
     const entries = Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "");
     const obj = Object.fromEntries(entries);
@@ -221,19 +208,10 @@ export default function FollowupPage() {
         ),
       },
       {
-        field: "id",
-        label: "Inquiry ID",
-        sortable: true,
-        filterType: "text",
-        filterKey: "id",
-        defaultFilterOperator: "contains",
-        render: (row) => row.id ?? "-",
-      },
-      {
         field: "inquiry_info",
         label: "Inquiry",
         sortable: false,
-        render: (row) => `#${row.id} - ${formatDateOnly(row.date_of_inquiry)}`,
+        render: (row) => row.inquiry_number || "-",
       },
       {
         field: "date_of_inquiry",
