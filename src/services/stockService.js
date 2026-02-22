@@ -22,6 +22,11 @@ export const validateSerialAvailable = (serialNumber, productId, warehouseId) =>
     params: { serial_number: serialNumber, product_id: productId, warehouse_id: warehouseId },
   }).then((r) => r.data);
 
+export const validateSerialNotExists = (serialNumber, productId, warehouseId) =>
+  apiClient.get("/stocks/serials/validate-not-exists", {
+    params: { serial_number: serialNumber, product_id: productId, warehouse_id: warehouseId },
+  }).then((r) => r.data);
+
 export default {
   getStocks,
   exportStocks,
@@ -29,5 +34,6 @@ export default {
   getStocksByWarehouse,
   getAvailableSerials,
   validateSerialAvailable,
+  validateSerialNotExists,
 };
 

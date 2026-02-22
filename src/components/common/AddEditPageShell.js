@@ -26,7 +26,7 @@ export default function AddEditPageShell({
   const router = useRouter();
 
   return (
-    <Container className={cn("flex flex-col gap-4", className)}>
+    <Container className={cn("flex flex-col gap-4 min-h-full flex-1", className)}>
       <div className="flex justify-between items-center flex-shrink-0">
         <h1 className="text-2xl font-bold">{title}</h1>
         <div className="flex gap-2">
@@ -50,7 +50,7 @@ export default function AddEditPageShell({
           </Button>
         </div>
       </div>
-      {children}
+      <div className="flex-1 min-h-0 flex flex-col">{children}</div>
     </Container>
   );
 }

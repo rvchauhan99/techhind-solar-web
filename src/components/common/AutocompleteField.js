@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     asyncDebounceMs = 300,
     resolveOptionById,
     referenceModel,
+    usePortal = false,
     ...otherProps
   },
   ref
@@ -42,6 +44,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const containerRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [dropdownStyle, setDropdownStyle] = useState({});
 
   const isAsyncMode = Boolean(asyncLoadOptions);
   const resolveById = resolveOptionById ?? (referenceModel ? (id) => mastersService.getReferenceOptionById(referenceModel, id) : null);
@@ -273,10 +277,42 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     };
   }, []);
 
+  // Compute dropdown position for portal (fixed positioning)
+  const updateDropdownPosition = useCallback(() => {
+    if (!usePortal || !containerRef.current || !open) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    setDropdownStyle({
+      position: "fixed",
+      left: rect.left,
+      top: rect.bottom + 4,
+      width: rect.width,
+      minWidth: rect.width,
+      zIndex: 9999,
+    });
+  }, [usePortal, open]);
+
+  useEffect(() => {
+    if (!usePortal || !open) return;
+    updateDropdownPosition();
+    const el = containerRef.current;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateDropdownPosition) : null;
+    if (ro && el) ro.observe(el);
+    const handleScrollOrResize = () => updateDropdownPosition();
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      if (ro && el) ro.unobserve(el);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [usePortal, open, updateDropdownPosition]);
+
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      const inContainer = containerRef.current?.contains(e.target);
+      const inDropdown = usePortal ? dropdownRef.current?.contains(e.target) : false;
+      if (!inContainer && !inDropdown) {
         setInputValue("");
         setOpen(false);
         if (isAsyncMode) initialOptionsLoadedRef.current = false;
@@ -284,7 +320,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open, isAsyncMode]);
+  }, [open, isAsyncMode, usePortal]);
 
   const handleSelect = (option) => {
     if (option) selectedOptionCacheRef.current = option;
@@ -398,27 +434,55 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           </div>
         )}
       </div>
-      {open && (
-        <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0 top-full">
-          {isLoading && (
-            <li className="px-3 py-2 flex items-center justify-center">
-              <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-            </li>
-          )}
-          {!isLoading &&
-            !asyncError &&
-            filterOptions.map((opt, i) => (
-              <li
-                key={i}
-                role="option"
-                className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
-                onClick={() => handleSelect(opt)}
-              >
-                {getOptionLabel(opt)}
+      {open &&
+        (usePortal && typeof document !== "undefined" ? (
+          createPortal(
+            <ul
+              ref={dropdownRef}
+              className="max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
+              style={dropdownStyle}
+            >
+              {isLoading && (
+                <li className="px-3 py-2 flex items-center justify-center">
+                  <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
+                </li>
+              )}
+              {!isLoading &&
+                !asyncError &&
+                filterOptions.map((opt, i) => (
+                  <li
+                    key={i}
+                    role="option"
+                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                    onClick={() => handleSelect(opt)}
+                  >
+                    {getOptionLabel(opt)}
+                  </li>
+                ))}
+            </ul>,
+            document.body
+          )
+        ) : (
+          <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0 top-full">
+            {isLoading && (
+              <li className="px-3 py-2 flex items-center justify-center">
+                <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
               </li>
-            ))}
-        </ul>
-      )}
+            )}
+            {!isLoading &&
+              !asyncError &&
+              filterOptions.map((opt, i) => (
+                <li
+                  key={i}
+                  role="option"
+                  className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => handleSelect(opt)}
+                >
+                  {getOptionLabel(opt)}
+                </li>
+              ))}
+          </ul>
+        ))}
     </div>
   );
 });
