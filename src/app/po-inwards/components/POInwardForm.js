@@ -567,19 +567,20 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
     const handleSubmit = (e) => {
         e.preventDefault();
 
+        const isEdit = !!defaultValues?.id;
+        const actionLabel = isEdit ? "update receipt" : "create receipt";
         const validationErrors = {};
-        
-        // Required field validations
+
+        // Required field validations (action-aware)
         if (!formData.purchase_order_id) {
-            validationErrors.purchase_order_id = "Purchase Order is required";
+            validationErrors.purchase_order_id = `Purchase Order is required to ${actionLabel}`;
         }
         if (!formData.warehouse_id) {
-            validationErrors.warehouse_id = "Warehouse is required";
+            validationErrors.warehouse_id = `Warehouse is required to ${actionLabel}`;
         }
         if (!formData.received_at) {
             validationErrors.received_at = "Received Date is required";
         } else {
-            // Validate date is not in future
             const receivedDate = new Date(formData.received_at);
             const today = new Date();
             today.setHours(23, 59, 59, 999);
@@ -590,46 +591,41 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
         // Items validation
         if (formData.items.length === 0) {
-            validationErrors.items = "At least one item is required";
+            validationErrors.items = `At least one item is required to ${actionLabel}`;
         } else {
-            // Validate each item
             formData.items.forEach((item, index) => {
                 const receivedQty = parseInt(item.received_quantity) || 0;
                 const rejectedQty = parseInt(item.rejected_quantity) || 0;
                 const orderedQty = parseInt(item.ordered_quantity) || 0;
                 const acceptedQty = item.accepted_quantity || 0;
+                const productName = item.product_name || `Item ${index + 1}`;
 
-                // Received quantity validation
                 if (!item.received_quantity || receivedQty <= 0) {
-                    validationErrors[`item_${index}_received`] = "Received quantity must be greater than 0";
+                    validationErrors[`item_${index}_received`] = `Received quantity must be at least 1 for ${productName}`;
                 } else if (receivedQty > orderedQty) {
-                    validationErrors[`item_${index}_received`] = `Received quantity (${receivedQty}) cannot exceed ordered quantity (${orderedQty})`;
+                    validationErrors[`item_${index}_received`] = `Received quantity (${receivedQty}) cannot exceed ordered quantity (${orderedQty}) for ${productName}`;
                 }
 
-                // Rejected quantity validation
                 if (rejectedQty < 0) {
-                    validationErrors[`item_${index}_rejected`] = "Rejected quantity cannot be negative";
+                    validationErrors[`item_${index}_rejected`] = `Rejected quantity cannot be negative for ${productName}`;
                 } else if (rejectedQty > receivedQty) {
-                    validationErrors[`item_${index}_rejected`] = `Rejected quantity (${rejectedQty}) cannot exceed received quantity (${receivedQty})`;
+                    validationErrors[`item_${index}_rejected`] = `Rejected quantity (${rejectedQty}) cannot exceed received quantity (${receivedQty}) for ${productName}`;
                 }
 
-                // Accepted quantity should match (received - rejected)
                 const calculatedAccepted = receivedQty - rejectedQty;
                 if (acceptedQty !== calculatedAccepted) {
-                    validationErrors[`item_${index}_accepted`] = `Accepted quantity should be ${calculatedAccepted} (Received: ${receivedQty} - Rejected: ${rejectedQty})`;
+                    validationErrors[`item_${index}_accepted`] = `Accepted quantity should be ${calculatedAccepted} (Received: ${receivedQty} - Rejected: ${rejectedQty}) for ${productName}`;
                 }
 
-                // For SERIAL items: Serial numbers are mandatory (exactly acceptedQty)
                 if (isSerialItem(item)) {
                     const serialCount = (item.serials || []).length;
                     if (serialCount !== acceptedQty) {
-                        validationErrors[`item_${index}_serials`] = `Please enter exactly ${acceptedQty} serial number(s) for this item (required for serialized products).`;
+                        validationErrors[`item_${index}_serials`] = `Enter exactly ${acceptedQty} serial number(s) for ${productName} (required for serialized products).`;
                     } else {
-                        // Check for duplicate serial numbers
                         const serialNumbers = (item.serials || []).map(s => typeof s === "string" ? s.trim() : s.serial_number?.trim()).filter(Boolean);
                         const uniqueSerials = new Set(serialNumbers);
                         if (serialNumbers.length !== uniqueSerials.size) {
-                            validationErrors[`item_${index}_serials`] = "Duplicate serial numbers are not allowed";
+                            validationErrors[`item_${index}_serials`] = `Duplicate serial numbers are not allowed for ${productName}`;
                         }
                     }
                 }
