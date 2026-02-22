@@ -9,16 +9,8 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
-import StockAdjustmentForm from "./components/StockAdjustmentForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogHeader,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +25,6 @@ import { IconCircleCheck, IconEye, IconPencil } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
-import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 
 const COLUMN_FILTER_KEYS = [
   "adjustment_number",
@@ -81,7 +72,6 @@ export default function StockAdjustmentPage() {
   const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
     listingState;
 
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showPostDialog, setShowPostDialog] = useState(false);
   const [adjustmentToApprove, setAdjustmentToApprove] = useState(null);
@@ -90,8 +80,6 @@ export default function StockAdjustmentPage() {
   const [posting, setPosting] = useState(false);
   const [selectedAdjustment, setSelectedAdjustment] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
@@ -122,18 +110,6 @@ export default function StockAdjustmentPage() {
     setSidebarOpen(false);
     setSelectedAdjustment(null);
   }, []);
-
-  const handleOpenAddModal = () => {
-    setShowAddModal(true);
-    setServerError(null);
-    setSelectedAdjustment(null);
-  };
-
-  const handleCloseAddModal = () => {
-    setShowAddModal(false);
-    setServerError(null);
-    setSelectedAdjustment(null);
-  };
 
   const filterParams = useMemo(
     () =>
@@ -236,12 +212,13 @@ export default function StockAdjustmentPage() {
         defaultFilterOperator: "equals",
       },
       {
-        field: "reason",
-        label: "Reason",
+        field: "remarks",
+        label: "Remarks",
         sortable: false,
         filterType: "text",
         filterKey: "reason",
         defaultFilterOperator: "contains",
+        render: (row) => row.remarks || row.reason || "-",
       },
       {
         field: "actions",
@@ -338,23 +315,6 @@ export default function StockAdjustmentPage() {
     [tableKey]
   );
 
-  const handleSubmit = async (payload) => {
-    setSubmitting(true);
-    setServerError(null);
-    try {
-      await stockAdjustmentService.createStockAdjustment(payload);
-      handleCloseAddModal();
-      setTableKey((prev) => prev + 1);
-      toast.success("Stock adjustment created successfully");
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || "Failed to save stock adjustment";
-      setServerError(errorMessage);
-      toast.error(errorMessage);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleApproveConfirm = async () => {
     if (!adjustmentToApprove) return;
     setApproving(true);
@@ -412,8 +372,8 @@ export default function StockAdjustmentPage() {
         <p className="text-sm">{a.warehouse?.name || "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground mt-2 block">Type</p>
         <p className="text-sm">{a.adjustment_type || "-"}</p>
-        {a.reason && (
-          <p className="text-xs text-muted-foreground">Reason: {a.reason}</p>
+        {(a.remarks || a.reason) && (
+          <p className="text-xs text-muted-foreground">Remarks: {a.remarks || a.reason}</p>
         )}
         {a.items && a.items.length > 0 && (
           <div className="mt-2">
@@ -436,7 +396,7 @@ export default function StockAdjustmentPage() {
                           {item.adjustment_direction}
                         </Badge>
                       </td>
-                      <td className="px-2 py-1.5 text-right">{item.quantity}</td>
+                      <td className="px-2 py-1.5 text-right">{item.adjustment_quantity ?? item.quantity}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -444,7 +404,7 @@ export default function StockAdjustmentPage() {
             </div>
             <div className="mt-2 flex justify-between rounded-md border border-border bg-muted/50 p-2 text-sm">
               <span>Total Quantity</span>
-              <span className="font-semibold">{a.total_quantity ?? a.items.reduce((s, i) => s + (i.quantity || 0), 0)}</span>
+              <span className="font-semibold">{a.total_quantity ?? a.items.reduce((s, i) => s + (i.adjustment_quantity ?? i.quantity || 0), 0)}</span>
             </div>
           </div>
         )}
@@ -457,7 +417,7 @@ export default function StockAdjustmentPage() {
       <ListingPageContainer
         title="Stock Adjustments"
         addButtonLabel={currentPerm.can_create ? "Create Adjustment" : undefined}
-        onAddClick={currentPerm.can_create ? handleOpenAddModal : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push("/stock-adjustments/new") : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}
@@ -502,23 +462,6 @@ export default function StockAdjustmentPage() {
       >
         {sidebarContent}
       </DetailsSidebar>
-
-      <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
-        <DialogContent className={DIALOG_FORM_LARGE}>
-          <div className="pb-2">
-            <DialogTitle>Create Stock Adjustment</DialogTitle>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
-            <StockAdjustmentForm
-              onSubmit={handleSubmit}
-              loading={submitting}
-              serverError={serverError}
-              onClearServerError={() => setServerError(null)}
-              onCancel={handleCloseAddModal}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={showApproveDialog} onOpenChange={(open) => { if (!open) { setShowApproveDialog(false); setAdjustmentToApprove(null); } }}>
         <AlertDialogContent>

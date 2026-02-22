@@ -192,6 +192,16 @@ textarea.MuiInputBase-input {
   padding: 0px !important;
 }
 
+/* Hide number input spinner arrows globally - users should type values */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* Default: autofill text visible on light backgrounds (main app) */
 input:-internal-autofill-selected {
   background-color: transparent !important;
