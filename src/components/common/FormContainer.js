@@ -31,7 +31,8 @@ export default function FormContainer({
     <div
       className={cn(
         "flex flex-col min-h-0 flex-1",
-        maxHeight && "max-h-[var(--form-max-height)]"
+        maxHeight && "max-h-[var(--form-max-height)]",
+        className
       )}
       style={maxHeight ? { "--form-max-height": maxHeight } : undefined}
     >
