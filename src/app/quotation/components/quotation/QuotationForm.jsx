@@ -154,6 +154,40 @@ export default function QuotationForm({
         }
     }, [patchForm]);
 
+    const handlePricePerKwChange = useCallback((e) => {
+        const value = e.target.value === undefined ? "" : e.target.value;
+        const capacity = Number(formData.project_capacity);
+        if (capacity > 0 && value !== "" && !Number.isNaN(Number(value))) {
+            const totalProjectValue = Number((Number(value) * capacity).toFixed(2));
+            patchForm({ price_per_kw: value, total_project_value: totalProjectValue });
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next.price_per_kw;
+                delete next.total_project_value;
+                return next;
+            });
+        } else {
+            patchForm({ price_per_kw: value });
+        }
+    }, [formData.project_capacity, patchForm, setErrors]);
+
+    const handleTotalProjectValueChange = useCallback((e) => {
+        const value = e.target.value === undefined ? "" : e.target.value;
+        const capacity = Number(formData.project_capacity);
+        if (capacity > 0 && value !== "" && !Number.isNaN(Number(value))) {
+            const pricePerKw = Number((Number(value) / capacity).toFixed(2));
+            patchForm({ total_project_value: value, price_per_kw: pricePerKw });
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next.price_per_kw;
+                delete next.total_project_value;
+                return next;
+            });
+        } else {
+            patchForm({ total_project_value: value });
+        }
+    }, [formData.project_capacity, patchForm, setErrors]);
+
     useEffect(() => {
         if (!defaultValues?.id && defaultValues?.inquiry_id != null && defaultValues?.inquiry_number != null) {
             quotationService.getQuotationCountByInquiry(defaultValues.inquiry_id).then((countResponse) => {
@@ -388,10 +422,10 @@ export default function QuotationForm({
                         <Input fullWidth type="number" label="Project Capacity" name="project_capacity" value={formData.project_capacity} onChange={handleChange} required disabled error={!!errors.project_capacity} helperText={errors.project_capacity} sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Price Per KW" name="price_per_kw" value={formData.price_per_kw} onChange={handleChange} disabled={projectPriceDisabled} required error={!!errors.price_per_kw} helperText={errors.price_per_kw} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" label="Price Per KW" name="price_per_kw" value={formData.price_per_kw} onChange={handlePricePerKwChange} disabled={projectPriceDisabled} required error={!!errors.price_per_kw} helperText={errors.price_per_kw} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Total Project Value" name="total_project_value" value={formData.total_project_value} onChange={handleChange} disabled={projectPriceDisabled} required error={!!errors.total_project_value} helperText={errors.total_project_value} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" label="Total Project Value" name="total_project_value" value={formData.total_project_value} onChange={handleTotalProjectValueChange} disabled={projectPriceDisabled} required error={!!errors.total_project_value} helperText={errors.total_project_value} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth type="number" label="Structure Amount" name="structure_amount" value={formData.structure_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
