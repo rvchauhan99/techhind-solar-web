@@ -15,6 +15,10 @@ import FilterBar from "@/components/common/FilterBar";
  * @param {string} [exportButtonLabel] - Label for Export button
  * @param {function(): void} [onExportClick] - Called when Export is clicked
  * @param {boolean} [exportDisabled] - Disable Export button (e.g. during export)
+ * @param {string} [sampleCsvButtonLabel] - Label for Sample CSV button
+ * @param {function(): void} [onSampleCsvClick] - Called when Sample CSV is clicked
+ * @param {string} [importButtonLabel] - Label for Import button
+ * @param {function(): void} [onImportClick] - Called when Import is clicked
  * @param {Array} [filterConfig] - When provided, FilterBar is rendered; array of { key, label, type, options? }
  * @param {Object} [filterValues] - Values for FilterBar (keyed by filter key)
  * @param {function(string, string): void} [onFilterChange] - (key, value) for FilterBar
@@ -29,6 +33,10 @@ export default function ListingPageContainer({
   onExportClick,
   exportDisabled = false,
   exportLoading = false,
+  sampleCsvButtonLabel,
+  onSampleCsvClick,
+  importButtonLabel,
+  onImportClick,
   filterConfig,
   filterValues = {},
   onFilterChange,
@@ -51,6 +59,16 @@ export default function ListingPageContainer({
             >
               <IconDownload className="size-4" />
               {exportButtonLabel}
+            </Button>
+          )}
+          {onSampleCsvClick && sampleCsvButtonLabel && (
+            <Button onClick={onSampleCsvClick} size="sm" variant="outline" className="gap-1">
+              {sampleCsvButtonLabel}
+            </Button>
+          )}
+          {onImportClick && importButtonLabel && (
+            <Button onClick={onImportClick} size="sm" variant="outline" className="gap-1">
+              {importButtonLabel}
             </Button>
           )}
           {onAddClick && addButtonLabel && (
