@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Box, Typography, Alert, Paper, Stack } from "@mui/material";
+import { Box, Typography, Alert, Paper, Stack, Tabs, Tab } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import { usePathname } from "next/navigation";
@@ -23,7 +23,12 @@ import { Button } from "@/components/ui/button";
 import Loader from "@/components/common/Loader";
 import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
+import quotationService from "@/services/quotationService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+
+/** Number of days after planner completion during which the planner remains editable. */
+const PLANNER_EDITABLE_DAYS = 100;
 
 export default function Planner({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
@@ -58,6 +63,12 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [outstandingConfirmOpen, setOutstandingConfirmOpen] = useState(false);
     const [pendingPayload, setPendingPayload] = useState(null);
     const [outstandingInfo, setOutstandingInfo] = useState(null);
+    // Add BOM line dialog
+    const [addBomOpen, setAddBomOpen] = useState(false);
+    const [addBomProduct, setAddBomProduct] = useState(null);
+    const [addBomQty, setAddBomQty] = useState(1);
+    const [productsForBom, setProductsForBom] = useState([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
 
     useEffect(() => {
         fetchWarehouses();
@@ -152,7 +163,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isReadOnly || submitting) return;
+        if (isReadOnly || isPlannerLocked || submitting) return;
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -163,10 +174,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             if (!formData.planned_priority) newFieldErrors.planned_priority = "Required";
             if (!formData.planned_warehouse_id) newFieldErrors.planned_warehouse_id = "Required";
 
-            // Soft validation: require at least one BOM line to remain in scope
-            // when a BOM snapshot exists. This does not block legacy orders
-            // with no BOM attached.
-            if (Array.isArray(orderData?.bom_snapshot) && orderData.bom_snapshot.length > 0) {
+            // Require at least one BOM line to be in scope when there are any BOM lines
+            if (bomPlan.length > 0) {
                 const anyPlanned = bomPlan.some((line) => line.planned);
                 if (!anyPlanned) {
                     newFieldErrors.bomPlan = "Select at least one BOM item for planning.";
@@ -178,8 +187,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 return;
             }
 
-            // Build updated BOM snapshot with edited planned_qty values.
-            let updatedBomSnapshot = orderData.bom_snapshot;
+            // Build updated BOM snapshot from bomPlan (includes new lines from Add item)
+            let updatedBomSnapshot = Array.isArray(orderData?.bom_snapshot) ? orderData.bom_snapshot : [];
             if (Array.isArray(bomPlan) && bomPlan.length > 0) {
                 updatedBomSnapshot = bomPlan.map((line) => {
                     const { __rowKey, planned, ...rest } = line;
@@ -192,6 +201,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     const plannedQty = qty(rest.planned_qty, baseQuantity);
                     return {
                         ...rest,
+                        quantity: baseQuantity || plannedQty,
                         planned_qty: plannedQty,
                     };
                 });
@@ -203,8 +213,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 delivery: "pending",
             };
 
+            const payloadBarState = deriveBarStateFromBomPlan(bomPlan);
             const payload = {
                 ...formData,
+                ...payloadBarState,
                 bom_snapshot: updatedBomSnapshot,
                 stages: updatedStages,
                 planner_completed_at: new Date().toISOString(),
@@ -270,6 +282,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const isCompleted = orderData?.stages?.planner === "completed";
+    const completedAt = orderData?.planner_completed_at ? moment(orderData.planner_completed_at) : null;
+    const withinEditableWindow =
+        isCompleted && completedAt && moment().diff(completedAt, "days") < PLANNER_EDITABLE_DAYS;
+    const isPlannerLocked = isCompleted && !withinEditableWindow;
 
     // Toggle handler for BOM planning checkbox. This only updates local UI
     // state and does not affect the persisted order yet.
@@ -291,6 +307,141 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         }
     };
 
+    const fetchProductsForBom = async () => {
+        setLoadingProducts(true);
+        try {
+            const res = await quotationService.getAllProducts();
+            const data = res?.result ?? res?.data ?? res ?? [];
+            setProductsForBom(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Failed to fetch products:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to load products");
+            setProductsForBom([]);
+        } finally {
+            setLoadingProducts(false);
+        }
+    };
+
+    const handleAddBomOpen = () => {
+        setAddBomProduct(null);
+        setAddBomQty(1);
+        setAddBomOpen(true);
+        if (productsForBom.length === 0) fetchProductsForBom();
+    };
+
+    const handleAddBomConfirm = () => {
+        if (!addBomProduct?.id) {
+            toastError("Select a product");
+            return;
+        }
+        const qty = Math.max(1, Number(addBomQty) || 1);
+        const p = addBomProduct;
+        const productName = p?.product_name ?? p?.name ?? "";
+        const typeName = p?.productType?.name ?? p?.product_type_name ?? "";
+        const makeName = p?.productMake?.name ?? p?.product_make_name ?? "";
+        const newLine = {
+            product_id: p.id,
+            quantity: qty,
+            planned_qty: qty,
+            planned: true,
+            shipped_qty: 0,
+            returned_qty: 0,
+            __rowKey: `add-${Date.now()}-${p.id}`,
+            product_snapshot: {
+                product_name: productName,
+                product_type_name: typeName,
+                product_make_name: makeName,
+            },
+            product_name: productName,
+            product_type_name: typeName,
+            product_make_name: makeName,
+        };
+        setBomPlan((prev) => [...prev, newLine]);
+        if (fieldErrors.bomPlan) {
+            setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.bomPlan;
+                return next;
+            });
+        }
+        setAddBomOpen(false);
+        setAddBomProduct(null);
+        setAddBomQty(1);
+    };
+
+    const handleBomRemove = (rowKey) => {
+        setBomPlan((prev) => prev.filter((line) => line.__rowKey !== rowKey));
+        if (fieldErrors.bomPlan) {
+            setFieldErrors((prev) => {
+                const next = { ...prev };
+                delete next.bomPlan;
+                return next;
+            });
+        }
+    };
+
+    /** Normalize product type name for mapping (lowercase, spaces to underscore). */
+    const normalizeProductTypeName = (s) => (s || "").toLowerCase().trim().replace(/\s+/g, "_");
+
+    /**
+     * Map normalized product_type_name to one of the seven bar category keys.
+     * Returns null if the type does not match any category.
+     */
+    const productTypeNameToBarKey = (normalized) => {
+        if (!normalized) return null;
+        switch (normalized) {
+            case "structure":
+                return "structure";
+            case "panel":
+            case "solar_panel":
+                return "solar_panel";
+            case "inverter":
+                return "inverter";
+            case "acdb":
+                return "acdb";
+            case "dcdb":
+                return "dcdb";
+            case "earthing":
+            case "earthing_kit":
+                return "earthing_kit";
+            case "cable":
+            case "cables":
+            case "dc_cable":
+            case "ac_cable":
+                return "cables";
+            default:
+                return null;
+        }
+    };
+
+    /**
+     * Derive the seven planned_has_* flags from current bomPlan.
+     * Only planned lines (line.planned === true) contribute; product_type_name from product_snapshot or line.
+     */
+    const deriveBarStateFromBomPlan = (plan) => {
+        const state = {
+            planned_has_structure: false,
+            planned_has_solar_panel: false,
+            planned_has_inverter: false,
+            planned_has_acdb: false,
+            planned_has_dcdb: false,
+            planned_has_earthing_kit: false,
+            planned_has_cables: false,
+        };
+        if (!Array.isArray(plan)) return state;
+        for (const line of plan) {
+            if (!line.planned) continue;
+            const p = line.product_snapshot || line;
+            const typeName = p?.product_type_name ?? "";
+            const key = productTypeNameToBarKey(normalizeProductTypeName(typeName));
+            const stateKey = key ? `planned_has_${key}` : null;
+            if (stateKey && state[stateKey] !== undefined) state[stateKey] = true;
+        }
+        return state;
+    };
+
+    const barState = deriveBarStateFromBomPlan(bomPlan);
+
     const StatusItem = ({ label, isDone }) => (
         <Stack alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 80 }}>
             <Typography variant="caption" sx={{ fontWeight: "bold", textAlign: "center" }}>{label}</Typography>
@@ -306,17 +457,21 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
     return (
         <Box className="p-4">
+            <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
+                <Tab label="Planner" value="add_planner" />
+                <Tab label="Activity" value="activity" />
+            </Tabs>
             {activeTab === "add_planner" ? (
                 <Box component="form" onSubmit={handleSubmit}>
                     <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: "#fcfcfc" }} className="rounded-lg">
                         <Stack direction="row" divider={<Box sx={{ borderRight: 1, borderColor: "divider", mx: 1 }} />} spacing={1}>
-                            <StatusItem label="Structure" isDone={formData.planned_has_structure} />
-                            <StatusItem label="Solar Panel" isDone={formData.planned_has_solar_panel} />
-                            <StatusItem label="Inverter" isDone={formData.planned_has_inverter} />
-                            <StatusItem label="ACDB" isDone={formData.planned_has_acdb} />
-                            <StatusItem label="DCDB" isDone={formData.planned_has_dcdb} />
-                            <StatusItem label="Earthing Kit" isDone={formData.planned_has_earthing_kit} />
-                            <StatusItem label="Cable" isDone={formData.planned_has_cables} />
+                            <StatusItem label="Structure" isDone={barState.planned_has_structure} />
+                            <StatusItem label="Solar Panel" isDone={barState.planned_has_solar_panel} />
+                            <StatusItem label="Inverter" isDone={barState.planned_has_inverter} />
+                            <StatusItem label="ACDB" isDone={barState.planned_has_acdb} />
+                            <StatusItem label="DCDB" isDone={barState.planned_has_dcdb} />
+                            <StatusItem label="Earthing Kit" isDone={barState.planned_has_earthing_kit} />
+                            <StatusItem label="Cable" isDone={barState.planned_has_cables} />
                         </Stack>
                     </Paper>
 
@@ -328,7 +483,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 value={formData.planned_delivery_date}
                                 onChange={handleInputChange}
                                 fullWidth
-                                disabled={isCompleted || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly}
                                 error={!!fieldErrors.planned_delivery_date}
                                 helperText={fieldErrors.planned_delivery_date}
                                 required
@@ -340,7 +495,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
                                 value={formData.planned_priority ? { value: formData.planned_priority, label: formData.planned_priority } : null}
                                 onChange={(e, newValue) => handleInputChange({ target: { name: "planned_priority", value: newValue?.value ?? "" } })}
-                                disabled={isCompleted || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly}
                                 error={!!fieldErrors.planned_priority}
                                 helperText={fieldErrors.planned_priority}
                                 required
@@ -352,7 +507,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
                                 value={warehouses.find((w) => w.id === formData.planned_warehouse_id) || (formData.planned_warehouse_id ? { id: formData.planned_warehouse_id } : null)}
                                 onChange={(e, newValue) => handleInputChange({ target: { name: "planned_warehouse_id", value: newValue?.id ?? "" } })}
-                                disabled={isCompleted || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly}
                                 error={!!fieldErrors.planned_warehouse_id}
                                 helperText={fieldErrors.planned_warehouse_id}
                                 required
@@ -368,13 +523,25 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 value={formData.planned_remarks}
                                 onChange={handleInputChange}
                                 fullWidth
-                                disabled={isCompleted || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly}
                             />
                         </div>
                     </FormSection>
 
                     <FormSection title="Materials for planning / delivery">
-                        {Array.isArray(orderData?.bom_snapshot) && orderData.bom_snapshot.length > 0 ? (
+                        <div className="flex items-center justify-end gap-2 mb-2">
+                            {!isReadOnly && !isPlannerLocked && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleAddBomOpen}
+                                    className="bg-green-600 hover:bg-green-700 text-white border-0"
+                                >
+                                    +Add Product
+                                </Button>
+                            )}
+                        </div>
+                        {bomPlan.length > 0 ? (
                             <>
                                 <div className="overflow-x-auto rounded-lg border border-border">
                                     <table className="w-full text-xs sm:text-sm border-collapse">
@@ -387,6 +554,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 <th className="text-right font-semibold p-2 w-24">Planned Qty</th>
                                                 <th className="text-right font-semibold p-2 w-20">Shipped</th>
                                                 <th className="text-right font-semibold p-2 w-20">Pending</th>
+                                                {!isReadOnly && !isPlannerLocked && <th className="text-center font-semibold p-2 w-12"></th>}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -401,6 +569,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 const returnedQty = qtyNum(line.returned_qty);
                                                 const pendingQty = plannedQty - shippedQty + returnedQty;
                                                 const isFullyShipped = Number(pendingQty) <= 0;
+                                                const canRemove = !isPlannerLocked && !isReadOnly && shippedQty === 0;
 
                                                 return (
                                                     <tr
@@ -416,7 +585,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                 checked={line.planned}
                                                                 onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
                                                                 className="size-4 rounded border-input border bg-background accent-primary cursor-pointer"
-                                                                disabled={isCompleted || isReadOnly || isFullyShipped}
+                                                                disabled={isPlannerLocked || isReadOnly || isFullyShipped}
                                                             />
                                                         </td>
                                                         <td className="p-2 align-middle">{productName}</td>
@@ -442,12 +611,28 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                         )
                                                                     )
                                                                 }
-                                                                disabled={isCompleted || isReadOnly}
+                                                                disabled={isPlannerLocked || isReadOnly}
                                                                 className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                             />
                                                         </td>
                                                         <td className="p-2 text-right align-middle">{shippedQty}</td>
                                                         <td className="p-2 text-right align-middle">{pendingQty}</td>
+                                                        {!isReadOnly && !isPlannerLocked && (
+                                                            <td className="p-2 text-center align-middle">
+                                                                {canRemove ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleBomRemove(line.__rowKey)}
+                                                                        className="text-muted-foreground hover:text-destructive p-0.5 rounded"
+                                                                        aria-label="Remove line"
+                                                                    >
+                                                                        <DeleteOutlineIcon fontSize="small" />
+                                                                    </button>
+                                                                ) : (
+                                                                    <span className="text-muted-foreground/50" title={shippedQty > 0 ? "Cannot remove: already shipped" : ""}>—</span>
+                                                                )}
+                                                            </td>
+                                                        )}
                                                     </tr>
                                                 );
                                             })}
@@ -460,8 +645,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                             </>
                         ) : (
                             <Alert severity="info" sx={{ mt: 1 }}>
-                                No BOM snapshot is available for this order. Materials scope will be based on the
-                                high-level planner flags and quantities only.
+                                No BOM lines yet. Use &quot;Add item&quot; to add products, or this order will use only the
+                                high-level planner flags and quantities.
                             </Alert>
                         )}
                     </FormSection>
@@ -469,7 +654,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     <div className="mt-4 flex flex-col gap-2">
                         {error && <Alert severity="error">{error}</Alert>}
                         {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                        <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>
+                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly}>
                             {isCompleted ? "Update Details" : "Save"}
                         </Button>
                     </div>
@@ -506,10 +691,94 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+
+                    <Dialog open={addBomOpen} onOpenChange={(open) => !open && setAddBomOpen(false)}>
+                        <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle>Add BOM line</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3 py-2">
+                                <AutocompleteField
+                                    label="Product"
+                                    options={productsForBom}
+                                    getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+                                    value={addBomProduct}
+                                    onChange={(e, newVal) => setAddBomProduct(newVal)}
+                                    disabled={loadingProducts}
+                                    placeholder={loadingProducts ? "Loading…" : "Select product"}
+                                />
+                                {addBomProduct && (
+                                    <Typography variant="body2" color="text.secondary">
+                                        Unit of measure: {addBomProduct?.measurement_unit_name ?? addBomProduct?.measurementUnit?.unit ?? "—"}
+                                    </Typography>
+                                )}
+                                <Input
+                                    label={addBomProduct?.measurement_unit_name || addBomProduct?.measurementUnit?.unit
+                                        ? `Quantity (${addBomProduct.measurement_unit_name || addBomProduct.measurementUnit?.unit})`
+                                        : "Quantity"}
+                                    type="number"
+                                    min={1}
+                                    value={addBomQty}
+                                    onChange={(e) => setAddBomQty(e.target.value)}
+                                />
+                            </div>
+                            <DialogFooter className="pt-4">
+                                <Button variant="outline" size="sm" onClick={() => setAddBomOpen(false)}>
+                                    Cancel
+                                </Button>
+                                <Button size="sm" onClick={handleAddBomConfirm} disabled={!addBomProduct?.id}>
+                                    Add
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </Box>
             ) : (
                 <Box className="p-4">
-                    <Typography>Activity Log - Coming Soon</Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>Activity log</Typography>
+                    {Array.isArray(orderData?.planner_activity_log) && orderData.planner_activity_log.length > 0 ? (
+                        <Stack spacing={1.5}>
+                            {[...orderData.planner_activity_log]
+                                .sort((a, b) => new Date(b?.at || 0) - new Date(a?.at || 0))
+                                .map((entry, idx) => {
+                                    const actionLabel =
+                                        entry.action === "bom_line_added"
+                                            ? "Added line"
+                                            : entry.action === "bom_line_removed"
+                                                ? "Removed line"
+                                                : entry.action === "bom_qty_changed"
+                                                    ? "Changed qty"
+                                                    : entry.action === "planner_saved"
+                                                        ? "Saved planner"
+                                                        : entry.action || "—";
+                                    const when = entry.at ? moment(entry.at).format("DD MMM YYYY, HH:mm") : "—";
+                                    const who = entry.user_name || (entry.user_id != null ? `User #${entry.user_id}` : "—");
+                                    const product = entry.product_name ? `: ${entry.product_name}` : "";
+                                    const qtyDetail =
+                                        entry.action === "bom_qty_changed" && entry.old_qty != null && entry.new_qty != null
+                                            ? ` (${entry.old_qty} → ${entry.new_qty})`
+                                            : entry.action === "bom_line_added" && entry.new_qty != null
+                                                ? ` (qty ${entry.new_qty})`
+                                                : entry.action === "bom_line_removed" && entry.old_qty != null
+                                                    ? ` (was qty ${entry.old_qty})`
+                                                    : "";
+                                    return (
+                                        <Paper key={idx} variant="outlined" sx={{ p: 1.5 }}>
+                                            <Typography variant="body2">
+                                                <strong>{actionLabel}</strong>
+                                                {product}
+                                                {qtyDetail}
+                                            </Typography>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {when} · {who}
+                                            </Typography>
+                                        </Paper>
+                                    );
+                                })}
+                        </Stack>
+                    ) : (
+                        <Typography color="text.secondary">No activity yet.</Typography>
+                    )}
                 </Box>
             )}
         </Box>
