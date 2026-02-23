@@ -18,5 +18,16 @@ export const updateProduct = (id, payload) =>
 export const deleteProduct = (id) =>
   apiClient.delete(`/product/${id}`).then((r) => r.data);
 
-export default { getProducts, exportProducts, createProduct, getProductById, updateProduct, deleteProduct };
+export const downloadSampleCsv = () =>
+  apiClient.get("/product/import/sample", { responseType: "blob" }).then((r) => r.data);
+
+export const importProducts = (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return apiClient.post("/product/import", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  }).then((r) => r.data);
+};
+
+export default { getProducts, exportProducts, createProduct, getProductById, updateProduct, deleteProduct, downloadSampleCsv, importProducts };
 

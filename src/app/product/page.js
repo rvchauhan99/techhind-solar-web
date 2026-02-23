@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { IconTrash, IconEye, IconPencil } from "@tabler/icons-react";
@@ -104,6 +104,10 @@ export default function ProductPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const importFileRef = useRef(null);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -171,6 +175,61 @@ export default function ProductPage() {
       setExporting(false);
     }
   }, [filters]);
+
+  const handleSampleCsvClick = useCallback(async () => {
+    try {
+      const blob = await productService.downloadSampleCsv();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "product-import-sample.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Sample CSV downloaded");
+    } catch (error) {
+      console.error("Sample CSV download error:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to download sample CSV");
+    }
+  }, []);
+
+  const handleOpenImportModal = useCallback(() => {
+    setShowImportModal(true);
+    setImportResult(null);
+    if (importFileRef.current) importFileRef.current.value = "";
+  }, []);
+
+  const handleCloseImportModal = useCallback(() => {
+    setShowImportModal(false);
+    setImportResult(null);
+  }, []);
+
+  const handleImportSubmit = useCallback(async () => {
+    const file = importFileRef.current?.files?.[0];
+    if (!file) {
+      toast.error("Please select a CSV file");
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const response = await productService.importProducts(file);
+      const result = response?.result ?? response;
+      setImportResult(result);
+      setTableKey((prev) => prev + 1);
+      const created = result?.created ?? 0;
+      const skipped = result?.skipped ?? 0;
+      const errCount = Array.isArray(result?.errors) ? result.errors.length : 0;
+      toast.success(`Import completed: ${created} created, ${skipped} skipped${errCount ? `, ${errCount} errors` : ""}`);
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message || "Import failed";
+      toast.error(msg);
+      setImportResult({ created: 0, skipped: 0, errors: [{ message: msg }] });
+    } finally {
+      setImporting(false);
+    }
+  }, []);
 
   const filterParams = useMemo(
     () =>
@@ -529,6 +588,10 @@ export default function ProductPage() {
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}
+        sampleCsvButtonLabel="Sample CSV"
+        onSampleCsvClick={handleSampleCsvClick}
+        importButtonLabel="Import"
+        onImportClick={currentPerm.can_create ? handleOpenImportModal : undefined}
       >
         <PaginatedTable
           key={tableKey}
@@ -635,6 +698,52 @@ export default function ProductPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showImportModal} onOpenChange={(open) => !open && handleCloseImportModal()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import Products</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Upload a CSV file. Rows with an existing product name (case-insensitive) will be skipped.
+            </p>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".csv"
+              className="w-full text-sm file:mr-2 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+            />
+            {importResult != null && (
+              <div className="rounded-md border bg-muted/50 p-3 text-sm space-y-1">
+                <p><strong>Created:</strong> {importResult.created ?? 0}</p>
+                <p><strong>Skipped:</strong> {importResult.skipped ?? 0}</p>
+                {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="font-medium text-destructive">Errors ({importResult.errors.length}):</p>
+                    <ul className="list-disc list-inside mt-1 max-h-32 overflow-y-auto">
+                      {importResult.errors.slice(0, 20).map((e, idx) => (
+                        <li key={idx}>Row {e.row}: {e.message}</li>
+                      ))}
+                      {importResult.errors.length > 20 && (
+                        <li>... and {importResult.errors.length - 20} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="pt-4">
+            <Button variant="outline" size="sm" onClick={handleCloseImportModal} disabled={importing}>
+              Close
+            </Button>
+            <Button size="sm" onClick={handleImportSubmit} disabled={importing} loading={importing}>
+              Upload
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
