@@ -179,7 +179,7 @@ export default function ListView() {
                         <IconButton size="small" title="Details" onClick={() => openConfirmOrderView(row.id)}>
                             <VisibilityIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        <IconButton size="small" title="Remarks" onClick={() => router.push(`/confirm-orders/view?id=${row.id}&tab=4`)}>
+                        <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
                             <CommentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
@@ -290,7 +290,7 @@ export default function ListView() {
                     <ListItemIcon><PaymentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Add Payment</ListItemText>
                 </MenuItem>
-                <MenuItem onClick={() => { router.push(`/confirm-orders/view?id=${menuOrderId}&tab=4`); handleMenuClose(); }}>
+                <MenuItem onClick={() => { router.push(`/order/view?id=${menuOrderId}&tab=4`); handleMenuClose(); }}>
                     <ListItemIcon><CommentIcon fontSize="small" /></ListItemIcon>
                     <ListItemText>Remarks</ListItemText>
                 </MenuItem>
