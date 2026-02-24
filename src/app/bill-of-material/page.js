@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
+import { DIALOG_FORM_XL } from "@/utils/formConstants";
+import { cn } from "@/lib/utils";
 import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
 
 const COLUMN_FILTER_KEYS = [
@@ -382,11 +383,11 @@ export default function BillOfMaterialPage() {
         </DetailsSidebar>
 
         <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
-          <DialogContent className={DIALOG_FORM_LARGE} showCloseButton={true}>
+          <DialogContent className={cn(DIALOG_FORM_XL, "h-[90vh]")} showCloseButton={true}>
             <DialogHeader className="shrink-0">
               <DialogTitle className="text-base font-semibold">Add Bill of Material</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
               <BillOfMaterialForm
                 onSubmit={handleSubmit}
                 loading={submitting}
@@ -399,11 +400,11 @@ export default function BillOfMaterialPage() {
         </Dialog>
 
         <Dialog open={showEditModal} onOpenChange={(open) => !open && handleCloseEditModal()}>
-          <DialogContent className={DIALOG_FORM_LARGE} showCloseButton={true}>
+          <DialogContent className={cn(DIALOG_FORM_XL, "h-[90vh]")} showCloseButton={true}>
             <DialogHeader className="shrink-0">
               <DialogTitle className="text-base font-semibold">Edit Bill of Material</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
               {loadingRecord ? (
                 <div className="flex justify-center items-center min-h-[200px]">
                   <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />

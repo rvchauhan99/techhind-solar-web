@@ -962,7 +962,7 @@ function InquiryDetailsContent() {
                                                         <Button
                                                             variant="outlined"
                                                             size="small"
-                                                            onClick={() => router.push(`/quotation/edit?id=${row.id}`)}
+                                                            onClick={() => router.push(`/quotation/${row.id}`)}
                                                         >
                                                             View
                                                         </Button>
