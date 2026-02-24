@@ -21,6 +21,7 @@ function parseIntSafe(str, defaultVal) {
  * @param {Object} options
  * @param {number} [options.defaultLimit=10]
  * @param {string[]} [options.filterKeys=[]] - e.g. ['status', 'date_from', 'date_to', 'supplier_id']
+ * Default sort order is "desc" (newest / highest id first) so listing pages show last records first.
  * @returns {Object} { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setSort }
  */
 export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}) {
@@ -33,7 +34,7 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
   const limit = parseIntSafe(searchParams.get("limit"), defaultLimit);
   const q = searchParams.get("q") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "";
-  const sortOrder = searchParams.get("sortOrder") ?? "asc";
+  const sortOrder = searchParams.get("sortOrder") ?? "desc";
 
   const filters = useMemo(() => {
     const f = {};
@@ -128,7 +129,7 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
     limit,
     q,
     sortBy: sortBy || null,
-    sortOrder: sortOrder || "asc",
+    sortOrder: sortOrder || "desc",
     filters,
     setPage,
     setLimit,

@@ -443,13 +443,13 @@ export default function BillOfMaterialForm({
               No BOM details added. Please add at least one detail.
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden flex flex-col min-h-0">
+            <div className="rounded-lg border border-border overflow-hidden">
               <div className="shrink-0 px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border bg-muted/20">
                 Added products ({formData.bom_detail.length})
               </div>
-              <div className="max-h-[min(640px,72vh)] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+              <div className="overflow-x-auto [scrollbar-width:thin]">
                 <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 z-10 bg-muted/30 border-b border-border">
+                  <thead className="bg-muted/30 border-b border-border">
                     <tr>
                       <th className="text-left font-medium p-2">Name</th>
                       <th className="text-left font-medium p-2 w-20">Qty</th>

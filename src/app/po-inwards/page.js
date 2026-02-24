@@ -144,9 +144,9 @@ export default function POInwardPage() {
     }
   }, [filters]);
 
-  // Default listing: newest first (primary id DESC) when user has not chosen a sort column yet.
+  // Default listing: newest first (id DESC) — same as other listing pages.
   const effectiveSortBy = sortBy || "id";
-  const effectiveSortOrder = sortBy ? (sortOrder || "asc") : "DESC";
+  const effectiveSortOrder = sortOrder || "DESC";
 
   const getStatusVariant = (status) => {
     const s = (status || "").toLowerCase();
@@ -295,7 +295,7 @@ export default function POInwardPage() {
         q: p.q || undefined,
         status: p.status || undefined,
         sortBy: p.sortBy || "id",
-        sortOrder: p.sortOrder || (p.sortBy ? "asc" : "DESC"),
+        sortOrder: p.sortOrder || "DESC",
         supplier_invoice_number: p.supplier_invoice_number || undefined,
         received_at_from: p.received_at_from || undefined,
         received_at_to: p.received_at_to || undefined,
