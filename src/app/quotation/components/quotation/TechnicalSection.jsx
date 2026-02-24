@@ -136,7 +136,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("panel", formData.panel_product)}
                             onChange={(ids) => handleAutocompleteChange("panel_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -189,7 +189,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("inverter", formData.inverter_product)}
                             onChange={(ids) => handleAutocompleteChange("inverter_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -238,7 +238,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("battery", formData.battery_product)}
                             onChange={(ids) => handleAutocompleteChange("battery_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -401,7 +401,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("cable_ac", formData.cable_ac_product)}
                             onChange={(ids) => handleAutocompleteChange("cable_ac_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -439,7 +439,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("cable_dc", formData.cable_dc_product)}
                             onChange={(ids) => handleAutocompleteChange("cable_dc_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -483,7 +483,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("earthing", formData.earthing_product)}
                             onChange={(ids) => handleAutocompleteChange("earthing_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -527,7 +527,7 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("la", formData.la_product)}
                             onChange={(ids) => handleAutocompleteChange("la_make_ids", ids)}
-                            disabled={false}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>

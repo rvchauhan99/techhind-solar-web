@@ -1,19 +1,18 @@
 "use client";
 
 import { useMemo } from "react";
-import { Autocomplete, Chip, TextField } from "@mui/material";
+import Input from "@/components/common/Input";
 
 /**
- * Reusable Make Autocomplete. Display does NOT depend on productMakes option list.
- * Uses product_make_id for value and product_make_name from API (via fallbackMake) for display.
+ * Product Make display field.
+ * We no longer allow changing the make from this form – it is derived from the selected product / project.
+ * This component now only displays the resolved make name(s) in a normal disabled input.
  *
  * @param {{
  *   label: string;
  *   valueIds: number[] | string[];
  *   options: Array<{ id: number | string; name?: string }>;
  *   fallbackMake?: { id: number | string; name: string } | null;
- *   onChange: (ids: (number | string)[]) => void;
- *   disabled?: boolean;
  * }} props
  */
 export default function MakeAutocomplete({
@@ -21,14 +20,16 @@ export default function MakeAutocomplete({
     valueIds = [],
     options = [],
     fallbackMake = null,
-    onChange,
-    disabled = false,
 }) {
     const opts = Array.isArray(options) ? options : [];
     const ids = Array.isArray(valueIds) ? valueIds : [];
 
-    // Build selected objects: from options or fallbackMake (API display). Use == so 7 and "7" match.
+    // Resolve display objects from ids or fallbackMake (so value keeps showing after any re-render).
     const selectedObjects = useMemo(() => {
+        if ((!ids || ids.length === 0) && fallbackMake) {
+            return [fallbackMake];
+        }
+
         return (ids || []).map((id) => {
             const found = opts.find((m) => m.id == id);
             if (found) return found;
@@ -37,38 +38,15 @@ export default function MakeAutocomplete({
         }).filter(Boolean);
     }, [ids, opts, fallbackMake]);
 
-    // Include fallbackMake in dropdown options when not already present so it can be shown and selected
-    const optionsForDropdown = useMemo(() => {
-        if (!fallbackMake || opts.some((m) => m.id == fallbackMake.id)) return opts;
-        return [fallbackMake, ...opts];
-    }, [opts, fallbackMake]);
+    const displayLabel = selectedObjects.map((o) => o.name).join(", ");
 
     return (
-        <Autocomplete
-            multiple
-            size="small"
-            disabled={disabled}
-            options={optionsForDropdown}
-            getOptionLabel={(option) => option?.name ?? ""}
-            isOptionEqualToValue={(opt, val) => opt?.id == val?.id}
-            value={selectedObjects}
-            onChange={(e, newValue) => {
-                onChange((newValue || []).map((v) => v.id));
-            }}
-            renderInput={(params) => <TextField {...params} label={label} size="small" />}
-            renderTags={(value, getTagProps) =>
-                value.map((option, index) => {
-                    const { key, ...tagProps } = getTagProps({ index });
-                    return (
-                        <Chip
-                            key={option?.id ?? key}
-                            label={option?.name ?? ""}
-                            size="small"
-                            {...tagProps}
-                        />
-                    );
-                })
-            }
+        <Input
+            fullWidth
+            label={label}
+            value={displayLabel}
+            disabled
+            sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }}
         />
     );
 }
