@@ -18,6 +18,7 @@ import {
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import PaymentIcon from "@mui/icons-material/Payment";
@@ -33,6 +34,7 @@ import confirmOrdersService from "@/services/confirmOrdersService";
 import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
+import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
 
 const STAGES = [
@@ -55,6 +57,8 @@ export default function ListView() {
     const [menuOrderId, setMenuOrderId] = useState(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
+    const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
+    const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
 
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
@@ -170,6 +174,17 @@ export default function ListView() {
                         sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.1 }}
                         onClick={(e) => e.stopPropagation()}
                     >
+                        <Tooltip title="Serialized inventory issued to this order">
+                            <IconButton
+                                size="small"
+                                onClick={() => {
+                                    setSerialsDialogOrder({ order_number: row.order_number, customer_name: row.customer_name });
+                                    setSerialsDialogOpen(true);
+                                }}
+                            >
+                                <Inventory2Icon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        </Tooltip>
                         <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
@@ -310,6 +325,15 @@ export default function ListView() {
                 onPrint={handlePrintOrder}
                 showPrint
                 showDeliverySnapshot
+            />
+            <OrderIssuedSerialsDialog
+                open={serialsDialogOpen}
+                onClose={() => {
+                    setSerialsDialogOpen(false);
+                    setSerialsDialogOrder(null);
+                }}
+                orderNumber={serialsDialogOrder?.order_number}
+                customerName={serialsDialogOrder?.customer_name}
             />
         </Box>
     );

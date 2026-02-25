@@ -8,6 +8,7 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -15,6 +16,7 @@ import closedOrdersService from "@/services/closedOrdersService";
 import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
+import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
 
 const STAGES = [
@@ -35,6 +37,8 @@ export default function ListView() {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
+  const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
 
   const fetchData = useCallback(async (params) => {
     return await closedOrdersService.getClosedOrders(params);
@@ -183,6 +187,18 @@ export default function ListView() {
             {row.project_scheme_name}
           </Typography>
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.2 }}>
+            <Tooltip title="Serialized inventory issued to this order">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation?.();
+                  setSerialsDialogOrder({ order_number: row.order_number, customer_name: row.customer_name });
+                  setSerialsDialogOpen(true);
+                }}
+              >
+                <Inventory2Icon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
             <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
               <VisibilityIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -312,6 +328,15 @@ export default function ListView() {
         onPrint={handlePrintOrder}
         showPrint
         showDeliverySnapshot
+      />
+      <OrderIssuedSerialsDialog
+        open={serialsDialogOpen}
+        onClose={() => {
+          setSerialsDialogOpen(false);
+          setSerialsDialogOrder(null);
+        }}
+        orderNumber={serialsDialogOrder?.order_number}
+        customerName={serialsDialogOrder?.customer_name}
       />
     </Box>
   );

@@ -37,6 +37,11 @@ const SERIAL_STATUS_COLORS = {
   BLOCKED: "error",
 };
 
+const ISSUED_AGAINST_LABELS = {
+  customer_order: "Customer Order",
+  b2b_sales_order: "Sales Order",
+};
+
 export default function SerializedInventoryReport({ filters, onRefresh }) {
   const [data, setData] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -61,6 +66,8 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
         limit,
         ...filters,
         status: filters?.status && Array.isArray(filters.status) ? filters.status.join(",") : filters?.status,
+        issued_against: filters?.issued_against || undefined,
+        reference_number: filters?.reference_number || undefined,
       };
 
       const response = await serializedInventoryService.getSerializedInventoryReport(params);
@@ -86,6 +93,8 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
       const params = {
         ...filters,
         status: filters?.status && Array.isArray(filters.status) ? filters.status.join(",") : filters?.status,
+        issued_against: filters?.issued_against || undefined,
+        reference_number: filters?.reference_number || undefined,
       };
       await serializedInventoryService.exportReport(params, format);
     } catch (err) {
@@ -211,6 +220,8 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
                   <TableCell><strong>HSN Code</strong></TableCell>
                   <TableCell><strong>Warehouse</strong></TableCell>
                   <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Issued Against</strong></TableCell>
+                  <TableCell><strong>Reference Number</strong></TableCell>
                   <TableCell><strong>Unit Price</strong></TableCell>
                   <TableCell><strong>Inward Date</strong></TableCell>
                   <TableCell><strong>Outward Date</strong></TableCell>
@@ -249,6 +260,8 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
                         color={SERIAL_STATUS_COLORS[item.status] || "default"}
                       />
                     </TableCell>
+                    <TableCell>{item.issued_against ? (ISSUED_AGAINST_LABELS[item.issued_against] ?? item.issued_against) : "—"}</TableCell>
+                    <TableCell>{item.reference_number || "—"}</TableCell>
                     <TableCell>{formatCurrency(item.unit_price)}</TableCell>
                     <TableCell>
                       {item.inward_date ? new Date(item.inward_date).toLocaleDateString() : "-"}
