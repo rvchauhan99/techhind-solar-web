@@ -27,6 +27,12 @@ const SERIAL_STATUSES = [
   { value: "BLOCKED", label: "Blocked" },
 ];
 
+const ISSUED_AGAINST_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "customer_order", label: "Customer Order" },
+  { value: "b2b_sales_order", label: "Sales Order" },
+];
+
 export default function ReportFilters({ filters, onFiltersChange, onApply, onClear }) {
   const [expanded, setExpanded] = useState(false);
   const [localFilters, setLocalFilters] = useState(filters || {});
@@ -175,6 +181,28 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onCle
               value={localFilters.serial_number || ""}
               onChange={(e) => handleFilterChange("serial_number", e.target.value || null)}
               placeholder="Search by serial number..."
+            />
+          </Grid>
+
+          <Grid item size={{ xs: 12, md: 3 }}>
+            <AutocompleteField
+              name="issued_against"
+              label="Issued Against"
+              options={ISSUED_AGAINST_OPTIONS}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={ISSUED_AGAINST_OPTIONS.find((o) => o.value === (localFilters.issued_against ?? "")) ?? ISSUED_AGAINST_OPTIONS[0]}
+              onChange={(e, newValue) => handleFilterChange("issued_against", newValue?.value ? newValue.value : null)}
+              placeholder="All"
+            />
+          </Grid>
+
+          <Grid item size={{ xs: 12, md: 3 }}>
+            <Input
+              name="reference_number"
+              label="Reference Number"
+              value={localFilters.reference_number || ""}
+              onChange={(e) => handleFilterChange("reference_number", e.target.value || null)}
+              placeholder="Order / B2B order number..."
             />
           </Grid>
 
