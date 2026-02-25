@@ -9,7 +9,16 @@ import { getAllowedRoutes, isPathAllowedByRoutes, normalizePath } from "@/lib/pe
 const SKIP_FRONTEND_MODULE_CHECK = true;
 
 /** Paths that do not require a module permission (always allowed when authenticated). */
-const PATH_WHITELIST = new Set(["/", "/home", "/task-planner", "/marketing-leads", "/access-denied"]);
+const PATH_WHITELIST = new Set([
+  "/",
+  "/home",
+  "/task-planner",
+  "/marketing-leads",
+  "/marketing-leads/view",
+  "/marketing-leads/analysis",
+  "/marketing-leads/upload",
+  "/access-denied",
+]);
 
 function isPathAllowed(pathname, allowedRoutes) {
   const normalized = normalizePath(pathname);

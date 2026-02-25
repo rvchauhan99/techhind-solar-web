@@ -37,6 +37,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     resolveOptionById,
     referenceModel,
     usePortal = false,
+    /** "bottom" = list below input (default), "top" = list above input */
+    dropdownPlacement = "bottom",
     ...otherProps
   },
   ref
@@ -281,15 +283,19 @@ const AutocompleteField = forwardRef(function AutocompleteField(
   const updateDropdownPosition = useCallback(() => {
     if (!usePortal || !containerRef.current || !open) return;
     const rect = containerRef.current.getBoundingClientRect();
+    const isTop = dropdownPlacement === "top";
     setDropdownStyle({
       position: "fixed",
       left: rect.left,
-      top: rect.bottom + 4,
+      ...(isTop
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
       width: rect.width,
       minWidth: rect.width,
       zIndex: 9999,
+      maxHeight: isTop ? rect.top - 8 : undefined,
     });
-  }, [usePortal, open]);
+  }, [usePortal, open, dropdownPlacement]);
 
   useEffect(() => {
     if (!usePortal || !open) return;
@@ -305,7 +311,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       window.removeEventListener("scroll", handleScrollOrResize, true);
       window.removeEventListener("resize", handleScrollOrResize);
     };
-  }, [usePortal, open, updateDropdownPosition]);
+  }, [usePortal, open, dropdownPlacement, updateDropdownPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -463,7 +469,14 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             document.body
           )
         ) : (
-          <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0 top-full">
+          <ul
+            className={cn(
+              "max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0",
+              dropdownPlacement === "top"
+                ? "bottom-full mb-1"
+                : "mt-1 top-full"
+            )}
+          >
             {isLoading && (
               <li className="px-3 py-2 flex items-center justify-center">
                 <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
