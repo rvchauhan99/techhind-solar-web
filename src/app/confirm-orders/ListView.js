@@ -27,14 +27,18 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
+import { OrderListFilterPanel, ORDER_LIST_FILTER_KEYS } from "@/components/common";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import confirmOrdersService from "@/services/confirmOrdersService";
 import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
+import { Button } from "@/components/ui/button";
 import { toastError } from "@/utils/toast";
 
 const STAGES = [
@@ -53,6 +57,12 @@ const STAGES = [
 
 export default function ListView() {
     const router = useRouter();
+    const listingState = useListingQueryState({
+        defaultLimit: 25,
+        filterKeys: ORDER_LIST_FILTER_KEYS,
+    });
+    const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } = listingState;
+    const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [menuOrderId, setMenuOrderId] = useState(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
@@ -287,6 +297,16 @@ export default function ListView() {
 
     return (
         <Box sx={{ width: "100%" }}>
+            <OrderListFilterPanel
+                open={filterPanelOpen}
+                onToggle={setFilterPanelOpen}
+                values={filters}
+                onApply={(v) => {
+                    setFilters(v);
+                    setFilterPanelOpen(false);
+                }}
+                onClear={() => clearFilters()}
+            />
             <PaginatedList
                 fetcher={fetchData}
                 renderItem={renderOrderItem}
@@ -294,6 +314,24 @@ export default function ListView() {
                 defaultSortBy="order_date"
                 defaultSortOrder="DESC"
                 height={calculateHeight()}
+                q={q}
+                onQChange={setQ}
+                filters={filters}
+                page={page}
+                setPage={setPage}
+                limit={limit}
+                setLimit={setLimit}
+                filterSlot={
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFilterPanelOpen((prev) => !prev)}
+                        className="shrink-0"
+                    >
+                        <FilterListIcon sx={{ fontSize: 18, mr: 0.5 }} />
+                        Filter
+                    </Button>
+                }
             />
 
             <Menu

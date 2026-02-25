@@ -21,7 +21,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * PaginatedList - list-based paginated data with search and pagination.
- * Same API: renderItem(row, reload, permissions), fetcher, initialPage, initialLimit, showSearch, moduleKey, height, getRowKey, onRowsChange.
+ * Supports optional controlled mode: pass q, onQChange, filters, page, setPage, limit, setLimit for URL-driven state.
+ * Optional searchPlaceholder and filterSlot (e.g. Filter button) for order list pages.
  */
 export default function PaginatedList({
   renderItem,
@@ -35,16 +36,38 @@ export default function PaginatedList({
   initialSortOrder = null,
   getRowKey = (row) => row.id || Math.random(),
   onRowsChange = null,
+  searchPlaceholder = "Search...",
+  q: controlledQ,
+  onQChange,
+  filters: controlledFilters = {},
+  page: controlledPage,
+  setPage: controlledSetPage,
+  limit: controlledLimit,
+  setLimit: controlledSetLimit,
+  filterSlot = null,
 }) {
   const [rows, setRows] = React.useState([]);
   const [page, setPage] = React.useState(initialPage - 1);
-  const [rowsPerPage, setRowsPerPage] = React.useState(initialLimit);
+  const [rowsPerPage, setRowsPerPage] = React.useState(controlledLimit ?? initialLimit);
   const [totalCount, setTotalCount] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [sortBy, setSortBy] = React.useState(initialSortBy);
   const [sortOrder, setSortOrder] = React.useState(initialSortOrder || "asc");
+  const isControlled = controlledQ !== undefined && onQChange != null;
+  const isPaginationControlled = controlledPage != null && controlledSetPage != null;
+  const isLimitControlled = controlledLimit != null && controlledSetLimit != null;
+  const effectiveQ = isControlled ? (controlledQ ?? "") : query;
+  const [debouncedControlledQ, setDebouncedControlledQ] = React.useState(controlledQ ?? "");
+  React.useEffect(() => {
+    if (!isControlled) return;
+    const t = setTimeout(() => setDebouncedControlledQ(controlledQ ?? ""), 500);
+    return () => clearTimeout(t);
+  }, [controlledQ, isControlled]);
+  const effectiveDebouncedQ = isControlled ? debouncedControlledQ : debouncedQuery;
+  const effectivePage = isPaginationControlled ? Math.max(0, Number(controlledPage) - 1) : page;
+  const effectiveRowsPerPage = isLimitControlled ? Number(controlledLimit) : rowsPerPage;
   const { modulePermissions, currentModuleId, fetchPermissionForModule, user } =
     useAuth();
   const [resolvedPerms, setResolvedPerms] = React.useState(null);
@@ -105,9 +128,11 @@ export default function PaginatedList({
   };
 
   React.useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 500);
-    return () => clearTimeout(timer);
-  }, [query]);
+    if (!isControlled) {
+      const timer = setTimeout(() => setDebouncedQuery(query), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [query, isControlled]);
 
   const fetcherRef = React.useRef(fetcher);
   React.useEffect(() => {
@@ -115,14 +140,19 @@ export default function PaginatedList({
   }, [fetcher]);
 
   const load = React.useCallback(
-    async (p = page, l = rowsPerPage, q = debouncedQuery, sBy = sortBy, sOrder = sortOrder) => {
+    async (p = effectivePage, l = effectiveRowsPerPage, q = effectiveDebouncedQ, sBy = sortBy, sOrder = sortOrder, filtersToMerge = controlledFilters) => {
       setLoading(true);
       try {
         const apiPage = p + 1;
-        const fetcherParams = { page: apiPage, limit: l, q };
+        const fetcherParams = { page: apiPage, limit: l, q: q ?? "" };
         if (sBy) {
           fetcherParams.sortBy = sBy;
           fetcherParams.sortOrder = sOrder;
+        }
+        if (filtersToMerge && typeof filtersToMerge === "object") {
+          Object.entries(filtersToMerge).forEach(([k, v]) => {
+            if (v != null && String(v).trim() !== "") fetcherParams[k] = v;
+          });
         }
         const res = await fetcherRef.current(fetcherParams);
         const { data, total } = normalize(res);
@@ -137,28 +167,43 @@ export default function PaginatedList({
         setLoading(false);
       }
     },
-    [page, rowsPerPage, debouncedQuery, sortBy, sortOrder, onRowsChange]
+    [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, onRowsChange, controlledFilters]
   );
 
   React.useEffect(() => {
-    if (page !== 0) setPage(0);
-  }, [debouncedQuery]);
+    if (!isControlled && page !== 0) setPage(0);
+  }, [effectiveDebouncedQ, isControlled]);
 
   React.useEffect(() => {
     load();
-  }, [page, rowsPerPage, debouncedQuery, sortBy, sortOrder, load]);
+  }, [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, load]);
 
-  const handleChangePage = (event, newPage) => setPage(newPage);
+  const handleChangePage = (event, newPage) => {
+    if (isPaginationControlled) controlledSetPage(newPage + 1);
+    else setPage(newPage);
+  };
   const handleChangeRowsPerPage = (v) => {
-    setRowsPerPage(parseInt(v, 10));
-    setPage(0);
+    const num = parseInt(v, 10);
+    if (isLimitControlled) {
+      controlledSetLimit(num);
+      if (isPaginationControlled) controlledSetPage(1);
+    } else {
+      setRowsPerPage(num);
+      setPage(0);
+    }
   };
 
   const reload = () => load();
-  const totalPages = Math.ceil(totalCount / rowsPerPage) || 1;
-  const from = totalCount === 0 ? 0 : page * rowsPerPage + 1;
-  const to = Math.min((page + 1) * rowsPerPage, totalCount);
+  const totalPages = Math.ceil(totalCount / effectiveRowsPerPage) || 1;
+  const from = totalCount === 0 ? 0 : effectivePage * effectiveRowsPerPage + 1;
+  const to = Math.min((effectivePage + 1) * effectiveRowsPerPage, totalCount);
   const perms = resolvedPerms ?? modulePermissions?.[currentModuleId];
+
+  const handleSearchChange = (e) => {
+    const v = e.target.value;
+    if (isControlled) onQChange(v);
+    else setQuery(v);
+  };
 
   return (
     <div
@@ -166,13 +211,16 @@ export default function PaginatedList({
       style={{ height }}
     >
       {showSearch && (
-        <div className="shrink-0 p-2">
-          <SearchInput
-            placeholder="Search..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            fullWidth
-          />
+        <div className="shrink-0 flex items-center gap-2 p-2">
+          <div className="flex-1 min-w-0">
+            <SearchInput
+              placeholder={searchPlaceholder}
+              value={effectiveQ}
+              onChange={handleSearchChange}
+              fullWidth
+            />
+          </div>
+          {filterSlot}
         </div>
       )}
 
@@ -202,7 +250,7 @@ export default function PaginatedList({
         </p>
         <div className="flex items-center gap-2">
           <Select
-            value={String(rowsPerPage)}
+            value={String(effectiveRowsPerPage)}
             onValueChange={handleChangeRowsPerPage}
           >
             <SelectTrigger className="h-8 w-16">
@@ -222,7 +270,7 @@ export default function PaginatedList({
               size="icon"
               className="h-8 w-8"
               onClick={() => handleChangePage(null, 0)}
-              disabled={page === 0}
+              disabled={effectivePage === 0}
               aria-label="first page"
             >
               <IconChevronsLeft className="size-4" />
@@ -231,8 +279,8 @@ export default function PaginatedList({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => handleChangePage(null, page - 1)}
-              disabled={page === 0}
+              onClick={() => handleChangePage(null, effectivePage - 1)}
+              disabled={effectivePage === 0}
               aria-label="previous page"
             >
               <IconChevronLeft className="size-4" />
@@ -241,8 +289,8 @@ export default function PaginatedList({
               variant="outline"
               size="icon"
               className="h-8 w-8"
-              onClick={() => handleChangePage(null, page + 1)}
-              disabled={page >= totalPages - 1}
+              onClick={() => handleChangePage(null, effectivePage + 1)}
+              disabled={effectivePage >= totalPages - 1}
               aria-label="next page"
             >
               <IconChevronRight className="size-4" />
@@ -252,7 +300,7 @@ export default function PaginatedList({
               size="icon"
               className="h-8 w-8"
               onClick={() => handleChangePage(null, totalPages - 1)}
-              disabled={page >= totalPages - 1}
+              disabled={effectivePage >= totalPages - 1}
               aria-label="last page"
             >
               <IconChevronsRight className="size-4" />
