@@ -9,14 +9,18 @@ import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
+import { OrderListFilterDialog, ORDER_LIST_FILTER_KEYS } from "@/components/common";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import closedOrdersService from "@/services/closedOrdersService";
 import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
+import { Button } from "@/components/ui/button";
 import { toastError } from "@/utils/toast";
 
 const STAGES = [
@@ -35,6 +39,12 @@ const STAGES = [
 
 export default function ListView() {
   const router = useRouter();
+  const listingState = useListingQueryState({
+    defaultLimit: 25,
+    filterKeys: ORDER_LIST_FILTER_KEYS,
+  });
+  const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } = listingState;
+  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
@@ -320,6 +330,37 @@ export default function ListView() {
         defaultSortBy="order_date"
         defaultSortOrder="DESC"
         height={calculateHeight()}
+        q={q}
+        onQChange={setQ}
+        filters={filters}
+        page={page}
+        setPage={setPage}
+        limit={limit}
+        setLimit={setLimit}
+        filterSlot={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFilterDialogOpen(true)}
+            className="shrink-0"
+          >
+            <FilterListIcon sx={{ fontSize: 18, mr: 0.5 }} />
+            Filter
+          </Button>
+        }
+      />
+      <OrderListFilterDialog
+        open={filterDialogOpen}
+        onClose={() => setFilterDialogOpen(false)}
+        values={filters}
+        onApply={(v) => {
+          setFilters(v);
+          setFilterDialogOpen(false);
+        }}
+        onClear={() => {
+          clearFilters();
+          setFilterDialogOpen(false);
+        }}
       />
       <OrderDetailsDrawer
         open={detailsOpen}

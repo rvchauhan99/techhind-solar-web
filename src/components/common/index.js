@@ -10,6 +10,8 @@ export { default as Checkbox } from "./Checkbox";
 export { default as DateField } from "./DateField";
 export { default as DetailsSidebar } from "./DetailsSidebar";
 export { default as FilterBar } from "./FilterBar";
+export { default as OrderListFilterDialog, FILTER_KEYS as ORDER_LIST_FILTER_KEYS } from "./OrderListFilterDialog";
+export { default as OrderListFilterPanel } from "./OrderListFilterPanel";
 export { default as FormContainer, FormActions } from "./FormContainer";
 export { default as FormField } from "./FormField";
 export { default as FormGrid } from "./FormGrid";
