@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Box, Chip, Typography } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
-import { IconCheck, IconX, IconPrinter, IconLoader2 } from "@tabler/icons-react";
+import { IconCheck, IconX, IconPrinter, IconLoader2, IconPhoto } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import orderDocumentsService from "@/services/orderDocumentsService";
@@ -127,6 +127,21 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     } catch (err) {
       console.error("Failed to download payment receipt:", err);
       const msg = err?.response?.data?.message || err?.message || "Failed to download payment receipt";
+      toastError(msg);
+    }
+  };
+
+  const handleViewPaymentProof = async (id) => {
+    try {
+      const url = await orderPaymentsService.getReceiptUrl(id);
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        toastError("No payment proof available");
+      }
+    } catch (err) {
+      console.error("Failed to get payment proof URL:", err);
+      const msg = err?.response?.data?.message || err?.message || "No payment proof available";
       toastError(msg);
     }
   };
@@ -281,6 +296,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         const canRead = perms?.can_read;
         const isPending = row.status === "pending_approval" || !row.status;
         const isApproved = row.status === "approved";
+        const hasPaymentProof = !!row.receipt_cheque_file;
         return (
           <Box display="flex" gap={1} flexWrap="wrap">
             {canUpdate && isPending && (
@@ -320,6 +336,16 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                   Reject
                 </UiButton>
               </>
+            )}
+            {hasPaymentProof && (canRead || canUpdate) && (
+              <UiButton
+                variant="outline"
+                size="sm"
+                startIcon={<IconPhoto className="size-4" />}
+                onClick={() => handleViewPaymentProof(row.id)}
+              >
+                View payment proof
+              </UiButton>
             )}
             {isApproved && (canRead || canUpdate) && (
               <UiButton

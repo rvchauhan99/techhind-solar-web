@@ -81,7 +81,7 @@ export default function KanbanBoard({ leads = [] }) {
     >
       <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2}>
         <Input
-          placeholder="Search option"
+          placeholder="Search marketing leads..."
           size="small"
           fullWidth
           name="search"
