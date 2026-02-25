@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Paper,
   Chip,
@@ -13,6 +13,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
 import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
+import { DEFAULT_FILTER_LAST_30_DAYS } from "@/components/common/LeadListFilterPanel";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,19 @@ export default function ListView() {
   });
   const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } =
     listingState;
+  const defaultDatesAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (defaultDatesAppliedRef.current) return;
+    if (!filters.created_from && !filters.created_to) {
+      defaultDatesAppliedRef.current = true;
+      setFilters({
+        ...filters,
+        created_from: DEFAULT_FILTER_LAST_30_DAYS.created_from,
+        created_to: DEFAULT_FILTER_LAST_30_DAYS.created_to,
+      });
+    }
+  }, [filters, setFilters]);
 
   const fetchData = useCallback(async (params) => {
     return await marketingLeadsService.getMarketingLeads(params);
@@ -293,7 +307,7 @@ export default function ListView() {
         values={filters}
         onApply={(v) => setFilters(v)}
         onClear={clearFilters}
-        defaultOpen
+        defaultOpen={false}
       />
       <PaginatedList
         fetcher={fetchData}

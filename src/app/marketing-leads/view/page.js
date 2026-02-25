@@ -10,27 +10,19 @@ import {
   Alert,
   Grid,
   Paper,
-  Tabs,
-  Tab,
   Chip,
   Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
-import Input from "@/components/common/Input";
-import DateTimeField from "@/components/common/DateTimeField";
-import Textarea from "@/components/common/Textarea";
-import Select, { MenuItem } from "@/components/common/Select";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import moment from "moment";
-import { toastError, toastSuccess } from "@/utils/toast";
-
-function TabPanel({ children, value, index }) {
-  return (
-    <div hidden={value !== index} style={{ padding: "16px 0" }}>
-      {children}
-    </div>
-  );
-}
+import AddCallDetailsForm from "../components/AddCallDetailsForm";
 
 function LeadHeader({ lead }) {
   if (!lead) return null;
@@ -151,150 +143,6 @@ function LeadDetails({ lead }) {
   );
 }
 
-function AddFollowUpForm({ leadId, onSaved }) {
-  const [form, setForm] = useState({
-    contacted_at: new Date().toISOString(),
-    contact_channel: "call",
-    outcome: "",
-    outcome_sub_status: "",
-    notes: "",
-    next_follow_up_at: "",
-    promised_action: "",
-  });
-  const [saving, setSaving] = useState(false);
-
-  const handleChange = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleSubmit = async () => {
-    try {
-      setSaving(true);
-      if (!form.outcome) {
-        toastError("Please select outcome");
-        setSaving(false);
-        return;
-      }
-      await marketingLeadsService.addFollowUp(leadId, form);
-      toastSuccess("Follow-up saved");
-      setForm((prev) => ({
-        ...prev,
-        outcome: "",
-        outcome_sub_status: "",
-        notes: "",
-        promised_action: "",
-        contacted_at: new Date().toISOString(),
-      }));
-      onSaved?.();
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message || err?.message || "Failed to save follow-up";
-      toastError(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Paper sx={{ p: 2, mb: 2 }}>
-      <Typography variant="subtitle1" gutterBottom>
-        Add Call Details
-      </Typography>
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={6}>
-          <DateTimeField
-            label="Contacted At"
-            name="contacted_at"
-            fullWidth
-            value={form.contacted_at}
-            onChange={(e) => handleChange("contacted_at", e.target.value)}
-          />
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Select
-            name="contact_channel"
-            label="Channel"
-            fullWidth
-            value={form.contact_channel}
-            onChange={(e) => handleChange("contact_channel", e.target.value)}
-          >
-            <MenuItem value="call">Call</MenuItem>
-            <MenuItem value="whatsapp">WhatsApp</MenuItem>
-            <MenuItem value="sms">SMS</MenuItem>
-            <MenuItem value="email">Email</MenuItem>
-            <MenuItem value="visit">Visit</MenuItem>
-          </Select>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Select
-            name="outcome"
-            label="Outcome"
-            fullWidth
-            value={form.outcome}
-            onChange={(e) => handleChange("outcome", e.target.value)}
-            required
-          >
-            <MenuItem value="interested">Interested</MenuItem>
-            <MenuItem value="follow_up">Need Follow-up</MenuItem>
-            <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
-            <MenuItem value="converted">Converted</MenuItem>
-            <MenuItem value="no_answer">No Answer</MenuItem>
-            <MenuItem value="switched_off">Switched Off</MenuItem>
-            <MenuItem value="not_interested">Not Interested</MenuItem>
-            <MenuItem value="wrong_number">Wrong Number</MenuItem>
-          </Select>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Input
-            name="outcome_sub_status"
-            label="Sub-status / Reason"
-            fullWidth
-            value={form.outcome_sub_status}
-            onChange={(e) => handleChange("outcome_sub_status", e.target.value)}
-          />
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <DateTimeField
-            name="next_follow_up_at"
-            label="Next Follow-Up"
-            fullWidth
-            value={form.next_follow_up_at}
-            onChange={(e) => handleChange("next_follow_up_at", e.target.value)}
-          />
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Input
-            name="promised_action"
-            label="Promised Action"
-            fullWidth
-            value={form.promised_action}
-            onChange={(e) => handleChange("promised_action", e.target.value)}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <Textarea
-            name="notes"
-            label="Call Notes"
-            minRows={3}
-            value={form.notes}
-            onChange={(e) => handleChange("notes", e.target.value)}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={saving}
-            size="small"
-          >
-            {saving ? "Saving..." : "Save Follow-Up"}
-          </Button>
-        </Grid>
-      </Grid>
-    </Paper>
-  );
-}
-
 function FollowUpHistory({ leadId, refreshKey }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -348,48 +196,50 @@ function FollowUpHistory({ leadId, refreshKey }) {
     );
   }
   return (
-    <Box>
-      {data.map((fu) => (
-        <Paper
-          key={fu.id}
-          sx={{ p: 1.5, mb: 1, borderLeft: "3px solid #0ea5e9" }}
-          variant="outlined"
-        >
-          <Box display="flex" justifyContent="space-between" mb={0.5}>
-            <Typography variant="caption" color="text.secondary">
-              {fu.contacted_at
-                ? moment(fu.contacted_at).format("DD-MM-YYYY HH:mm")
-                : "-"}
-            </Typography>
-            <Chip
-              size="small"
-              label={fu.outcome}
-              sx={{ height: 18, fontSize: "0.65rem" }}
-            />
-          </Box>
-          {fu.notes && (
-            <Typography variant="body2" sx={{ mb: 0.5 }}>
-              {fu.notes}
-            </Typography>
-          )}
-          <Typography variant="caption" color="text.secondary">
-            Next:{" "}
-            {fu.next_follow_up_at
-              ? moment(fu.next_follow_up_at).format("DD-MM-YYYY HH:mm")
-              : "Not scheduled"}
-          </Typography>
-          {fu.created_by_name && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ display: "block" }}
-            >
-              By: {fu.created_by_name}
-            </Typography>
-          )}
-        </Paper>
-      ))}
-    </Box>
+    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+      <Table size="small" stickyHeader>
+        <TableHead>
+          <TableRow>
+            <TableCell sx={{ fontWeight: 600 }}>Contacted At</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Channel</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Outcome</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Sub-status / Reason</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Next Follow-Up</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Promised Action</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>Call Notes</TableCell>
+            <TableCell sx={{ fontWeight: 600 }}>By</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {data.map((fu) => (
+            <TableRow key={fu.id} hover>
+              <TableCell>
+                {fu.contacted_at
+                  ? moment(fu.contacted_at).format("DD-MM-YYYY HH:mm")
+                  : "-"}
+              </TableCell>
+              <TableCell>{fu.contact_channel || "-"}</TableCell>
+              <TableCell>
+                <Chip
+                  size="small"
+                  label={fu.outcome || "-"}
+                  sx={{ height: 18, fontSize: "0.65rem" }}
+                />
+              </TableCell>
+              <TableCell>{fu.outcome_sub_status || "-"}</TableCell>
+              <TableCell>
+                {fu.next_follow_up_at
+                  ? moment(fu.next_follow_up_at).format("DD-MM-YYYY HH:mm")
+                  : "-"}
+              </TableCell>
+              <TableCell>{fu.promised_action || "-"}</TableCell>
+              <TableCell sx={{ maxWidth: 200 }}>{fu.notes || "-"}</TableCell>
+              <TableCell>{fu.created_by_name || "-"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
@@ -400,7 +250,6 @@ function MarketingLeadViewContent() {
   const [lead, setLead] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tab, setTab] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -455,29 +304,27 @@ function MarketingLeadViewContent() {
           <LeadDetails lead={lead} />
         </Grid>
         <Grid item xs={12} md={9}>
-          <Paper sx={{ height: "calc(100vh - 170px)", overflow: "hidden" }}>
-            <Tabs
-              value={tab}
-              onChange={(_, v) => setTab(v)}
-              sx={{ borderBottom: 1, borderColor: "divider" }}
-            >
-              <Tab label="Add Call Details" />
-              <Tab label="Follow-Up History" />
-            </Tabs>
-            <Box sx={{ p: 2, height: "calc(100% - 48px)", overflowY: "auto" }}>
-              <TabPanel value={tab} index={0}>
-                <AddFollowUpForm
-                  leadId={lead.id}
-                  onSaved={() => {
-                    setHistoryRefreshKey((k) => k + 1);
-                  }}
-                />
-              </TabPanel>
-              <TabPanel value={tab} index={1}>
-                <FollowUpHistory leadId={lead.id} refreshKey={historyRefreshKey} />
-              </TabPanel>
+          <Box
+            sx={{
+              height: "calc(100vh - 170px)",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+              <AddCallDetailsForm
+                leadId={lead.id}
+                onSaved={() => setHistoryRefreshKey((k) => k + 1)}
+              />
             </Box>
-          </Paper>
+            <Box sx={{ flex: "0 0 auto", mt: 2, pt: 2 }}>
+              <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
+                Call History
+              </Typography>
+              <FollowUpHistory leadId={lead.id} refreshKey={historyRefreshKey} />
+            </Box>
+          </Box>
         </Grid>
       </Grid>
     </Box>

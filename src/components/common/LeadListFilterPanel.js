@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Box, Paper, Typography, IconButton, Collapse, Grid } from "@mui/material";
+import { Box, Paper, Typography, IconButton, Collapse, Button as MuiButton } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import FilterListIcon from "@mui/icons-material/FilterList";
-import { Button } from "@/components/ui/button";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
@@ -27,6 +26,17 @@ const FILTER_KEYS = [
 ];
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
+
+/** Default filter: last 30 days (created_from / created_to). Values in YYYY-MM-DD for API. */
+function getDefaultFilterLast30Days() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  return { ...EMPTY_VALUES, created_from: fmt(from), created_to: fmt(to) };
+}
+
+const DEFAULT_FILTER_LAST_30_DAYS = getDefaultFilterLast30Days();
 
 export default function LeadListFilterPanel({
   open: controlledOpen,
@@ -84,7 +94,8 @@ export default function LeadListFilterPanel({
 
   const handleApply = useCallback(() => {
     onApply?.(localValues);
-  }, [localValues, onApply]);
+    setOpen(false);
+  }, [localValues, onApply, setOpen]);
 
   const handleClear = useCallback(() => {
     setLocalValues({ ...EMPTY_VALUES });
@@ -96,7 +107,7 @@ export default function LeadListFilterPanel({
   );
 
   return (
-    <Paper variant="outlined" sx={{ mb: 2, overflow: "hidden" }}>
+    <Paper variant="outlined" sx={{ mb: 2, overflow: "hidden", width: "100%" }}>
       <Box
         sx={{
           display: "flex",
@@ -141,9 +152,19 @@ export default function LeadListFilterPanel({
         </IconButton>
       </Box>
       <Collapse in={open}>
-        <Box sx={{ p: 2, borderTop: 1, borderColor: "divider" }}>
-          <Grid container spacing={2} alignItems="flex-end">
-            <Grid item xs={12} sm={6} md={2}>
+        <Box sx={{ p: 2, borderTop: 1, borderColor: "divider", width: "100%", boxSizing: "border-box" }}>
+          {/* Row 1: 6 fields - flexbox so row uses full width */}
+          <Box
+            sx={{
+              display: "flex",
+              width: "100%",
+              gap: 2,
+              alignItems: "flex-end",
+              mb: 2,
+              flexWrap: "wrap",
+            }}
+          >
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Input
                 name="customer_name"
                 label="Name"
@@ -153,8 +174,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Input
                 name="mobile_number"
                 label="Mobile"
@@ -164,8 +185,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Input
                 name="campaign_name"
                 label="Campaign"
@@ -175,8 +196,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Select
                 name="status"
                 label="Status"
@@ -195,8 +216,8 @@ export default function LeadListFilterPanel({
                 <MenuItem value="not_interested">Not Interested</MenuItem>
                 <MenuItem value="junk">Junk</MenuItem>
               </Select>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Select
                 name="priority"
                 label="Priority"
@@ -212,8 +233,8 @@ export default function LeadListFilterPanel({
                 <MenuItem value="medium">Medium</MenuItem>
                 <MenuItem value="low">Low</MenuItem>
               </Select>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Select
                 name="branch_id"
                 label="Branch"
@@ -231,9 +252,20 @@ export default function LeadListFilterPanel({
                   </MenuItem>
                 ))}
               </Select>
-            </Grid>
+            </Box>
+          </Box>
 
-            <Grid item xs={12} sm={6} md={2}>
+          {/* Row 2: 5 fields then fixed-width button block so buttons never overlap fields */}
+          <Box
+            sx={{
+              display: "flex",
+              width: "100%",
+              gap: 2,
+              alignItems: "flex-end",
+              flexWrap: "wrap",
+            }}
+          >
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <Select
                 name="inquiry_source_id"
                 label="Source"
@@ -251,8 +283,8 @@ export default function LeadListFilterPanel({
                   </MenuItem>
                 ))}
               </Select>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <DateField
                 name="created_from"
                 label="Created From"
@@ -261,8 +293,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <DateField
                 name="created_to"
                 label="Created To"
@@ -271,8 +303,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <DateField
                 name="next_follow_up_from"
                 label="Next Follow-Up From"
@@ -283,8 +315,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+            </Box>
+            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
               <DateField
                 name="next_follow_up_to"
                 label="Next Follow-Up To"
@@ -295,25 +327,47 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Grid>
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={2}
-              sx={{ display: "flex", alignItems: "flex-end", gap: 1, pb: 0.5 }}
+            </Box>
+            {/* Fixed-width slot: MUI Button size="small" matches field height (40px) and avoids overlap */}
+            <Box
+              sx={{
+                flex: "0 0 auto",
+                width: 200,
+                minWidth: 200,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+              }}
             >
-              <Button variant="outline" onClick={handleClear}>
-                Clear
-              </Button>
-              <Button onClick={handleApply}>Apply</Button>
-            </Grid>
-          </Grid>
+              <Box
+                sx={{
+                  height: 26,
+                  flexShrink: 0,
+                }}
+                aria-hidden
+              />
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 1,
+                }}
+              >
+                <MuiButton size="small" variant="outlined" onClick={handleClear}>
+                  Clear
+                </MuiButton>
+                <MuiButton size="small" variant="contained" color="success" onClick={handleApply}>
+                  Apply
+                </MuiButton>
+              </Box>
+            </Box>
+          </Box>
         </Box>
       </Collapse>
     </Paper>
   );
 }
 
-export { FILTER_KEYS, EMPTY_VALUES };
+export { FILTER_KEYS, EMPTY_VALUES, DEFAULT_FILTER_LAST_30_DAYS, getDefaultFilterLast30Days };
 
