@@ -10,7 +10,7 @@ import {
 } from "@tabler/icons-react";
 import ordersDashboardService from "@/services/ordersDashboardService";
 
-export default function KPICards({ filters }) {
+export default function KPICards({ filters, dashboardApiBase }) {
     const [kpis, setKpis] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -18,7 +18,7 @@ export default function KPICards({ filters }) {
         let isMounted = true;
         setLoading(true);
         ordersDashboardService
-            .getOrdersDashboardKpis(filters || {})
+            .getOrdersDashboardKpis(filters || {}, dashboardApiBase)
             .then((res) => {
                 if (!isMounted) return;
                 const payload = res?.result || res?.data || res || {};
@@ -94,7 +94,7 @@ export default function KPICards({ filters }) {
         return () => {
             isMounted = false;
         };
-    }, [filters]);
+    }, [filters, dashboardApiBase]);
 
     return (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 h-auto lg:h-[110px]">

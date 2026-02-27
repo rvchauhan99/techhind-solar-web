@@ -80,17 +80,16 @@ export default function MarketingLeadsPage() {
   return (
     <ProtectedRoute>
       <div className="w-full pt-2 flex flex-col h-full overflow-hidden">
-        <div className="flex justify-between items-center mb-4 pb-2 border-b border-border/50 shrink-0">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 shrink-0">
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-foreground">
+            <h2 className="text-xl font-semibold tracking-tight text-slate-800">
               Marketing Leads
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="outline"
+              variant="default"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/add")}
             >
               <IconPlus className="size-4 mr-1.5" />
@@ -99,7 +98,6 @@ export default function MarketingLeadsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/upload")}
             >
               <IconUpload className="size-4 mr-1.5" />
@@ -108,7 +106,6 @@ export default function MarketingLeadsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/call-report")}
             >
               <IconPhoneCall className="size-4 mr-1.5" />
@@ -117,7 +114,6 @@ export default function MarketingLeadsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/assign")}
             >
               <IconUserPlus className="size-4 mr-1.5" />
@@ -126,7 +122,6 @@ export default function MarketingLeadsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
               <IconReport className="size-4 mr-1.5" />
@@ -135,16 +130,14 @@ export default function MarketingLeadsPage() {
             <Button
               variant="outline"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
               <IconChartPie className="size-4 mr-1.5" />
               Analysis
             </Button>
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() =>
                 setView((prev) => (prev === "kanban" ? "list" : "kanban"))
               }
@@ -162,9 +155,8 @@ export default function MarketingLeadsPage() {
               )}
             </Button>
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/home")}
             >
               <IconHome className="size-4 mr-1.5" />

@@ -17,7 +17,7 @@ const getDeliveryBadgeColor = (status) => {
 
 const PAGE_SIZE = 10;
 
-export default function OrdersTable({ filters, onRowClick, onOpenFilter }) {
+export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboardApiBase }) {
     const [orders, setOrders] = useState([]);
     const [meta, setMeta] = useState({ page: 1, limit: PAGE_SIZE, total: 0, pages: 0 });
     const [loading, setLoading] = useState(false);
@@ -25,11 +25,14 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter }) {
     const loadOrders = (page = 1) => {
         setLoading(true);
         ordersDashboardService
-            .getOrdersDashboardOrders({
-                ...filters,
-                page,
-                limit: meta.limit,
-            })
+            .getOrdersDashboardOrders(
+                {
+                    ...filters,
+                    page,
+                    limit: meta.limit,
+                },
+                dashboardApiBase
+            )
             .then((res) => {
                 const payload = res?.result || res?.data || res || {};
                 const rows = Array.isArray(payload.data) ? payload.data : payload.rows || [];
@@ -53,7 +56,7 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter }) {
     useEffect(() => {
         loadOrders(1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [JSON.stringify(filters)]);
+    }, [JSON.stringify(filters), dashboardApiBase]);
 
     const handleExport = async () => {
         try {

@@ -24,7 +24,7 @@ const ChartWrapper = ({ title, children }) => (
     </div>
 );
 
-export default function AnalyticsCharts({ filters }) {
+export default function AnalyticsCharts({ filters, dashboardApiBase }) {
     const [trendPoints, setTrendPoints] = useState([]);
     const [pipelineByStage, setPipelineByStage] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -33,8 +33,8 @@ export default function AnalyticsCharts({ filters }) {
         let isMounted = true;
         setLoading(true);
         Promise.all([
-            ordersDashboardService.getOrdersDashboardTrend(filters || {}),
-            ordersDashboardService.getOrdersDashboardPipeline(filters || {}),
+            ordersDashboardService.getOrdersDashboardTrend(filters || {}, dashboardApiBase),
+            ordersDashboardService.getOrdersDashboardPipeline(filters || {}, dashboardApiBase),
         ])
             .then(([trendRes, pipelineRes]) => {
                 if (!isMounted) return;
@@ -105,7 +105,7 @@ export default function AnalyticsCharts({ filters }) {
         return () => {
             isMounted = false;
         };
-    }, [filters]);
+    }, [filters, dashboardApiBase]);
 
     const revenueData = trendPoints.revenueData || [];
     const capacityData = trendPoints.capacityData || [];

@@ -32,34 +32,34 @@ const LEAD_LIST_FILTER_KEYS = [
 const getStatusBadgeVariant = (status) => {
   switch (status) {
     case "new":
-      return "bg-sky-500 text-white hover:bg-sky-600";
+      return "bg-sky-100 text-sky-800";
     case "contacted":
-      return "bg-indigo-500 text-white hover:bg-indigo-600";
+      return "bg-indigo-100 text-indigo-800";
     case "follow_up":
-      return "bg-orange-500 text-white hover:bg-orange-600";
+      return "bg-orange-100 text-orange-800";
     case "interested":
-      return "bg-green-500 text-white hover:bg-green-600";
+      return "bg-emerald-100 text-emerald-800";
     case "converted":
-      return "bg-green-600 text-white hover:bg-green-700";
+      return "bg-[#138808]/10 text-[#138808]";
     case "not_interested":
     case "junk":
-      return "bg-gray-400 text-white hover:bg-gray-500";
+      return "bg-slate-100 text-slate-600";
     default:
-      return "bg-gray-200 text-gray-900 hover:bg-gray-300";
+      return "bg-slate-100 text-slate-800";
   }
 };
 
 const getPriorityBadgeVariant = (priority) => {
   switch (priority) {
     case "hot":
-      return "bg-red-700 text-white hover:bg-red-800";
+      return "bg-red-100 text-red-800";
     case "high":
-      return "bg-orange-500 text-white hover:bg-orange-600";
+      return "bg-orange-100 text-orange-800";
     case "medium":
-      return "bg-sky-500 text-white hover:bg-sky-600";
+      return "bg-sky-100 text-sky-800";
     case "low":
     default:
-      return "bg-gray-500 text-white hover:bg-gray-600";
+      return "bg-slate-100 text-slate-600";
   }
 };
 
@@ -178,12 +178,11 @@ export default function ListView() {
         label: "Status",
         render: (row) => {
           return (
-            <Badge
-              variant="outline"
-              className={cn("border-0 text-[10px] uppercase py-0.5 h-5 px-1.5", getStatusBadgeVariant(row.status))}
+            <span
+              className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide border border-transparent whitespace-nowrap", getStatusBadgeVariant(row.status))}
             >
               {(row.status || "new").replace(/_/g, " ")}
-            </Badge>
+            </span>
           );
         },
       },
@@ -192,12 +191,11 @@ export default function ListView() {
         label: "Priority",
         render: (row) => {
           return (
-            <Badge
-              variant="outline"
-              className={cn("border-0 text-[10px] uppercase py-0.5 h-5 px-1.5", getPriorityBadgeVariant(row.priority))}
+            <span
+              className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide border border-transparent whitespace-nowrap", getPriorityBadgeVariant(row.priority))}
             >
               {row.priority || "medium"}
-            </Badge>
+            </span>
           );
         },
       },
@@ -275,7 +273,7 @@ export default function ListView() {
         onClear={clearFilters}
         defaultOpen={false}
       />
-      <div className="flex-1 min-h-0 border border-border shadow-sm rounded-lg overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 flex flex-col">
         <PaginatedTable
           columns={columns}
           fetcher={fetchLeads}

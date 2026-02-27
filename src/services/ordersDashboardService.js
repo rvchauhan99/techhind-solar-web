@@ -1,16 +1,18 @@
 import apiClient from "./apiClient";
 
-export const getOrdersDashboardKpis = (params = {}) =>
-  apiClient.get("/order/dashboard-kpis", { params }).then((r) => r.data);
+const DEFAULT_BASE = "/order";
 
-export const getOrdersDashboardPipeline = (params = {}) =>
-  apiClient.get("/order/dashboard-pipeline", { params }).then((r) => r.data);
+export const getOrdersDashboardKpis = (params = {}, basePath = DEFAULT_BASE) =>
+  apiClient.get(`${basePath}/dashboard-kpis`, { params }).then((r) => r.data);
 
-export const getOrdersDashboardTrend = (params = {}) =>
-  apiClient.get("/order/dashboard-trend", { params }).then((r) => r.data);
+export const getOrdersDashboardPipeline = (params = {}, basePath = DEFAULT_BASE) =>
+  apiClient.get(`${basePath}/dashboard-pipeline`, { params }).then((r) => r.data);
 
-export const getOrdersDashboardOrders = (params = {}) =>
-  apiClient.get("/order/dashboard-orders", { params }).then((r) => r.data);
+export const getOrdersDashboardTrend = (params = {}, basePath = DEFAULT_BASE) =>
+  apiClient.get(`${basePath}/dashboard-trend`, { params }).then((r) => r.data);
+
+export const getOrdersDashboardOrders = (params = {}, basePath = DEFAULT_BASE) =>
+  apiClient.get(`${basePath}/dashboard-orders`, { params }).then((r) => r.data);
 
 export const exportOrders = (params = {}) =>
   apiClient

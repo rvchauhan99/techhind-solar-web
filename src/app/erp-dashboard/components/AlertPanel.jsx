@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import { IconAlertTriangle, IconClock, IconFileInvoice, IconTruck } from "@tabler/icons-react";
 import ordersDashboardService from "@/services/ordersDashboardService";
 
-export default function AlertPanel({ filters }) {
+export default function AlertPanel({ filters, dashboardApiBase }) {
     const [alerts, setAlerts] = useState([]);
 
     useEffect(() => {
         let isMounted = true;
         ordersDashboardService
-            .getOrdersDashboardPipeline(filters || {})
+            .getOrdersDashboardPipeline(filters || {}, dashboardApiBase)
             .then((res) => {
                 if (!isMounted) return;
                 const payload = res?.result || res?.data || res || {};
@@ -68,7 +68,7 @@ export default function AlertPanel({ filters }) {
         return () => {
             isMounted = false;
         };
-    }, [filters]);
+    }, [filters, dashboardApiBase]);
 
     return (
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full">

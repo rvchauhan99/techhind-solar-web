@@ -152,16 +152,16 @@ export default function LeadListFilterPanel({
     <Card className="mb-2 w-full border-border bg-card shadow-sm overflow-hidden">
       {/* Header */}
       <div
-        className="flex items-center justify-between px-2 py-1.5 bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
+        className="flex items-center justify-between px-3 py-2 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <div className="flex items-center gap-1.5">
-          <IconFilter className="size-3.5 text-muted-foreground" />
-          <h3 className="text-xs font-semibold tracking-tight text-foreground m-0">
+        <div className="flex items-center gap-2">
+          <IconFilter className="size-4 text-slate-500" />
+          <h3 className="text-sm font-semibold tracking-tight text-slate-800 m-0">
             Search Option
           </h3>
           {hasActiveFilters && (
-            <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-[9px] uppercase font-bold rounded">
+            <span className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] uppercase font-bold rounded-full">
               Active
             </span>
           )}
@@ -187,8 +187,8 @@ export default function LeadListFilterPanel({
           open ? "block" : "hidden"
         )}
       >
-        <CardContent className="p-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 xl:gap-2">
+        <CardContent className="p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
 
             {/* Row 1 */}
             <div className="col-span-1">
@@ -242,8 +242,8 @@ export default function LeadListFilterPanel({
                   Array.isArray(localValues.status)
                     ? localValues.status
                     : localValues.status
-                    ? [localValues.status]
-                    : []
+                      ? [localValues.status]
+                      : []
                 }
                 onChange={(e) => handleChange("status", e.target.value)}
                 size="small"
@@ -265,8 +265,8 @@ export default function LeadListFilterPanel({
                   Array.isArray(localValues.priority)
                     ? localValues.priority
                     : localValues.priority
-                    ? [localValues.priority]
-                    : []
+                      ? [localValues.priority]
+                      : []
                 }
                 onChange={(e) => handleChange("priority", e.target.value)}
                 size="small"
@@ -286,8 +286,8 @@ export default function LeadListFilterPanel({
                   Array.isArray(localValues.branch_id)
                     ? localValues.branch_id
                     : localValues.branch_id
-                    ? [localValues.branch_id]
-                    : []
+                      ? [localValues.branch_id]
+                      : []
                 }
                 onChange={(e) => handleChange("branch_id", e.target.value)}
                 size="small"
@@ -310,8 +310,8 @@ export default function LeadListFilterPanel({
                   Array.isArray(localValues.inquiry_source_id)
                     ? localValues.inquiry_source_id
                     : localValues.inquiry_source_id
-                    ? [localValues.inquiry_source_id]
-                    : []
+                      ? [localValues.inquiry_source_id]
+                      : []
                 }
                 onChange={(e) =>
                   handleChange("inquiry_source_id", e.target.value)
@@ -334,8 +334,8 @@ export default function LeadListFilterPanel({
                   Array.isArray(localValues.assigned_to)
                     ? localValues.assigned_to
                     : localValues.assigned_to
-                    ? [localValues.assigned_to]
-                    : []
+                      ? [localValues.assigned_to]
+                      : []
                 }
                 onChange={(e) => handleChange("assigned_to", e.target.value)}
                 size="small"
@@ -389,12 +389,12 @@ export default function LeadListFilterPanel({
             </div>
 
             {/* Buttons */}
-            <div className="col-span-full flex items-end justify-end mt-2">
-              <div className="flex gap-2 w-full max-w-md justify-end">
-                <Button size="sm" variant="outline" onClick={handleClear} className="w-full">
+            <div className="col-span-full flex items-end justify-end mt-2 pt-2 border-t border-slate-100">
+              <div className="flex gap-2 min-w-[200px] justify-end">
+                <Button size="sm" variant="outline" onClick={handleClear} className="w-24">
                   Clear
                 </Button>
-                <Button size="sm" variant="default" onClick={handleApply} className="bg-green-600 hover:bg-green-700 text-white w-full">
+                <Button size="sm" variant="default" onClick={handleApply} className="w-24">
                   Apply
                 </Button>
               </div>

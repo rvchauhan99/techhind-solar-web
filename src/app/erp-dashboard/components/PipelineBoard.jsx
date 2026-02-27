@@ -15,7 +15,7 @@ const STAGE_META = [
     { id: "subsidy_disbursed", name: "Subsidy Disbursed", color: "bg-emerald-500" },
 ];
 
-export default function PipelineBoard({ filters, onOrderSelect }) {
+export default function PipelineBoard({ filters, onOrderSelect, dashboardApiBase }) {
     const [stages, setStages] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -23,7 +23,7 @@ export default function PipelineBoard({ filters, onOrderSelect }) {
         let isMounted = true;
         setLoading(true);
         ordersDashboardService
-            .getOrdersDashboardPipeline(filters || {})
+            .getOrdersDashboardPipeline(filters || {}, dashboardApiBase)
             .then((res) => {
                 if (!isMounted) return;
                 const payload = res?.result || res?.data || res || {};
@@ -58,7 +58,7 @@ export default function PipelineBoard({ filters, onOrderSelect }) {
         return () => {
             isMounted = false;
         };
-    }, [filters]);
+    }, [filters, dashboardApiBase]);
 
     return (
         <div className="w-full">

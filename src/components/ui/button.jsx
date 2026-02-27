@@ -6,36 +6,27 @@ import { IconLoader2 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "focus-visible:border-ring cursor-pointer focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 rounded-lg border border-transparent bg-clip-padding text-sm font-medium focus-visible:ring-[3px] aria-invalid:ring-[3px] [&_svg:not([class*='size-'])]:size-4 inline-flex items-center justify-center whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none group/button select-none",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium outline-none transition-all disabled:pointer-events-none disabled:opacity-50 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
   {
     variants: {
       variant: {
-        default:
-          "md:min-w-30 bg-primary text-primary-foreground [a]:hover:bg-primary/80",
-        outline:
-          "md:min-w-30 border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground",
-        secondary:
-          "md:min-w-30 bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-        ghost:
-          "hover:bg-muted hover:text-foreground dark:hover:bg-muted/50 aria-expanded:bg-muted aria-expanded:text-foreground",
-        destructive:
-          "md:min-w-30 bg-destructive hover:bg-destructive/80 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-white focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
-        success:
-          "md:min-w-30 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500/20 dark:focus-visible:ring-emerald-400/40 focus-visible:border-emerald-500/40 dark:bg-emerald-600 dark:hover:bg-emerald-600/90",
-        link: "text-primary underline-offset-4 hover:underline",
+        default: "bg-[#00823b] text-white hover:bg-[#00662e] shadow-sm",
+        outline: "border border-[#00823b] bg-white text-[#00823b] hover:bg-[#00823b]/5 shadow-sm",
+        secondary: "bg-[#1b365d] text-white hover:bg-[#142847]",
+        ghost: "hover:bg-slate-100 hover:text-slate-900 text-slate-700",
+        destructive: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+        success: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm",
+        link: "text-[#00823b] underline-offset-4 hover:underline",
       },
       size: {
-        default:
-          "h-11 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-3 has-data-[icon=inline-start]:pl-3",
-        icon: "size-8",
-        "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-lg [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm":
-          "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
-        "icon-lg": "size-9",
+        default: "h-9 px-4 py-2",
+        xs: "h-6 px-2 text-xs rounded-md",
+        sm: "h-8 px-3 text-xs rounded-md",
+        lg: "h-10 px-6 rounded-md",
+        icon: "h-9 w-9",
+        "icon-xs": "h-6 w-6 rounded-md",
+        "icon-sm": "h-8 w-8 rounded-md",
+        "icon-lg": "h-10 w-10",
       },
     },
     defaultVariants: {
