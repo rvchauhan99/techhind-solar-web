@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import SearchInput from "@/components/common/SearchInput";
+import PaginationControls from "@/components/common/PaginationControls";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -148,14 +149,14 @@ export default function PaginatedTable({
   const qDisplay = isControlled ? searchDisplayValue : query;
   const setQDisplay = isControlled && onControlledQChange
     ? (e) => {
-        const v = typeof e === "object" && e?.target ? e.target.value : e;
-        setSearchDisplayValue(v ?? "");
-        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = setTimeout(() => {
-          onControlledQChange?.(v ?? "");
-          searchDebounceRef.current = null;
-        }, SEARCH_DEBOUNCE_MS);
-      }
+      const v = typeof e === "object" && e?.target ? e.target.value : e;
+      setSearchDisplayValue(v ?? "");
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        onControlledQChange?.(v ?? "");
+        searchDebounceRef.current = null;
+      }, SEARCH_DEBOUNCE_MS);
+    }
     : setQuery;
   const { modulePermissions, currentModuleId, fetchPermissionForModule, user } =
     useAuth();
@@ -409,7 +410,7 @@ export default function PaginatedTable({
 
   return (
     <div
-      className="flex flex-col w-full max-w-full overflow-hidden rounded-lg border border-border bg-card"
+      className="flex flex-col w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white"
       style={{ height }}
     >
       {showSearch && (
@@ -425,7 +426,7 @@ export default function PaginatedTable({
 
       <div className="flex-1 min-w-0 overflow-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         <table className="w-full min-w-max table-auto" aria-label="paginated table">
-          <thead className="sticky top-0 z-10 bg-[#F1F1F1] dark:bg-muted">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 text-xs uppercase tracking-wider">
             <tr>
               {columns.map((c, colIndex) => {
                 const isSortable = c.sortable === true;
@@ -438,13 +439,13 @@ export default function PaginatedTable({
                     key={c.field || c.label}
                     onClick={isSortable ? () => handleSortClick(c.field) : undefined}
                     className={cn(
-                      "text-left text-sm font-bold px-2.5 py-1.5 border-b border-border whitespace-nowrap",
-                      isLastColumn ? "" : "border-r border-border",
+                      "text-left font-medium px-2 py-1.5 border-b border-slate-200 whitespace-nowrap",
+                      isLastColumn ? "" : "border-r border-slate-200",
                       isSortable && "cursor-pointer hover:bg-muted/80",
                       isActionColumn && "min-w-[150px] whitespace-normal",
                       !isActionColumn && "min-w-[80px] overflow-hidden text-ellipsis",
-                      isFirstColumn && isActionColumn && "sticky left-0 z-20 bg-[#F1F1F1] dark:bg-muted shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
-                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-[#F1F1F1] dark:bg-muted shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+                      isFirstColumn && isActionColumn && "sticky left-0 z-20 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
+                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]"
                     )}
                     style={{
                       maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
@@ -670,12 +671,12 @@ export default function PaginatedTable({
                   onClick={
                     onRowClick
                       ? (e) => {
-                          if (e.target.closest?.("button, [role='button'], a")) return;
-                          onRowClick(row);
-                        }
+                        if (e.target.closest?.("button, [role='button'], a")) return;
+                        onRowClick(row);
+                      }
                       : undefined
                   }
-                  className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
+                  className={onRowClick ? "cursor-pointer hover:bg-slate-50 transition-colors" : "hover:bg-slate-50 transition-colors"}
                 >
                   {columns.map((c, colIndex) => {
                     const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
@@ -685,22 +686,22 @@ export default function PaginatedTable({
                       <td
                         key={(c.field || c.label) + getRowKey(row)}
                         className={cn(
-                          "px-2.5 py-1.5 border-b border-border text-sm",
+                          "px-2 py-1.5 border-b border-slate-200 text-sm text-slate-800",
                           isActionColumn && "min-w-[150px] overflow-visible whitespace-normal",
                           !isActionColumn && "min-w-[80px] overflow-hidden text-ellipsis",
                           !isActionColumn && !c.wrap && "whitespace-nowrap",
                           !isActionColumn && c.wrap && "break-words",
-                          isFirstColumn && isActionColumn && "sticky left-0 z-10 bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-background shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                          isFirstColumn && isActionColumn && "sticky left-0 z-10 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
                         )}
                         style={{ maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined }}
                       >
                         {c.render
                           ? c.render(
-                              row,
-                              reload,
-                              resolvedPerms ?? modulePermissions?.[currentModuleId]
-                            )
+                            row,
+                            reload,
+                            resolvedPerms ?? modulePermissions?.[currentModuleId]
+                          )
                           : row[c.field]}
                       </td>
                     );
@@ -719,70 +720,13 @@ export default function PaginatedTable({
       </div>
 
       {showPagination && (
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-border p-2 bg-background">
-          <p className="text-sm text-muted-foreground">
-            Showing {from} to {to} of {totalCount}
-          </p>
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(rowsPerPage)}
-              onValueChange={(v) => handleChangeRowsPerPage({ target: { value: v } })}
-            >
-              <SelectTrigger className="h-8 w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[5, 10, 25].map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-0.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, 0)}
-                disabled={page === 0}
-                aria-label="first page"
-              >
-                <IconChevronsLeft className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, page - 1)}
-                disabled={page === 0}
-                aria-label="previous page"
-              >
-                <IconChevronLeft className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, page + 1)}
-                disabled={page >= totalPages - 1}
-                aria-label="next page"
-              >
-                <IconChevronRight className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, totalPages - 1)}
-                disabled={page >= totalPages - 1}
-                aria-label="last page"
-              >
-                <IconChevronsRight className="size-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(p) => handleChangePage(null, p)}
+          onRowsPerPageChange={(v) => handleChangeRowsPerPage({ target: { value: v } })}
+        />
       )}
     </div>
   );

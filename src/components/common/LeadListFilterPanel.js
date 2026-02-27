@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Box, Paper, Typography, IconButton, Collapse, Button as MuiButton } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import FilterListIcon from "@mui/icons-material/FilterList";
+import { IconFilter, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
+import { cn } from "@/lib/utils";
+import MultiSelect from "@/components/common/MultiSelect";
 
 const FILTER_KEYS = [
   "customer_name",
@@ -23,9 +24,37 @@ const FILTER_KEYS = [
   "created_to",
   "next_follow_up_from",
   "next_follow_up_to",
+  "not_status",
+  "assigned_to",
 ];
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
+
+const MULTI_SELECT_KEYS = [
+  "status",
+  "priority",
+  "branch_id",
+  "inquiry_source_id",
+  "assigned_to",
+];
+
+function normalizeLocalValues(values = {}) {
+  const base = { ...EMPTY_VALUES, ...values };
+  const normalized = { ...base };
+
+  MULTI_SELECT_KEYS.forEach((key) => {
+    const raw = base[key];
+    if (Array.isArray(raw)) {
+      normalized[key] = raw;
+    } else if (raw != null && raw !== "") {
+      normalized[key] = [String(raw)];
+    } else {
+      normalized[key] = [];
+    }
+  });
+
+  return normalized;
+}
 
 /** Default filter: last 30 days (created_from / created_to). Values in YYYY-MM-DD for API. */
 function getDefaultFilterLast30Days() {
@@ -58,11 +87,14 @@ export default function LeadListFilterPanel({
 
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
+  const [userOptions, setUserOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
-  const [localValues, setLocalValues] = useState(() => ({ ...EMPTY_VALUES, ...values }));
+  const [localValues, setLocalValues] = useState(() =>
+    normalizeLocalValues(values)
+  );
 
   useEffect(() => {
-    setLocalValues((prev) => ({ ...EMPTY_VALUES, ...values }));
+    setLocalValues(normalizeLocalValues(values));
   }, [values]);
 
   useEffect(() => {
@@ -76,14 +108,20 @@ export default function LeadListFilterPanel({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
+      mastersService.getReferenceOptions("user.model").then((r) => {
+        const data = r?.result ?? r?.data ?? r;
+        return Array.isArray(data) ? data : [];
+      }),
     ])
-      .then(([branches, sources]) => {
+      .then(([branches, sources, users]) => {
         setBranchOptions(branches);
         setSourceOptions(sources);
+        setUserOptions(users);
       })
       .catch(() => {
         setBranchOptions([]);
         setSourceOptions([]);
+        setUserOptions([]);
       })
       .finally(() => setLoadingOptions(false));
   }, []);
@@ -93,78 +131,67 @@ export default function LeadListFilterPanel({
   }, []);
 
   const handleApply = useCallback(() => {
-    onApply?.(localValues);
+    const applied = normalizeLocalValues(localValues);
+    onApply?.(applied);
     setOpen(false);
   }, [localValues, onApply, setOpen]);
 
   const handleClear = useCallback(() => {
-    setLocalValues({ ...EMPTY_VALUES });
+    setLocalValues(normalizeLocalValues(EMPTY_VALUES));
     onClear?.();
   }, [onClear]);
 
   const hasActiveFilters = Object.values(values || {}).some(
-    (v) => v != null && v !== ""
+    (v) =>
+      Array.isArray(v)
+        ? v.length > 0
+        : v != null && v !== ""
   );
 
   return (
-    <Paper variant="outlined" sx={{ mb: 2, overflow: "hidden", width: "100%" }}>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          px: 2,
-          py: 1,
-          bgcolor: "action.hover",
-          cursor: "pointer",
-        }}
+    <Card className="mb-2 w-full border-border bg-card shadow-sm overflow-hidden">
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-3 py-2 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <FilterListIcon sx={{ fontSize: 20 }} />
-          <Typography variant="subtitle2" fontWeight="medium">
+        <div className="flex items-center gap-2">
+          <IconFilter className="size-4 text-slate-500" />
+          <h3 className="text-sm font-semibold tracking-tight text-slate-800 m-0">
             Search Option
-          </Typography>
+          </h3>
           {hasActiveFilters && (
-            <Typography
-              variant="caption"
-              sx={{
-                bgcolor: "primary.main",
-                color: "white",
-                px: 1,
-                py: 0.25,
-                borderRadius: 1,
-              }}
-            >
+            <span className="px-2 py-0.5 bg-green-100 text-green-800 text-[10px] uppercase font-bold rounded-full">
               Active
-            </Typography>
+            </span>
           )}
-        </Box>
-        <IconButton
-          size="small"
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 text-muted-foreground hover:bg-muted/80"
           onClick={(e) => {
             e.stopPropagation();
             setOpen(!open);
           }}
           aria-label={open ? "Collapse filter" : "Expand filter"}
         >
-          {open ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-        </IconButton>
-      </Box>
-      <Collapse in={open}>
-        <Box sx={{ p: 2, borderTop: 1, borderColor: "divider", width: "100%", boxSizing: "border-box" }}>
-          {/* Row 1: 6 fields - flexbox so row uses full width */}
-          <Box
-            sx={{
-              display: "flex",
-              width: "100%",
-              gap: 2,
-              alignItems: "flex-end",
-              mb: 2,
-              flexWrap: "wrap",
-            }}
-          >
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+          {open ? <IconChevronUp className="size-3.5" /> : <IconChevronDown className="size-3.5" />}
+        </Button>
+      </div>
+
+      {/* Body */}
+      <div
+        className={cn(
+          "transition-all duration-200 overflow-hidden border-t border-border",
+          open ? "block" : "hidden"
+        )}
+      >
+        <CardContent className="p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+
+            {/* Row 1 */}
+            <div className="col-span-1">
               <Input
                 name="customer_name"
                 label="Name"
@@ -174,8 +201,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+            </div>
+            <div className="col-span-1">
               <Input
                 name="mobile_number"
                 label="Mobile"
@@ -185,8 +212,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+            </div>
+            <div className="col-span-1">
               <Input
                 name="campaign_name"
                 label="Campaign"
@@ -196,95 +223,127 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
-              <Select
+            </div>
+            <div className="col-span-1">
+              <MultiSelect
                 name="status"
                 label="Status"
-                placeholder="All"
-                value={localValues.status}
+                placeholder="All statuses"
+                options={[
+                  { value: "new", label: "New" },
+                  { value: "contacted", label: "Contacted" },
+                  { value: "follow_up", label: "Follow Up" },
+                  { value: "interested", label: "Interested" },
+                  { value: "converted", label: "Converted" },
+                  { value: "not_interested", label: "Not Interested" },
+                  { value: "junk", label: "Junk" },
+                ]}
+                value={
+                  Array.isArray(localValues.status)
+                    ? localValues.status
+                    : localValues.status
+                      ? [localValues.status]
+                      : []
+                }
                 onChange={(e) => handleChange("status", e.target.value)}
                 size="small"
                 fullWidth
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="new">New</MenuItem>
-                <MenuItem value="contacted">Contacted</MenuItem>
-                <MenuItem value="follow_up">Follow Up</MenuItem>
-                <MenuItem value="interested">Interested</MenuItem>
-                <MenuItem value="converted">Converted</MenuItem>
-                <MenuItem value="not_interested">Not Interested</MenuItem>
-                <MenuItem value="junk">Junk</MenuItem>
-              </Select>
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
-              <Select
+              />
+            </div>
+            <div className="col-span-1">
+              <MultiSelect
                 name="priority"
                 label="Priority"
-                placeholder="All"
-                value={localValues.priority}
+                placeholder="All priorities"
+                options={[
+                  { value: "hot", label: "Hot" },
+                  { value: "high", label: "High" },
+                  { value: "medium", label: "Medium" },
+                  { value: "low", label: "Low" },
+                ]}
+                value={
+                  Array.isArray(localValues.priority)
+                    ? localValues.priority
+                    : localValues.priority
+                      ? [localValues.priority]
+                      : []
+                }
                 onChange={(e) => handleChange("priority", e.target.value)}
                 size="small"
                 fullWidth
-              >
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="hot">Hot</MenuItem>
-                <MenuItem value="high">High</MenuItem>
-                <MenuItem value="medium">Medium</MenuItem>
-                <MenuItem value="low">Low</MenuItem>
-              </Select>
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
-              <Select
+              />
+            </div>
+            <div className="col-span-1">
+              <MultiSelect
                 name="branch_id"
                 label="Branch"
                 placeholder="All branches"
-                value={localValues.branch_id}
+                options={branchOptions.map((b) => ({
+                  value: String(b.id),
+                  label: b.name ?? b.label ?? b.id,
+                }))}
+                value={
+                  Array.isArray(localValues.branch_id)
+                    ? localValues.branch_id
+                    : localValues.branch_id
+                      ? [localValues.branch_id]
+                      : []
+                }
                 onChange={(e) => handleChange("branch_id", e.target.value)}
                 size="small"
                 fullWidth
                 disabled={loadingOptions}
-              >
-                <MenuItem value="">All</MenuItem>
-                {branchOptions.map((b) => (
-                  <MenuItem key={b.id} value={String(b.id)}>
-                    {b.name ?? b.label ?? b.id}
-                  </MenuItem>
-                ))}
-              </Select>
-            </Box>
-          </Box>
+              />
+            </div>
 
-          {/* Row 2: 5 fields then fixed-width button block so buttons never overlap fields */}
-          <Box
-            sx={{
-              display: "flex",
-              width: "100%",
-              gap: 2,
-              alignItems: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
-              <Select
+            {/* Row 2 */}
+            <div className="col-span-1">
+              <MultiSelect
                 name="inquiry_source_id"
                 label="Source"
                 placeholder="All sources"
-                value={localValues.inquiry_source_id}
-                onChange={(e) => handleChange("inquiry_source_id", e.target.value)}
+                options={sourceOptions.map((s) => ({
+                  value: String(s.id),
+                  label: s.source_name ?? s.label ?? s.name ?? s.id,
+                }))}
+                value={
+                  Array.isArray(localValues.inquiry_source_id)
+                    ? localValues.inquiry_source_id
+                    : localValues.inquiry_source_id
+                      ? [localValues.inquiry_source_id]
+                      : []
+                }
+                onChange={(e) =>
+                  handleChange("inquiry_source_id", e.target.value)
+                }
                 size="small"
                 fullWidth
                 disabled={loadingOptions}
-              >
-                <MenuItem value="">All</MenuItem>
-                {sourceOptions.map((s) => (
-                  <MenuItem key={s.id} value={String(s.id)}>
-                    {s.source_name ?? s.label ?? s.name ?? s.id}
-                  </MenuItem>
-                ))}
-              </Select>
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+              />
+            </div>
+            <div className="col-span-1">
+              <MultiSelect
+                name="assigned_to"
+                label="Assigned To"
+                placeholder="All users"
+                options={userOptions.map((u) => ({
+                  value: String(u.id),
+                  label: u.name ?? u.label ?? `User #${u.id}`,
+                }))}
+                value={
+                  Array.isArray(localValues.assigned_to)
+                    ? localValues.assigned_to
+                    : localValues.assigned_to
+                      ? [localValues.assigned_to]
+                      : []
+                }
+                onChange={(e) => handleChange("assigned_to", e.target.value)}
+                size="small"
+                fullWidth
+                disabled={loadingOptions}
+              />
+            </div>
+            <div className="col-span-1">
               <DateField
                 name="created_from"
                 label="Created From"
@@ -293,8 +352,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+            </div>
+            <div className="col-span-1">
               <DateField
                 name="created_to"
                 label="Created To"
@@ -303,8 +362,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+            </div>
+            <div className="col-span-1">
               <DateField
                 name="next_follow_up_from"
                 label="Next Follow-Up From"
@@ -315,8 +374,8 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            <Box sx={{ flex: "1 1 0", minWidth: 120, maxWidth: "100%" }}>
+            </div>
+            <div className="col-span-1">
               <DateField
                 name="next_follow_up_to"
                 label="Next Follow-Up To"
@@ -327,47 +386,25 @@ export default function LeadListFilterPanel({
                 size="small"
                 fullWidth
               />
-            </Box>
-            {/* Fixed-width slot: MUI Button size="small" matches field height (40px) and avoids overlap */}
-            <Box
-              sx={{
-                flex: "0 0 auto",
-                width: 200,
-                minWidth: 200,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "flex-end",
-              }}
-            >
-              <Box
-                sx={{
-                  height: 26,
-                  flexShrink: 0,
-                }}
-                aria-hidden
-              />
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
-                  gap: 1,
-                }}
-              >
-                <MuiButton size="small" variant="outlined" onClick={handleClear}>
+            </div>
+
+            {/* Buttons */}
+            <div className="col-span-full flex items-end justify-end mt-2 pt-2 border-t border-slate-100">
+              <div className="flex gap-2 min-w-[200px] justify-end">
+                <Button size="sm" variant="outline" onClick={handleClear} className="w-24">
                   Clear
-                </MuiButton>
-                <MuiButton size="small" variant="contained" color="success" onClick={handleApply}>
+                </Button>
+                <Button size="sm" variant="default" onClick={handleApply} className="w-24">
                   Apply
-                </MuiButton>
-              </Box>
-            </Box>
-          </Box>
-        </Box>
-      </Collapse>
-    </Paper>
+                </Button>
+              </div>
+            </div>
+
+          </div>
+        </CardContent>
+      </div>
+    </Card>
   );
 }
 
 export { FILTER_KEYS, EMPTY_VALUES, DEFAULT_FILTER_LAST_30_DAYS, getDefaultFilterLast30Days };
-

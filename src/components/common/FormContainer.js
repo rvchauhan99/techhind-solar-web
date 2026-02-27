@@ -58,7 +58,7 @@ export function FormActions({ children, className, sx = {} }) {
   return (
     <div
       className={cn(
-        "shrink-0 p-3 flex gap-3 justify-end relative",
+        "shrink-0 px-2 py-2 flex gap-2 justify-end relative",
         className
       )}
     >

@@ -48,10 +48,10 @@ export const TabsTrigger = forwardRef(function TabsTrigger(
       ref={ref}
       value={value}
       className={cn(
-        "ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50",
-        "border-border text-muted-foreground border bg-white",
-        "data-active:bg-primary data-active:text-primary-foreground data-active:border-primary data-active:hover:bg-primary/80 data-active:hover:text-primary-foreground",
-        "hover:bg-muted hover:text-foreground",
+        "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50",
+        "border border-slate-200 bg-white text-slate-600",
+        "data-active:bg-[#00823b] data-active:text-white data-active:border-[#00823b]",
+        "hover:bg-slate-50 hover:text-slate-800",
         "min-w-fit shrink-0",
         className
       )}

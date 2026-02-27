@@ -1,30 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import {
-  Box,
-  Typography,
-  Paper,
-  Grid,
-} from "@mui/material";
 import { IconFilter, IconPhoneCall } from "@tabler/icons-react";
-import { Button as UiButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import Container from "@/components/container";
-import { PAGE_PADDING, LIST_HEADER_MB } from "@/utils/formConstants";
 import DateField from "@/components/common/DateField";
 import Select, { MenuItem } from "@/components/common/Select";
-import Input from "@/components/common/Input";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import mastersService from "@/services/mastersService";
 import { toastError } from "@/utils/toast";
 import moment from "moment";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function MarketingLeadsCallReportPage() {
+  const today = moment().format("YYYY-MM-DD");
   const [filters, setFilters] = useState({
-    from: "",
-    to: "",
+    from: today,
+    to: today,
     user_id: "",
     outcome: "",
   });
@@ -44,11 +39,12 @@ export default function MarketingLeadsCallReportPage() {
       });
   }, []);
 
-  const loadSummary = async () => {
+  const loadSummary = async (overrideFilters) => {
     try {
       setLoadingSummary(true);
+      const params = overrideFilters ? overrideFilters : filters;
       const res = await marketingLeadsService.getMarketingLeadsCallReport({
-        ...filters,
+        ...params,
         page: 1,
         limit: 5,
       });
@@ -65,6 +61,7 @@ export default function MarketingLeadsCallReportPage() {
 
   useEffect(() => {
     loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetcher = async (params) => {
@@ -75,41 +72,94 @@ export default function MarketingLeadsCallReportPage() {
     return res;
   };
 
+  const userNameById = useMemo(() => {
+    const map = {};
+    (userOptions || []).forEach((u) => {
+      if (!u) return;
+      const key = String(u.id);
+      map[key] = u.name ?? u.label ?? key;
+    });
+    return map;
+  }, [userOptions]);
+
+  const filterParams = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(filters).filter(
+          ([, v]) => v != null && String(v).trim() !== ""
+        )
+      ),
+    [filters]
+  );
+
+  const handleApplyFilters = () => {
+    loadSummary();
+  };
+
+  const handleResetToToday = () => {
+    const todayStr = moment().format("YYYY-MM-DD");
+    const next = {
+      from: todayStr,
+      to: todayStr,
+      user_id: "",
+      outcome: "",
+    };
+    setFilters(next);
+    loadSummary(next);
+  };
+
   const columns = [
     {
       field: "contacted_at",
       label: "Call Date",
       sortable: true,
       render: (row) =>
-        row.contacted_at ? moment(row.contacted_at).format("DD-MM-YYYY HH:mm") : "-",
+        row.contacted_at ? moment(row.contacted_at).format("DD-MMM-YYYY HH:mm") : "-",
     },
     {
       field: "created_by_name",
       label: "Call By",
       sortable: false,
-      render: (row) => row.created_by_name || "-",
+      render: (row) => (
+        <span className="font-medium text-foreground">{row.created_by_name || "-"}</span>
+      ),
     },
     {
       field: "outcome",
       label: "Status",
       sortable: false,
-      render: (row) => row.outcome || "-",
+      render: (row) => (
+        <Badge variant="outline" className="bg-background">
+          {row.outcome?.replace(/_/g, " ") || "-"}
+        </Badge>
+      ),
     },
     {
       field: "notes",
       label: "Call Remarks",
       sortable: false,
       wrap: true,
+      render: (row) => (
+        <div className="max-w-[250px] truncate" title={row.notes}>
+          {row.notes || "-"}
+        </div>
+      ),
     },
     {
       field: "lead_number",
-      label: "#",
+      label: "Lead #",
       sortable: false,
+      render: (row) => (
+        <span className="text-muted-foreground">{row.lead_number || "-"}</span>
+      ),
     },
     {
       field: "lead_name",
-      label: "Name",
+      label: "Lead Name",
       sortable: false,
+      render: (row) => (
+        <span className="font-medium">{row.lead_name || "-"}</span>
+      ),
     },
     {
       field: "mobile_number",
@@ -120,130 +170,154 @@ export default function MarketingLeadsCallReportPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-full bg-gradient-to-b from-muted/30 to-transparent">
-        <Container className="pt-2">
-          <Box sx={{ p: PAGE_PADDING }}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: 1,
-                mb: LIST_HEADER_MB,
-              }}
-            >
-              <IconPhoneCall size={24} stroke={1.5} className="text-primary" />
-              <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                Call Report
-              </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                component="span"
-                sx={{ ml: 0.5 }}
+      <div className="min-h-full flex flex-col flex-1 bg-background">
+        <Container className="py-2 flex flex-col gap-2 flex-1 min-h-0">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="bg-primary/10 text-primary p-1.5 rounded-lg">
+                <IconPhoneCall className="size-5" stroke={2} />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-foreground">
+                  Call Report
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  Telecaller-wise call summary and details
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleResetToToday}
+                className="gap-1.5 h-8"
+                disabled={loadingSummary}
               >
-                — Telecaller-wise call summary
-              </Typography>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: "auto" }}>
-                <UiButton
-                  size="sm"
-                  variant="outline"
-                  startIcon={<IconFilter className="size-4" />}
-                  onClick={loadSummary}
-                  disabled={loadingSummary}
-                >
-                  Apply
-                </UiButton>
-              </Box>
-            </Box>
+                Today
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleApplyFilters}
+                disabled={loadingSummary}
+                className="gap-1.5 shadow-sm h-8"
+              >
+                <IconFilter className="size-3.5" />
+                Apply Filters
+              </Button>
+            </div>
+          </div>
 
-            <Paper sx={{ p: 2, mb: 2, borderRadius: 1.5 }}>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={3}>
-                  <DateField
-                    label="From Date"
-                    name="from"
-                    fullWidth
-                    value={filters.from}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, from: e.target.value }))
-                    }
-                  />
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <DateField
-                    label="To Date"
-                    name="to"
-                    fullWidth
-                    value={filters.to}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, to: e.target.value }))
-                    }
-                  />
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Select
-                    name="user_id"
-                    label="Call By"
-                    fullWidth
-                    value={filters.user_id}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, user_id: e.target.value }))
-                    }
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {userOptions.map((u) => (
-                      <MenuItem key={u.id} value={String(u.id)}>
-                        {u.name ?? u.label ?? u.id}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </Grid>
-                <Grid item xs={12} sm={3}>
-                  <Select
-                    name="outcome"
-                    label="Status"
-                    fullWidth
-                    value={filters.outcome}
-                    onChange={(e) =>
-                      setFilters((prev) => ({ ...prev, outcome: e.target.value }))
-                    }
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="interested">Interested</MenuItem>
-                    <MenuItem value="follow_up">Follow Up</MenuItem>
-                    <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
-                    <MenuItem value="converted">Converted</MenuItem>
-                    <MenuItem value="no_answer">No Answer</MenuItem>
-                    <MenuItem value="switched_off">Switched Off</MenuItem>
-                    <MenuItem value="not_interested">Not Interested</MenuItem>
-                    <MenuItem value="wrong_number">Wrong Number</MenuItem>
-                  </Select>
-                </Grid>
-              </Grid>
-            </Paper>
+          {/* Filters & Summary */}
+          <div className="flex flex-col gap-2 shrink-0">
+            <Card className="border-border bg-card shadow-sm">
+              <CardContent className="p-2 sm:p-3">
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {filters.from && filters.to && filters.from === filters.to
+                      ? `Showing calls for ${moment(filters.from).format("DD-MMM-YYYY")}`
+                      : `Showing calls from ${
+                          filters.from
+                            ? moment(filters.from).format("DD-MMM-YYYY")
+                            : "start"
+                        } to ${
+                          filters.to
+                            ? moment(filters.to).format("DD-MMM-YYYY")
+                            : "today"
+                        }`}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                    <DateField
+                      label="From Date"
+                      name="from"
+                      value={filters.from}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, from: e.target.value }))
+                      }
+                    />
+                    <DateField
+                      label="To Date"
+                      name="to"
+                      value={filters.to}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, to: e.target.value }))
+                      }
+                    />
+                    <Select
+                      name="user_id"
+                      label="Call By"
+                      value={filters.user_id}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, user_id: e.target.value }))
+                      }
+                    >
+                      <MenuItem value="">All Users</MenuItem>
+                      {userOptions.map((u) => (
+                        <MenuItem key={u.id} value={String(u.id)}>
+                          {u.name ?? u.label ?? u.id}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <Select
+                      name="outcome"
+                      label="Status"
+                      value={filters.outcome}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, outcome: e.target.value }))
+                      }
+                    >
+                      <MenuItem value="">All Statuses</MenuItem>
+                      <MenuItem value="interested">Interested</MenuItem>
+                      <MenuItem value="follow_up">Follow Up</MenuItem>
+                      <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
+                      <MenuItem value="converted">Converted</MenuItem>
+                      <MenuItem value="no_answer">No Answer</MenuItem>
+                      <MenuItem value="switched_off">Switched Off</MenuItem>
+                      <MenuItem value="not_interested">Not Interested</MenuItem>
+                      <MenuItem value="wrong_number">Wrong Number</MenuItem>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {summary && summary.length > 0 && (
-              <Paper sx={{ p: 2, mb: 2, borderRadius: 1.5 }}>
-                <Typography variant="subtitle1" gutterBottom>
-                  Call By Summary
-                </Typography>
-                {summary.map((row) => (
-                  <Box key={row.created_by} sx={{ mb: 0.5 }}>
-                    <Typography variant="body2">
-                      {row.call_count} call(s) — User #{row.created_by}
-                    </Typography>
-                  </Box>
-                ))}
-              </Paper>
+              <Card className="border-border bg-card/60 shadow-sm overflow-hidden">
+                <div className="bg-muted/50 px-3 py-1.5 border-b border-border/50">
+                  <h3 className="text-xs font-semibold text-foreground tracking-tight">Call By Summary</h3>
+                </div>
+                <CardContent className="p-2 sm:p-3">
+                  <div className="flex flex-wrap gap-2">
+                    {summary.map((row) => (
+                      <div
+                        key={row.created_by}
+                        className="flex items-center gap-1.5 bg-background border border-border px-2 py-1 rounded shadow-sm"
+                      >
+                        <span className="text-xs text-muted-foreground w-max whitespace-nowrap">
+                          {userNameById[String(row.created_by)] ||
+                            `User #${row.created_by}`}
+                        </span>
+                        <Badge variant="secondary" className="font-semibold text-xs h-5 px-1.5">
+                          {row.call_count} calls
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
+          </div>
 
+          {/* Table Area */}
+          <div className="flex-1 min-h-[400px] border border-border rounded-lg bg-card overflow-hidden shadow-sm flex flex-col">
             <PaginatedTable
               columns={columns}
               fetcher={fetcher}
-              height="calc(100vh - 220px)"
+              filterParams={filterParams}
+              height="100%"
             />
-          </Box>
+          </div>
         </Container>
       </div>
     </ProtectedRoute>

@@ -1,23 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import {
-  Paper,
-  Chip,
-  Typography,
-  Box,
-  Grid,
-  Tooltip,
-} from "@mui/material";
-import PhoneIcon from "@mui/icons-material/Phone";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { IconPhone } from "@tabler/icons-react";
+import { Badge } from "@/components/ui/badge";
 import moment from "moment";
-import PaginatedList from "@/components/common/PaginatedList";
-import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
-import { DEFAULT_FILTER_LAST_30_DAYS } from "@/components/common/LeadListFilterPanel";
+import PaginatedTable from "@/components/common/PaginatedTable";
+import LeadListFilterPanel, {
+  DEFAULT_FILTER_LAST_30_DAYS,
+} from "@/components/common/LeadListFilterPanel";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import marketingLeadsService from "@/services/marketingLeadsService";
-import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 
 const LEAD_LIST_FILTER_KEYS = [
   "customer_name",
@@ -31,64 +25,42 @@ const LEAD_LIST_FILTER_KEYS = [
   "created_to",
   "next_follow_up_from",
   "next_follow_up_to",
+  "not_status",
+  "assigned_to",
 ];
 
-const statusChipColor = (status) => {
+const getStatusBadgeVariant = (status) => {
   switch (status) {
     case "new":
-      return { bgcolor: "#0ea5e9", color: "#fff" };
+      return "bg-sky-100 text-sky-800";
     case "contacted":
-      return { bgcolor: "#6366f1", color: "#fff" };
+      return "bg-indigo-100 text-indigo-800";
     case "follow_up":
-      return { bgcolor: "#f97316", color: "#fff" };
+      return "bg-orange-100 text-orange-800";
     case "interested":
-      return { bgcolor: "#22c55e", color: "#fff" };
+      return "bg-emerald-100 text-emerald-800";
     case "converted":
-      return { bgcolor: "#16a34a", color: "#fff" };
+      return "bg-[#138808]/10 text-[#138808]";
     case "not_interested":
     case "junk":
-      return { bgcolor: "#9ca3af", color: "#fff" };
+      return "bg-slate-100 text-slate-600";
     default:
-      return { bgcolor: "#e5e7eb", color: "#111827" };
+      return "bg-slate-100 text-slate-800";
   }
 };
 
-const priorityChipColor = (priority) => {
+const getPriorityBadgeVariant = (priority) => {
   switch (priority) {
     case "hot":
-      return { bgcolor: "#b91c1c", color: "#fff" };
+      return "bg-red-100 text-red-800";
     case "high":
-      return { bgcolor: "#f97316", color: "#fff" };
+      return "bg-orange-100 text-orange-800";
     case "medium":
-      return { bgcolor: "#0ea5e9", color: "#fff" };
+      return "bg-sky-100 text-sky-800";
     case "low":
     default:
-      return { bgcolor: "#6b7280", color: "#fff" };
+      return "bg-slate-100 text-slate-600";
   }
-};
-
-const renderLeadDetail = (label, value, opts = {}) => {
-  const { bold = false, color = "text.primary" } = opts;
-  return (
-    <Box mb={0.4}>
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        display="block"
-        sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}
-      >
-        {label}:
-      </Typography>
-      <Typography
-        variant="body2"
-        color={color}
-        fontWeight={bold ? "bold" : "normal"}
-        sx={{ fontSize: "0.78rem", lineHeight: 1.2, wordBreak: "break-word" }}
-      >
-        {value || "-"}
-      </Typography>
-    </Box>
-  );
 };
 
 export default function ListView() {
@@ -97,8 +69,21 @@ export default function ListView() {
     defaultLimit: 25,
     filterKeys: LEAD_LIST_FILTER_KEYS,
   });
-  const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } =
-    listingState;
+  const {
+    page,
+    limit,
+    q,
+    sortBy,
+    sortOrder,
+    filters,
+    setPage,
+    setLimit,
+    setQ,
+    setFilters,
+    setSort,
+    clearFilters,
+  } = listingState;
+
   const defaultDatesAppliedRef = useRef(false);
 
   useEffect(() => {
@@ -113,218 +98,201 @@ export default function ListView() {
     }
   }, [filters, setFilters]);
 
-  const fetchData = useCallback(async (params) => {
-    return await marketingLeadsService.getMarketingLeads(params);
+  const fetchLeads = useCallback(async (params) => {
+    const res = await marketingLeadsService.getMarketingLeads(params);
+    const result = res?.result ?? res?.data ?? res;
+    const statusFilter = params?.status;
+    if (Array.isArray(result)) {
+      const filteredData =
+        !statusFilter
+          ? result.filter((row) => row.status !== "converted")
+          : result;
+      return {
+        data: filteredData,
+        meta: {
+          total: filteredData.length,
+          page: params.page || 1,
+          pages: 1,
+          limit: params.limit || 25,
+        },
+      };
+    }
+    if (result?.data && result?.meta) {
+      const rawData = Array.isArray(result.data) ? result.data : [];
+      const filteredData =
+        !statusFilter
+          ? rawData.filter((row) => row.status !== "converted")
+          : rawData;
+      return {
+        data: filteredData,
+        meta: { ...result.meta, total: filteredData.length },
+      };
+    }
+    return res;
   }, []);
 
-  const renderLeadItem = (row) => {
-    const statusStyle = statusChipColor(row.status);
-    const priorityStyle = priorityChipColor(row.priority);
-    const nextFollowUp =
-      row.next_follow_up_at &&
-      moment(row.next_follow_up_at).format("DD-MM-YYYY HH:mm");
-    const lastCalled =
-      row.last_called_at && moment(row.last_called_at).format("DD-MM-YYYY HH:mm");
-
-    return (
-      <Paper
-        elevation={0}
-        sx={{
-          position: "relative",
-          border: "1px solid #e0e0e0",
-          borderTop: "3px solid #0ea5e9",
-          borderRadius: "4px 4px 1px 1px",
-          overflow: "hidden",
-          transition: "0.2s",
-          "&:hover": {
-            borderColor: "#1976d2",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          },
-          cursor: "pointer",
-        }}
-        onClick={() => router.push(`/marketing-leads/view?id=${row.id}`)}
-      >
-        <Box
-          sx={{
-            bgcolor: "#fff",
-            p: 0.6,
-            px: 2,
-            display: "flex",
-            alignItems: "center",
-            borderBottom: "1px solid #f0f0f0",
-          }}
-        >
-          <Typography
-            variant="subtitle2"
-            sx={{ mr: 2, fontSize: "0.88rem", fontWeight: "bold" }}
-          >
-            {row.lead_number || "-"} : {row.customer_name?.toUpperCase() || "-"}
-          </Typography>
-          <Chip
-            label={row.status || "NEW"}
-            size="small"
-            sx={{
-              height: 18,
-              fontSize: "0.58rem",
-              mr: 1,
-              borderRadius: "3px",
-              ...statusStyle,
-            }}
-          />
-          <Chip
-            label={(row.priority || "medium").toUpperCase()}
-            size="small"
-            sx={{
-              height: 18,
-              fontSize: "0.58rem",
-              mr: 1,
-              borderRadius: "3px",
-              ...priorityStyle,
-            }}
-          />
-          {row.campaign_name && (
-            <Chip
-              label={row.campaign_name}
-              size="small"
-              sx={{
-                bgcolor: "#e11d48",
-                color: "#fff",
-                height: 18,
-                fontSize: "0.58rem",
-                mr: 1,
-                borderRadius: "3px",
-              }}
-            />
-          )}
-          {row.branch_name && (
-            <Typography
-              variant="caption"
-              sx={{
-                color: "text.secondary",
-                fontWeight: "bold",
-                ml: 1,
-                fontSize: "0.7rem",
-              }}
+  const columns = useMemo(
+    () => [
+      {
+        field: "lead_number",
+        label: "Lead No",
+        sortable: true,
+        render: (row) => <span className="text-muted-foreground">{row.lead_number || `ML-${row.id}`}</span>,
+      },
+      {
+        field: "customer_name",
+        label: "Name",
+        sortable: true,
+        render: (row) => (
+          <span className="font-semibold text-xs text-foreground">
+            {(row.customer_name || "-").toUpperCase()}
+          </span>
+        ),
+      },
+      {
+        field: "mobile_number",
+        label: "Mobile",
+        render: (row) => (
+          <span className="inline-flex items-center gap-1 text-[0.75rem] text-primary">
+            <IconPhone className="size-3.5" /> {row.mobile_number}
+          </span>
+        ),
+      },
+      {
+        field: "branch_name",
+        label: "Branch",
+        render: (row) => row.branch_name || "-",
+      },
+      {
+        field: "inquiry_source_name",
+        label: "Source",
+        render: (row) => row.inquiry_source_name || "-",
+      },
+      {
+        field: "campaign_name",
+        label: "Campaign",
+        render: (row) => row.campaign_name || "-",
+      },
+      {
+        field: "status",
+        label: "Status",
+        render: (row) => {
+          return (
+            <span
+              className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide border border-transparent whitespace-nowrap", getStatusBadgeVariant(row.status))}
             >
-              {row.branch_name}
-            </Typography>
-          )}
-        </Box>
+              {(row.status || "new").replace(/_/g, " ")}
+            </span>
+          );
+        },
+      },
+      {
+        field: "priority",
+        label: "Priority",
+        render: (row) => {
+          return (
+            <span
+              className={cn("px-2 py-0.5 rounded-full text-[10px] uppercase font-semibold tracking-wide border border-transparent whitespace-nowrap", getPriorityBadgeVariant(row.priority))}
+            >
+              {row.priority || "medium"}
+            </span>
+          );
+        },
+      },
+      {
+        field: "expected_capacity_kw",
+        label: "Capacity",
+        render: (row) =>
+          row.expected_capacity_kw ? `${row.expected_capacity_kw} kW` : "-",
+      },
+      {
+        field: "expected_project_cost",
+        label: "Expected Value",
+        render: (row) =>
+          row.expected_project_cost != null
+            ? `₹${Number(row.expected_project_cost).toLocaleString()}`
+            : "-",
+      },
+      {
+        field: "assigned_to_name",
+        label: "Assigned To",
+        render: (row) => row.assigned_to_name || "Unassigned",
+      },
+      {
+        field: "next_follow_up_at",
+        label: "Next Follow-Up",
+        render: (row) => {
+          const nextFollowUp =
+            row.next_follow_up_at &&
+            moment(row.next_follow_up_at).format("DD-MM-YYYY HH:mm");
+          return nextFollowUp || "Not scheduled";
+        },
+      },
+      {
+        field: "last_call_outcome",
+        label: "Last Outcome",
+        render: (row) => row.last_call_outcome || "-",
+      },
+      {
+        field: "city_name",
+        label: "City",
+        render: (row) => row.city_name || "-",
+      },
+      {
+        field: "created_at",
+        label: "Created",
+        render: (row) =>
+          row.created_at ? moment(row.created_at).format("DD-MM-YYYY") : "-",
+      },
+    ],
+    []
+  );
 
-        <Box sx={{ p: 2 }}>
-          <Grid container spacing={1}>
-            <Grid item xs={12} md={3}>
-              <Box mb={0.4}>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  display="block"
-                  sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}
-                >
-                  Mobile:
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="primary"
-                  fontWeight="bold"
-                  sx={{
-                    fontSize: "0.78rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 0.5,
-                  }}
-                >
-                  <PhoneIcon sx={{ fontSize: 12 }} /> {row.mobile_number}
-                </Typography>
-              </Box>
-              {renderLeadDetail("Alternate", row.alternate_mobile_number)}
-              {renderLeadDetail("Email", row.email_id)}
-              {renderLeadDetail("Company", row.company_name)}
-            </Grid>
-            <Grid item xs={12} md={3}>
-              {renderLeadDetail("Source", row.inquiry_source_name || "N/A")}
-              {renderLeadDetail("Campaign", row.campaign_name || "N/A")}
-              {renderLeadDetail("Segment", row.lead_segment || "N/A")}
-              {renderLeadDetail("Interest", row.product_interest || "N/A")}
-            </Grid>
-            <Grid item xs={12} md={3}>
-              {renderLeadDetail(
-                "Expected Capacity",
-                row.expected_capacity_kw ? `${row.expected_capacity_kw} kW` : "-"
-              )}
-              {renderLeadDetail(
-                "Expected Value",
-                row.expected_project_cost != null
-                  ? `Rs. ${Number(row.expected_project_cost).toLocaleString()}`
-                  : "-"
-              )}
-              {renderLeadDetail(
-                "Assigned To",
-                row.assigned_to_name || "Unassigned"
-              )}
-              {renderLeadDetail(
-                "Last Called",
-                lastCalled || "-",
-                { bold: false, color: "text.secondary" }
-              )}
-            </Grid>
-            <Grid item xs={12} md={3}>
-              {renderLeadDetail(
-                "Next Follow-Up",
-                nextFollowUp || "Not scheduled",
-                {
-                  bold: true,
-                  color: nextFollowUp ? "primary.main" : "text.secondary",
-                }
-              )}
-              {renderLeadDetail(
-                "Last Outcome",
-                row.last_call_outcome || "-",
-                { bold: false }
-              )}
-              {renderLeadDetail(
-                "City",
-                row.city_name || "-",
-                { bold: false }
-              )}
-              {renderLeadDetail(
-                "Remarks",
-                row.remarks,
-                { bold: false, color: "text.secondary" }
-              )}
-            </Grid>
-          </Grid>
-        </Box>
-      </Paper>
-    );
-  };
-
-  const calculateHeight = () => `calc(100vh - 125px)`;
+  const filterParams = useMemo(() => {
+    const entries = [];
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        const cleaned = value
+          .map((v) => String(v).trim())
+          .filter((v) => v !== "");
+        if (cleaned.length) {
+          entries.push([key, cleaned.join(",")]);
+        }
+      } else if (value != null && String(value).trim() !== "") {
+        entries.push([key, value]);
+      }
+    });
+    return Object.fromEntries(entries);
+  }, [filters]);
 
   return (
-    <Box sx={{ width: "100%" }}>
+    <div className="w-full h-full flex flex-col min-h-0">
       <LeadListFilterPanel
         values={filters}
         onApply={(v) => setFilters(v)}
         onClear={clearFilters}
         defaultOpen={false}
       />
-      <PaginatedList
-        fetcher={fetchData}
-        renderItem={renderLeadItem}
-        searchPlaceholder="Search marketing leads..."
-        defaultSortBy="id"
-        defaultSortOrder="DESC"
-        height={calculateHeight()}
-        q={q}
-        onQChange={setQ}
-        filters={filters}
-        page={page}
-        setPage={setPage}
-        limit={limit}
-        setLimit={setLimit}
-        filterSlot={null}
-      />
-    </Box>
+      <div className="flex-1 min-h-0 flex flex-col">
+        <PaginatedTable
+          columns={columns}
+          fetcher={fetchLeads}
+          showSearch
+          moduleKey="marketing-leads"
+          height="100%"
+          filterParams={filterParams}
+          page={page}
+          limit={limit}
+          q={q}
+          sortBy={sortBy || "id"}
+          sortOrder={sortOrder || "desc"}
+          onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+          onRowsPerPageChange={setLimit}
+          onQChange={setQ}
+          onSortChange={setSort}
+          onRowClick={(row) => router.push(`/marketing-leads/view?id=${row.id}`)}
+        />
+      </div>
+    </div>
   );
 }
