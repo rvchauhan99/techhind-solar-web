@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import SearchInput from "@/components/common/SearchInput";
+import PaginationControls from "@/components/common/PaginationControls";
 import { Input } from "@/components/ui/input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -148,14 +149,14 @@ export default function PaginatedTable({
   const qDisplay = isControlled ? searchDisplayValue : query;
   const setQDisplay = isControlled && onControlledQChange
     ? (e) => {
-        const v = typeof e === "object" && e?.target ? e.target.value : e;
-        setSearchDisplayValue(v ?? "");
-        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-        searchDebounceRef.current = setTimeout(() => {
-          onControlledQChange?.(v ?? "");
-          searchDebounceRef.current = null;
-        }, SEARCH_DEBOUNCE_MS);
-      }
+      const v = typeof e === "object" && e?.target ? e.target.value : e;
+      setSearchDisplayValue(v ?? "");
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        onControlledQChange?.(v ?? "");
+        searchDebounceRef.current = null;
+      }, SEARCH_DEBOUNCE_MS);
+    }
     : setQuery;
   const { modulePermissions, currentModuleId, fetchPermissionForModule, user } =
     useAuth();
@@ -670,9 +671,9 @@ export default function PaginatedTable({
                   onClick={
                     onRowClick
                       ? (e) => {
-                          if (e.target.closest?.("button, [role='button'], a")) return;
-                          onRowClick(row);
-                        }
+                        if (e.target.closest?.("button, [role='button'], a")) return;
+                        onRowClick(row);
+                      }
                       : undefined
                   }
                   className={onRowClick ? "cursor-pointer hover:bg-muted/50" : undefined}
@@ -697,10 +698,10 @@ export default function PaginatedTable({
                       >
                         {c.render
                           ? c.render(
-                              row,
-                              reload,
-                              resolvedPerms ?? modulePermissions?.[currentModuleId]
-                            )
+                            row,
+                            reload,
+                            resolvedPerms ?? modulePermissions?.[currentModuleId]
+                          )
                           : row[c.field]}
                       </td>
                     );
@@ -719,70 +720,13 @@ export default function PaginatedTable({
       </div>
 
       {showPagination && (
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 border-t border-border p-2 bg-background">
-          <p className="text-sm text-muted-foreground">
-            Showing {from} to {to} of {totalCount}
-          </p>
-          <div className="flex items-center gap-2">
-            <Select
-              value={String(rowsPerPage)}
-              onValueChange={(v) => handleChangeRowsPerPage({ target: { value: v } })}
-            >
-              <SelectTrigger className="h-8 w-16">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[5, 10, 25].map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-0.5">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, 0)}
-                disabled={page === 0}
-                aria-label="first page"
-              >
-                <IconChevronsLeft className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, page - 1)}
-                disabled={page === 0}
-                aria-label="previous page"
-              >
-                <IconChevronLeft className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, page + 1)}
-                disabled={page >= totalPages - 1}
-                aria-label="next page"
-              >
-                <IconChevronRight className="size-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => handleChangePage(null, totalPages - 1)}
-                disabled={page >= totalPages - 1}
-                aria-label="last page"
-              >
-                <IconChevronsRight className="size-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PaginationControls
+          page={page}
+          rowsPerPage={rowsPerPage}
+          totalCount={totalCount}
+          onPageChange={(p) => handleChangePage(null, p)}
+          onRowsPerPageChange={(v) => handleChangeRowsPerPage({ target: { value: v } })}
+        />
       )}
     </div>
   );

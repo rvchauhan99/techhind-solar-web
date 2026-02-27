@@ -27,8 +27,9 @@ export default function DashboardLayout({ children }) {
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  const effectiveSidebarExpanded =
-    !sidebarCollapsed || sidebarHoverExpanded;
+  // Determine the actual layout bounds vs floating state
+  const isFloatingHover = sidebarCollapsed && sidebarHoverExpanded;
+  const layoutSidebarExpanded = !sidebarCollapsed;
 
   const handleToggleCollapse = () => {
     setSidebarCollapsed((prev) => {
@@ -62,11 +63,11 @@ export default function DashboardLayout({ children }) {
 
   return (
     <div className="bg-background relative flex h-screen overflow-hidden">
-      {/* Sidebar: mobile w-64 overlay; desktop width by collapse state; hover expands when collapsed */}
+      {/* Sidebar: mobile w-64 overlay; desktop width by collapse/hover state; hover expands without pushing layout */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-all duration-300 ease-in-out lg:translate-x-0 ${
-          effectiveSidebarExpanded ? "lg:w-64" : "lg:w-16"
-        } ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out lg:translate-x-0 ${layoutSidebarExpanded || isFloatingHover ? "w-64" : "w-16"
+          } ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${isFloatingHover ? "shadow-xl border-r border-border" : ""
+          }`}
         onMouseEnter={() =>
           sidebarCollapsed && setSidebarHoverExpanded(true)
         }
@@ -79,8 +80,8 @@ export default function DashboardLayout({ children }) {
         />
       </div>
 
-      {/* Sidebar Overlay */}
-      {sidebarOpen && (
+      {/* Sidebar Overlay (Mobile or when floating) */}
+      {(sidebarOpen || (isFloatingHover && false)) && (
         <div
           className="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
@@ -91,11 +92,10 @@ export default function DashboardLayout({ children }) {
         />
       )}
 
-      {/* Main Content: push layout; padding matches sidebar width on desktop */}
+      {/* Main Content: push layout; padding matching layout bounds, NOT floating hover bounds */}
       <div
-        className={`flex flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${
-          effectiveSidebarExpanded ? "lg:pl-64" : "lg:pl-16"
-        }`}
+        className={`flex flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${layoutSidebarExpanded ? "lg:pl-64" : "lg:pl-16"
+          }`}
       >
         {/* Mobile bar: hamburger + logo only (user and search are in sidebar) */}
         <div className="border-border bg-background flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:hidden">

@@ -35,6 +35,14 @@ export default function PaginationControls({
   const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
   const currentPage1Based = totalCount === 0 ? 1 : page + 1;
 
+  const effectiveRowsPerPageOptions = Array.from(
+    new Set(
+      [rowsPerPage, ...rowsPerPageOptions].filter(
+        (v) => typeof v === "number" && !Number.isNaN(v)
+      )
+    )
+  ).sort((a, b) => a - b);
+
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-2 py-1.5 bg-muted/20 rounded-md">
       <div className="text-muted-foreground text-xs sm:text-sm">
@@ -79,7 +87,7 @@ export default function PaginationControls({
             <SelectValue placeholder={`${rowsPerPage} per page`} />
           </SelectTrigger>
           <SelectContent>
-            {rowsPerPageOptions.map((n) => (
+            {effectiveRowsPerPageOptions.map((n) => (
               <SelectItem key={n} value={n.toString()}>
                 {n} per page
               </SelectItem>

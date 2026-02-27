@@ -23,6 +23,7 @@ const FILTER_KEYS = [
   "mobile_number",
   "branch_id",
   "inquiry_source_id",
+  "handled_by",
   "order_number",
   "order_date_from",
   "order_date_to",
@@ -41,6 +42,7 @@ export default function OrderListFilterDialog({
 }) {
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
+  const [userOptions, setUserOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [localValues, setLocalValues] = useState(() => ({ ...EMPTY_VALUES, ...values }));
 
@@ -62,14 +64,20 @@ export default function OrderListFilterDialog({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
+      mastersService.getReferenceOptions("user.model").then((r) => {
+        const data = r?.result ?? r?.data ?? r;
+        return Array.isArray(data) ? data : [];
+      }),
     ])
-      .then(([branches, sources]) => {
+      .then(([branches, sources, users]) => {
         setBranchOptions(branches);
         setSourceOptions(sources);
+        setUserOptions(users);
       })
       .catch(() => {
         setBranchOptions([]);
         setSourceOptions([]);
+        setUserOptions([]);
       })
       .finally(() => setLoadingOptions(false));
   }, [open]);
@@ -173,6 +181,23 @@ export default function OrderListFilterDialog({
             {sourceOptions.map((s) => (
               <MenuItem key={s.id} value={String(s.id)}>
                 {s.source_name ?? s.label ?? s.name ?? s.id}
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            name="handled_by"
+            label="Handled By"
+            placeholder="All users"
+            value={localValues.handled_by}
+            onChange={(e) => handleChange("handled_by", e.target.value)}
+            size="small"
+            fullWidth
+            disabled={loadingOptions}
+          >
+            <MenuItem value="">All</MenuItem>
+            {userOptions.map((u) => (
+              <MenuItem key={u.id} value={String(u.id)}>
+                {u.name ?? u.label ?? `User #${u.id}`}
               </MenuItem>
             ))}
           </Select>

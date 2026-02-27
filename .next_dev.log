@@ -1,0 +1,53 @@
+
+> solar-systems-web2@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use by process 81659, using available port 3002 instead.
+   ▲ Next.js 15.5.9
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.0.103:3002
+   - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 1445ms
+ ✓ Compiled /middleware in 127ms (114 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 3.1s (2324 modules)
+ GET /api/test-dev-server-status 404 in 3493ms
+ POST /api/v1/auth/login 404 in 37ms
+ ✓ Compiled in 472ms (1050 modules)
+ ✓ Compiled in 1204ms (1050 modules)
+ ✓ Compiled in 809ms (1050 modules)
+ ✓ Compiled in 1037ms (1164 modules)
+ ✓ Compiled in 416ms (1050 modules)
+ ✓ Compiled in 208ms (1050 modules)
+ ✓ Compiled in 370ms (1050 modules)
+ ✓ Compiled in 247ms (1050 modules)
+ ✓ Compiled in 534ms (1050 modules)
+ ✓ Compiled in 205ms (1050 modules)
+ ✓ Compiled in 471ms (1050 modules)
+ ✓ Compiled in 324ms (1050 modules)
+ ✓ Compiled in 355ms (1050 modules)
+ ✓ Compiled in 476ms (1050 modules)
+ ✓ Compiled in 244ms (1050 modules)
+ ✓ Compiled in 308ms (1050 modules)
+ ✓ Compiled in 542ms (1050 modules)
+ ✓ Compiled in 193ms (1050 modules)
+ ✓ Compiled in 404ms (1050 modules)
+ ✓ Compiled in 495ms (1050 modules)
+ ✓ Compiled in 463ms (1050 modules)
+ ✓ Compiled in 444ms (1050 modules)
+ ✓ Compiled in 172ms (1050 modules)
+ ✓ Compiled in 257ms (1050 modules)
+ ✓ Compiled in 377ms (1050 modules)
+ ✓ Compiled in 433ms (1050 modules)
+ ✓ Compiled in 596ms (1050 modules)
+ ✓ Compiled in 508ms (1050 modules)
+ ✓ Compiled in 907ms (1050 modules)
+ ✓ Compiled in 643ms (1050 modules)
+ ✓ Compiled in 687ms (1050 modules)
+ ✓ Compiled in 442ms (1050 modules)
+ ✓ Compiled in 364ms (1050 modules)
+ ✓ Compiled in 182ms (1050 modules)
+ ✓ Compiled in 661ms (1050 modules)
+ ✓ Compiled in 957ms (1050 modules)

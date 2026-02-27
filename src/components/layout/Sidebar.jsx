@@ -183,7 +183,7 @@ function routeMatchesItem(pathname, item) {
 export default function Sidebar({
   setSidebarOpen,
   collapsed = false,
-  onToggleCollapse = () => {},
+  onToggleCollapse = () => { },
 }) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -259,8 +259,8 @@ export default function Sidebar({
 
   if (showCollapsed) {
     return (
-      <aside className="border-border bg-sidebar fixed top-0 left-0 z-40 flex h-dvh w-16 flex-col border-r transition-all duration-300 ease-in-out lg:translate-x-0">
-        <div className="flex h-full flex-col overflow-y-auto px-2 py-4">
+      <aside className="border-border bg-sidebar flex h-dvh w-full flex-col transition-all duration-300 ease-in-out">
+        <div className="flex h-full flex-col overflow-y-auto px-2 py-4 custom-scrollbar">
           {/* User: avatar only */}
           <div className="mb-4 flex justify-center">
             <DropdownMenu>
@@ -351,8 +351,8 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="border-border bg-sidebar fixed top-0 left-0 z-40 h-dvh w-64 border-r transition-all duration-300 ease-in-out lg:translate-x-0">
-      <div className="flex h-full flex-col overflow-y-auto px-4 py-6">
+    <aside className="bg-sidebar flex h-dvh w-full flex-col transition-all duration-300 ease-in-out">
+      <div className="flex h-full flex-col overflow-y-auto px-4 py-6 custom-scrollbar">
         {/* User Profile Section */}
         <div className="mb-6">
           <DropdownMenu>

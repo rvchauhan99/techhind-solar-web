@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { Box, Typography, Button, Stack } from "@mui/material";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import HomeIcon from "@mui/icons-material/Home";
-import UploadFileIcon from "@mui/icons-material/UploadFile";
-import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
-import GroupAddIcon from "@mui/icons-material/GroupAdd";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import PieChartIcon from "@mui/icons-material/PieChart";
-import AddIcon from "@mui/icons-material/Add";
-import { IconLayoutKanban, IconList } from "@tabler/icons-react";
+import {
+  IconPlus,
+  IconUpload,
+  IconPhoneCall,
+  IconUserPlus,
+  IconReport,
+  IconChartPie,
+  IconLayoutKanban,
+  IconList,
+  IconHome,
+} from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
 import { EMPTY_VALUES, DEFAULT_FILTER_LAST_30_DAYS } from "@/components/common/LeadListFilterPanel";
@@ -25,18 +28,42 @@ export default function MarketingLeadsPage() {
   const [kanbanFilters, setKanbanFilters] = useState(DEFAULT_FILTER_LAST_30_DAYS);
   const loadingRef = useRef(false);
 
+  const buildApiFilters = useCallback((filters = {}) => {
+    const result = {};
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        const cleaned = value
+          .map((v) => String(v).trim())
+          .filter((v) => v !== "");
+        if (cleaned.length) {
+          result[key] = cleaned.join(",");
+        }
+      } else if (value != null && String(value).trim() !== "") {
+        result[key] = value;
+      }
+    });
+    return result;
+  }, []);
+
   const loadKanbanLeads = useCallback(async (filters = {}) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
+      const apiFilters = buildApiFilters(filters);
       const res = await marketingLeadsService.getMarketingLeads({
         page: 1,
         limit: 10000,
-        ...filters,
+        ...apiFilters,
       });
       const payload = res?.result ?? res?.data ?? res;
       const data = Array.isArray(payload) ? payload : payload?.data ?? [];
-      setKanbanLeads(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      const statusFilter = apiFilters?.status;
+      const filtered =
+        !statusFilter || statusFilter === ""
+          ? list.filter((lead) => lead.status !== "converted")
+          : list;
+      setKanbanLeads(filtered);
     } catch (e) {
       setKanbanLeads([]);
     } finally {
@@ -52,88 +79,101 @@ export default function MarketingLeadsPage() {
 
   return (
     <ProtectedRoute>
-      <Box sx={{ width: "100%" }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box>
-            <Typography variant="h5">Marketing Leads</Typography>
-          </Box>
-          <Stack direction="row" spacing={1}>
+      <div className="w-full pt-2 flex flex-col h-full overflow-hidden">
+        <div className="flex justify-between items-center mb-4 pb-2 border-b border-border/50 shrink-0">
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              Marketing Leads
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="outlined"
-              startIcon={<AddIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/add")}
             >
+              <IconPlus className="size-4 mr-1.5" />
               Add Lead
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<UploadFileIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/upload")}
             >
+              <IconUpload className="size-4 mr-1.5" />
               Import Leads
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<PhoneInTalkIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/call-report")}
             >
+              <IconPhoneCall className="size-4 mr-1.5" />
               Call Report
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<GroupAddIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/assign")}
             >
+              <IconUserPlus className="size-4 mr-1.5" />
               Assign Leads
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<AssessmentIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
+              <IconReport className="size-4 mr-1.5" />
               Summary
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<PieChartIcon />}
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
+              <IconChartPie className="size-4 mr-1.5" />
               Analysis
             </Button>
             <Button
-              variant="outlined"
-              startIcon={
-                view === "kanban" ? (
-                  <IconList className="size-4" />
-                ) : (
-                  <IconLayoutKanban className="size-4" />
-                )
-              }
-              size="small"
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() =>
                 setView((prev) => (prev === "kanban" ? "list" : "kanban"))
               }
             >
-              {view === "kanban" ? "List View" : "Kanban View"}
+              {view === "kanban" ? (
+                <>
+                  <IconList className="size-4 mr-1.5" />
+                  List View
+                </>
+              ) : (
+                <>
+                  <IconLayoutKanban className="size-4 mr-1.5" />
+                  Kanban View
+                </>
+              )}
             </Button>
             <Button
-              variant="outlined"
-              startIcon={<HomeIcon />}
+              variant="outline"
+              size="sm"
+              className="text-primary hover:text-primary/90 h-8"
               onClick={() => router.push("/home")}
-              size="small"
             >
+              <IconHome className="size-4 mr-1.5" />
               Home
             </Button>
-          </Stack>
-        </Box>
+          </div>
+        </div>
         {view === "kanban" ? (
-          <Box sx={{ width: "100%" }}>
+          <div className="w-full flex-1 flex flex-col min-h-0">
             <LeadListFilterPanel
               values={kanbanFilters}
               onApply={(v) => {
@@ -147,11 +187,13 @@ export default function MarketingLeadsPage() {
               defaultOpen={false}
             />
             <KanbanBoard leads={kanbanLeads} />
-          </Box>
+          </div>
         ) : (
-          <ListView />
+          <div className="w-full flex-1 flex flex-col min-h-0">
+            <ListView />
+          </div>
         )}
-      </Box>
+      </div>
     </ProtectedRoute>
   );
 }
