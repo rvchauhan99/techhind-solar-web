@@ -73,10 +73,10 @@ function MenuItemComponent({ item, level = 0, setSidebarOpen }) {
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+            "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors border-l-4",
             hasActiveChild || isActive
-              ? "text-primary ring-border bg-white ring"
-              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              ? "bg-[#142847] text-white border-[#00823b]"
+              : "text-blue-100 hover:bg-[#142847] hover:text-white border-transparent"
           )}
           style={{ paddingLeft: `${paddingLeft}px` }}
         >
@@ -133,10 +133,10 @@ function MenuItemComponent({ item, level = 0, setSidebarOpen }) {
       href={item.route || "#"}
       onClick={handleLinkClick}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors border-l-4",
         isActive
-          ? "bg-primary text-primary-foreground"
-          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          ? "bg-[#142847] text-white border-[#00823b]"
+          : "text-blue-100 hover:bg-[#142847] hover:text-white border-transparent"
       )}
       style={{ paddingLeft: `${paddingLeft}px` }}
     >
@@ -183,7 +183,7 @@ function routeMatchesItem(pathname, item) {
 export default function Sidebar({
   setSidebarOpen,
   collapsed = false,
-  onToggleCollapse = () => {},
+  onToggleCollapse = () => { },
 }) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -259,17 +259,17 @@ export default function Sidebar({
 
   if (showCollapsed) {
     return (
-      <aside className="border-border bg-sidebar fixed top-0 left-0 z-40 flex h-dvh w-16 flex-col border-r transition-all duration-300 ease-in-out lg:translate-x-0">
-        <div className="flex h-full flex-col overflow-y-auto px-2 py-4">
+      <aside className="border-[#0f1f3a] bg-[#1b365d] flex h-dvh w-full flex-col transition-all duration-300 ease-in-out border-r">
+        <div className="flex h-full flex-col overflow-y-auto px-2 py-4 custom-scrollbar">
           {/* User: avatar only */}
           <div className="mb-4 flex justify-center">
             <DropdownMenu>
               <DropdownMenuTrigger>
                 <span
-                  className="hover:bg-sidebar-accent flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors"
+                  className="hover:bg-[#142847] flex h-8 w-8 cursor-pointer items-center justify-center rounded-full transition-colors text-blue-100"
                   title={user?.name || user?.email || "User"}
                 >
-                  <span className="bg-secondary text-secondary-foreground flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium">
+                  <span className="bg-[#00823b] text-white flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium">
                     {user?.name?.[0]?.toUpperCase() ||
                       user?.email?.[0]?.toUpperCase() ||
                       "U"}
@@ -308,10 +308,10 @@ export default function Sidebar({
                   onClick={() => setSidebarOpen?.(false)}
                   title={item.name}
                   className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
+                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors border-l-2",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      ? "bg-[#142847] text-white border-[#00823b]"
+                      : "text-blue-100 hover:bg-[#142847] hover:text-white border-transparent"
                   )}
                 >
                   <IconComponent className="h-5 w-5" />
@@ -351,27 +351,27 @@ export default function Sidebar({
   }
 
   return (
-    <aside className="border-border bg-sidebar fixed top-0 left-0 z-40 h-dvh w-64 border-r transition-all duration-300 ease-in-out lg:translate-x-0">
-      <div className="flex h-full flex-col overflow-y-auto px-4 py-6">
+    <aside className="bg-[#1b365d] border-r border-[#0f1f3a] flex h-dvh w-full flex-col transition-all duration-300 ease-in-out">
+      <div className="flex h-full flex-col overflow-y-auto px-3 py-4 custom-scrollbar">
         {/* User Profile Section */}
-        <div className="mb-6">
+        <div className="mb-4">
           <DropdownMenu>
-            <DropdownMenuTrigger>
-              <div className="hover:bg-sidebar-accent flex w-full items-center gap-3 rounded-lg p-3 transition-colors">
-                <div className="bg-secondary text-secondary-foreground flex h-10 w-10 items-center justify-center rounded-full">
+            <DropdownMenuTrigger className="w-full">
+              <div className="hover:bg-[#142847] flex w-full items-center gap-2 rounded-md p-2 transition-colors">
+                <div className="bg-[#00823b] text-white flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold">
                   {user?.name?.[0]?.toUpperCase() ||
                     user?.email?.[0]?.toUpperCase() ||
                     "U"}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="text-sidebar-foreground truncate text-sm font-medium">
+                  <p className="text-blue-100 truncate text-sm font-medium">
                     {user?.name || "User"}
                   </p>
-                  <p className="text-muted-foreground w-30 truncate text-xs">
+                  <p className="text-blue-200/70 w-30 truncate text-xs">
                     {user?.email || "User"}
                   </p>
                 </div>
-                <IconChevronDown className="text-muted-foreground h-4 w-4 shrink-0" />
+                <IconChevronDown className="text-blue-200/70 h-4 w-4 shrink-0" />
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
@@ -442,7 +442,7 @@ export default function Sidebar({
                       <li key={`${item.fullPath}-${index}`} role="option">
                         <button
                           type="button"
-                          className="hover:bg-sidebar-accent flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-sidebar-foreground transition-colors"
+                          className="hover:bg-[#142847] flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-blue-100 transition-colors"
                           onClick={() => handleSearchSelect(item)}
                         >
                           <IconComponent className="h-4 w-4 shrink-0" />

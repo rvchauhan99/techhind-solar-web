@@ -39,6 +39,28 @@ export const uploadMarketingLeads = (file, extra = {}) => {
     .then((r) => r.data);
 };
 
+export const previewMarketingLeadsUpload = (file, extra = {}) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  Object.entries(extra || {}).forEach(([key, value]) => {
+    if (value != null && value !== "") {
+      formData.append(key, value);
+    }
+  });
+  return apiClient
+    .post("/marketing-leads/bulk/preview", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const downloadMarketingLeadsTemplate = () =>
+  apiClient
+    .get("/marketing-leads/bulk/template", {
+      responseType: "blob",
+    })
+    .then((r) => r.data);
+
 export const getMarketingLeadsSummary = (params = {}) =>
   apiClient.get("/marketing-leads/reports/summary", { params }).then((r) => r.data);
 
@@ -58,6 +80,8 @@ export default {
   listFollowUps,
   convertToInquiry,
   uploadMarketingLeads,
+  previewMarketingLeadsUpload,
+  downloadMarketingLeadsTemplate,
   getMarketingLeadsSummary,
   getMarketingLeadsCallReport,
   assignMarketingLeads,

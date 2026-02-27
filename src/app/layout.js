@@ -35,7 +35,7 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-title" content="Solar" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-800 min-h-screen`}
       >
         <Providers>
           <AuthProvider>
