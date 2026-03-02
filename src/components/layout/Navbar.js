@@ -174,9 +174,9 @@ export default function Navbar({ onMenuClick }) {
         {/* Right Side: Search Bar and Profile */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           {/* Search Bar */}
-          <Box 
-            sx={{ 
-              maxWidth: { xs: "160px", sm: "260px", md: "320px" }, 
+          <Box
+            sx={{
+              maxWidth: { xs: "160px", sm: "260px", md: "320px" },
               position: "relative",
               zIndex: 1400, // Higher than AppBar to ensure search is always accessible
             }}
@@ -201,7 +201,7 @@ export default function Navbar({ onMenuClick }) {
             {/* Search Results Dropdown - Using Portal to ensure it's above everything */}
             {searchOpen && searchResults.length > 0 && (
               <Portal>
-                <ClickAwayListener 
+                <ClickAwayListener
                   onClickAway={(e) => {
                     // Don't close if clicking on the search input
                     if (searchInputRef.current && searchInputRef.current.contains(e.target)) {
@@ -266,6 +266,7 @@ export default function Navbar({ onMenuClick }) {
             )}
           </Box>
 
+
           {/* User Avatar */}
           {user && (
             <Box>
@@ -315,8 +316,8 @@ export default function Navbar({ onMenuClick }) {
                   },
                 }}
               >
-              <MenuItem onClick={goProfile} sx={{ fontSize: "0.875rem", py: 0.75 }}>Profile</MenuItem>
-              <MenuItem onClick={onLogout} sx={{ fontSize: "0.875rem", py: 0.75 }}>Logout</MenuItem>
+                <MenuItem onClick={goProfile} sx={{ fontSize: "0.875rem", py: 0.75 }}>Profile</MenuItem>
+                <MenuItem onClick={onLogout} sx={{ fontSize: "0.875rem", py: 0.75 }}>Logout</MenuItem>
               </Menu>
             </Box>
           )}
