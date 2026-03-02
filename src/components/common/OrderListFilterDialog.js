@@ -14,6 +14,7 @@ import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
+import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
 
 const FILTER_KEYS = [
   "customer_name",
@@ -27,6 +28,7 @@ const FILTER_KEYS = [
   "order_number",
   "order_date_from",
   "order_date_to",
+  "current_stage_key",
 ];
 
 const EMPTY_VALUES = Object.fromEntries(
@@ -198,6 +200,22 @@ export default function OrderListFilterDialog({
             {userOptions.map((u) => (
               <MenuItem key={u.id} value={String(u.id)}>
                 {u.name ?? u.label ?? `User #${u.id}`}
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            name="current_stage_key"
+            label="Order stage"
+            placeholder="All stages"
+            value={localValues.current_stage_key}
+            onChange={(e) => handleChange("current_stage_key", e.target.value)}
+            size="small"
+            fullWidth
+          >
+            <MenuItem value="">All</MenuItem>
+            {ORDER_STAGE_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
               </MenuItem>
             ))}
           </Select>
