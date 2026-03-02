@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Chip, Typography } from "@mui/material";
+import { Box, Chip } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
-import { IconCheck, IconX, IconPrinter, IconLoader2, IconPhoto } from "@tabler/icons-react";
+import { IconCheck, IconX, IconPrinter, IconLoader2, IconPhoto, IconEye } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import orderDocumentsService from "@/services/orderDocumentsService";
@@ -22,6 +22,9 @@ import { Button as UiButton } from "@/components/ui/button";
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
 
 export default function PaymentAuditTable({ filterParams = {} }) {
+  const [loadingReceipt, setLoadingReceipt] = useState(new Set());
+  const [loadingProof, setLoadingProof] = useState(new Set());
+
   const [approveDialog, setApproveDialog] = useState({
     open: false,
     paymentId: null,
@@ -114,6 +117,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
   };
 
   const handlePrintReceipt = async (id) => {
+    setLoadingReceipt((prev) => new Set(prev).add(id));
     try {
       const { blob, filename } = await orderPaymentsService.downloadReceiptPDF(id);
       const url = window.URL.createObjectURL(blob);
@@ -128,10 +132,13 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       console.error("Failed to download payment receipt:", err);
       const msg = err?.response?.data?.message || err?.message || "Failed to download payment receipt";
       toastError(msg);
+    } finally {
+      setLoadingReceipt((prev) => { const s = new Set(prev); s.delete(id); return s; });
     }
   };
 
   const handleViewPaymentProof = async (id) => {
+    setLoadingProof((prev) => new Set(prev).add(id));
     try {
       const url = await orderPaymentsService.getReceiptUrl(id);
       if (url) {
@@ -143,6 +150,8 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       console.error("Failed to get payment proof URL:", err);
       const msg = err?.response?.data?.message || err?.message || "No payment proof available";
       toastError(msg);
+    } finally {
+      setLoadingProof((prev) => { const s = new Set(prev); s.delete(id); return s; });
     }
   };
 
@@ -341,20 +350,30 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               <UiButton
                 variant="outline"
                 size="sm"
-                startIcon={<IconPhoto className="size-4" />}
+                disabled={loadingProof.has(row.id)}
+                startIcon={
+                  loadingProof.has(row.id)
+                    ? <IconLoader2 className="size-4 animate-spin" />
+                    : <IconEye className="size-4" />
+                }
                 onClick={() => handleViewPaymentProof(row.id)}
               >
-                View payment proof
+                {loadingProof.has(row.id) ? "Loading…" : "View Proof"}
               </UiButton>
             )}
             {isApproved && (canRead || canUpdate) && (
               <UiButton
                 variant="outline"
                 size="sm"
-                startIcon={<IconPrinter className="size-4" />}
+                disabled={loadingReceipt.has(row.id)}
+                startIcon={
+                  loadingReceipt.has(row.id)
+                    ? <IconLoader2 className="size-4 animate-spin" />
+                    : <IconPrinter className="size-4" />
+                }
                 onClick={() => handlePrintReceipt(row.id)}
               >
-                Print Receipt
+                {loadingReceipt.has(row.id) ? "Downloading…" : "Print Receipt"}
               </UiButton>
             )}
           </Box>
@@ -370,7 +389,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         fetcher={fetchPayments}
         initialPage={1}
         initialLimit={25}
-        showSearch={true}
+        showSearch={false}
         height={calculatedTableHeight()}
         getRowKey={(row) => row.id}
         filterParams={filterParams}
