@@ -45,7 +45,7 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
             {/* Main Content Container - 1440px max width constrained layout for enterprise standard check */}
-            <div className="mx-auto max-w-[1440px] px-6 py-6 pb-20 space-y-6">
+            <div className="mx-auto max-w-[1440px] px-4 py-4 pb-16 space-y-4">
 
                 {/* Header Title + Inline Filter Panel */}
                 <div ref={filterPanelRef}>
@@ -75,13 +75,13 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
                 <KPICards filters={filters} dashboardApiBase={dashboardApiBase} />
 
                 {/* Section 2 - Order Pipeline Board */}
-                <div className="pt-2">
+                <div className="pt-1">
                     <PipelineBoard filters={filters} onOrderSelect={handleOpenDrawer} dashboardApiBase={dashboardApiBase} />
                 </div>
 
                 {/* CSS Grid for 12 columns layout to hold main content below */}
                 {/* Section 5 & 4 */}
-                <div className="grid grid-cols-12 gap-6 pt-2">
+                <div className="grid grid-cols-12 gap-4 pt-1">
 
                     {/* Section 5 - Analytics Section (Spans 12 columns by default, nested grid inside) */}
                     <div className="col-span-12">
