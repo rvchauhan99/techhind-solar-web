@@ -24,6 +24,22 @@ const FILTER_KEYS = [
   "order_number",
   "order_date_from",
   "order_date_to",
+  "current_stage_key",
+];
+
+/** Pipeline stage options for Order stage filter (value = current_stage_key). */
+export const ORDER_STAGE_OPTIONS = [
+  { value: "estimate_generated", label: "Estimate Generated" },
+  { value: "estimate_paid", label: "Estimate Paid" },
+  { value: "planner", label: "Planner" },
+  { value: "delivery", label: "Delivery" },
+  { value: "assign_fabricator_and_installer", label: "Assign Fabricator & Installer" },
+  { value: "fabrication", label: "Fabrication" },
+  { value: "installation", label: "Installation" },
+  { value: "netmeter_apply", label: "Netmeter Apply" },
+  { value: "netmeter_installed", label: "Netmeter Installed" },
+  { value: "subsidy_claim", label: "Subsidy Claim" },
+  { value: "subsidy_disbursed", label: "Subsidy Disbursed" },
 ];
 
 const EMPTY_VALUES = Object.fromEntries(
@@ -258,6 +274,24 @@ export default function OrderListFilterPanel({
                 {userOptions.map((u) => (
                   <MenuItem key={u.id} value={String(u.id)}>
                     {u.name ?? u.label ?? `User #${u.id}`}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Grid>
+            <Grid item xs={12} sm={6} md={2}>
+              <Select
+                name="current_stage_key"
+                label="Order stage"
+                placeholder="All stages"
+                value={localValues.current_stage_key}
+                onChange={(e) => handleChange("current_stage_key", e.target.value)}
+                size="small"
+                fullWidth
+              >
+                <MenuItem value="">All</MenuItem>
+                {ORDER_STAGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
                   </MenuItem>
                 ))}
               </Select>

@@ -71,7 +71,7 @@ export default function PipelineBoard({ filters, onOrderSelect, dashboardApiBase
             </div>
 
             {/* Horizontal Scroll Container */}
-            <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory hide-scroll-bar min-h-[200px] items-center justify-center" style={{ scrollbarWidth: "none" }}>
+            <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory hide-scroll-bar min-h-[200px] items-center justify-start" style={{ scrollbarWidth: "none" }}>
 
                 {loading ? (
                     <Loader />
