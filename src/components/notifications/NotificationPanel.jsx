@@ -378,6 +378,7 @@ export default function NotificationPanel({ open, onClose }) {
                   notification={n}
                   onRead={markRead}
                   onDismiss={deleteNotification}
+                  onClose={onClose}
                 />
               ))}
 

@@ -186,29 +186,53 @@ export function NotificationProvider({ children }) {
       if (!mountedRef.current) return;
       setNotifications((prev) => [payload, ...prev]);
       setUnreadCount((c) => c + 1);
-      // Play notification sound (double-chime via Web Audio) — respects mute toggle
+
+      // ── Rich 4-note ERP chime (~3.5 s) ── respects mute toggle
       try {
         const soundOn = typeof window !== "undefined"
-          ? (window.__solarSoundEnabled !== false)
+          ? (window.__solarSoundEnabled !== false && localStorage.getItem("solar-notif-sound") !== "false")
           : true;
         if (soundOn) {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const playTone = (freq, startTime, duration = 0.12) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.frequency.value = freq;
-            osc.type = "sine";
-            gain.gain.setValueAtTime(0.18, startTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
-            osc.start(startTime);
-            osc.stop(startTime + duration);
-          };
-          playTone(880, ctx.currentTime);
-          playTone(660, ctx.currentTime + 0.14);
+          // E5 → C5 → G4 → C4  (classic descending ERP chime)
+          const notes = [
+            { freq: 659.25, start: 0.0, dur: 1.4 },
+            { freq: 523.25, start: 0.9, dur: 1.4 },
+            { freq: 392.00, start: 1.8, dur: 1.4 },
+            { freq: 261.63, start: 2.7, dur: 0.9 },
+          ];
+          notes.forEach(({ freq, start, dur }) => {
+            // Sine oscillator – main tone
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.type = "sine";
+            osc1.frequency.value = freq;
+            const t = ctx.currentTime + start;
+            gain1.gain.setValueAtTime(0, t);
+            gain1.gain.linearRampToValueAtTime(0.22, t + 0.04);   // attack
+            gain1.gain.setValueAtTime(0.18, t + 0.12);            // sustain
+            gain1.gain.exponentialRampToValueAtTime(0.0001, t + dur); // decay
+            osc1.start(t);
+            osc1.stop(t + dur);
+
+            // Triangle oscillator – harmonic warmth
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.type = "triangle";
+            osc2.frequency.value = freq * 2;
+            gain2.gain.setValueAtTime(0, t);
+            gain2.gain.linearRampToValueAtTime(0.06, t + 0.04);
+            gain2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
+            osc2.start(t);
+            osc2.stop(t + dur);
+          });
         }
       } catch (_) { }
+
       // Browser notification (if permitted and not already focused on app)
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
         const title = payload?.title || "New notification";

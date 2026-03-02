@@ -68,7 +68,7 @@ function resolveRedirectUrl(mod, referenceId, redirect_url) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function NotificationCard({ notification, onRead, onDismiss, compact = false }) {
+export default function NotificationCard({ notification, onRead, onDismiss, onClose, compact = false }) {
   const router = useRouter();
   const [markingRead, setMarkingRead] = useState(false);
 
@@ -93,6 +93,8 @@ export default function NotificationCard({ notification, onRead, onDismiss, comp
     if (!is_read && onRead) {
       onRead(id);
     }
+    // Close panel before navigating so the drawer doesn't persist on next page
+    if (onClose) onClose();
     router.push(resolvedUrl);
   };
 

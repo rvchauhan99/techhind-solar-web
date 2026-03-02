@@ -66,17 +66,34 @@ function playChime() {
     if (!enabled) return;
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const play = (freq, when, duration) => {
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.connect(g); g.connect(ctx.destination);
-            o.type = "sine"; o.frequency.setValueAtTime(freq, when);
-            g.gain.setValueAtTime(0.18, when);
-            g.gain.exponentialRampToValueAtTime(0.0001, when + duration);
-            o.start(when); o.stop(when + duration);
-        };
-        play(880, ctx.currentTime, 0.18);
-        play(660, ctx.currentTime + 0.22, 0.22);
+        // E5 → C5 → G4 → C4  (classic descending ERP chime, ~3.5 s)
+        const notes = [
+            { freq: 659.25, start: 0.0, dur: 1.4 },
+            { freq: 523.25, start: 0.9, dur: 1.4 },
+            { freq: 392.00, start: 1.8, dur: 1.4 },
+            { freq: 261.63, start: 2.7, dur: 0.9 },
+        ];
+        notes.forEach(({ freq, start, dur }) => {
+            const osc1 = ctx.createOscillator();
+            const g1 = ctx.createGain();
+            osc1.connect(g1); g1.connect(ctx.destination);
+            osc1.type = "sine"; osc1.frequency.value = freq;
+            const t = ctx.currentTime + start;
+            g1.gain.setValueAtTime(0, t);
+            g1.gain.linearRampToValueAtTime(0.22, t + 0.04);
+            g1.gain.setValueAtTime(0.18, t + 0.12);
+            g1.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+            osc1.start(t); osc1.stop(t + dur);
+
+            const osc2 = ctx.createOscillator();
+            const g2 = ctx.createGain();
+            osc2.connect(g2); g2.connect(ctx.destination);
+            osc2.type = "triangle"; osc2.frequency.value = freq * 2;
+            g2.gain.setValueAtTime(0, t);
+            g2.gain.linearRampToValueAtTime(0.06, t + 0.04);
+            g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
+            osc2.start(t); osc2.stop(t + dur);
+        });
     } catch { /* noop */ }
 }
 
