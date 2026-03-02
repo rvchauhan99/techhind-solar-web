@@ -431,7 +431,8 @@ export default function Sidebar({
           </div>
           {searchQuery.trim() && (
             <div
-              className="border-border bg-popover absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-md"
+              data-sidebar-search-dropdown
+              className="border-[#0f1f3a] bg-[#1b365d] absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
               role="listbox"
             >
               {searchResults.length > 0 ? (
@@ -442,7 +443,7 @@ export default function Sidebar({
                       <li key={`${item.fullPath}-${index}`} role="option">
                         <button
                           type="button"
-                          className="hover:bg-[#142847] flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-blue-100 transition-colors"
+                          className="hover:bg-[#142847] flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-white transition-colors"
                           onClick={() => handleSearchSelect(item)}
                         >
                           <IconComponent className="h-4 w-4 shrink-0" />
@@ -453,7 +454,7 @@ export default function Sidebar({
                   })}
                 </ul>
               ) : (
-                <p className="text-muted-foreground px-3 py-3 text-sm">
+                <p className="text-blue-200/80 px-3 py-3 text-sm">
                   No menu matches
                 </p>
               )}

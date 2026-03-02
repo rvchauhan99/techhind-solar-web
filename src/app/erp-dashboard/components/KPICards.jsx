@@ -10,6 +10,24 @@ import {
 } from "@tabler/icons-react";
 import ordersDashboardService from "@/services/ordersDashboardService";
 
+const PLACEHOLDER_KPIS = [
+    { title: "Active Orders (30 days)", value: "0", trend: "", isPositive: true, icon: null },
+    { title: "Project Value (₹)", value: "0", trend: "", isPositive: true, icon: null },
+    { title: "Capacity (kW)", value: "0", trend: "", isPositive: true, icon: null },
+    { title: "Netmeter Pending", value: "0", trend: "", isPositive: false, icon: null },
+    { title: "Subsidy Pending", value: "0", trend: "", isPositive: false, icon: null },
+    { title: "Delivery Partial", value: "0", trend: "", isPositive: true, icon: null },
+];
+
+const KPI_ICONS = [
+    <IconShoppingCart key="cart" className="w-5 h-5 text-blue-600" />,
+    <IconCurrencyRupee key="rupee" className="w-5 h-5 text-emerald-600" />,
+    <IconTool key="tool" className="w-5 h-5 text-amber-500" />,
+    <IconBolt key="bolt" className="w-5 h-5 text-violet-600" />,
+    <IconReceipt key="receipt" className="w-5 h-5 text-rose-500" />,
+    <IconTruckDelivery key="truck" className="w-5 h-5 text-cyan-600" />,
+];
+
 export default function KPICards({ filters, dashboardApiBase }) {
     const [kpis, setKpis] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -23,20 +41,18 @@ export default function KPICards({ filters, dashboardApiBase }) {
                 if (!isMounted) return;
                 const payload = res?.result || res?.data || res || {};
                 const totals = payload.totals || {};
-                const byStatus = payload.by_status || [];
+                const byStage = payload.by_stage || [];
                 const byDelivery = payload.by_delivery_status || [];
 
                 const totalOrders = totals.total_orders ?? 0;
                 const totalCapacity = totals.total_capacity_kw ?? 0;
                 const totalProjectCost = totals.total_project_cost ?? 0;
-                const installationPending =
-                    byStatus.find((s) => s.status === "confirmed")?.count ?? 0;
+                const netmeterPending =
+                    byStage.find((s) => s.current_stage_key === "netmeter_apply")?.count ?? 0;
+                const subsidyPending =
+                    byStage.find((s) => s.current_stage_key === "subsidy_claim")?.count ?? 0;
                 const deliveryPartial =
                     byDelivery.find((d) => d.delivery_status === "partial")?.count ?? 0;
-                const netmeterPending =
-                    byStatus.find((s) => s.status === "netmeter_pending")?.count ?? 0;
-                const subsidyPending =
-                    byStatus.find((s) => s.status === "subsidy_pending")?.count ?? 0;
 
                 const nextKpis = [
                     {
@@ -96,28 +112,29 @@ export default function KPICards({ filters, dashboardApiBase }) {
         };
     }, [filters, dashboardApiBase]);
 
+    const displayKpis =
+        kpis.length > 0
+            ? kpis
+            : PLACEHOLDER_KPIS.map((p, i) => ({
+                  ...p,
+                  value: loading ? "…" : p.value,
+                  icon: KPI_ICONS[i],
+              }));
+
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 h-auto lg:h-[110px]">
-            {(kpis.length ? kpis : [
-                {
-                    title: "Active Orders (30 days)",
-                    value: loading ? "…" : "0",
-                    trend: "",
-                    isPositive: true,
-                    icon: <IconShoppingCart className="w-5 h-5 text-blue-600" />,
-                },
-            ]).map((kpi, index) => (
-                <Card key={index} className="rounded-2xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md">
-                    <CardContent className="p-4 flex flex-col justify-between h-full">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 h-auto lg:h-[100px]">
+            {displayKpis.map((kpi, index) => (
+                <Card key={index} className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md ${loading ? "animate-pulse" : ""}`}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start">
                             <span className="text-xs font-medium text-slate-500">{kpi.title}</span>
-                            <div className="p-1.5 bg-slate-50 rounded-lg">
+                            <div className="p-1 bg-slate-50 rounded-lg">
                                 {kpi.icon}
                             </div>
                         </div>
 
-                        <div className="mt-3 flex items-baseline justify-between">
-                            <span className="text-xl font-bold text-slate-900">{kpi.value}</span>
+                        <div className="mt-2 flex items-baseline justify-between">
+                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>{kpi.value}</span>
                             <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${kpi.isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                                 }`}>
                                 {kpi.trend}
