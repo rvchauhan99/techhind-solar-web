@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { IconFilter, IconDownload } from "@tabler/icons-react";
 import ordersDashboardService from "@/services/ordersDashboardService";
+import Loader from "@/components/common/Loader";
 
 const getStageBadgeColor = (stage) => {
     if (stage.includes("Estimate")) return "bg-blue-50 text-blue-700 border-blue-200";
@@ -109,7 +110,12 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
             </div>
 
             {/* Table Container - Handle overflow carefully */}
-            <div className="overflow-x-auto w-full">
+            <div className="relative overflow-x-auto w-full min-h-[200px]">
+                {loading && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80">
+                        <Loader />
+                    </div>
+                )}
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                         <tr>

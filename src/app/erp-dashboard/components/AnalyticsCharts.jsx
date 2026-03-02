@@ -9,6 +9,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import ordersDashboardService from "@/services/ordersDashboardService";
+import Loader from "@/components/common/Loader";
 
 const COLORS = ['#10b981', '#f59e0b', '#3b82f6', '#ef4444']; // Emerald, Amber, Blue, Red
 
@@ -120,7 +121,12 @@ export default function AnalyticsCharts({ filters, dashboardApiBase }) {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
-
+            {loading ? (
+                <div className="col-span-full flex items-center justify-center min-h-[300px]">
+                    <Loader />
+                </div>
+            ) : (
+                <>
             {/* 1. Monthly Revenue Area Chart */}
             <ChartWrapper title="Revenue Trend (₹ Lakhs)">
                 <AreaChart data={revenueData} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
@@ -185,6 +191,8 @@ export default function AnalyticsCharts({ filters, dashboardApiBase }) {
                 </PieChart>
             </ChartWrapper>
 
+                </>
+            )}
         </div>
     );
 }

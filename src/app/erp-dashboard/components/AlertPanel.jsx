@@ -4,9 +4,11 @@ import ordersDashboardService from "@/services/ordersDashboardService";
 
 export default function AlertPanel({ filters, dashboardApiBase }) {
     const [alerts, setAlerts] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
+        setLoading(true);
         ordersDashboardService
             .getOrdersDashboardPipeline(filters || {}, dashboardApiBase)
             .then((res) => {
@@ -63,12 +65,31 @@ export default function AlertPanel({ filters, dashboardApiBase }) {
             .catch(() => {
                 if (!isMounted) return;
                 setAlerts([]);
+            })
+            .finally(() => {
+                if (isMounted) setLoading(false);
             });
 
         return () => {
             isMounted = false;
         };
     }, [filters, dashboardApiBase]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full">
+                {[1, 2, 3].map((i) => (
+                    <div
+                        key={i}
+                        className="flex items-center px-4 py-2.5 rounded-xl border flex-1 min-w-[280px] shadow-sm bg-slate-100 border-slate-200 animate-pulse"
+                    >
+                        <div className="shrink-0 w-8 h-8 rounded-full bg-slate-200 mr-3" />
+                        <div className="h-4 flex-1 max-w-[200px] bg-slate-200 rounded" />
+                    </div>
+                ))}
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 w-full">
