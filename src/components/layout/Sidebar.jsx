@@ -12,6 +12,7 @@ import {
   IconLogout,
   IconSearch,
   IconCircle,
+  IconBell,
 } from "@tabler/icons-react";
 import {
   DropdownMenu,
@@ -33,6 +34,8 @@ import { cn } from "@/lib/utils";
 import { getIcon } from "@/utils/iconMapper";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useNotifications } from "@/context/NotificationContext";
+import NotificationPanel from "@/components/notifications/NotificationPanel";
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -186,10 +189,12 @@ export default function Sidebar({
   onToggleCollapse = () => { },
 }) {
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
   const router = useRouter();
   const pathname = usePathname();
   const isDesktop = useIsDesktop();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchContainerRef = useRef(null);
   const modules = user?.modules || [];
@@ -297,6 +302,20 @@ export default function Sidebar({
 
           {/* Nav: icon only, top-level */}
           <nav className="mb-4 flex flex-1 flex-col items-center gap-1">
+            {/* Notifications */}
+            <button
+              type="button"
+              onClick={() => setNotificationPanelOpen(true)}
+              title="Notifications"
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md border-l-2 border-transparent text-blue-100 transition-colors hover:bg-[#142847] hover:text-white"
+            >
+              <IconBell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="bg-red-500 absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              )}
+            </button>
             {modules.map((item, index) => {
               const IconComponent = getIcon(item?.icon) || IconCircle;
               const route = getFirstRoute(item);
@@ -346,6 +365,7 @@ export default function Sidebar({
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <NotificationPanel open={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
       </aside>
     );
   }
@@ -462,6 +482,23 @@ export default function Sidebar({
           )}
         </div>
 
+        {/* Notifications */}
+        <button
+          type="button"
+          onClick={() => setNotificationPanelOpen(true)}
+          className="hover:bg-[#142847] flex w-full items-center gap-2 rounded-md border-l-4 border-transparent px-3 py-1.5 text-left text-sm font-medium text-blue-100 transition-colors"
+        >
+          <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+            <IconBell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="bg-red-500 absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[9px] font-medium text-white">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </span>
+          <span className="flex-1 truncate">Notifications</span>
+        </button>
+
         {/* Main Menu */}
         <nav className="mb-6 space-y-1">
           {modules.map((item, index) => (
@@ -478,6 +515,7 @@ export default function Sidebar({
           {sidebarToggleButton}
         </div>
       </div>
+      <NotificationPanel open={notificationPanelOpen} onClose={() => setNotificationPanelOpen(false)} />
     </aside>
   );
 }

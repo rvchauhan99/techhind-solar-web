@@ -1,7 +1,9 @@
 import { Manrope, Geist, Geist_Mono } from "next/font/google";
 import AuthProvider from "@/context/AuthContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { Providers } from "@/components/providers";
 import ConditionalLayout from "@/components/layout/ConditionalLayout";
+import FloatingNotificationWidget from "@/components/notifications/FloatingNotificationWidgetLoader";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -39,7 +41,10 @@ export default function RootLayout({ children }) {
       >
         <Providers>
           <AuthProvider>
-            <ConditionalLayout>{children}</ConditionalLayout>
+            <NotificationProvider>
+              <ConditionalLayout>{children}</ConditionalLayout>
+              <FloatingNotificationWidget />
+            </NotificationProvider>
           </AuthProvider>
         </Providers>
       </body>
