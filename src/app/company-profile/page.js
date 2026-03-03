@@ -8,44 +8,17 @@ import Loader from "@/components/common/Loader";
 import Checkbox from "@/components/common/Checkbox";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
-import {
-    Box,
-    Card,
-    CardContent,
-    Typography,
-    Button,
-    Grid,
-    Alert,
-    CircularProgress,
-    Breadcrumbs,
-    Link,
-    IconButton,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    Chip,
-    Tabs,
-    Tab,
-    FormControlLabel,
-    Switch,
-    Select,
-    MenuItem,
-    FormControl,
-    InputLabel,
-} from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import PersonIcon from "@mui/icons-material/Person";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import SmsIcon from "@mui/icons-material/Sms";
-import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import { Button as ThemeButton } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import Select, { MenuItem } from "@/components/common/Select";
 import {
     Dialog,
     DialogContent,
@@ -89,7 +62,7 @@ export default function CompanyProfilePage() {
     const [warehouseManagersLoading, setWarehouseManagersLoading] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
     const [managersSelectedIds, setManagersSelectedIds] = useState([]);
-    const [activeTab, setActiveTab] = useState(0);
+    const [activeTab, setActiveTab] = useState("0");
     const [quotationTemplateOptions, setQuotationTemplateOptions] = useState([]);
     const [imageUrls, setImageUrls] = useState({ logo: null, header: null, footer: null, stamp: null });
     const [formData, setFormData] = useState({
@@ -111,6 +84,7 @@ export default function CompanyProfilePage() {
         bank_account_number: "",
         bank_account_ifsc: "",
         bank_account_branch: "",
+        upi_id: "",
         is_active: true,
         is_default: false,
     });
@@ -235,7 +209,7 @@ export default function CompanyProfilePage() {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        
+
         // Real-time validation
         if ((name === "owner_number" || name === "contact_number") && value && value.trim() !== "") {
             const phoneValidation = validatePhone(value);
@@ -266,7 +240,7 @@ export default function CompanyProfilePage() {
                 return newErrors;
             });
         }
-        
+
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (error) setError("");
     };
@@ -396,6 +370,7 @@ export default function CompanyProfilePage() {
                 bank_account_number: "",
                 bank_account_ifsc: "",
                 bank_account_branch: "",
+                upi_id: "",
                 is_active: true,
                 is_default: false,
             });
@@ -419,6 +394,7 @@ export default function CompanyProfilePage() {
             bank_account_number: account.bank_account_number || "",
             bank_account_ifsc: account.bank_account_ifsc || "",
             bank_account_branch: account.bank_account_branch || "",
+            upi_id: account.upi_id || "",
             is_active: account.is_active !== undefined ? account.is_active : true,
             is_default: account.is_default !== undefined ? account.is_default : false,
         });
@@ -459,6 +435,7 @@ export default function CompanyProfilePage() {
             bank_account_number: "",
             bank_account_ifsc: "",
             bank_account_branch: "",
+            upi_id: "",
             is_active: true,
             is_default: false,
         });
@@ -474,6 +451,7 @@ export default function CompanyProfilePage() {
             bank_account_number: "",
             bank_account_ifsc: "",
             bank_account_branch: "",
+            upi_id: "",
             is_active: true,
             is_default: false,
         });
@@ -948,7 +926,7 @@ export default function CompanyProfilePage() {
             address: "",
             is_active: true,
         };
-        
+
         // Try to load default state
         try {
             const defaultStateRes = await getDefaultState();
@@ -960,7 +938,7 @@ export default function CompanyProfilePage() {
             console.error("Failed to load default state:", err);
             // Continue without default state
         }
-        
+
         setWarehouseFormData(initialFormData);
         setWarehouseErrors({});
         setWarehouseDialogOpen(true);
@@ -1046,10 +1024,10 @@ export default function CompanyProfilePage() {
     if (loading) {
         return (
             <ProtectedRoute>
-                {/* <AppLayout> */} 
-                    <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-                        <CircularProgress />
-                    </Box>
+                {/* <AppLayout> */}
+                <div className="flex justify-center items-center min-h-[400px]">
+                    <Loader />
+                </div>
                 {/* </AppLayout> */}
             </ProtectedRoute>
         );
@@ -1080,49 +1058,42 @@ export default function CompanyProfilePage() {
 
     return (
         <ProtectedRoute>
-            <Box>
+            <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
                 {/* Page Title */}
-                <Typography variant="h4" sx={{ mb: 3 }}>
+                <h2 className="text-2xl font-bold tracking-tight text-gray-900">
                     Company Profile
-                </Typography>
+                </h2>
 
                 {/* Success/Error Messages */}
                 {success && (
-                    <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess("")}>
-                        {success}
-                    </Alert>
+                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                        <span className="block sm:inline">{success}</span>
+                        <span className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setSuccess("")}>
+                            <svg className="fill-current h-6 w-6 text-green-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" /></svg>
+                        </span>
+                    </div>
                 )}
                 {error && (
-                    <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
-                        {error}
-                    </Alert>
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                        <span className="block sm:inline">{error}</span>
+                        <span className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError("")}>
+                            <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z" /></svg>
+                        </span>
+                    </div>
                 )}
 
-                {/* Summary Cards */}
-
-
                 {/* Main Content */}
-                <Grid container spacing={2} >
+                <div className="flex flex-col lg:flex-row gap-6">
                     {/* Left Column - Company Information */}
-                    <Grid size={3} sx={{ maxHeight: calculateMaxHeight(), overflow: "auto" }}>
+                    <div className="w-full lg:w-1/4 flex flex-col gap-6 overflow-y-auto" style={{ maxHeight: calculateMaxHeight() }}>
                         {/* Company Information Card */}
-                        <Card sx={{ mb: 3 }}>
-                            <CardContent>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="p-5">
                                 {/* Company Logo - Small */}
                                 {company?.logo && (
-                                    <Box
-                                        sx={{
-                                            display: "flex",
-                                            justifyContent: "center",
-                                            alignItems: "center",
-                                            mb: 2,
-                                            p: 1,
-                                            // border: "1px solid #e0e0e0",
-                                            // borderRadius: 1,
-                                            bgcolor: "#fff",
-                                            underline: "1px solidrgb(88, 84, 198)",
-                                        }}
+                                    <div
+                                        className="flex justify-center items-center mb-4 p-2 bg-white border-b border-gray-100"
                                     >
                                         <img
                                             src={getImageUrl("logo")}
@@ -1133,29 +1104,17 @@ export default function CompanyProfilePage() {
                                                 objectFit: "contain",
                                             }}
                                         />
-                                    </Box>
+                                    </div>
                                 )}
                                 {/* Company Name - Highlighted */}
                                 {company?.company_name && (
-                                    <Typography
-                                        variant="h6"
-                                        style={{
-                                           borderBottom: "1px solid rgb(189 189 189)",
-                                        }}
-                                        sx={{
-                                            textAlign: "center",
-                                            mb: 2,
-                                            fontWeight: 600,
-                                            color: "primary.main",
-                                            fontSize: "1.1rem",
-                                        }}
-                                    >
+                                    <h2 className="text-center mb-4 pb-3 font-semibold text-primary text-lg border-b border-gray-200">
                                         {company.company_name}
-                                    </Typography>
+                                    </h2>
                                 )}
-                                <div className="flex justify-between items-center mb-3">
-                                    <h3 className="text-base font-semibold">Company Information</h3>
-                                    <ThemeButton
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-base font-semibold text-gray-900">Company Information</h3>
+                                    <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon-sm"
@@ -1166,9 +1125,9 @@ export default function CompanyProfilePage() {
                                         }}
                                     >
                                         <EditIcon sx={{ fontSize: 18 }} />
-                                    </ThemeButton>
+                                    </Button>
                                 </div>
-                                <dl className="space-y-2.5 text-sm">
+                                <dl className="space-y-4 text-sm">
                                     <div>
                                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Company Name</dt>
                                         <dd className="mt-0.5 font-medium">{formData.company_name || "—"}</dd>
@@ -1190,15 +1149,15 @@ export default function CompanyProfilePage() {
                                         <dd className="mt-0.5 font-medium">{formData.owner_number || "—"}</dd>
                                     </div>
                                 </dl>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </div>
 
                         {/* Registered Office Card */}
-                        <Card>
-                            <CardContent>
-                                <div className="flex justify-between items-center mb-3">
-                                    <h3 className="text-base font-semibold">Registered Office</h3>
-                                    <ThemeButton
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="p-5">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-base font-semibold text-gray-900">Registered Office</h3>
+                                    <Button
                                         type="button"
                                         variant="ghost"
                                         size="icon-sm"
@@ -1209,9 +1168,9 @@ export default function CompanyProfilePage() {
                                         }}
                                     >
                                         <EditIcon sx={{ fontSize: 18 }} />
-                                    </ThemeButton>
+                                    </Button>
                                 </div>
-                                <dl className="space-y-2.5 text-sm">
+                                <dl className="space-y-4 text-sm">
                                     <div>
                                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Address</dt>
                                         <dd className="mt-0.5 font-medium whitespace-pre-wrap">{formData.address || "—"}</dd>
@@ -1237,430 +1196,261 @@ export default function CompanyProfilePage() {
                                         <dd className="mt-0.5 font-medium">{formData.company_website || "—"}</dd>
                                     </div>
                                 </dl>
-                            </CardContent>
-                        </Card>
-                    </Grid>
+                            </div>
+                        </div>
+                    </div>
 
-                    {/* Right Column - Bank Details */}
-                    <Grid size={9}>
-                        <Grid container spacing={3} sx={{ mb: 3 }} justifyContent="space-between">
-                            <Grid item xs={12} md={3} size={4}>
-                                <Card
-                                    sx={{
-                                        bgcolor: "#4caf50",
-                                        color: "white",
-                                        height: "100%",
-                                    }}
-                                >
-                                    <CardContent>
-                                        <Box display="flex" alignItems="center" mb={1}>
-                                            <PersonIcon sx={{ mr: 1 }} />
-                                            <Typography variant="h6">User Limit</Typography>
-                                        </Box>
-                                        <Typography variant="h4">
-                                            {company?.user_limit_used || 0} / {company?.user_limit_total || 0}
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            {((company?.user_limit_total || 0) - (company?.user_limit_used || 0))} of{" "}
-                                            {company?.user_limit_total || 0} Remaining
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} md={3} size={4}>
-                                <Card
-                                    sx={{
-                                        bgcolor: "#ff9800",
-                                        color: "white",
-                                        height: "100%",
-                                    }}
-                                >
-                                    <CardContent>
-                                        <Box display="flex" alignItems="center" mb={1}>
-                                            <CalendarTodayIcon sx={{ mr: 1 }} />
-                                            <Typography variant="h6">Plan Valid Till</Typography>
-                                        </Box>
-                                        <Typography variant="h5">{formattedDate}</Typography>
-                                        <Typography variant="body2">
-                                            {daysLeft > 0 ? `${daysLeft} Days Left` : "Expired"}
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                            <Grid item xs={12} md={3} size={4}>
-                                <Card
-                                    sx={{
-                                        bgcolor: "#f44336",
-                                        color: "white",
-                                        height: "100%",
-                                        cursor: "pointer",
-                                        "&:hover": {
-                                            opacity: 0.9,
-                                        },
-                                    }}
-                                    onClick={() => {
-                                        console.log("SMS Credit clicked", {
-                                            used: company?.sms_credit_used || 0,
-                                            total: company?.sms_credit_total || 0,
-                                            percentage: company?.sms_credit_total
-                                                ? Math.round(((company?.sms_credit_used || 0) / company.sms_credit_total) * 100)
-                                                : 0,
-                                        });
-                                    }}
-                                >
-                                    <CardContent>
-                                        <Box display="flex" alignItems="center" mb={1}>
-                                            <SmsIcon sx={{ mr: 1 }} />
-                                            <Typography variant="h6">SMS Credit</Typography>
-                                        </Box>
-                                        <Typography variant="h4">
-                                            {company?.sms_credit_used || 0} / {company?.sms_credit_total || 0}
-                                        </Typography>
-                                        <Typography variant="body2">
-                                            {company?.sms_credit_total
-                                                ? Math.round(((company?.sms_credit_used || 0) / company.sms_credit_total) * 100)
-                                                : 0}
-                                            % Used
-                                        </Typography>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        </Grid>
-                        <Card>
-                            <CardContent>
-                                <Tabs
-                                    value={activeTab}
-                                    onChange={(e, v) => {
-                                        setActiveTab(v);
-                                        // Load data when tab is clicked
-                                        if (v === 1 && !branchesLoaded) {
-                                            // Branch Details tab
-                                            loadBranches();
-                                        } else if (v === 3 && !warehousesLoaded) {
-                                            // Warehouse tab
-                                            loadWarehouses();
-                                        }
-                                        // Tab 2 (Images) can be handled later if needed
-                                    }}
-                                    sx={{ mb: 0 }}
-                                >
-                                    <Tab label="Bank Details" />
-                                    <Tab label="Branch Details" />
-                                    <Tab label="Images" />
-                                    <Tab label="Warehouse" />
-                                </Tabs>
-                                {activeTab === 0 && (
-                                    <>
-                                        <Box display="flex" justifyContent="flex-end" mb={2}>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                onClick={handleNewBankAccount}
-                                            >
+                    {/* Right Column - Data */}
+                    <div className="w-full lg:w-3/4 flex flex-col gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* User Limit KPI */}
+                            <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-5 shadow-sm text-emerald-900">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center">
+                                        <PersonIcon className="mr-2 text-emerald-600" />
+                                        <h3 className="text-sm font-semibold text-emerald-800 uppercase tracking-wider">User Limit</h3>
+                                    </div>
+                                </div>
+                                <div className="text-3xl font-bold mb-1">
+                                    {company?.user_limit_used || 0} / {company?.user_limit_total || 0}
+                                </div>
+                                <div className="text-sm text-emerald-700 font-medium">
+                                    {((company?.user_limit_total || 0) - (company?.user_limit_used || 0))} of{" "}
+                                    {company?.user_limit_total || 0} Remaining
+                                </div>
+                            </div>
+
+                            {/* Plan Valid Till KPI */}
+                            <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 shadow-sm text-orange-900">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center">
+                                        <CalendarTodayIcon className="mr-2 text-orange-600" />
+                                        <h3 className="text-sm font-semibold text-orange-800 uppercase tracking-wider">Plan Valid Till</h3>
+                                    </div>
+                                </div>
+                                <div className="text-3xl font-bold mb-1">{formattedDate}</div>
+                                <div className="text-sm text-orange-700 font-medium">
+                                    {daysLeft > 0 ? `${daysLeft} Days Left` : "Expired"}
+                                </div>
+                            </div>
+                            {/* SMS Credit KPI */}
+                            <div
+                                className="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm text-blue-900 cursor-pointer hover:bg-blue-100 transition-colors"
+                                onClick={() => {
+                                    console.log("SMS Credit clicked", {
+                                        used: company?.sms_credit_used || 0,
+                                        total: company?.sms_credit_total || 0,
+                                        percentage: company?.sms_credit_total
+                                            ? Math.round(((company?.sms_credit_used || 0) / company.sms_credit_total) * 100)
+                                            : 0,
+                                    });
+                                }}
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="flex items-center">
+                                        <SmsIcon className="mr-2 text-blue-600" />
+                                        <h3 className="text-sm font-semibold text-blue-800 uppercase tracking-wider">SMS Credit</h3>
+                                    </div>
+                                </div>
+                                <div className="text-3xl font-bold mb-1">
+                                    {company?.sms_credit_used || 0} / {company?.sms_credit_total || 0}
+                                </div>
+                                <div className="text-sm text-blue-700 font-medium">
+                                    {company?.sms_credit_total
+                                        ? Math.round(((company?.sms_credit_used || 0) / company.sms_credit_total) * 100)
+                                        : 0}
+                                    % Used
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tabs Container */}
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <Tabs
+                                value={activeTab}
+                                onValueChange={(v) => {
+                                    setActiveTab(v);
+                                    if (v === "1" && !branchesLoaded) loadBranches();
+                                    else if (v === "3" && !warehousesLoaded) loadWarehouses();
+                                }}
+                                className="w-full"
+                            >
+                                <div className="border-b border-gray-200 px-4">
+                                    <TabsList className="h-12 bg-transparent">
+                                        <TabsTrigger value="0" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-4">Bank Details</TabsTrigger>
+                                        <TabsTrigger value="1" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-4">Branch Details</TabsTrigger>
+                                        <TabsTrigger value="2" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-4">Images</TabsTrigger>
+                                        <TabsTrigger value="3" className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-4">Warehouse</TabsTrigger>
+                                    </TabsList>
+                                </div>
+                                <div className="p-5">
+                                    <TabsContent value="0" className="m-0 focus-visible:outline-none">
+                                        <div className="flex justify-end mb-4">
+                                            <Button size="sm" onClick={handleNewBankAccount}>
                                                 + New Bank Details
                                             </Button>
-                                        </Box>
-                                        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                                            <TableContainer
-                                                component={Paper}
-                                                variant="outlined"
-                                            >
-                                                <Table sx={{ minWidth: 800 }}>
-                                                    <TableHead>
-                                                        <TableRow>
-                                                            {/* <TableCell>#</TableCell> */}
-                                                            <TableCell>Bank Name</TableCell>
-                                                            <TableCell>Account Name</TableCell>
-                                                            <TableCell>Account No</TableCell>
-                                                            <TableCell>IFSC</TableCell>
-                                                            <TableCell>Branch</TableCell>
-                                                            <TableCell>Active</TableCell>
-                                                            <TableCell>Default</TableCell>
-                                                            <TableCell>Actions</TableCell>
-                                                        </TableRow>
-                                                    </TableHead>
-                                                    <TableBody>
-                                                        {bankAccounts.length === 0 ? (
-                                                            <TableRow>
-                                                                <TableCell colSpan={9} align="center">
-                                                                    <Typography variant="body2" color="text.secondary">
-                                                                        No bank accounts found
-                                                                    </Typography>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ) : (
-                                                            bankAccounts.map((account, index) => (
-                                                                <TableRow key={account.id}>
-                                                                    {/* <TableCell>{index + 1}</TableCell> */}
-                                                                    <TableCell>{account.bank_name}</TableCell>
-                                                                    <TableCell>{account.bank_account_name}</TableCell>
-                                                                    <TableCell>{account.bank_account_number}</TableCell>
-                                                                    <TableCell>{account.bank_account_ifsc || "-"}</TableCell>
-                                                                    <TableCell>{account.bank_account_branch || "-"}</TableCell>
-                                                                    <TableCell>
-                                                                        <Chip
-                                                                            label={account.is_active ? "Active" : "Inactive"}
-                                                                            color={account.is_active ? "success" : "default"}
-                                                                            size="small"
-                                                                        />
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {account.is_default ? (
-                                                                            <Chip
-                                                                                label="Default"
-                                                                                color="primary"
-                                                                                size="small"
-                                                                            />
-                                                                        ) : (
-                                                                            "-"
-                                                                        )}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <div style={{ display: 'flex', gap: 8 }}>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="contained"
-                                                                                onClick={() => handleEditBankAccount(account)}
-                                                                            >
-                                                                                Edit
-                                                                            </Button>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                color="error"
-                                                                                onClick={() => handleDeleteBankAccount(account.id)}
-                                                                                disabled={account.is_default === true}
-                                                                            >
-                                                                                Delete
-                                                                            </Button>
-                                                                        </div>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))
-                                                        )}
-                                                    </TableBody>
-                                                </Table>
-                                            </TableContainer>
-                                        </Box>
-                                    </>
-                                )}
-                                {activeTab === 1 && (
-                                    <>
-                                        <Box display="flex" justifyContent="flex-end" mb={2}>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                onClick={handleNewBranch}
-                                            >
+                                        </div>
+                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                                <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Bank Name</th>
+                                                        <th className="px-4 py-3">Account Name</th>
+                                                        <th className="px-4 py-3">Account No</th>
+                                                        <th className="px-4 py-3">IFSC</th>
+                                                        <th className="px-4 py-3">Branch</th>
+                                                        <th className="px-4 py-3">UPI ID</th>
+                                                        <th className="px-4 py-3">Active</th>
+                                                        <th className="px-4 py-3">Default</th>
+                                                        <th className="px-4 py-3 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {bankAccounts.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                                                                No bank accounts found
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        bankAccounts.map((account) => (
+                                                            <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-gray-900">{account.bank_name}</td>
+                                                                <td className="px-4 py-3">{account.bank_account_name}</td>
+                                                                <td className="px-4 py-3">{account.bank_account_number}</td>
+                                                                <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
+                                                                <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
+                                                                <td className="px-4 py-3">{account.upi_id || "-"}</td>
+                                                                <td className="px-4 py-3">
+                                                                    <Badge variant={account.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
+                                                                        {account.is_active ? "Active" : "Inactive"}
+                                                                    </Badge>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {account.is_default ? (
+                                                                        <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-xs shadow-none">
+                                                                            Default
+                                                                        </Badge>
+                                                                    ) : "-"}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
+                                                                        <Button size="xs" variant="destructive-outline" onClick={() => handleDeleteBankAccount(account.id)} disabled={account.is_default === true}>Delete</Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="1" className="m-0 focus-visible:outline-none">
+                                        <div className="flex justify-end mb-4">
+                                            <Button size="sm" onClick={handleNewBranch}>
                                                 + New Branch
                                             </Button>
-                                        </Box>
-                                        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                                            <TableContainer
-                                                component={Paper}
-                                                variant="outlined"
-                                            >
-                                                <Table sx={{ minWidth: 800 }}>
-                                                    <TableHead>
-                                                        <TableRow>
-                                                            {/* <TableCell>#</TableCell> */}
-                                                            <TableCell>Name</TableCell>
-                                                            <TableCell>Address</TableCell>
-                                                            <TableCell>Email</TableCell>
-                                                            <TableCell>Contact No</TableCell>
-                                                            <TableCell>GST Number</TableCell>
-                                                            <TableCell>Quotation Template</TableCell>
-                                                            <TableCell>Active</TableCell>
-                                                            <TableCell>Default</TableCell>
-                                                            <TableCell>Actions</TableCell>
-                                                        </TableRow>
-                                                    </TableHead>
-                                                    <TableBody>
-                                                        {branches.length === 0 ? (
-                                                            <TableRow>
-                                                                <TableCell colSpan={10} align="center">
-                                                                    <Typography variant="body2" color="text.secondary">
-                                                                        No branches found
-                                                                    </Typography>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ) : (
-                                                            branches.map((branch, index) => (
-                                                                <TableRow key={branch.id}>
-                                                                    {/* <TableCell>{index + 1}</TableCell> */}
-                                                                    <TableCell>{branch.name}</TableCell>
-                                                                    <TableCell>{branch.address}</TableCell>
-                                                                    <TableCell>{branch.email}</TableCell>
-                                                                    <TableCell>{branch.contact_no}</TableCell>
-                                                                    <TableCell>{branch.gst_number}</TableCell>
-                                                                    <TableCell>
-                                                                        {branch.quotation_template?.name ?? branch.quotation_template_id ?? "—"}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Chip
-                                                                            label={branch.is_active ? "Active" : "Inactive"}
-                                                                            color={branch.is_active ? "success" : "default"}
-                                                                            size="small"
-                                                                        />
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        {branch.is_default && (
-                                                                            <Chip
-                                                                                label="Default"
-                                                                                color="primary"
-                                                                                size="small"
-                                                                            />
-                                                                        )}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <div style={{ display: 'flex', gap: 8 }}>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="contained"
-                                                                                onClick={() => handleEditBranch(branch)}
-                                                                            >
-                                                                                Edit
-                                                                            </Button>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                color="error"
-                                                                                onClick={() => handleDeleteBranch(branch.id)}
-                                                                            >
-                                                                                Delete
-                                                                            </Button>
-                                                                        </div>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))
-                                                        )}
-                                                    </TableBody>
-                                                </Table>
-                                            </TableContainer>
-                                        </Box>
-                                    </>
-                                )}
-                                {activeTab === 2 && (
-                                    <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                        {/* Company Logo */}
-                                        <Box>
-                                            <Typography variant="h6" sx={{ mb: 2 }}>
-                                                Company Logo
-                                            </Typography>
-                                            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                                {company?.logo ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                border: "1px solid #ddd",
-                                                                borderRadius: 1,
-                                                                p: 2,
-                                                                minWidth: 200,
-                                                                minHeight: 100,
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                bgcolor: "#fff",
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getImageUrl("logo")}
-                                                                alt="Company Logo"
-                                                                style={{
-                                                                    maxWidth: "100%",
-                                                                    maxHeight: "150px",
-                                                                    objectFit: "contain",
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                        <IconButton
-                                                            color="error"
-                                                            onClick={() => handleImageDelete("logo")}
-                                                            disabled={saving}
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    </>
-                                                ) : (
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        No logo uploaded
-                                                    </Typography>
-                                                )}
-                                                {!company?.logo && (
-                                                    <Button
-                                                        variant="outlined"
-                                                        component="label"
-                                                        startIcon={<CloudUploadIcon />}
-                                                        disabled={saving}
-                                                    >
-                                                        Upload Logo
-                                                        <input
-                                                            type="file"
-                                                            hidden
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files[0];
-                                                                if (file) {
-                                                                    handleImageUpload("logo", file);
-                                                                }
-                                                            }}
-                                                        />
-                                                    </Button>
-                                                )}
-                                            </Box>
-                                        </Box>
-
-                                        {/* Header */}
-                                        <Box>
-                                            <Typography variant="h6" sx={{ mb: 2 }}>
-                                                Header
-                                            </Typography>
-                                            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                                {company?.header ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                border: "1px solid #ddd",
-                                                                borderRadius: 1,
-                                                                p: 1,
-                                                                maxWidth: 600,
-                                                                maxHeight: 200,
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                bgcolor: "#fff",
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getImageUrl("header")}
-                                                                alt="Header"
-                                                                style={{
-                                                                    maxWidth: "100%",
-                                                                    maxHeight: "200px",
-                                                                    objectFit: "contain",
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                        <IconButton
-                                                            color="error"
-                                                            onClick={() => handleImageDelete("header")}
-                                                            disabled={saving}
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            No header uploaded
-                                                        </Typography>
+                                        </div>
+                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                                <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Name</th>
+                                                        <th className="px-4 py-3">Address</th>
+                                                        <th className="px-4 py-3">Email</th>
+                                                        <th className="px-4 py-3">Contact No</th>
+                                                        <th className="px-4 py-3">GST Number</th>
+                                                        <th className="px-4 py-3">Quotation Template</th>
+                                                        <th className="px-4 py-3">Active</th>
+                                                        <th className="px-4 py-3">Default</th>
+                                                        <th className="px-4 py-3 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {branches.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                                                                No branches found
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        branches.map((branch) => (
+                                                            <tr key={branch.id} className="hover:bg-gray-50 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-gray-900">{branch.name}</td>
+                                                                <td className="px-4 py-3 max-w-xs truncate">{branch.address}</td>
+                                                                <td className="px-4 py-3">{branch.email}</td>
+                                                                <td className="px-4 py-3">{branch.contact_no}</td>
+                                                                <td className="px-4 py-3">{branch.gst_number}</td>
+                                                                <td className="px-4 py-3 text-gray-500">
+                                                                    {branch.quotation_template?.name ?? branch.quotation_template_id ?? "—"}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <Badge variant={branch.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
+                                                                        {branch.is_active ? "Active" : "Inactive"}
+                                                                    </Badge>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {branch.is_default && (
+                                                                        <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-xs shadow-none">
+                                                                            Default
+                                                                        </Badge>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <Button size="xs" variant="outline" onClick={() => handleEditBranch(branch)}>Edit</Button>
+                                                                        <Button size="xs" variant="destructive-outline" onClick={() => handleDeleteBranch(branch.id)}>Delete</Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="2" className="m-0 focus-visible:outline-none">
+                                        <div className="flex flex-col gap-8">
+                                            {/* Company Logo */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Company Logo
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.logo ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("logo")}
+                                                                    alt="Company Logo"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "150px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("logo")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500">
+                                                            No logo uploaded
+                                                        </p>
+                                                    )}
+                                                    {!company?.logo && (
                                                         <Button
                                                             variant="outlined"
                                                             component="label"
                                                             startIcon={<CloudUploadIcon />}
                                                             disabled={saving}
                                                         >
-                                                            Upload Header
+                                                            Upload Logo
                                                             <input
                                                                 type="file"
                                                                 hidden
@@ -1668,70 +1458,170 @@ export default function CompanyProfilePage() {
                                                                 onChange={(e) => {
                                                                     const file = e.target.files[0];
                                                                     if (file) {
-                                                                        handleImageUpload("header", file);
+                                                                        handleImageUpload("logo", file);
                                                                     }
                                                                 }}
                                                             />
                                                         </Button>
-                                                        <Typography variant="caption" color="error">
-                                                            Recommended: Image size 1900(w) x 300(h) px
-                                                        </Typography>
-                                                    </>
-                                                )}
-                                            </Box>
-                                        </Box>
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                        {/* Footer */}
-                                        <Box>
-                                            <Typography variant="h6" sx={{ mb: 2 }}>
-                                                Footer
-                                            </Typography>
-                                            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                                {company?.footer ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                border: "1px solid #ddd",
-                                                                borderRadius: 1,
-                                                                p: 1,
-                                                                maxWidth: 600,
-                                                                maxHeight: 200,
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                bgcolor: "#fff",
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getImageUrl("footer")}
-                                                                alt="Footer"
-                                                                style={{
-                                                                    maxWidth: "100%",
-                                                                    maxHeight: "200px",
-                                                                    objectFit: "contain",
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                        <IconButton
-                                                            color="error"
-                                                            onClick={() => handleImageDelete("footer")}
-                                                            disabled={saving}
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Typography variant="body2" color="text.secondary">
-                                                            No footer uploaded
-                                                        </Typography>
+                                            {/* Header */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Header
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.header ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("header")}
+                                                                    alt="Header"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "200px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("header")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-sm text-gray-500">
+                                                                No header uploaded
+                                                            </p>
+                                                            <Button
+                                                                variant="outlined"
+                                                                component="label"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                            >
+                                                                Upload Header
+                                                                <input
+                                                                    type="file"
+                                                                    hidden
+                                                                    accept="image/*"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files[0];
+                                                                        if (file) {
+                                                                            handleImageUpload("header", file);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </Button>
+                                                            <p className="text-xs text-red-500 mt-2">
+                                                                Recommended: Image size 1900(w) x 300(h) px
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Footer */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Footer
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.footer ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("footer")}
+                                                                    alt="Footer"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "200px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("footer")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-sm text-gray-500">
+                                                                No footer uploaded
+                                                            </p>
+                                                            <Button
+                                                                variant="outlined"
+                                                                component="label"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                            >
+                                                                Upload Footer
+                                                                <input
+                                                                    type="file"
+                                                                    hidden
+                                                                    accept="image/*"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files[0];
+                                                                        if (file) {
+                                                                            handleImageUpload("footer", file);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </Button>
+                                                            <p className="text-xs text-red-500 mt-2">
+                                                                Recommended: Image size 1900(w) x 300(h) px
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Stamp */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Stamp
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.stamp ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("stamp")}
+                                                                    alt="Stamp"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "200px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("stamp")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500">
+                                                            No stamp uploaded
+                                                        </p>
+                                                    )}
+                                                    {!company?.stamp && (
                                                         <Button
                                                             variant="outlined"
                                                             component="label"
                                                             startIcon={<CloudUploadIcon />}
                                                             disabled={saving}
                                                         >
-                                                            Upload Footer
+                                                            Upload Stamp
                                                             <input
                                                                 type="file"
                                                                 hidden
@@ -1739,191 +1629,84 @@ export default function CompanyProfilePage() {
                                                                 onChange={(e) => {
                                                                     const file = e.target.files[0];
                                                                     if (file) {
-                                                                        handleImageUpload("footer", file);
+                                                                        handleImageUpload("stamp", file);
                                                                     }
                                                                 }}
                                                             />
                                                         </Button>
-                                                        <Typography variant="caption" color="error">
-                                                            Recommended: Image size 1900(w) x 300(h) px
-                                                        </Typography>
-                                                    </>
-                                                )}
-                                            </Box>
-                                        </Box>
-
-                                        {/* Stamp */}
-                                        <Box>
-                                            <Typography variant="h6" sx={{ mb: 2 }}>
-                                                Stamp
-                                            </Typography>
-                                            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                                                {company?.stamp ? (
-                                                    <>
-                                                        <Box
-                                                            sx={{
-                                                                border: "1px solid #ddd",
-                                                                borderRadius: 1,
-                                                                p: 2,
-                                                                minWidth: 200,
-                                                                minHeight: 200,
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                bgcolor: "#fff",
-                                                            }}
-                                                        >
-                                                            <img
-                                                                src={getImageUrl("stamp")}
-                                                                alt="Stamp"
-                                                                style={{
-                                                                    maxWidth: "100%",
-                                                                    maxHeight: "200px",
-                                                                    objectFit: "contain",
-                                                                }}
-                                                            />
-                                                        </Box>
-                                                        <IconButton
-                                                            color="error"
-                                                            onClick={() => handleImageDelete("stamp")}
-                                                            disabled={saving}
-                                                        >
-                                                            <DeleteIcon />
-                                                        </IconButton>
-                                                    </>
-                                                ) : (
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        No stamp uploaded
-                                                    </Typography>
-                                                )}
-                                                {!company?.stamp && (
-                                                    <Button
-                                                        variant="outlined"
-                                                        component="label"
-                                                        startIcon={<CloudUploadIcon />}
-                                                        disabled={saving}
-                                                    >
-                                                        Upload Stamp
-                                                        <input
-                                                            type="file"
-                                                            hidden
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files[0];
-                                                                if (file) {
-                                                                    handleImageUpload("stamp", file);
-                                                                }
-                                                            }}
-                                                        />
-                                                    </Button>
-                                                )}
-                                            </Box>
-                                        </Box>
-                                    </Box>
-                                )}
-                                {activeTab === 3 && (
-                                    <>
-                                        <Box display="flex" justifyContent="flex-end" mb={2}>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                onClick={handleNewWarehouse}
-                                            >
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="3" className="m-0 focus-visible:outline-none">
+                                        <div className="flex justify-end mb-4">
+                                            <Button size="sm" onClick={handleNewWarehouse}>
                                                 + New Warehouse
                                             </Button>
-                                        </Box>
-                                        <Box sx={{ width: '100%', overflowX: 'auto' }}>
-                                            <TableContainer
-                                                component={Paper}
-                                                variant="outlined"
-                                            >
-                                                <Table sx={{ minWidth: 800 }}>
-                                                    <TableHead>
-                                                        <TableRow>
-                                                            {/* <TableCell>#</TableCell> */}
-                                                            <TableCell>Name</TableCell>
-                                                            <TableCell>Contact Person</TableCell>
-                                                            <TableCell>Mobile</TableCell>
-                                                            <TableCell>State</TableCell>
-                                                            <TableCell>Email</TableCell>
-                                                            <TableCell>Phone No</TableCell>
-                                                            <TableCell>Address</TableCell>
-                                                            <TableCell>Managers</TableCell>
-                                                            <TableCell>Active</TableCell>
-                                                            <TableCell>Actions</TableCell>
-                                                        </TableRow>
-                                                    </TableHead>
-                                                    <TableBody>
-                                                        {warehouses.length === 0 ? (
-                                                            <TableRow>
-                                                                <TableCell colSpan={11} align="center">
-                                                                    <Typography variant="body2" color="text.secondary">
-                                                                        No warehouses found
-                                                                    </Typography>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ) : (
-                                                            warehouses.map((warehouse, index) => (
-                                                                <TableRow key={warehouse.id}>
-                                                                    {/* <TableCell>{index + 1}</TableCell> */}
-                                                                    <TableCell>{warehouse.name}</TableCell>
-                                                                    <TableCell>{warehouse.contact_person || "-"}</TableCell>
-                                                                    <TableCell>{warehouse.mobile}</TableCell>
-                                                                    <TableCell>{warehouse.state_name || "-"}</TableCell>
-                                                                    <TableCell>{warehouse.email || "-"}</TableCell>
-                                                                    <TableCell>{warehouse.phone_no || "-"}</TableCell>
-                                                                    <TableCell>{warehouse.address}</TableCell>
-                                                                    <TableCell>
-                                                                        {warehouse.managers?.length
-                                                                            ? `${warehouse.managers.length} manager${warehouse.managers.length !== 1 ? "s" : ""}`
-                                                                            : "-"}
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <Chip
-                                                                            label={warehouse.is_active ? "Active" : "Inactive"}
-                                                                            color={warehouse.is_active ? "success" : "default"}
-                                                                            size="small"
-                                                                        />
-                                                                    </TableCell>
-                                                                    <TableCell>
-                                                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                onClick={() => handleOpenManagersDialog(warehouse)}
-                                                                            >
-                                                                                Managers
-                                                                            </Button>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="contained"
-                                                                                onClick={() => handleEditWarehouse(warehouse)}
-                                                                            >
-                                                                                Edit
-                                                                            </Button>
-                                                                            <Button
-                                                                                size="small"
-                                                                                variant="outlined"
-                                                                                color="error"
-                                                                                onClick={() => handleDeleteWarehouse(warehouse.id)}
-                                                                            >
-                                                                                Delete
-                                                                            </Button>
-                                                                        </div>
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))
-                                                        )}
-                                                    </TableBody>
-                                                </Table>
-                                            </TableContainer>
-                                        </Box>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </Grid>
-                </Grid>
+                                        </div>
+                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                            <table className="w-full text-sm text-left whitespace-nowrap">
+                                                <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
+                                                    <tr>
+                                                        <th className="px-4 py-3">Name</th>
+                                                        <th className="px-4 py-3">Contact Person</th>
+                                                        <th className="px-4 py-3">Mobile</th>
+                                                        <th className="px-4 py-3">State</th>
+                                                        <th className="px-4 py-3">Email</th>
+                                                        <th className="px-4 py-3">Phone No</th>
+                                                        <th className="px-4 py-3">Address</th>
+                                                        <th className="px-4 py-3">Managers</th>
+                                                        <th className="px-4 py-3">Active</th>
+                                                        <th className="px-4 py-3 text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {warehouses.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                                                No warehouses found
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        warehouses.map((warehouse) => (
+                                                            <tr key={warehouse.id} className="hover:bg-gray-50 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-gray-900">{warehouse.name}</td>
+                                                                <td className="px-4 py-3">{warehouse.contact_person || "-"}</td>
+                                                                <td className="px-4 py-3">{warehouse.mobile}</td>
+                                                                <td className="px-4 py-3">{warehouse.state_name || "-"}</td>
+                                                                <td className="px-4 py-3">{warehouse.email || "-"}</td>
+                                                                <td className="px-4 py-3">{warehouse.phone_no || "-"}</td>
+                                                                <td className="px-4 py-3 max-w-xs truncate">{warehouse.address}</td>
+                                                                <td className="px-4 py-3 text-gray-500 text-xs">
+                                                                    {warehouse.managers?.length
+                                                                        ? `${warehouse.managers.length} manager${warehouse.managers.length !== 1 ? "s" : ""}`
+                                                                        : "-"}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <Badge variant={warehouse.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
+                                                                        {warehouse.is_active ? "Active" : "Inactive"}
+                                                                    </Badge>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <Button size="xs" variant="outline" onClick={() => handleOpenManagersDialog(warehouse)}>Managers</Button>
+                                                                        <Button size="xs" variant="outline" onClick={() => handleEditWarehouse(warehouse)}>Edit</Button>
+                                                                        <Button size="xs" variant="destructive-outline" onClick={() => handleDeleteWarehouse(warehouse.id)}>Delete</Button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </TabsContent>
+                                </div>
+                            </Tabs>
+                        </div>
+                    </div>
+                </div>
 
                 {/* Warehouse Managers Dialog (theme) */}
                 <Dialog
@@ -1980,10 +1763,10 @@ export default function CompanyProfilePage() {
                             )}
                         </div>
                         <DialogFooter className="mt-4">
-                            <ThemeButton type="button" variant="outline" size="sm" onClick={handleCloseManagersDialog}>
+                            <Button type="button" variant="outline" size="sm" onClick={handleCloseManagersDialog}>
                                 Cancel
-                            </ThemeButton>
-                            <ThemeButton
+                            </Button>
+                            <Button
                                 type="button"
                                 size="sm"
                                 loading={saving}
@@ -1991,7 +1774,7 @@ export default function CompanyProfilePage() {
                                 onClick={handleSaveWarehouseManagers}
                             >
                                 Save
-                            </ThemeButton>
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
@@ -2139,7 +1922,7 @@ export default function CompanyProfilePage() {
                                 </FormSection>
                             </div>
                             <DialogFooter className="mt-4">
-                                <ThemeButton
+                                <Button
                                     type="button"
                                     variant="outline"
                                     size="sm"
@@ -2150,10 +1933,10 @@ export default function CompanyProfilePage() {
                                     }}
                                 >
                                     Cancel
-                                </ThemeButton>
-                                <ThemeButton type="submit" size="sm" loading={saving}>
+                                </Button>
+                                <Button type="submit" size="sm" loading={saving}>
                                     Save
-                                </ThemeButton>
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -2219,6 +2002,14 @@ export default function CompanyProfilePage() {
                                             onChange={handleBankInputChange}
                                             fullWidth
                                         />
+                                        <Input
+                                            name="upi_id"
+                                            label="UPI ID (for payment QR)"
+                                            placeholder="e.g. name@paytm"
+                                            value={bankFormData.upi_id}
+                                            onChange={handleBankInputChange}
+                                            fullWidth
+                                        />
                                         <Checkbox
                                             name="is_active"
                                             label="Active"
@@ -2252,12 +2043,12 @@ export default function CompanyProfilePage() {
                                 </FormSection>
                             </div>
                             <DialogFooter className="mt-4">
-                                <ThemeButton type="button" variant="outline" size="sm" onClick={handleCloseBankDialog}>
+                                <Button type="button" variant="outline" size="sm" onClick={handleCloseBankDialog}>
                                     Cancel
-                                </ThemeButton>
-                                <ThemeButton type="submit" size="sm" loading={saving}>
+                                </Button>
+                                <Button type="submit" size="sm" loading={saving}>
                                     Save
-                                </ThemeButton>
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -2361,38 +2152,35 @@ export default function CompanyProfilePage() {
                                             }
                                             disabled={!branchFormData.is_active}
                                         />
-                                        <FormControl fullWidth size="small" sx={{ minWidth: 200 }}>
-                                            <InputLabel id="branch-quotation-template-label">Quotation PDF Template</InputLabel>
-                                            <Select
-                                                labelId="branch-quotation-template-label"
-                                                name="quotation_template_id"
-                                                value={branchFormData.quotation_template_id ?? ""}
-                                                label="Quotation PDF Template"
-                                                onChange={(e) =>
-                                                    setBranchFormData((prev) => ({
-                                                        ...prev,
-                                                        quotation_template_id: e.target.value || null,
-                                                    }))
-                                                }
-                                            >
-                                                <MenuItem value="">Default (use system default)</MenuItem>
-                                                {quotationTemplateOptions.map((t) => (
-                                                    <MenuItem key={t.id} value={t.id}>
-                                                        {t.name} {t.is_default ? "(default)" : ""}
-                                                    </MenuItem>
-                                                ))}
-                                            </Select>
-                                        </FormControl>
+                                        <Select
+                                            name="quotation_template_id"
+                                            label="Quotation PDF Template"
+                                            value={branchFormData.quotation_template_id ?? ""}
+                                            onChange={(e) =>
+                                                setBranchFormData((prev) => ({
+                                                    ...prev,
+                                                    quotation_template_id: e.target.value ? Number(e.target.value) : null,
+                                                }))
+                                            }
+                                            placeholder="Default (use system default)"
+                                            className="min-w-[200px]"
+                                        >
+                                            {quotationTemplateOptions.map((t) => (
+                                                <MenuItem key={t.id} value={t.id}>
+                                                    {t.name} {t.is_default ? "(default)" : ""}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
                                     </FormGrid>
                                 </FormSection>
                             </div>
                             <DialogFooter className="mt-4">
-                                <ThemeButton type="button" variant="outline" size="sm" onClick={handleCloseBranchDialog}>
+                                <Button type="button" variant="outline" size="sm" onClick={handleCloseBranchDialog}>
                                     Cancel
-                                </ThemeButton>
-                                <ThemeButton type="submit" size="sm" loading={saving}>
+                                </Button>
+                                <Button type="submit" size="sm" loading={saving}>
                                     Save
-                                </ThemeButton>
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -2506,18 +2294,18 @@ export default function CompanyProfilePage() {
                                 </FormSection>
                             </div>
                             <DialogFooter className="mt-4">
-                                <ThemeButton type="button" variant="outline" size="sm" onClick={handleCloseWarehouseDialog}>
+                                <Button type="button" variant="outline" size="sm" onClick={handleCloseWarehouseDialog}>
                                     Cancel
-                                </ThemeButton>
-                                <ThemeButton type="submit" size="sm" loading={saving}>
+                                </Button>
+                                <Button type="submit" size="sm" loading={saving}>
                                     Save
-                                </ThemeButton>
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
-            </Box>
-        </ProtectedRoute>
+            </div>
+        </ProtectedRoute >
     );
 }
 
