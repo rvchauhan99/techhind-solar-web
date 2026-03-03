@@ -16,6 +16,7 @@ const IMAGE_FIELDS = [
   ...Array.from({ length: 9 }, (_, i) => ({
     key: `page_${i + 1}`,
     label: `Page ${i + 1} background`,
+    help: "A4 portrait ratio (e.g. 1240×1754 px). For full-page look, use an image that fills the frame; avoid large white margins.",
   })),
 ];
 
@@ -110,7 +111,7 @@ export default function QuotationTemplateConfigPage() {
         ) : (
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <Typography variant="body2" color="text.secondary">
-              Upload images for quotation PDF. They are stored in the bucket as public. Default background is used when a page-specific one is not set.
+              Upload images for quotation PDF. They are stored in the bucket as public. Default background is used when a page-specific one is not set. For full-page backgrounds (e.g. Page 2), use A4 portrait aspect ratio (~0.7) so the image fills the page without large empty sides.
             </Typography>
             <Grid container spacing={2}>
               {IMAGE_FIELDS.map(({ key, label, help }) => {
