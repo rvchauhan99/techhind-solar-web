@@ -507,6 +507,8 @@ export default function QuotationList() {
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}
+        secondaryButtonLabel="PDF Templates"
+        onSecondaryClick={() => router.push("/quotation/templates")}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
           <div className="flex items-center gap-4 py-1">

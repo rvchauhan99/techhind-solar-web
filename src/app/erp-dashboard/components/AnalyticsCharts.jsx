@@ -81,6 +81,7 @@ export default function AnalyticsCharts({ filters, dashboardApiBase }) {
                     netmeter_installed: "Netmeter Installed",
                     subsidy_claim: "Subsidy Claim",
                     subsidy_disbursed: "Subsidy Disbursed",
+                    order_completed: "Order Completed",
                 };
 
                 const stageData = byStage.map((s) => ({

@@ -40,6 +40,7 @@ export const ORDER_STAGE_OPTIONS = [
   { value: "netmeter_installed", label: "Netmeter Installed" },
   { value: "subsidy_claim", label: "Subsidy Claim" },
   { value: "subsidy_disbursed", label: "Subsidy Disbursed" },
+  { value: "order_completed", label: "Order Completed" },
 ];
 
 const EMPTY_VALUES = Object.fromEntries(

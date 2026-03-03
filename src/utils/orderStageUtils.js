@@ -12,6 +12,7 @@ export const ORDER_STAGE_META = [
     { key: "netmeter_installed", label: "Netmeter Installed" },
     { key: "subsidy_claim", label: "Subsidy Claim" },
     { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
+    { key: "order_completed", label: "Order Completed" },
 ];
 
 export const normalizeStageStatus = (status) => {
@@ -22,17 +23,28 @@ export const normalizeStageStatus = (status) => {
     return "pending";
 };
 
-export const buildOrderedStages = (stages = {}, currentStageKey = null) =>
-    ORDER_STAGE_META.map((stage) => {
-        const current = currentStageKey === stage.key;
+export const buildOrderedStages = (stages = {}, currentStageKey = null) => {
+    const isOrderCompleted = currentStageKey === "order_completed";
+    const baseStages = ORDER_STAGE_META.filter((s) => s.key !== "order_completed").map((stage) => {
+        const current = !isOrderCompleted && currentStageKey === stage.key;
         const rawStatus = stages?.[stage.key];
-        const status = current
-            ? normalizeStageStatus(rawStatus || "in_progress")
-            : normalizeStageStatus(rawStatus);
+        const status = isOrderCompleted
+            ? "completed"
+            : current
+                ? normalizeStageStatus(rawStatus || "in_progress")
+                : normalizeStageStatus(rawStatus);
         return {
             ...stage,
             status,
             isCurrent: current,
         };
     });
+    if (isOrderCompleted) {
+        return [
+            ...baseStages,
+            { key: "order_completed", label: "Order Completed", status: "completed", isCurrent: true },
+        ];
+    }
+    return baseStages;
+};
 

@@ -80,6 +80,14 @@ function getCurrentOpenedModuleRoute() {
   return bestMatch;
 }
 
+// Let FormData requests set Content-Type with boundary (required for multipart uploads)
+axiosInstance.interceptors.request.use((config) => {
+  if (config.data instanceof FormData && config.headers) {
+    delete config.headers["Content-Type"];
+  }
+  return config;
+}, (error) => Promise.reject(error));
+
 // Request interceptor: auth token + x-timezone
 axiosInstance.interceptors.request.use(
   (config) => {
