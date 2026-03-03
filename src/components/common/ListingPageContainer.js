@@ -19,6 +19,8 @@ import FilterBar from "@/components/common/FilterBar";
  * @param {function(): void} [onSampleCsvClick] - Called when Sample CSV is clicked
  * @param {string} [importButtonLabel] - Label for Import button
  * @param {function(): void} [onImportClick] - Called when Import is clicked
+ * @param {string} [secondaryButtonLabel] - Label for secondary action button (e.g. "PDF Templates")
+ * @param {function(): void} [onSecondaryClick] - Called when secondary button is clicked
  * @param {Array} [filterConfig] - When provided, FilterBar is rendered; array of { key, label, type, options? }
  * @param {Object} [filterValues] - Values for FilterBar (keyed by filter key)
  * @param {function(string, string): void} [onFilterChange] - (key, value) for FilterBar
@@ -37,6 +39,8 @@ export default function ListingPageContainer({
   onSampleCsvClick,
   importButtonLabel,
   onImportClick,
+  secondaryButtonLabel,
+  onSecondaryClick,
   filterConfig,
   filterValues = {},
   onFilterChange,
@@ -48,6 +52,11 @@ export default function ListingPageContainer({
       <div className="flex flex-shrink-0 justify-between items-center gap-2">
         <h1 className="text-xl font-semibold">{title}</h1>
         <div className="flex items-center gap-1.5">
+          {onSecondaryClick && secondaryButtonLabel && (
+            <Button onClick={onSecondaryClick} size="sm" variant="outline" className="gap-1">
+              {secondaryButtonLabel}
+            </Button>
+          )}
           {onExportClick && exportButtonLabel && (
             <Button
               onClick={onExportClick}

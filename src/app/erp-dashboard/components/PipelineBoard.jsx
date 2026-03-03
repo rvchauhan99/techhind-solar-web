@@ -14,6 +14,7 @@ const STAGE_META = [
     { id: "netmeter_installed", name: "Netmeter Installed", color: "bg-purple-500" },
     { id: "subsidy_claim", name: "Subsidy Claim", color: "bg-rose-500" },
     { id: "subsidy_disbursed", name: "Subsidy Disbursed", color: "bg-emerald-500" },
+    { id: "order_completed", name: "Order Completed", color: "bg-emerald-600" },
 ];
 
 export default function PipelineBoard({ filters, onOrderSelect, dashboardApiBase }) {

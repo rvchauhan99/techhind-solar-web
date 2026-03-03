@@ -57,6 +57,7 @@ import { DIALOG_FORM_SMALL, DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 // import AppLayout from "@/components/layout/AppLayout";
 import companyService from "@/services/companyService";
 import userMasterService from "@/services/userMasterService";
+import quotationTemplateService from "@/services/quotationTemplateService";
 import { getDefaultState } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
@@ -89,6 +90,7 @@ export default function CompanyProfilePage() {
     const [allUsers, setAllUsers] = useState([]);
     const [managersSelectedIds, setManagersSelectedIds] = useState([]);
     const [activeTab, setActiveTab] = useState(0);
+    const [quotationTemplateOptions, setQuotationTemplateOptions] = useState([]);
     const [imageUrls, setImageUrls] = useState({ logo: null, header: null, footer: null, stamp: null });
     const [formData, setFormData] = useState({
         company_name: "",
@@ -120,6 +122,7 @@ export default function CompanyProfilePage() {
         gst_number: "",
         is_active: true,
         is_default: false,
+        quotation_template_id: null,
     });
     const [warehouseFormData, setWarehouseFormData] = useState({
         name: "",
@@ -136,6 +139,18 @@ export default function CompanyProfilePage() {
         loadCompanyProfile();
         loadBankAccounts();
     }, []);
+
+    useEffect(() => {
+        if (branchDialogOpen && quotationTemplateOptions.length === 0) {
+            quotationTemplateService
+                .listTemplates()
+                .then((res) => {
+                    const data = res?.result ?? res?.data ?? res;
+                    setQuotationTemplateOptions(Array.isArray(data) ? data : []);
+                })
+                .catch(() => setQuotationTemplateOptions([]));
+        }
+    }, [branchDialogOpen]);
 
     const loadCompanyProfile = async () => {
         try {
@@ -602,6 +617,7 @@ export default function CompanyProfilePage() {
                 gst_number: "",
                 is_active: true,
                 is_default: false,
+                quotation_template_id: null,
             });
             await loadBranches(true); // Force reload after save
             setTimeout(() => setSuccess(""), 3000);
@@ -625,6 +641,7 @@ export default function CompanyProfilePage() {
             gst_number: branch.gst_number || "",
             is_active: branch.is_active !== undefined ? branch.is_active : true,
             is_default: branch.is_default !== undefined ? branch.is_default : false,
+            quotation_template_id: branch.quotation_template_id ?? branch.quotation_template?.id ?? null,
         });
         setBranchErrors({});
         setBranchDialogOpen(true);
@@ -665,6 +682,7 @@ export default function CompanyProfilePage() {
             gst_number: "",
             is_active: true,
             is_default: false,
+            quotation_template_id: null,
         });
         setBranchErrors({});
         setBranchDialogOpen(true);
@@ -681,6 +699,7 @@ export default function CompanyProfilePage() {
             gst_number: "",
             is_active: true,
             is_default: false,
+            quotation_template_id: null,
         });
         setBranchErrors({});
     };
@@ -1450,6 +1469,7 @@ export default function CompanyProfilePage() {
                                                             <TableCell>Email</TableCell>
                                                             <TableCell>Contact No</TableCell>
                                                             <TableCell>GST Number</TableCell>
+                                                            <TableCell>Quotation Template</TableCell>
                                                             <TableCell>Active</TableCell>
                                                             <TableCell>Default</TableCell>
                                                             <TableCell>Actions</TableCell>
@@ -1458,7 +1478,7 @@ export default function CompanyProfilePage() {
                                                     <TableBody>
                                                         {branches.length === 0 ? (
                                                             <TableRow>
-                                                                <TableCell colSpan={9} align="center">
+                                                                <TableCell colSpan={10} align="center">
                                                                     <Typography variant="body2" color="text.secondary">
                                                                         No branches found
                                                                     </Typography>
@@ -1473,6 +1493,9 @@ export default function CompanyProfilePage() {
                                                                     <TableCell>{branch.email}</TableCell>
                                                                     <TableCell>{branch.contact_no}</TableCell>
                                                                     <TableCell>{branch.gst_number}</TableCell>
+                                                                    <TableCell>
+                                                                        {branch.quotation_template?.name ?? branch.quotation_template_id ?? "—"}
+                                                                    </TableCell>
                                                                     <TableCell>
                                                                         <Chip
                                                                             label={branch.is_active ? "Active" : "Inactive"}
@@ -2338,6 +2361,28 @@ export default function CompanyProfilePage() {
                                             }
                                             disabled={!branchFormData.is_active}
                                         />
+                                        <FormControl fullWidth size="small" sx={{ minWidth: 200 }}>
+                                            <InputLabel id="branch-quotation-template-label">Quotation PDF Template</InputLabel>
+                                            <Select
+                                                labelId="branch-quotation-template-label"
+                                                name="quotation_template_id"
+                                                value={branchFormData.quotation_template_id ?? ""}
+                                                label="Quotation PDF Template"
+                                                onChange={(e) =>
+                                                    setBranchFormData((prev) => ({
+                                                        ...prev,
+                                                        quotation_template_id: e.target.value || null,
+                                                    }))
+                                                }
+                                            >
+                                                <MenuItem value="">Default (use system default)</MenuItem>
+                                                {quotationTemplateOptions.map((t) => (
+                                                    <MenuItem key={t.id} value={t.id}>
+                                                        {t.name} {t.is_default ? "(default)" : ""}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
                                     </FormGrid>
                                 </FormSection>
                             </div>
