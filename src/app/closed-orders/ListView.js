@@ -37,6 +37,12 @@ const STAGES = [
   { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
 ];
 
+const isOrderFullyCompleted = (row) => {
+  if (row.current_stage_key === "order_completed") return true;
+  const stages = row.stages || {};
+  return STAGES.every((s) => stages[s.key] === "completed");
+};
+
 export default function ListView() {
   const router = useRouter();
   const listingState = useListingQueryState({
@@ -117,6 +123,7 @@ export default function ListView() {
 
   const renderOrderItem = (row) => {
     const stages = row.stages || {};
+    const fullyCompleted = isOrderFullyCompleted(row);
     const outstanding =
       Number(row.project_cost || 0) - Number(row.discount || 0) - Number(row.total_paid || 0);
 
@@ -279,7 +286,8 @@ export default function ListView() {
           <Grid container sx={{ textAlign: "center" }}>
             {STAGES.map((stage, idx) => {
               const status = stages[stage.key] || (idx === 0 ? "pending" : "locked");
-              const isActive = row.current_stage_key === stage.key;
+              const isActive = !fullyCompleted && row.current_stage_key === stage.key;
+              const isLastStage = idx === STAGES.length - 1;
               return (
                 <Grid item key={stage.key} sx={{ flex: 1, px: 0.1 }}>
                   <Tooltip title={stage.label}>
@@ -299,7 +307,18 @@ export default function ListView() {
                     </Typography>
                   </Tooltip>
                   <Box display="flex" justifyContent="center" alignItems="center" sx={{ height: 18 }}>
-                    {isActive ? (
+                    {fullyCompleted ? (
+                      isLastStage ? (
+                        <Chip
+                          label="Completed"
+                          size="small"
+                          color="success"
+                          sx={{ height: 14, fontSize: "0.5rem", px: 0, borderRadius: "2px" }}
+                        />
+                      ) : (
+                        getStageIcon("completed")
+                      )
+                    ) : isActive ? (
                       <Chip
                         label="Current"
                         size="small"

@@ -81,7 +81,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
                 disbursed_amount: disbursedAmount || null,
                 subsidy_disbursed_remarks: formData.subsidy_disbursed_remarks,
                 stages: updatedStages,
-                current_stage_key: "",
+                current_stage_key: "order_completed",
                 subsidy_disbursed_completed_at: new Date().toISOString(),
             };
             if (orderData?.stages?.["subsidy_disbursed"] === "completed") {
