@@ -9,6 +9,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useNotifications } from "@/context/NotificationContext";
 import NotificationPanel from "@/components/notifications/NotificationPanel";
 import { useRouter } from "next/navigation";
+import { playNotificationChime } from "@/utils/notificationSound";
 
 // ── Project theme ──────────────────────────────────────────────────────────
 const NAVY = "#1b365d";
@@ -58,43 +59,6 @@ function loadPos() {
 }
 function savePos(p) {
     try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch { /* noop */ }
-}
-
-function playChime() {
-    if (typeof window === "undefined") return;
-    const enabled = localStorage.getItem(SOUND_KEY) !== "false";
-    if (!enabled) return;
-    try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        // E5 → C5 → G4 → C4  (classic descending ERP chime, ~3.5 s)
-        const notes = [
-            { freq: 659.25, start: 0.0, dur: 1.4 },
-            { freq: 523.25, start: 0.9, dur: 1.4 },
-            { freq: 392.00, start: 1.8, dur: 1.4 },
-            { freq: 261.63, start: 2.7, dur: 0.9 },
-        ];
-        notes.forEach(({ freq, start, dur }) => {
-            const osc1 = ctx.createOscillator();
-            const g1 = ctx.createGain();
-            osc1.connect(g1); g1.connect(ctx.destination);
-            osc1.type = "sine"; osc1.frequency.value = freq;
-            const t = ctx.currentTime + start;
-            g1.gain.setValueAtTime(0, t);
-            g1.gain.linearRampToValueAtTime(0.22, t + 0.04);
-            g1.gain.setValueAtTime(0.18, t + 0.12);
-            g1.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-            osc1.start(t); osc1.stop(t + dur);
-
-            const osc2 = ctx.createOscillator();
-            const g2 = ctx.createGain();
-            osc2.connect(g2); g2.connect(ctx.destination);
-            osc2.type = "triangle"; osc2.frequency.value = freq * 2;
-            g2.gain.setValueAtTime(0, t);
-            g2.gain.linearRampToValueAtTime(0.06, t + 0.04);
-            g2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
-            osc2.start(t); osc2.stop(t + dur);
-        });
-    } catch { /* noop */ }
 }
 
 // ── Individual toast card ──────────────────────────────────────────────────
@@ -240,7 +204,7 @@ function ToastCard({ toast, onDismiss, onOpen }) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function FloatingNotificationWidget() {
-    const { unreadCount: ctxUnreadCount, notifications, refetch } = useNotifications();
+    const { unreadCount: ctxUnreadCount, notifications, lastSocketNotification, clearLastSocketNotification } = useNotifications();
 
     // Derive unread count from the actual notifications list
     // (ctxUnreadCount only increments on new socket events, but pre-existing
@@ -261,10 +225,28 @@ export default function FloatingNotificationWidget() {
     const [toasts, setToasts] = useState([]);   // { id, ...notif }
 
     const prevUnread = useRef(0);
-    const prevNotifId = useRef(null); // track by first notif id to avoid dupes
     const dragState = useRef(null);
 
-    /* ── Init position ── */
+    /* ── Sync prevUnread so badge stays correct (no toast on initial load) ── */
+    useEffect(() => {
+        prevUnread.current = unreadCount;
+    }, [unreadCount]);
+
+    /* ── Toast + pulse + sound only for realtime socket notifications ── */
+    useEffect(() => {
+        if (!lastSocketNotification) return;
+        setPulse(true);
+        const t = setTimeout(() => setPulse(false), 2200);
+        playNotificationChime();
+        const toastItem = {
+            id: `toast-${Date.now()}-${lastSocketNotification.id}`,
+            ...lastSocketNotification,
+        };
+        setToasts(prev => [toastItem, ...prev].slice(0, 5));
+        clearLastSocketNotification();
+        return () => clearTimeout(t);
+    }, [lastSocketNotification, clearLastSocketNotification]);
+
     useEffect(() => {
         const vw = window.innerWidth, vh = window.innerHeight;
         const saved = loadPos();
@@ -274,34 +256,6 @@ export default function FloatingNotificationWidget() {
             setPos({ x: vw - BTN - MARGIN, y: vh - BTN - 90 });
         }
     }, []);
-
-    /* ── Detect new notification → toast + pulse + sound ── */
-    useEffect(() => {
-        if (unreadCount > prevUnread.current) {
-            // New notification arrived
-            setPulse(true);
-            const t = setTimeout(() => setPulse(false), 2200);
-
-            // Get the latest notification (first in list = newest)
-            const latest = notifications?.[0];
-            if (latest && latest.id !== prevNotifId.current) {
-                prevNotifId.current = latest.id;
-
-                // Play chime
-                playChime();
-
-                // Add to toast queue
-                const toastItem = {
-                    id: `toast-${Date.now()}-${latest.id}`,
-                    ...latest,
-                };
-                setToasts(prev => [toastItem, ...prev].slice(0, 5)); // max 5 stacked
-            }
-
-            return () => clearTimeout(t);
-        }
-        prevUnread.current = unreadCount;
-    }, [unreadCount, notifications]);
 
     /* ── Toast dismiss ── */
     const dismissToast = useCallback((id) => {

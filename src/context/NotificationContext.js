@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import { io } from "socket.io-client";
 import { getAccessToken } from "@/lib/authStorage";
 import * as notificationApi from "@/services/notificationService";
+import { playNotificationChime, unlockNotificationSound } from "@/utils/notificationSound";
 
 export const NotificationContext = createContext(null);
 
@@ -23,6 +24,7 @@ export function NotificationProvider({ children }) {
   const [totalPages, setTotalPages] = useState(0);
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState({ module: null, is_read: null });
+  const [lastSocketNotification, setLastSocketNotification] = useState(null);
   const socketRef = useRef(null);
   const mountedRef = useRef(true);
 
@@ -167,6 +169,7 @@ export function NotificationProvider({ children }) {
   useEffect(() => {
     mountedRef.current = true;
     loadInitial();
+    if (typeof window !== "undefined") unlockNotificationSound();
     return () => {
       mountedRef.current = false;
     };
@@ -186,52 +189,8 @@ export function NotificationProvider({ children }) {
       if (!mountedRef.current) return;
       setNotifications((prev) => [payload, ...prev]);
       setUnreadCount((c) => c + 1);
-
-      // ── Rich 4-note ERP chime (~3.5 s) ── respects mute toggle
-      try {
-        const soundOn = typeof window !== "undefined"
-          ? (window.__solarSoundEnabled !== false && localStorage.getItem("solar-notif-sound") !== "false")
-          : true;
-        if (soundOn) {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          // E5 → C5 → G4 → C4  (classic descending ERP chime)
-          const notes = [
-            { freq: 659.25, start: 0.0, dur: 1.4 },
-            { freq: 523.25, start: 0.9, dur: 1.4 },
-            { freq: 392.00, start: 1.8, dur: 1.4 },
-            { freq: 261.63, start: 2.7, dur: 0.9 },
-          ];
-          notes.forEach(({ freq, start, dur }) => {
-            // Sine oscillator – main tone
-            const osc1 = ctx.createOscillator();
-            const gain1 = ctx.createGain();
-            osc1.connect(gain1);
-            gain1.connect(ctx.destination);
-            osc1.type = "sine";
-            osc1.frequency.value = freq;
-            const t = ctx.currentTime + start;
-            gain1.gain.setValueAtTime(0, t);
-            gain1.gain.linearRampToValueAtTime(0.22, t + 0.04);   // attack
-            gain1.gain.setValueAtTime(0.18, t + 0.12);            // sustain
-            gain1.gain.exponentialRampToValueAtTime(0.0001, t + dur); // decay
-            osc1.start(t);
-            osc1.stop(t + dur);
-
-            // Triangle oscillator – harmonic warmth
-            const osc2 = ctx.createOscillator();
-            const gain2 = ctx.createGain();
-            osc2.connect(gain2);
-            gain2.connect(ctx.destination);
-            osc2.type = "triangle";
-            osc2.frequency.value = freq * 2;
-            gain2.gain.setValueAtTime(0, t);
-            gain2.gain.linearRampToValueAtTime(0.06, t + 0.04);
-            gain2.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
-            osc2.start(t);
-            osc2.stop(t + dur);
-          });
-        }
-      } catch (_) { }
+      setLastSocketNotification(payload);
+      playNotificationChime();
 
       // Browser notification (if permitted and not already focused on app)
       if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
@@ -269,6 +228,8 @@ export function NotificationProvider({ children }) {
     fetchMore,
     refetch,
     requestNotificationPermission,
+    lastSocketNotification,
+    clearLastSocketNotification: useCallback(() => setLastSocketNotification(null), []),
   };
 
   return (
