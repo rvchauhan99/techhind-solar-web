@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
     Box,
     Typography,
@@ -89,15 +89,21 @@ export default function QuotationDetail() {
     const [loading, setLoading] = useState(true);
     const [pdfUrl, setPdfUrl] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(false);
+    const [iframeReady, setIframeReady] = useState(false);
     const [error, setError] = useState(null);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false);
     const [actionId, setActionId] = useState(null);
+    const pdfAbortRef = useRef(null);
+    const pdfRequestedRef = useRef(false);
 
     useEffect(() => {
         if (id) {
             loadQuotation();
         }
+        return () => {
+            pdfRequestedRef.current = false;
+        };
     }, [id]);
 
     useEffect(() => {
@@ -115,8 +121,10 @@ export default function QuotationDetail() {
             const response = await quotationService.getQuotationById(id);
             const data = response.result || response.data || response;
             setQuotation(data);
-            // Auto-generate PDF after loading quotation
-            generatePdf();
+            if (!pdfRequestedRef.current) {
+                pdfRequestedRef.current = true;
+                generatePdf();
+            }
         } catch (err) {
             console.error("Failed to load quotation", err);
             setError("Failed to load quotation");
@@ -125,10 +133,16 @@ export default function QuotationDetail() {
         }
     };
 
-    const generatePdf = async () => {
+    const generatePdf = useCallback(async () => {
+        if (pdfAbortRef.current) pdfAbortRef.current.abort();
+        const controller = new AbortController();
+        pdfAbortRef.current = controller;
+
         setPdfLoading(true);
+        setIframeReady(false);
         try {
             const blob = await quotationService.pdfGenerate(id);
+            if (controller.signal.aborted) return;
             if (!(blob instanceof Blob)) throw new Error("Expected blob");
             const blobUrl = URL.createObjectURL(blob);
             setPdfUrl((prev) => {
@@ -136,11 +150,11 @@ export default function QuotationDetail() {
                 return blobUrl;
             });
         } catch (err) {
-            console.error("Failed to generate PDF:", err);
+            if (!controller.signal.aborted) console.error("Failed to generate PDF:", err);
         } finally {
-            setPdfLoading(false);
+            if (!controller.signal.aborted) setPdfLoading(false);
         }
-    };
+    }, [id]);
 
     const handlePrint = () => {
         if (pdfUrl) {
@@ -478,16 +492,18 @@ export default function QuotationDetail() {
                 </Box>
 
                 {/* PDF Viewer */}
-                <Box sx={{ bgcolor: "#f5f5f5", p: 0 }}>
-                    {pdfLoading ? (
-                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 150px)" }}>
+                <Box sx={{ bgcolor: "#f5f5f5", p: 0, position: "relative" }}>
+                    {(pdfLoading || (pdfUrl && !iframeReady)) && (
+                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 150px)", position: pdfUrl ? "absolute" : "relative", inset: 0, zIndex: 2, bgcolor: "#f5f5f5" }}>
                             <CircularProgress size={32} />
                             <Typography sx={{ ml: 2, color: "#666" }}>Generating PDF...</Typography>
                         </Box>
-                    ) : pdfUrl ? (
-                        <Box sx={{ height: "calc(100vh - 150px)" }}>
+                    )}
+                    {pdfUrl ? (
+                        <Box sx={{ height: "calc(100vh - 150px)", visibility: iframeReady ? "visible" : "hidden" }}>
                             <iframe
                                 src={pdfUrl}
+                                onLoad={() => setIframeReady(true)}
                                 style={{
                                     width: "100%",
                                     height: "100%",
@@ -496,11 +512,11 @@ export default function QuotationDetail() {
                                 title="Quotation PDF"
                             />
                         </Box>
-                    ) : (
+                    ) : !pdfLoading ? (
                         <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 150px)" }}>
                             <Typography color="text.secondary">PDF not available</Typography>
                         </Box>
-                    )}
+                    ) : null}
                 </Box>
             </Box>
 
