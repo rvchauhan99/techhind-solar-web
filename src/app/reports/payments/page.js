@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import { IconCurrencyRupee, IconFilter, IconChevronDown, IconChevronUp, IconRefresh, IconCalendar } from "@tabler/icons-react";
+import { IconCurrencyRupee, IconFilter, IconChevronDown, IconChevronUp, IconRefresh, IconCalendar, IconClock, IconCircleCheck, IconX } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -31,6 +31,31 @@ const DATE_PRESETS = [
   { label: "This Year", fn: () => { const n = new Date(); return { start_date: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], end_date: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
 ];
 
+const STATUS_TABS = [
+  { value: null, label: "All", icon: null, cls: "text-slate-600 border-slate-200 hover:border-slate-400" },
+  { value: "pending_approval", label: "Pending", icon: IconClock, cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
+  { value: "approved", label: "Approved", icon: IconCircleCheck, cls: "text-emerald-600 border-emerald-200 hover:border-emerald-400", activeCls: "bg-emerald-50 border-emerald-400 text-emerald-700" },
+  { value: "rejected", label: "Rejected", icon: IconX, cls: "text-red-500 border-red-200 hover:border-red-400", activeCls: "bg-red-50 border-red-400 text-red-600" },
+];
+
+const FILTER_LABELS = {
+  start_date: "Date From", end_date: "Date To", branch_id: "Branch",
+  handled_by: "Handled By", payment_mode_id: "Payment Mode", status: "Status",
+  order_number: "Order #", customer_name: "Customer", receipt_number: "Receipt #",
+};
+
+function getChips(filters) {
+  return Object.entries(filters)
+    .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .map(([key, value]) => ({
+      key,
+      label: FILTER_LABELS[key] || key,
+      value: key === "status"
+        ? (Array.isArray(value) ? value : [value]).map((s) => STATUS_OPTIONS.find((o) => o.value === s)?.label || s).join(", ")
+        : String(value),
+    }));
+}
+
 function countActive(f) {
   if (!f) return 0;
   return Object.values(f).filter((v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
@@ -42,8 +67,10 @@ export default function PaymentsReportPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
+  const [activeStatusTab, setActiveStatusTab] = useState(null);
 
   const activeCount = countActive(appliedFilters);
+  const chips = getChips(appliedFilters);
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
 
   const handleApply = () => {
@@ -56,6 +83,27 @@ export default function PaymentsReportPage() {
     setFilters(INITIAL_FILTERS);
     setAppliedFilters(INITIAL_FILTERS);
     setActivePreset(null);
+    setActiveStatusTab(null);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleStatusTab = (statusValue) => {
+    setActiveStatusTab(statusValue);
+    const next = {
+      ...filters,
+      status: statusValue ? [statusValue] : null,
+    };
+    setFilters(next);
+    setAppliedFilters(next);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const removeChip = (key) => {
+    const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
+    setFilters(next);
+    setAppliedFilters(next);
+    if (key === "status") setActiveStatusTab(null);
+    if (key === "start_date" || key === "end_date") setActivePreset(null);
     setRefreshKey((k) => k + 1);
   };
 
@@ -115,6 +163,29 @@ export default function PaymentsReportPage() {
             </div>
           </div>
 
+          {/* Status Quick Tabs */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {STATUS_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeStatusTab === tab.value;
+              return (
+                <button
+                  key={String(tab.value)}
+                  onClick={() => handleStatusTab(tab.value)}
+                  className={[
+                    "flex items-center gap-1 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all",
+                    isActive
+                      ? (tab.activeCls || "bg-primary text-primary-foreground border-primary")
+                      : `bg-white ${tab.cls}`,
+                  ].join(" ")}
+                >
+                  {Icon && <Icon size={12} />}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Collapsible Filters */}
           <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
             <button
@@ -161,7 +232,7 @@ export default function PaymentsReportPage() {
                   name="status" label="Status" multiple options={STATUS_OPTIONS}
                   getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
                   value={(Array.isArray(filters.status) ? filters.status : []).map((v) => STATUS_OPTIONS.find((s) => s.value === v)).filter(Boolean)}
-                  onChange={(e, v) => fc("status", v?.length ? v.map((o) => o.value) : null)}
+                  onChange={(e, v) => { fc("status", v?.length ? v.map((o) => o.value) : null); setActiveStatusTab(null); }}
                   placeholder="All Statuses"
                 />
                 <Input name="order_number" label="Order Number" value={filters.order_number || ""} onChange={(e) => fc("order_number", e.target.value || null)} placeholder="e.g. ORD-001" />
@@ -170,6 +241,29 @@ export default function PaymentsReportPage() {
               </div>
             )}
           </Card>
+
+          {/* Active Filter Chips */}
+          {chips.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Filters:</span>
+              {chips.map(({ key, label, value }) => (
+                <button
+                  key={key}
+                  onClick={() => removeChip(key)}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/8 border border-primary/20 text-primary/80 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                >
+                  {label}: <span className="font-semibold">{value}</span>
+                  <IconX size={9} />
+                </button>
+              ))}
+              <button
+                onClick={handleReset}
+                className="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* Main View */}
           <PaymentsReportView key={refreshKey} filters={appliedFilters} />

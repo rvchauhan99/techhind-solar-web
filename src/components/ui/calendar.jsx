@@ -4,34 +4,215 @@ import * as React from "react";
 import { DayPicker } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function buildYearRange(fromYear, toYear) {
+  const years = [];
+  for (let y = fromYear; y <= toYear; y += 1) {
+    years.push(y);
+  }
+  return years;
+}
+
+function clampMonthWithinRange(date, fromDate, toDate) {
+  if (!fromDate && !toDate) return date;
+
+  const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+
+  if (fromDate && firstOfMonth < new Date(fromDate.getFullYear(), fromDate.getMonth(), 1)) {
+    return new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+  }
+
+  if (toDate && firstOfMonth > new Date(toDate.getFullYear(), toDate.getMonth(), 1)) {
+    return new Date(toDate.getFullYear(), toDate.getMonth(), 1);
+  }
+
+  return firstOfMonth;
+}
+
+function CalendarCaption(props) {
+  const { displayMonth, onMonthChange, fromDate, toDate, fromYear, toYear } = props;
+  const [editing, setEditing] = React.useState(false);
+
+  const displayYear = displayMonth.getFullYear();
+  const displayMonthIndex = displayMonth.getMonth();
+
+  const todayYear = new Date().getFullYear();
+  const effectiveFromYear =
+    typeof fromYear === "number"
+      ? fromYear
+      : fromDate
+        ? fromDate.getFullYear()
+        : todayYear - 20;
+  const effectiveToYear =
+    typeof toYear === "number"
+      ? toYear
+      : toDate
+        ? toDate.getFullYear()
+        : todayYear + 20;
+
+  const years = React.useMemo(
+    () => buildYearRange(effectiveFromYear, effectiveToYear),
+    [effectiveFromYear, effectiveToYear]
+  );
+
+  const handleLabelClick = () => {
+    setEditing(true);
+  };
+
+  const handleMonthChange = (event) => {
+    const monthIndex = Number(event.target.value);
+    if (Number.isNaN(monthIndex)) return;
+    const next = clampMonthWithinRange(new Date(displayYear, monthIndex, 1), fromDate, toDate);
+    onMonthChange?.(next);
+  };
+
+  const handleYearChange = (event) => {
+    const year = Number(event.target.value);
+    if (Number.isNaN(year)) return;
+    const next = clampMonthWithinRange(new Date(year, displayMonthIndex, 1), fromDate, toDate);
+    onMonthChange?.(next);
+  };
+
+  const handleBlurContainer = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setEditing(false);
+    }
+  };
+
+  return (
+    <div
+      className="flex w-full items-center justify-between px-1 pt-1 gap-1"
+      onBlur={handleBlurContainer}
+    >
+      {!editing ? (
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={handleLabelClick}
+        >
+          <span>
+            {MONTH_LABELS[displayMonthIndex]} {displayYear}
+          </span>
+          <span className="text-[10px] leading-none">▾</span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-1">
+          <select
+            className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight"
+            value={displayMonthIndex}
+            onChange={handleMonthChange}
+          >
+            {MONTH_LABELS.map((label, index) => (
+              <option key={label} value={index}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight"
+            value={displayYear}
+            onChange={handleYearChange}
+          >
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {props.nextMonth && props.previousMonth && (
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            onClick={() => {
+              const prev = clampMonthWithinRange(
+                new Date(displayYear, displayMonthIndex - 1, 1),
+                fromDate,
+                toDate
+              );
+              onMonthChange?.(prev);
+            }}
+          >
+            {"<"}
+          </button>
+          <button
+            type="button"
+            className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            onClick={() => {
+              const next = clampMonthWithinRange(
+                new Date(displayYear, displayMonthIndex + 1, 1),
+                fromDate,
+                toDate
+              );
+              onMonthChange?.(next);
+            }}
+          >
+            {">"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Calendar for single-date selection. Used inside DateField popover.
- * Renders with Tailwind-friendly classes; optional react-day-picker/style.css for full styling.
+ * Compact, ERP-style layout with single clickable month/year caption.
  */
-function Calendar({ className, classNames, showOutsideDays = true, ...props }) {
+function Calendar({
+  className,
+  classNames,
+  showOutsideDays = true,
+  fromDate,
+  toDate,
+  fromYear,
+  toYear,
+  ...props
+}) {
+  const todayYear = new Date().getFullYear();
+  const resolvedFromYear = fromYear ?? (fromDate ? fromDate.getFullYear() : todayYear - 20);
+  const resolvedToYear = toYear ?? (toDate ? toDate.getFullYear() : todayYear + 20);
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("rounded-lg border border-border bg-background p-2", className)}
+      fromDate={fromDate}
+      toDate={toDate}
+      fromYear={resolvedFromYear}
+      toYear={resolvedToYear}
+      className={cn("rounded-md border border-border bg-background p-1.5", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row gap-2",
-        month: "flex flex-col gap-1",
-        month_caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
-        nav: "flex items-center gap-1",
-        button_previous: "size-8 rounded-md border border-input bg-background inline-flex items-center justify-center hover:bg-accent",
-        button_next: "size-8 rounded-md border border-input bg-background inline-flex items-center justify-center hover:bg-accent",
+        months: "flex flex-col sm:flex-row gap-1",
+        month: "flex flex-col gap-0.5",
+        month_caption: "px-1 pt-1",
+        caption_label: "hidden",
+        nav: "hidden",
         month_grid: "w-full border-collapse",
-        weekdays: "flex",
-        weekday: "text-muted-foreground rounded-md w-8 font-normal text-[0.8rem]",
-        week: "flex w-full mt-1",
-        day: "h-8 w-8 text-center text-sm p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-        day_button: "h-8 w-8 p-0 font-normal rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        weekdays: "flex px-1",
+        weekday: "text-muted-foreground rounded w-7 font-normal text-[0.7rem]",
+        week: "flex w-full mt-0.5 px-1",
+        day: "h-7 w-7 text-center text-xs p-0 relative [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l last:[&:has([aria-selected])]:rounded-r",
+        day_button:
+          "h-7 w-7 p-0 font-normal rounded hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1",
         selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
         today: "bg-accent text-accent-foreground",
         outside: "text-muted-foreground opacity-50",
         disabled: "text-muted-foreground opacity-50",
         ...classNames,
+      }}
+      components={{
+        Caption: (captionProps) => (
+          <CalendarCaption
+            {...captionProps}
+            fromDate={fromDate}
+            toDate={toDate}
+            fromYear={resolvedFromYear}
+            toYear={resolvedToYear}
+          />
+        ),
       }}
       {...props}
     />
