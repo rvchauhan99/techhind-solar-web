@@ -27,6 +27,9 @@ import {
   IconRefresh,
   IconCalendar,
   IconMinus,
+  IconClock,
+  IconCircleCheck,
+  IconX,
 } from "@tabler/icons-react";
 import {
   BarChart,
@@ -69,6 +72,34 @@ const DATE_PRESETS = [
   { label: "This Month", fn: () => { const n = new Date(); return { from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
   { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { from: p.toISOString().split("T")[0], to: n.toISOString().split("T")[0] }; } },
 ];
+
+const STATUS_TABS = [
+  { value: null, label: "All", cls: "text-slate-600 border-slate-200 hover:border-slate-400" },
+  { value: "new", label: "New", cls: "text-blue-600 border-blue-200 hover:border-blue-400", activeCls: "bg-blue-50 border-blue-400 text-blue-700" },
+  { value: "contacted", label: "Contacted", cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
+  { value: "follow_up", label: "Follow Up", cls: "text-purple-600 border-purple-200 hover:border-purple-400", activeCls: "bg-purple-50 border-purple-400 text-purple-700" },
+  { value: "interested", label: "Interested", cls: "text-emerald-600 border-emerald-200 hover:border-emerald-400", activeCls: "bg-emerald-50 border-emerald-400 text-emerald-700" },
+  { value: "converted", label: "Converted", cls: "text-green-600 border-green-200 hover:border-green-400", activeCls: "bg-green-50 border-green-400 text-green-700" },
+];
+
+const FILTER_LABELS = {
+  from: "Date From", to: "Date To", branch_id: "Branch", source_ids: "Sources",
+  status: "Status", priority: "Priority", campaign_name: "Campaign",
+  lead_segment: "Segment", product_interest: "Product", assigned_to: "Assigned To",
+};
+
+function getChips(filters, branches, sources, users) {
+  return Object.entries(filters)
+    .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .map(([key, value]) => {
+      let valStr = String(value);
+      if (key === "branch_id") valStr = branches.find((b) => String(b.id) === String(value))?.name || value;
+      if (key === "assigned_to") valStr = users.find((u) => String(u.id) === String(value))?.name || value;
+      if (key === "status") valStr = (Array.isArray(value) ? value : [value]).map(s => s.replace(/_/g, " ")).join(", ");
+      if (key === "source_ids") valStr = (Array.isArray(value) ? value : [value]).map(s => sources.find(src => String(src.id) === String(s))?.source_name || s).join(", ");
+      return { key, label: FILTER_LABELS[key] || key, value: valStr };
+    });
+}
 
 // ─── Tiny helpers ─────────────────────────────────────────────────────────────
 
@@ -156,6 +187,7 @@ export default function MarketingLeadAnalysisPage() {
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
+  const [activeStatusTab, setActiveStatusTab] = useState(null);
 
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
@@ -194,6 +226,20 @@ export default function MarketingLeadAnalysisPage() {
     const dates = preset.fn();
     const next = { ...filters, ...dates };
     setFilters(next); setActivePreset(preset.label); loadSummary(next);
+  };
+
+  const handleStatusTab = (statusValue) => {
+    setActiveStatusTab(statusValue);
+    const next = { ...filters, status: statusValue ? [statusValue] : [] };
+    setFilters(next); loadSummary(next);
+  };
+
+  const removeChip = (key) => {
+    const next = { ...filters, [key]: INITIAL_FILTERS[key] };
+    setFilters(next);
+    if (key === "status") setActiveStatusTab(null);
+    if (key === "from" || key === "to") setActivePreset(null);
+    loadSummary(next);
   };
 
   // ─── Derived ───────────────────────────────────────────────────────────────
@@ -243,6 +289,7 @@ export default function MarketingLeadAnalysisPage() {
   const trendData = (summary?.daily_trend || []).map((r) => ({ date: r.date?.slice(5) || r.date, Leads: Number(r.count || 0) }));
 
   const activeFilterCount = [filters.from, filters.to, filters.branch_id, filters.source_ids?.length > 0, filters.status?.length > 0, filters.priority?.length > 0, filters.lead_segment, filters.product_interest, filters.assigned_to].filter(Boolean).length;
+  const chips = getChips(filters, branchOptions, sourceOptions, userOptions);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -286,13 +333,34 @@ export default function MarketingLeadAnalysisPage() {
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{activeFilterCount} filter{activeFilterCount > 1 ? "s" : ""}</Badge>
               )}
               <div className="h-4 w-px bg-slate-200 mx-0.5" />
-              <Button size="sm" variant="outline" onClick={() => { setFilters(INITIAL_FILTERS); setActivePreset(null); loadSummary(INITIAL_FILTERS); }} disabled={loading} className="h-7 text-xs gap-1 px-2">
+              <Button size="sm" variant="outline" onClick={() => { setFilters(INITIAL_FILTERS); setActivePreset(null); setActiveStatusTab(null); loadSummary(INITIAL_FILTERS); }} disabled={loading} className="h-7 text-xs gap-1 px-2">
                 <IconRefresh size={11} /> Reset
               </Button>
               <Button size="sm" onClick={() => { setActivePreset(null); loadSummary(); }} disabled={loading} className="h-7 text-xs gap-1 px-2">
                 <IconFilter size={11} /> Apply
               </Button>
             </div>
+          </div>
+
+          {/* ── Status Quick Tabs ───────────────────────────────────────────── */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {STATUS_TABS.map((tab) => {
+              const isActive = activeStatusTab === tab.value;
+              return (
+                <button
+                  key={String(tab.value)}
+                  onClick={() => handleStatusTab(tab.value)}
+                  className={[
+                    "flex items-center gap-1 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all",
+                    isActive
+                      ? (tab.activeCls || "bg-primary text-primary-foreground border-primary")
+                      : `bg-white ${tab.cls}`,
+                  ].join(" ")}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
 
           {/* ── Collapsible Filters ─────────────────────────────────────────── */}
@@ -316,7 +384,7 @@ export default function MarketingLeadAnalysisPage() {
                   {branchOptions.map((b) => <MenuItem key={b.id} value={String(b.id)}>{b.name ?? b.label ?? b.id}</MenuItem>)}
                 </Select>
                 <MultiSelect name="source_ids" label="Sources" fullWidth placeholder="Sources…" options={sourceOptions.map((s) => ({ value: String(s.id), label: s.source_name || s.name || String(s.id) }))} value={filters.source_ids} onChange={(e) => fc("source_ids", e.target.value)} />
-                <MultiSelect name="status" label="Status" fullWidth placeholder="Status…" options={[{ value: "new", label: "New" }, { value: "contacted", label: "Contacted" }, { value: "follow_up", label: "Follow Up" }, { value: "interested", label: "Interested" }, { value: "converted", label: "Converted" }, { value: "not_interested", label: "Not Interested" }, { value: "junk", label: "Junk" }]} value={filters.status} onChange={(e) => fc("status", e.target.value)} />
+                <MultiSelect name="status" label="Status" fullWidth placeholder="Status…" options={[{ value: "new", label: "New" }, { value: "contacted", label: "Contacted" }, { value: "follow_up", label: "Follow Up" }, { value: "interested", label: "Interested" }, { value: "converted", label: "Converted" }, { value: "not_interested", label: "Not Interested" }, { value: "junk", label: "Junk" }]} value={filters.status} onChange={(e) => { fc("status", e.target.value); setActiveStatusTab(null); }} />
                 <MultiSelect name="priority" label="Priority" fullWidth placeholder="Priority…" options={[{ value: "hot", label: "🔴 Hot" }, { value: "high", label: "🟠 High" }, { value: "medium", label: "🟡 Medium" }, { value: "low", label: "⚪ Low" }]} value={filters.priority} onChange={(e) => fc("priority", e.target.value)} />
                 <Select name="lead_segment" label="Segment" fullWidth value={filters.lead_segment} onChange={(e) => fc("lead_segment", e.target.value)}>
                   <MenuItem value="">All Segments</MenuItem>
@@ -338,6 +406,29 @@ export default function MarketingLeadAnalysisPage() {
               </div>
             )}
           </Card>
+
+          {/* ── Active Filter Chips ─────────────────────────────────────────── */}
+          {chips.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Filters:</span>
+              {chips.map(({ key, label, value }) => (
+                <button
+                  key={key}
+                  onClick={() => removeChip(key)}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/8 border border-primary/20 text-primary/80 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                >
+                  {label}: <span className="font-semibold">{value}</span>
+                  <IconX size={9} />
+                </button>
+              ))}
+              <button
+                onClick={() => { setFilters(INITIAL_FILTERS); setActivePreset(null); setActiveStatusTab(null); loadSummary(INITIAL_FILTERS); }}
+                className="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+          )}
 
           {/* ── KPI Strip ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 h-auto lg:h-[100px]">
