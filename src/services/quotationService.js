@@ -45,4 +45,32 @@ export const getQuotationCountByInquiry = (inquiry_id) =>
 export const pdfGenerate = (id) =>
     apiClient.get(`/quotation/${id}/pdf`, { responseType: "blob" }).then((r) => r.data);
 
-export default { getQuotations, exportQuotations, createQuotation, getQuotationById, updateQuotation, deleteQuotation, approveQuotation, unapproveQuotation, getAllProjectPrices, getProjectPriceBomDetails, getAllProductMakes, getNextQuotationNumber, getAllProducts, getQuotationCountByInquiry, pdfGenerate };
+export const createPdfJob = (id) =>
+    apiClient.post(`/quotation/${id}/pdf/jobs`).then((r) => r.data);
+
+export const getPdfJobStatus = (jobId) =>
+    apiClient.get(`/quotation/pdf/jobs/${jobId}`).then((r) => r.data);
+
+export const downloadPdfJob = (jobId) =>
+    apiClient.get(`/quotation/pdf/jobs/${jobId}/download`, { responseType: "blob" }).then((r) => r.data);
+
+export default {
+    getQuotations,
+    exportQuotations,
+    createQuotation,
+    getQuotationById,
+    updateQuotation,
+    deleteQuotation,
+    approveQuotation,
+    unapproveQuotation,
+    getAllProjectPrices,
+    getProjectPriceBomDetails,
+    getAllProductMakes,
+    getNextQuotationNumber,
+    getAllProducts,
+    getQuotationCountByInquiry,
+    pdfGenerate,
+    createPdfJob,
+    getPdfJobStatus,
+    downloadPdfJob
+};
