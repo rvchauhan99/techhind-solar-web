@@ -36,6 +36,9 @@ import {
 // Module-level dedupe: one in-flight request per id (survives Strict Mode remounts and multiple effect runs)
 const quotationFetchInFlight = new Set();
 const pdfFetchInFlight = new Set();
+const PDF_POLL_TIMEOUT_MS = 120000;
+const PDF_POLL_DELAY_MIN_MS = 1500;
+const PDF_POLL_DELAY_MAX_MS = 5000;
 
 // Number to words converter for Indian currency
 const numberToWords = (num) => {
@@ -155,7 +158,7 @@ export default function QuotationDetail() {
 
     const waitForPdfJobCompletion = useCallback(async (jobId, controller) => {
         const startedAt = Date.now();
-        const timeoutMs = 180000;
+        let attempts = 0;
         while (!controller.signal.aborted) {
             const statusRes = await quotationService.getPdfJobStatus(jobId);
             const statusPayload = statusRes?.result || statusRes?.data || statusRes;
@@ -166,11 +169,16 @@ export default function QuotationDetail() {
             if (status === "failed") {
                 throw new Error(statusPayload?.error || "PDF job failed");
             }
-            if (Date.now() - startedAt > timeoutMs) {
+            if (Date.now() - startedAt > PDF_POLL_TIMEOUT_MS) {
                 throw new Error("PDF generation timeout");
             }
+            attempts += 1;
+            const delayMs = Math.min(
+                PDF_POLL_DELAY_MAX_MS,
+                PDF_POLL_DELAY_MIN_MS + attempts * 300
+            );
             await new Promise((resolve) => {
-                pdfPollTimerRef.current = setTimeout(resolve, 1500);
+                pdfPollTimerRef.current = setTimeout(resolve, delayMs);
             });
         }
         return false;
@@ -207,6 +215,7 @@ export default function QuotationDetail() {
         } catch (err) {
             if (!controller.signal.aborted) {
                 console.error("Failed to generate PDF:", err);
+                toast.error(err?.message || "Failed to generate PDF");
                 pdfRequestedRef.current = false;
             }
         } finally {
