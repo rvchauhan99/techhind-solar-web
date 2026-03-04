@@ -36,7 +36,7 @@ import {
 // Module-level dedupe: one in-flight request per id (survives Strict Mode remounts and multiple effect runs)
 const quotationFetchInFlight = new Set();
 const pdfFetchInFlight = new Set();
-const PDF_POLL_TIMEOUT_MS = 120000;
+const PDF_POLL_TIMEOUT_FALLBACK_MS = 240000;
 const PDF_POLL_DELAY_MIN_MS = 1500;
 const PDF_POLL_DELAY_MAX_MS = 5000;
 
@@ -105,6 +105,7 @@ export default function QuotationDetail() {
     const pdfPollTimerRef = useRef(null);
     const pdfRequestedRef = useRef(false);
     const pdfRequestInFlightRef = useRef(false);
+    const pdfPollTimeoutRef = useRef(PDF_POLL_TIMEOUT_FALLBACK_MS);
 
     useEffect(() => {
         if (!id) return;
@@ -156,12 +157,18 @@ export default function QuotationDetail() {
         }
     };
 
-    const waitForPdfJobCompletion = useCallback(async (jobId, controller) => {
+    const waitForPdfJobCompletion = useCallback(async (jobId, controller, pollTimeoutMs) => {
         const startedAt = Date.now();
         let attempts = 0;
+        let allowedTimeoutMs = Math.max(PDF_POLL_TIMEOUT_FALLBACK_MS, Number(pollTimeoutMs) || 0);
         while (!controller.signal.aborted) {
             const statusRes = await quotationService.getPdfJobStatus(jobId);
             const statusPayload = statusRes?.result || statusRes?.data || statusRes;
+            const serverTimeoutMs = Number(statusPayload?.timing?.recommended_poll_timeout_ms || 0);
+            if (serverTimeoutMs > 0) {
+                allowedTimeoutMs = Math.max(allowedTimeoutMs, serverTimeoutMs);
+                pdfPollTimeoutRef.current = allowedTimeoutMs;
+            }
             const status = statusPayload?.status;
             if (status === "completed") {
                 return true;
@@ -169,7 +176,7 @@ export default function QuotationDetail() {
             if (status === "failed") {
                 throw new Error(statusPayload?.error || "PDF job failed");
             }
-            if (Date.now() - startedAt > PDF_POLL_TIMEOUT_MS) {
+            if (Date.now() - startedAt > allowedTimeoutMs) {
                 throw new Error("PDF generation timeout");
             }
             attempts += 1;
@@ -199,8 +206,12 @@ export default function QuotationDetail() {
             const payload = createRes?.result || createRes?.data || createRes;
             const jobId = payload?.job_id;
             const alreadyDone = payload?.status === "completed";
+            const pollTimeoutMs = Number(payload?.timing?.recommended_poll_timeout_ms || 0);
+            if (pollTimeoutMs > 0) {
+                pdfPollTimeoutRef.current = Math.max(PDF_POLL_TIMEOUT_FALLBACK_MS, pollTimeoutMs);
+            }
             if (!alreadyDone && jobId) {
-                await waitForPdfJobCompletion(jobId, controller);
+                await waitForPdfJobCompletion(jobId, controller, pdfPollTimeoutRef.current);
             }
             const blob = jobId
                 ? await quotationService.downloadPdfJob(jobId)
