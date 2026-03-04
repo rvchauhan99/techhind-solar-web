@@ -88,7 +88,20 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 }, (error) => Promise.reject(error));
 
-// Request interceptor: auth token + x-timezone
+// Lightweight request id generator for client-side correlation (not cryptographically strong)
+function generateRequestId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return (
+    "req-" +
+    Date.now().toString(36) +
+    "-" +
+    Math.random().toString(36).slice(2, 8)
+  );
+}
+
+// Request interceptor: auth token + x-timezone + correlation headers
 axiosInstance.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
@@ -97,11 +110,24 @@ axiosInstance.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
       if (config.headers) {
+        // Timezone
         config.headers["x-timezone"] =
           Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+
+        // Current module route (existing)
         const currentModuleRoute = getCurrentOpenedModuleRoute();
         if (currentModuleRoute) {
           config.headers["x-current-module-route"] = currentModuleRoute;
+        }
+
+        // Correlation headers for backend logs
+        if (!config.headers["x-request-id"]) {
+          config.headers["x-request-id"] = generateRequestId();
+        }
+        if (!config.headers["x-client-route"]) {
+          const path = window.location?.pathname || "";
+          const search = window.location?.search || "";
+          config.headers["x-client-route"] = path + search;
         }
       }
     } else if (config.headers) {

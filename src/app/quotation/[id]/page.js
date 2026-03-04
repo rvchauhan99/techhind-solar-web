@@ -33,6 +33,10 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+// Module-level dedupe: one in-flight request per id (survives Strict Mode remounts and multiple effect runs)
+const quotationFetchInFlight = new Set();
+const pdfFetchInFlight = new Set();
+
 // Number to words converter for Indian currency
 const numberToWords = (num) => {
     if (!num || isNaN(num)) return "";
@@ -96,11 +100,13 @@ export default function QuotationDetail() {
     const [actionId, setActionId] = useState(null);
     const pdfAbortRef = useRef(null);
     const pdfRequestedRef = useRef(false);
+    const pdfRequestInFlightRef = useRef(false);
 
     useEffect(() => {
-        if (id) {
-            loadQuotation();
-        }
+        if (!id) return;
+        if (quotationFetchInFlight.has(id)) return;
+        quotationFetchInFlight.add(id);
+        loadQuotation();
         return () => {
             pdfRequestedRef.current = false;
         };
@@ -108,6 +114,14 @@ export default function QuotationDetail() {
 
     useEffect(() => {
         return () => {
+            // Abort any in-flight PDF request when unmounting or changing id
+            if (pdfAbortRef.current) {
+                try {
+                    pdfAbortRef.current.abort();
+                } catch {
+                    // ignore
+                }
+            }
             if (pdfUrl?.startsWith?.("blob:")) {
                 URL.revokeObjectURL(pdfUrl);
             }
@@ -121,7 +135,7 @@ export default function QuotationDetail() {
             const response = await quotationService.getQuotationById(id);
             const data = response.result || response.data || response;
             setQuotation(data);
-            if (!pdfRequestedRef.current) {
+            if (!pdfRequestedRef.current && !pdfFetchInFlight.has(id)) {
                 pdfRequestedRef.current = true;
                 generatePdf();
             }
@@ -129,11 +143,15 @@ export default function QuotationDetail() {
             console.error("Failed to load quotation", err);
             setError("Failed to load quotation");
         } finally {
+            quotationFetchInFlight.delete(id);
             setLoading(false);
         }
     };
 
     const generatePdf = useCallback(async () => {
+        if (pdfFetchInFlight.has(id)) return;
+        pdfFetchInFlight.add(id);
+        pdfRequestInFlightRef.current = true;
         if (pdfAbortRef.current) pdfAbortRef.current.abort();
         const controller = new AbortController();
         pdfAbortRef.current = controller;
@@ -150,8 +168,13 @@ export default function QuotationDetail() {
                 return blobUrl;
             });
         } catch (err) {
-            if (!controller.signal.aborted) console.error("Failed to generate PDF:", err);
+            if (!controller.signal.aborted) {
+                console.error("Failed to generate PDF:", err);
+                pdfRequestedRef.current = false;
+            }
         } finally {
+            pdfFetchInFlight.delete(id);
+            pdfRequestInFlightRef.current = false;
             if (!controller.signal.aborted) setPdfLoading(false);
         }
     }, [id]);
