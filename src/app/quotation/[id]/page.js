@@ -99,6 +99,7 @@ export default function QuotationDetail() {
     const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false);
     const [actionId, setActionId] = useState(null);
     const pdfAbortRef = useRef(null);
+    const pdfPollTimerRef = useRef(null);
     const pdfRequestedRef = useRef(false);
     const pdfRequestInFlightRef = useRef(false);
 
@@ -121,6 +122,10 @@ export default function QuotationDetail() {
                 } catch {
                     // ignore
                 }
+            }
+            if (pdfPollTimerRef.current) {
+                clearTimeout(pdfPollTimerRef.current);
+                pdfPollTimerRef.current = null;
             }
             if (pdfUrl?.startsWith?.("blob:")) {
                 URL.revokeObjectURL(pdfUrl);
@@ -148,6 +153,29 @@ export default function QuotationDetail() {
         }
     };
 
+    const waitForPdfJobCompletion = useCallback(async (jobId, controller) => {
+        const startedAt = Date.now();
+        const timeoutMs = 180000;
+        while (!controller.signal.aborted) {
+            const statusRes = await quotationService.getPdfJobStatus(jobId);
+            const statusPayload = statusRes?.result || statusRes?.data || statusRes;
+            const status = statusPayload?.status;
+            if (status === "completed") {
+                return true;
+            }
+            if (status === "failed") {
+                throw new Error(statusPayload?.error || "PDF job failed");
+            }
+            if (Date.now() - startedAt > timeoutMs) {
+                throw new Error("PDF generation timeout");
+            }
+            await new Promise((resolve) => {
+                pdfPollTimerRef.current = setTimeout(resolve, 1500);
+            });
+        }
+        return false;
+    }, []);
+
     const generatePdf = useCallback(async () => {
         if (pdfFetchInFlight.has(id)) return;
         pdfFetchInFlight.add(id);
@@ -159,7 +187,16 @@ export default function QuotationDetail() {
         setPdfLoading(true);
         setIframeReady(false);
         try {
-            const blob = await quotationService.pdfGenerate(id);
+            const createRes = await quotationService.createPdfJob(id);
+            const payload = createRes?.result || createRes?.data || createRes;
+            const jobId = payload?.job_id;
+            const alreadyDone = payload?.status === "completed";
+            if (!alreadyDone && jobId) {
+                await waitForPdfJobCompletion(jobId, controller);
+            }
+            const blob = jobId
+                ? await quotationService.downloadPdfJob(jobId)
+                : await quotationService.pdfGenerate(id);
             if (controller.signal.aborted) return;
             if (!(blob instanceof Blob)) throw new Error("Expected blob");
             const blobUrl = URL.createObjectURL(blob);
@@ -177,7 +214,7 @@ export default function QuotationDetail() {
             pdfRequestInFlightRef.current = false;
             if (!controller.signal.aborted) setPdfLoading(false);
         }
-    }, [id]);
+    }, [id, waitForPdfJobCompletion]);
 
     const handlePrint = () => {
         if (pdfUrl) {
