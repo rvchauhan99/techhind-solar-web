@@ -40,11 +40,11 @@ const pdfFetchInFlight = new Set();
 // Number to words converter for Indian currency
 const numberToWords = (num) => {
     if (!num || isNaN(num)) return "";
-    
+
     const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
     const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
     const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-    
+
     const convertLessThanThousand = (n) => {
         if (n === 0) return "";
         if (n < 10) return ones[n];
@@ -57,30 +57,30 @@ const numberToWords = (num) => {
     if (num === 0) return "Zero";
 
     let result = "";
-    
+
     // Crores
     if (num >= 10000000) {
         result += convertLessThanThousand(Math.floor(num / 10000000)) + " Crore ";
         num %= 10000000;
     }
-    
+
     // Lakhs
     if (num >= 100000) {
         result += convertLessThanThousand(Math.floor(num / 100000)) + " Lakh ";
         num %= 100000;
     }
-    
+
     // Thousands
     if (num >= 1000) {
         result += convertLessThanThousand(Math.floor(num / 1000)) + " Thousand ";
         num %= 1000;
     }
-    
+
     // Remaining
     if (num > 0) {
         result += convertLessThanThousand(num);
     }
-    
+
     return result.trim() + " Only";
 };
 
@@ -298,10 +298,10 @@ export default function QuotationDetail() {
         <ProtectedRoute>
             <Box sx={{ bgcolor: "#fff", minHeight: "calc(100vh - 64px)" }}>
                 {/* Header Bar */}
-                <Box 
-                    sx={{ 
-                        display: "flex", 
-                        justifyContent: "space-between", 
+                <Box
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
                         alignItems: "center",
                         py: 1.5,
                         px: 2,
@@ -310,7 +310,7 @@ export default function QuotationDetail() {
                     }}
                 >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                        <IconButton 
+                        <IconButton
                             onClick={() => router.push("/quotation")}
                             size="small"
                             sx={{ color: "text.secondary" }}
@@ -321,44 +321,44 @@ export default function QuotationDetail() {
                             Quotation No #{quotation?.quotation_number || id}
                         </Typography>
                     </Box>
-                    
+
                     {/* Action Buttons */}
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <IconButton 
+                        <IconButton
                             onClick={handlePrint}
                             size="small"
-                            sx={{ 
-                                bgcolor: "#1976d2", 
-                                color: "white", 
+                            sx={{
+                                bgcolor: "#1976d2",
+                                color: "white",
                                 width: 36,
                                 height: 36,
-                                "&:hover": { bgcolor: "#1565c0" } 
+                                "&:hover": { bgcolor: "#1565c0" }
                             }}
                         >
                             <PrintIcon fontSize="small" />
                         </IconButton>
-                        <IconButton 
+                        <IconButton
                             onClick={handleOpenInNewTab}
                             size="small"
-                            sx={{ 
-                                bgcolor: "#1976d2", 
-                                color: "white", 
+                            sx={{
+                                bgcolor: "#1976d2",
+                                color: "white",
                                 width: 36,
                                 height: 36,
-                                "&:hover": { bgcolor: "#1565c0" } 
+                                "&:hover": { bgcolor: "#1565c0" }
                             }}
                         >
                             <VisibilityIcon fontSize="small" />
                         </IconButton>
-                        <IconButton 
+                        <IconButton
                             onClick={handleDownload}
                             size="small"
-                            sx={{ 
-                                bgcolor: "#1976d2", 
-                                color: "white", 
+                            sx={{
+                                bgcolor: "#1976d2",
+                                color: "white",
                                 width: 36,
                                 height: 36,
-                                "&:hover": { bgcolor: "#1565c0" } 
+                                "&:hover": { bgcolor: "#1565c0" }
                             }}
                         >
                             <DownloadIcon fontSize="small" />
@@ -398,20 +398,20 @@ export default function QuotationDetail() {
 
                 {/* Information Section */}
                 <Box sx={{ p: 2.5, borderBottom: "1px solid #e0e0e0" }}>
-                    <Box 
-                        sx={{ 
-                            display: "grid", 
+                    <Box
+                        sx={{
+                            display: "grid",
                             gridTemplateColumns: { xs: "1fr", md: "1fr 1.5fr 1fr" },
                             gap: 4,
                         }}
                     >
                         {/* Quotation Information */}
                         <Box>
-                            <Typography 
-                                variant="subtitle2" 
-                                sx={{ 
-                                    fontWeight: 700, 
-                                    mb: 1.5, 
+                            <Typography
+                                variant="subtitle2"
+                                sx={{
+                                    fontWeight: 700,
+                                    mb: 1.5,
                                     color: "#333",
                                     fontSize: "0.9rem"
                                 }}
@@ -429,12 +429,12 @@ export default function QuotationDetail() {
                                 </Typography>
                                 <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
                                     <Box component="span" sx={{ fontWeight: 600 }}>Generate By:</Box>{" "}
-                                    <Box 
-                                        component="span" 
-                                        sx={{ 
-                                            color: "#1976d2", 
-                                            textDecoration: "underline", 
-                                            cursor: "pointer" 
+                                    <Box
+                                        component="span"
+                                        sx={{
+                                            color: "#1976d2",
+                                            textDecoration: "underline",
+                                            cursor: "pointer"
                                         }}
                                     >
                                         {quotation?.user?.name || "-"}
@@ -449,11 +449,11 @@ export default function QuotationDetail() {
 
                         {/* Customer Information */}
                         <Box>
-                            <Typography 
-                                variant="subtitle2" 
-                                sx={{ 
-                                    fontWeight: 700, 
-                                    mb: 1.5, 
+                            <Typography
+                                variant="subtitle2"
+                                sx={{
+                                    fontWeight: 700,
+                                    mb: 1.5,
                                     color: "#333",
                                     fontSize: "0.9rem"
                                 }}
@@ -461,10 +461,10 @@ export default function QuotationDetail() {
                                 Customer Information:
                             </Typography>
                             <Box sx={{ display: "flex", flexDirection: "column", gap: 0.3 }}>
-                                <Typography 
-                                    variant="body2" 
-                                    sx={{ 
-                                        fontWeight: 600, 
+                                <Typography
+                                    variant="body2"
+                                    sx={{
+                                        fontWeight: 600,
                                         color: "#1976d2",
                                         fontSize: "0.85rem",
                                         textTransform: "uppercase"
@@ -488,10 +488,10 @@ export default function QuotationDetail() {
 
                         {/* Payable Amount */}
                         <Box sx={{ textAlign: "right" }}>
-                            <Typography 
-                                variant="subtitle2" 
-                                sx={{ 
-                                    fontWeight: 700, 
+                            <Typography
+                                variant="subtitle2"
+                                sx={{
+                                    fontWeight: 700,
                                     color: "#333",
                                     fontSize: "0.95rem",
                                     mb: 0.5
@@ -499,11 +499,11 @@ export default function QuotationDetail() {
                             >
                                 Payable Amount: {formatCurrency(quotation?.effective_cost || quotation?.total_project_value)}
                             </Typography>
-                            <Typography 
-                                variant="caption" 
-                                sx={{ 
-                                    color: "#1976d2", 
-                                    textTransform: "uppercase", 
+                            <Typography
+                                variant="caption"
+                                sx={{
+                                    color: "#1976d2",
+                                    textTransform: "uppercase",
                                     fontSize: "0.7rem",
                                     letterSpacing: "0.5px"
                                 }}
