@@ -22,6 +22,12 @@ export const updatePOInward = (id, payload) =>
 export const approvePOInward = (id) =>
   apiClient.post(`/po-inwards/${id}/approve`).then((r) => r.data);
 
+/** Validate serials for a product (duplicate for same product type). Returns { valid, invalid_serials? }. */
+export const validateSerials = ({ product_id, serial_numbers, po_inward_id }) =>
+  apiClient
+    .post("/po-inwards/validate-serials", { product_id, serial_numbers, po_inward_id })
+    .then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
 export default {
   getPOInwards,
   exportPOInwards,
@@ -30,5 +36,6 @@ export default {
   getPODetailsForInward,
   updatePOInward,
   approvePOInward,
+  validateSerials,
 };
 
