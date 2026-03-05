@@ -49,7 +49,7 @@ export default function BillOfMaterialForm({
       setLoadingOptions(true);
       setOptionsReady(false);
       try {
-        const productsRes = await productService.getProducts();
+        const productsRes = await productService.getProducts({ limit: 10000 });
         const productsPayload = productsRes?.result || productsRes;
         const allProducts = productsPayload?.data || [];
 
