@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Input from "@/components/common/Input";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -65,6 +65,7 @@ export default function CompanyProfilePage() {
     const [activeTab, setActiveTab] = useState("0");
     const [quotationTemplateOptions, setQuotationTemplateOptions] = useState([]);
     const [imageUrls, setImageUrls] = useState({ logo: null, header: null, footer: null, stamp: null });
+    const fileInputRefs = useRef({ logo: null, header: null, footer: null, stamp: null });
     const [formData, setFormData] = useState({
         company_name: "",
         company_code: "",
@@ -1444,25 +1445,30 @@ export default function CompanyProfilePage() {
                                                         </p>
                                                     )}
                                                     {!company?.logo && (
-                                                        <Button
-                                                            variant="outlined"
-                                                            component="label"
-                                                            startIcon={<CloudUploadIcon />}
-                                                            disabled={saving}
-                                                        >
-                                                            Upload Logo
+                                                        <>
                                                             <input
+                                                                ref={(el) => { fileInputRefs.current.logo = el; }}
                                                                 type="file"
-                                                                hidden
+                                                                className="hidden"
                                                                 accept="image/*"
                                                                 onChange={(e) => {
-                                                                    const file = e.target.files[0];
+                                                                    const file = e.target.files?.[0];
                                                                     if (file) {
                                                                         handleImageUpload("logo", file);
+                                                                        e.target.value = "";
                                                                     }
                                                                 }}
                                                             />
-                                                        </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                                onClick={() => fileInputRefs.current.logo?.click()}
+                                                            >
+                                                                Upload Logo
+                                                            </Button>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
@@ -1498,24 +1504,27 @@ export default function CompanyProfilePage() {
                                                             <p className="text-sm text-gray-500">
                                                                 No header uploaded
                                                             </p>
+                                                            <input
+                                                                ref={(el) => { fileInputRefs.current.header = el; }}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleImageUpload("header", file);
+                                                                        e.target.value = "";
+                                                                    }
+                                                                }}
+                                                            />
                                                             <Button
-                                                                variant="outlined"
-                                                                component="label"
+                                                                type="button"
+                                                                variant="outline"
                                                                 startIcon={<CloudUploadIcon />}
                                                                 disabled={saving}
+                                                                onClick={() => fileInputRefs.current.header?.click()}
                                                             >
                                                                 Upload Header
-                                                                <input
-                                                                    type="file"
-                                                                    hidden
-                                                                    accept="image/*"
-                                                                    onChange={(e) => {
-                                                                        const file = e.target.files[0];
-                                                                        if (file) {
-                                                                            handleImageUpload("header", file);
-                                                                        }
-                                                                    }}
-                                                                />
                                                             </Button>
                                                             <p className="text-xs text-red-500 mt-2">
                                                                 Recommended: Image size 1900(w) x 300(h) px
@@ -1556,24 +1565,27 @@ export default function CompanyProfilePage() {
                                                             <p className="text-sm text-gray-500">
                                                                 No footer uploaded
                                                             </p>
+                                                            <input
+                                                                ref={(el) => { fileInputRefs.current.footer = el; }}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleImageUpload("footer", file);
+                                                                        e.target.value = "";
+                                                                    }
+                                                                }}
+                                                            />
                                                             <Button
-                                                                variant="outlined"
-                                                                component="label"
+                                                                type="button"
+                                                                variant="outline"
                                                                 startIcon={<CloudUploadIcon />}
                                                                 disabled={saving}
+                                                                onClick={() => fileInputRefs.current.footer?.click()}
                                                             >
                                                                 Upload Footer
-                                                                <input
-                                                                    type="file"
-                                                                    hidden
-                                                                    accept="image/*"
-                                                                    onChange={(e) => {
-                                                                        const file = e.target.files[0];
-                                                                        if (file) {
-                                                                            handleImageUpload("footer", file);
-                                                                        }
-                                                                    }}
-                                                                />
                                                             </Button>
                                                             <p className="text-xs text-red-500 mt-2">
                                                                 Recommended: Image size 1900(w) x 300(h) px
@@ -1615,25 +1627,30 @@ export default function CompanyProfilePage() {
                                                         </p>
                                                     )}
                                                     {!company?.stamp && (
-                                                        <Button
-                                                            variant="outlined"
-                                                            component="label"
-                                                            startIcon={<CloudUploadIcon />}
-                                                            disabled={saving}
-                                                        >
-                                                            Upload Stamp
+                                                        <>
                                                             <input
+                                                                ref={(el) => { fileInputRefs.current.stamp = el; }}
                                                                 type="file"
-                                                                hidden
+                                                                className="hidden"
                                                                 accept="image/*"
                                                                 onChange={(e) => {
-                                                                    const file = e.target.files[0];
+                                                                    const file = e.target.files?.[0];
                                                                     if (file) {
                                                                         handleImageUpload("stamp", file);
+                                                                        e.target.value = "";
                                                                     }
                                                                 }}
                                                             />
-                                                        </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                                onClick={() => fileInputRefs.current.stamp?.click()}
+                                                            >
+                                                                Upload Stamp
+                                                            </Button>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
