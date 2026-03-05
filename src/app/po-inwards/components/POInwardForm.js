@@ -99,12 +99,12 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                 items: defaultValues.items || [],
             });
             if (defaultValues.purchase_order_id) {
-                loadPurchaseOrder(defaultValues.purchase_order_id);
+                loadPurchaseOrder(defaultValues.purchase_order_id, defaultValues?.id ? defaultValues.items : null);
             }
         }
     }, [defaultValues]);
 
-    const loadPurchaseOrder = async (poId) => {
+    const loadPurchaseOrder = async (poId, existingItems = null) => {
         try {
             // Use po-inwards/po-details so inward team can load PO without purchase-orders module access
             const response = await poInwardService.getPODetailsForInward(poId);
@@ -135,7 +135,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                 }
             }
 
-            // Pre-populate items from PO with tracking info
+            // Pre-populate items from PO with tracking info; merge existing receipt data when editing
             if (result.items && result.items.length > 0) {
                 const poItems = result.items.map((item) => {
                     // Normalize tracking_type from product master (runtime lookup)
@@ -147,7 +147,11 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                     // If tracking_type is SERIAL OR serial_required is true, treat as SERIAL
                     const shouldBeSerial = productTrackingType === "SERIAL" || productSerialRequired === true;
                     const trackingType = shouldBeSerial ? "SERIAL" : productTrackingType;
-                    
+
+                    // Already received on this PO line (from previous approved inwards)
+                    const alreadyReceived = item.received_quantity ?? item.received_qty ?? 0;
+                    const existing = existingItems?.find((e) => e.purchase_order_item_id === item.id);
+
                     return {
                         purchase_order_item_id: item.id,
                         product_id: item.product_id,
@@ -155,15 +159,14 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                         tracking_type: trackingType,
                         serial_required: shouldBeSerial,
                         ordered_quantity: item.quantity,
-                        received_quantity: 0,
-                        accepted_quantity: 0,
-                        rejected_quantity: 0,
+                        already_received_quantity: alreadyReceived,
+                        received_quantity: existing != null ? (existing.received_quantity ?? 0) : 0,
+                        accepted_quantity: existing != null ? (existing.accepted_quantity ?? 0) : 0,
+                        rejected_quantity: existing != null ? (existing.rejected_quantity ?? 0) : 0,
                         rate: item.rate,
                         gst_percent: item.gst_percent,
-                        // For SERIAL items: array of serial numbers (0 to received_quantity)
-                        serials: [],
-                        // For LOT items: optional lot/batch number
-                        lot_number: "",
+                        serials: existing?.serials ?? [],
+                        lot_number: existing?.lot_number ?? "",
                     };
                 });
                 setFormData((prev) => ({
@@ -363,11 +366,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
         if (expandedSerialRowIndex == null) return;
         const item = formData.items[expandedSerialRowIndex];
         const ordered = parseInt(item?.ordered_quantity, 10) || 0;
+        const alreadyReceived = parseInt(item?.already_received_quantity, 10) || 0;
+        const pending = Math.max(0, ordered - alreadyReceived);
         const rejected = parseInt(item?.rejected_quantity, 10) || 0;
         const acceptedQty = serialDrawerValues.length;
 
-        if (tokens.length > ordered) {
-            setSerialDrawerError(`Too many serials (${tokens.length}). Cannot exceed ordered quantity (${ordered}).`);
+        if (tokens.length > pending) {
+            setSerialDrawerError(`Too many serials (${tokens.length}). Cannot exceed pending quantity (${pending}).`);
             return;
         }
 
@@ -379,7 +384,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
             setSerialDrawerError("All serials already entered.");
             return;
         }
-        const newAccepted = Math.min(acceptedQty + uniqueNew.length, ordered);
+        const newAccepted = Math.min(acceptedQty + uniqueNew.length, pending);
 
         if (newAccepted > acceptedQty) {
             setFormData((prev) => {
@@ -400,7 +405,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                 caseInsensitive: true,
             });
             if (overflow.length) {
-                setSerialDrawerError(`Too many serials. ${overflow.length} not filled (limit ${ordered}).`);
+                setSerialDrawerError(`Too many serials. ${overflow.length} not filled (limit ${pending}).`);
                 return;
             }
             setSerialDrawerValues(nextSlots);
@@ -474,11 +479,13 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
 
         const item = formData.items[expandedSerialRowIndex];
         const ordered = parseInt(item?.ordered_quantity, 10) || 0;
+        const alreadyReceived = parseInt(item?.already_received_quantity, 10) || 0;
+        const pending = Math.max(0, ordered - alreadyReceived);
         const rejected = parseInt(item?.rejected_quantity, 10) || 0;
         const acceptedQty = serialDrawerValues.length;
 
-        if (tokens.length > ordered) {
-            toastError(`Too many serials (${tokens.length}). Cannot exceed ordered quantity (${ordered}).`);
+        if (tokens.length > pending) {
+            toastError(`Too many serials (${tokens.length}). Cannot exceed pending quantity (${pending}).`);
             return;
         }
 
@@ -512,9 +519,9 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
             toastError("All serials already entered.");
             return;
         }
-        const newAccepted = Math.min(acceptedQty + uniqueNew.length, ordered);
-        if (newAccepted > ordered) {
-            toastError(`Too many serials. Cannot exceed ordered quantity (${ordered}).`);
+        const newAccepted = Math.min(acceptedQty + uniqueNew.length, pending);
+        if (newAccepted > pending) {
+            toastError(`Too many serials. Cannot exceed pending quantity (${pending}).`);
             return;
         }
 
@@ -537,7 +544,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                 caseInsensitive: true,
             });
             if (overflow.length) {
-                toastError(`Too many serials. ${overflow.length} not filled (limit ${ordered}).`);
+                toastError(`Too many serials. ${overflow.length} not filled (limit ${pending}).`);
                 return;
             }
             setSerialDrawerValues(nextSlots);
@@ -597,13 +604,15 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                 const receivedQty = parseInt(item.received_quantity) || 0;
                 const rejectedQty = parseInt(item.rejected_quantity) || 0;
                 const orderedQty = parseInt(item.ordered_quantity) || 0;
+                const alreadyReceivedQty = parseInt(item.already_received_quantity) || 0;
+                const pendingQty = Math.max(0, orderedQty - alreadyReceivedQty);
                 const acceptedQty = item.accepted_quantity || 0;
                 const productName = item.product_name || `Item ${index + 1}`;
 
                 if (!item.received_quantity || receivedQty <= 0) {
                     validationErrors[`item_${index}_received`] = `Received quantity must be at least 1 for ${productName}`;
-                } else if (receivedQty > orderedQty) {
-                    validationErrors[`item_${index}_received`] = `Received quantity (${receivedQty}) cannot exceed ordered quantity (${orderedQty}) for ${productName}`;
+                } else if (receivedQty > pendingQty) {
+                    validationErrors[`item_${index}_received`] = `Received quantity (${receivedQty}) cannot exceed pending quantity (${pendingQty}) for ${productName}`;
                 }
 
                 if (rejectedQty < 0) {
@@ -867,7 +876,10 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                             <Collapse in={!isCardCollapsed} timeout="auto" unmountOnExit>
                                                 <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
 
-                                                    {/* Read-only stats: Ordered, Pending */}
+                                                    {/* Read-only stats: Ordered, Pending (remaining to receive on PO) */}
+                                                    {(() => {
+                                                        const pendingQty = Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0));
+                                                        return (
                                                     <Box sx={{ display: "flex", gap: 2, mb: 1.25 }}>
                                                         <Box>
                                                             <Typography variant="caption" color="text.secondary" display="block">Ordered</Typography>
@@ -876,12 +888,14 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                         <Box>
                                                             <Typography variant="caption" color="text.secondary" display="block">Pending</Typography>
                                                             <Typography variant="body2" fontWeight="medium">
-                                                                {Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.received_quantity) || 0))}
+                                                                {pendingQty}
                                                             </Typography>
                                                         </Box>
                                                     </Box>
+                                                        );
+                                                    })()}
 
-                                                    {/* Received input (Rejected default 0, Accepted = Received) */}
+                                                    {/* Received input (current receive for this receipt) */}
                                                     <Box sx={{ mb: 1 }}>
                                                         <Input
                                                             type="number"
@@ -890,7 +904,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                             fullWidth
                                                             value={item.received_quantity}
                                                             onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
-                                                            inputProps={{ min: 0, max: item.ordered_quantity }}
+                                                            inputProps={{ min: 0, max: Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0)) }}
                                                             error={!!errors[`item_${index}_received`]}
                                                             helperText={errors[`item_${index}_received`]}
                                                         />
@@ -1071,7 +1085,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                         </TableCell>
                                                         <TableCell align="right">{item.ordered_quantity}</TableCell>
                                                         <TableCell align="right">
-                                                            {Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.received_quantity) || 0))}
+                                                            {Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0))}
                                                         </TableCell>
                                                         <TableCell data-no-row-toggle>
                                                             <Input
@@ -1080,7 +1094,7 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                                                 fullWidth
                                                                 value={item.received_quantity}
                                                                 onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
-                                                                inputProps={{ min: 0, max: item.ordered_quantity }}
+                                                                inputProps={{ min: 0, max: Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0)) }}
                                                                 error={!!errors[`item_${index}_received`]}
                                                                 helperText={errors[`item_${index}_received`]}
                                                             />
@@ -1219,8 +1233,8 @@ export default function POInwardForm({ defaultValues = {}, onSubmit, loading, se
                                 <Typography variant="h6">
                                     {formData.items.reduce((sum, item) => {
                                         const ordered = parseInt(item.ordered_quantity) || 0;
-                                        const received = parseInt(item.received_quantity) || 0;
-                                        return sum + Math.max(0, ordered - received);
+                                        const alreadyReceived = parseInt(item.already_received_quantity) || 0;
+                                        return sum + Math.max(0, ordered - alreadyReceived);
                                     }, 0)}
                                 </Typography>
                             </div>
