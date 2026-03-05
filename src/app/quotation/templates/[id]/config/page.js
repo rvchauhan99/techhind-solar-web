@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Box, Typography, Card, CardContent, Grid } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Container from "@/components/container";
 import quotationTemplateService from "@/services/quotationTemplateService";
@@ -62,6 +63,47 @@ export default function QuotationTemplateConfigPage() {
       toast.success("Image uploaded");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Upload failed");
+    } finally {
+      setUploading((p) => ({ ...p, [fieldKey]: false }));
+    }
+  };
+
+  const handleRemoveImage = async (fieldKey) => {
+    if (!id || !template) return;
+    const currentValue = getConfigValue(fieldKey);
+    if (!currentValue) return;
+    setUploading((p) => ({ ...p, [fieldKey]: true }));
+    try {
+      let payload = {};
+      if (fieldKey === "default_background") {
+        payload = {
+          default_background_image_path: null,
+          default_background_image_data: null,
+        };
+      } else if (fieldKey === "default_footer") {
+        payload = {
+          default_footer_image_path: null,
+          default_footer_image_data: null,
+        };
+      } else if (fieldKey.startsWith("page_")) {
+        const pageNum = fieldKey.replace("page_", "");
+        const existingPageBackgrounds =
+          template?.config?.page_backgrounds && typeof template.config.page_backgrounds === "object"
+            ? { ...template.config.page_backgrounds }
+            : {};
+        delete existingPageBackgrounds[pageNum];
+        payload = {
+          page_backgrounds: Object.keys(existingPageBackgrounds).length ? existingPageBackgrounds : null,
+          page_backgrounds_data: null,
+        };
+      }
+
+      const res = await quotationTemplateService.updateTemplateConfig(id, payload);
+      const data = res?.result ?? res?.data ?? res;
+      if (data) setTemplate(data);
+      toast.success("Image removed");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to remove image");
     } finally {
       setUploading((p) => ({ ...p, [fieldKey]: false }));
     }
@@ -142,17 +184,32 @@ export default function QuotationTemplateConfigPage() {
                           disabled={isUploading}
                           onChange={(e) => handleFileChange(key, e)}
                         />
-                        <ThemeButton
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          loading={isUploading}
-                          className="gap-1"
-                          onClick={() => fileInputRefs.current[key]?.click()}
-                        >
-                          <CloudUploadIcon sx={{ fontSize: 18 }} />
-                          {value ? "Replace" : "Upload"}
-                        </ThemeButton>
+                        <div className="flex items-center gap-1">
+                          <ThemeButton
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            loading={isUploading}
+                            className="gap-1"
+                            onClick={() => fileInputRefs.current[key]?.click()}
+                          >
+                            <CloudUploadIcon sx={{ fontSize: 18 }} />
+                            {value ? "Replace" : "Upload"}
+                          </ThemeButton>
+                          {value && (
+                            <ThemeButton
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isUploading}
+                              className="gap-1 text-red-600 border-red-300 hover:text-red-700 hover:border-red-400"
+                              onClick={() => handleRemoveImage(key)}
+                            >
+                              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                              Remove
+                            </ThemeButton>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   </Grid>
