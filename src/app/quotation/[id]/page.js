@@ -39,6 +39,7 @@ const pdfFetchInFlight = new Set();
 const PDF_POLL_TIMEOUT_FALLBACK_MS = 240000;
 const PDF_POLL_DELAY_MIN_MS = 1500;
 const PDF_POLL_DELAY_MAX_MS = 5000;
+const PDF_TAKING_LONGER_THRESHOLD_MS = 25000;
 
 // Number to words converter for Indian currency
 const numberToWords = (num) => {
@@ -96,6 +97,7 @@ export default function QuotationDetail() {
     const [loading, setLoading] = useState(true);
     const [pdfUrl, setPdfUrl] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(false);
+    const [pdfTakingLonger, setPdfTakingLonger] = useState(false);
     const [iframeReady, setIframeReady] = useState(false);
     const [error, setError] = useState(null);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -157,10 +159,11 @@ export default function QuotationDetail() {
         }
     };
 
-    const waitForPdfJobCompletion = useCallback(async (jobId, controller, pollTimeoutMs) => {
+    const waitForPdfJobCompletion = useCallback(async (jobId, controller, pollTimeoutMs, { onTakingLong } = {}) => {
         const startedAt = Date.now();
         let attempts = 0;
         let allowedTimeoutMs = Math.max(PDF_POLL_TIMEOUT_FALLBACK_MS, Number(pollTimeoutMs) || 0);
+        let takingLongNotified = false;
         while (!controller.signal.aborted) {
             const statusRes = await quotationService.getPdfJobStatus(jobId);
             const statusPayload = statusRes?.result || statusRes?.data || statusRes;
@@ -178,6 +181,11 @@ export default function QuotationDetail() {
             }
             if (Date.now() - startedAt > allowedTimeoutMs) {
                 throw new Error("PDF generation timeout");
+            }
+            const elapsed = Date.now() - startedAt;
+            if (!takingLongNotified && elapsed >= PDF_TAKING_LONGER_THRESHOLD_MS && onTakingLong) {
+                takingLongNotified = true;
+                onTakingLong();
             }
             attempts += 1;
             const delayMs = Math.min(
@@ -200,6 +208,7 @@ export default function QuotationDetail() {
         pdfAbortRef.current = controller;
 
         setPdfLoading(true);
+        setPdfTakingLonger(false);
         setIframeReady(false);
         try {
             const createRes = await quotationService.createPdfJob(id);
@@ -211,7 +220,9 @@ export default function QuotationDetail() {
                 pdfPollTimeoutRef.current = Math.max(PDF_POLL_TIMEOUT_FALLBACK_MS, pollTimeoutMs);
             }
             if (!alreadyDone && jobId) {
-                await waitForPdfJobCompletion(jobId, controller, pdfPollTimeoutRef.current);
+                await waitForPdfJobCompletion(jobId, controller, pdfPollTimeoutRef.current, {
+                    onTakingLong: () => setPdfTakingLonger(true),
+                });
             }
             const blob = jobId
                 ? await quotationService.downloadPdfJob(jobId)
@@ -232,7 +243,10 @@ export default function QuotationDetail() {
         } finally {
             pdfFetchInFlight.delete(id);
             pdfRequestInFlightRef.current = false;
-            if (!controller.signal.aborted) setPdfLoading(false);
+            if (!controller.signal.aborted) {
+                setPdfLoading(false);
+                setPdfTakingLonger(false);
+            }
         }
     }, [id, waitForPdfJobCompletion]);
 
@@ -574,9 +588,16 @@ export default function QuotationDetail() {
                 {/* PDF Viewer */}
                 <Box sx={{ bgcolor: "#f5f5f5", p: 0, position: "relative" }}>
                     {(pdfLoading || (pdfUrl && !iframeReady)) && (
-                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "calc(100vh - 150px)", position: pdfUrl ? "absolute" : "relative", inset: 0, zIndex: 2, bgcolor: "#f5f5f5" }}>
-                            <CircularProgress size={32} />
-                            <Typography sx={{ ml: 2, color: "#666" }}>Generating PDF...</Typography>
+                        <Box sx={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "calc(100vh - 150px)", position: pdfUrl ? "absolute" : "relative", inset: 0, zIndex: 2, bgcolor: "#f5f5f5" }}>
+                            <Box sx={{ display: "flex", alignItems: "center" }}>
+                                <CircularProgress size={32} />
+                                <Typography sx={{ ml: 2, color: "#666" }}>Generating PDF...</Typography>
+                            </Box>
+                            {pdfTakingLonger && (
+                                <Typography sx={{ mt: 1, color: "#888", fontSize: "0.875rem" }}>
+                                    PDF is taking longer than usual. Please wait…
+                                </Typography>
+                            )}
                         </Box>
                     )}
                     {pdfUrl ? (
