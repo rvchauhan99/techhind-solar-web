@@ -10,12 +10,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import Checkbox from "@/components/common/Checkbox";
-import { IconDotsVertical, IconEdit, IconTrash, IconFileTypePdf, IconFileDescription, IconCheck, IconX } from "@tabler/icons-react";
+import { IconDotsVertical, IconFileTypePdf, IconFileDescription, IconCheck, IconX, IconDownload, IconPlus } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import quotationService from "@/services/quotationService";
-import ListingPageContainer from "@/components/common/ListingPageContainer";
+import Container from "@/components/container";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
@@ -277,7 +276,7 @@ export default function QuotationList() {
           <Button
             type="button"
             variant="link"
-            className="text-sm p-0 h-auto text-left font-normal"
+            className="text-sm p-0 h-auto text-left font-medium text-[#00823b] hover:text-[#00662e]"
             onClick={() => router.push(`/quotation/${row.id}`)}
           >
             {row.quotation_number || row.id}
@@ -496,30 +495,80 @@ export default function QuotationList() {
     [selectedRecord, router]
   );
 
-  const calculatePaginatedTableHeight = () => `calc(100vh - 150px)`;
+  const calculatePaginatedTableHeight = () => `calc(100vh - 140px)`;
+
+  const includeConverted = filters?.include_converted !== "false";
+  const showConvertedPills = [
+    { value: "all", label: "All" },
+    { value: "exclude", label: "Exclude converted" },
+  ];
 
   return (
     <ProtectedRoute>
-      <ListingPageContainer
-        title="Quotations"
-        addButtonLabel={currentPerm.can_create ? "Create Quotation" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/quotation/add") : undefined}
-        exportButtonLabel="Export"
-        onExportClick={handleExport}
-        exportDisabled={exporting}
-        secondaryButtonLabel="PDF Templates"
-        onSecondaryClick={() => router.push("/quotation/templates")}
-      >
-        <div className="flex flex-col flex-1 min-h-0 gap-2">
-          <div className="flex items-center gap-4 py-1">
-            <label className="flex items-center gap-2 cursor-pointer text-sm">
-              <Checkbox
-                checked={filters?.include_converted === "true" || filters?.include_converted === true}
-                onCheckedChange={(checked) => setFilter("include_converted", checked ? "true" : null)}
-              />
-              <span>Show converted</span>
-            </label>
+      <Container className="flex flex-col gap-1 py-1 h-full min-h-0 max-w-[1536px] mx-auto">
+        {/* Header: same pattern as home - title + subtitle left; pills + divider + buttons right */}
+        <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border pb-1.5 mb-1">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">Quotations</h1>
+            <p className="text-[11px] text-slate-500">
+              Create and manage quotations. Use column filters to search.
+            </p>
           </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">Show:</span>
+            {showConvertedPills.map((p) => {
+              const isAll = p.value === "all";
+              const isActive = isAll ? includeConverted : !includeConverted;
+              return (
+                <button
+                  key={p.value}
+                  onClick={() => setFilter("include_converted", isAll ? "true" : "false")}
+                  className={[
+                    "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                    isActive ? "bg-primary text-primary-foreground border-primary" : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
+                  ].join(" ")}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+            <div className="h-4 w-px bg-slate-200 mx-0.5" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/quotation/templates")}
+              className="h-7 text-xs gap-1 px-2"
+            >
+              PDF Templates
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting}
+              loading={exporting}
+              className="h-7 text-xs gap-1 px-2"
+            >
+              <IconDownload className="size-4" />
+              Export
+            </Button>
+            {currentPerm.can_create && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => router.push("/quotation/add")}
+                className="h-7 text-xs gap-1 px-2"
+              >
+                <IconPlus className="size-4" />
+                Create Quotation
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col flex-1 min-h-0 gap-1.5">
           <PaginatedTable
             key={reloadTrigger}
             columns={columns}
@@ -615,7 +664,7 @@ export default function QuotationList() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </ListingPageContainer>
+      </Container>
     </ProtectedRoute>
   );
 }

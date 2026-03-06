@@ -17,7 +17,7 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders");
     const [formData, setFormData] = useState({
-        subsidy_claim: false,
+        subsidy_claim: true,
         claim_date: "",
         claim_no: "",
         claim_amount: "",
@@ -31,7 +31,7 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     useEffect(() => {
         if (orderData) {
             setFormData({
-                subsidy_claim: !!orderData.subsidy_claim,
+                subsidy_claim: true,
                 claim_date: orderData.claim_date ? moment(orderData.claim_date).format("YYYY-MM-DD") : "",
                 claim_no: orderData.claim_no != null && orderData.claim_no !== false && orderData.claim_no !== "false" ? String(orderData.claim_no) : "",
                 claim_amount: orderData.claim_amount != null && orderData.claim_amount !== "" ? String(orderData.claim_amount) : "",
@@ -68,8 +68,11 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
         try {
             const newFieldErrors = {};
             if (!formData.claim_date) newFieldErrors.claim_date = "Required";
+            if (!formData.claim_amount) newFieldErrors.claim_amount = "Required";
+
             if (Object.keys(newFieldErrors).length > 0) {
                 setFieldErrors(newFieldErrors);
+                toastError("Please fill in all required fields.");
                 return;
             }
 
@@ -111,16 +114,18 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     const isCompleted = orderData?.stages?.subsidy_claim === "completed";
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-4 overflow-y-auto">
+        <Box component="form" onSubmit={handleSubmit} className="p-2 sm:p-3 overflow-y-auto max-w-3xl">
             <FormSection title="Subsidy claim details">
-                <FormGrid cols={3}>
+                <div className="mb-2">
                     <Checkbox
                         name="subsidy_claim"
                         label="Subsidy Claim"
                         checked={formData.subsidy_claim}
                         onChange={handleCheckboxChange}
-                        disabled={isCompleted || isReadOnly}
+                        disabled={true}
                     />
+                </div>
+                <FormGrid cols={3}>
                     <DateField
                         name="claim_date"
                         label="Claim Date"
@@ -148,15 +153,18 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
                         onChange={handleInputChange}
                         fullWidth
                         disabled={isCompleted || isReadOnly}
+                        error={!!fieldErrors.claim_amount}
+                        helperText={fieldErrors.claim_amount}
+                        required
                     />
                 </FormGrid>
 
-                <div className="mt-3">
+                <div className="mt-2">
                     <Input
                         name="subsidy_claim_remarks"
                         label="Remarks"
                         multiline
-                        rows={3}
+                        rows={2}
                         value={formData.subsidy_claim_remarks}
                         onChange={handleInputChange}
                         fullWidth
@@ -165,7 +173,7 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
                 </div>
             </FormSection>
 
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-2">
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
                 <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>

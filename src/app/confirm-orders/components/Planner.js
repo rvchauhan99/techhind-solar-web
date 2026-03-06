@@ -653,13 +653,13 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                         }`}
                                                     >
                                                         <td className="p-2 align-middle">
-                                                            <input
-                                                                type="checkbox"
+                                                            <Checkbox
                                                                 name={`bom_${line.__rowKey}`}
-                                                                checked={line.planned}
+                                                                label=""
+                                                                checked={!!line.planned}
                                                                 onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
-                                                                className="size-4 rounded border-input border bg-background accent-primary cursor-pointer"
                                                                 disabled={isPlannerLocked || isReadOnly || isFullyShipped}
+                                                                className="w-auto"
                                                             />
                                                         </td>
                                                         <td className="p-2 align-middle">{productName}</td>

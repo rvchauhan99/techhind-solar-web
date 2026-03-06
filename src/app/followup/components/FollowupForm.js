@@ -9,6 +9,7 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import Checkbox from "@/components/common/Checkbox";
 import LoadingButton from "@/components/common/LoadingButton";
 import { cn } from "@/lib/utils";
 
@@ -298,16 +299,12 @@ export default function FollowupForm({
           helperText={errors.call_by}
         />
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            name="is_msg_send_to_customer"
-            checked={formData.is_msg_send_to_customer}
-            onChange={handleChange}
-            className="size-4 rounded border-input"
-          />
-          <span className="text-sm font-medium">Message Sent to Customer</span>
-        </label>
+        <Checkbox
+          name="is_msg_send_to_customer"
+          label="Message Sent to Customer"
+          checked={!!formData.is_msg_send_to_customer}
+          onChange={handleChange}
+        />
       </form>
 
       <FormActions>

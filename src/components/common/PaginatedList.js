@@ -210,16 +210,18 @@ export default function PaginatedList({
       className="flex flex-col w-full overflow-hidden rounded-lg border border-border bg-card"
       style={{ height }}
     >
-      {showSearch && (
-        <div className="shrink-0 flex items-center gap-2 p-2">
-          <div className="flex-1 min-w-0">
-            <SearchInput
-              placeholder={searchPlaceholder}
-              value={effectiveQ}
-              onChange={handleSearchChange}
-              fullWidth
-            />
-          </div>
+      {(showSearch || filterSlot) && (
+        <div className={cn("shrink-0 flex items-center gap-2 bg-background border-b border-border", showSearch ? "p-2" : "py-1 px-2 justify-end")}>
+          {showSearch && (
+            <div className="flex-1 min-w-0">
+              <SearchInput
+                placeholder={searchPlaceholder}
+                value={effectiveQ}
+                onChange={handleSearchChange}
+                fullWidth
+              />
+            </div>
+          )}
           {filterSlot}
         </div>
       )}

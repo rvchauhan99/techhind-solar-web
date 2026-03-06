@@ -27,7 +27,6 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -38,7 +37,6 @@ import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
-import { Button } from "@/components/ui/button";
 import { toastError } from "@/utils/toast";
 
 const STAGES = [
@@ -324,7 +322,7 @@ export default function ListView() {
             <PaginatedList
                 fetcher={fetchData}
                 renderItem={renderOrderItem}
-                searchPlaceholder="Search confirmed orders..."
+                showSearch={false}
                 defaultSortBy="order_date"
                 defaultSortOrder="DESC"
                 height={calculateHeight()}
@@ -335,17 +333,6 @@ export default function ListView() {
                 setPage={setPage}
                 limit={limit}
                 setLimit={setLimit}
-                filterSlot={
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setFilterPanelOpen((prev) => !prev)}
-                        className="shrink-0"
-                    >
-                        <FilterListIcon sx={{ fontSize: 18, mr: 0.5 }} />
-                        Filter
-                    </Button>
-                }
             />
 
             <Menu

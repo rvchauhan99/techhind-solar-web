@@ -61,11 +61,23 @@ const Checkbox = forwardRef(function Checkbox(
           onChange={handleChange}
           disabled={disabled}
           className={cn(
-            "size-4 rounded border-input border bg-background accent-primary",
-            "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+            "checkbox-theme-green size-4 shrink-0 rounded border border-input bg-background",
+            "appearance-none cursor-pointer",
+            "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
+            "transition-colors duration-150",
+            "checked:border-[#00823b]",
+            "checked:bg-no-repeat checked:bg-center checked:bg-[length:100%_100%]",
             error && "border-destructive"
           )}
+          style={
+            checked
+              ? {
+                  backgroundColor: "#00823b",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' d='M13 4L6 11L3 8'/%3E%3C/svg%3E")`,
+                }
+              : undefined
+          }
           {...otherProps}
         />
         {label && (
