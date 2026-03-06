@@ -15,13 +15,13 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
-import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import mastersService, { getDefaultState, getDefaultBranch, getReferenceOptionsSearch } from "@/services/mastersService";
 import quotationService from "@/services/quotationService";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Alert from "@mui/material/Alert";
+import { toastError } from "@/utils/toast";
 
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
@@ -29,24 +29,48 @@ import { mapBomResponseToForm } from "./useProjectBomMapper";
 import { calculateTotals } from "./quotationCalculations";
 import TechnicalSection from "./TechnicalSection";
 
+const COMPACT_FORM_SPACING = 0.5; // Tighter grid spacing
+
+const COMPACT_SECTION_HEADER_STYLE = {
+    background: "linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%)",
+    padding: "6px 12px",
+    borderRadius: "6px",
+    marginTop: 1.5,
+    marginBottom: 1,
+    borderLeft: "4px solid #0f172a",
+    display: "flex",
+    alignItems: "center",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+};
+
+const titleProps = {
+    variant: "subtitle2",
+    fontWeight: 700,
+    fontSize: "0.80rem",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    color: "#1e293b" // slate-800
+};
+
 const accordionStyles = {
-    mb: 1,
+    mb: 0.5,
     border: "1px solid",
-    borderColor: "divider",
-    borderRadius: "8px !important",
-    boxShadow: "none",
+    borderColor: "#e2e8f0",
+    borderRadius: "6px !important",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
     "&:before": { display: "none" },
-    "&.Mui-expanded": { margin: "0 0 8px 0", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" },
+    "&.Mui-expanded": { margin: "0 0 6px 0", boxShadow: "0 2px 6px rgba(0,0,0,0.06)", borderColor: "#cbd5e1" },
 };
 const accordionSummaryStyles = {
-    bgcolor: "grey.50",
-    borderRadius: "8px",
-    minHeight: "40px",
-    "&.Mui-expanded": { minHeight: "40px", bgcolor: "primary.50", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
-    "& .MuiAccordionSummary-content": { margin: "8px 0" },
-    "&:hover": { bgcolor: "grey.100" },
+    bgcolor: "#f8fafc",
+    borderRadius: "6px",
+    minHeight: "36px",
+    padding: "0 12px",
+    "&.Mui-expanded": { minHeight: "36px", bgcolor: "#f1f5f9", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+    "& .MuiAccordionSummary-content": { margin: "6px 0" },
+    "&:hover": { bgcolor: "#f1f5f9" },
 };
-const accordionDetailsStyles = { pt: 1, pb: 1, bgcolor: "background.paper" };
+const accordionDetailsStyles = { pt: 1, pb: 1, px: 2, bgcolor: "background.paper" };
 
 const normalize = (res) => res?.result ?? res?.data ?? (Array.isArray(res) ? res : []);
 
@@ -55,7 +79,7 @@ export default function QuotationForm({
     onSubmit,
     loading,
     serverError = null,
-    onClearServerError = () => {},
+    onClearServerError = () => { },
     onCancel = null,
 }) {
     const { user } = useAuth();
@@ -209,7 +233,7 @@ export default function QuotationForm({
         getDefaultState().then((res) => {
             const defaultState = res?.result ?? res?.data ?? res;
             if (defaultState?.id) patchForm({ state_id: defaultState.id });
-        }).catch(() => {});
+        }).catch(() => { });
     }, [defaultValues, formData.state_id, patchForm]);
 
     useEffect(() => {
@@ -218,7 +242,7 @@ export default function QuotationForm({
         getDefaultBranch().then((res) => {
             const defaultBranch = res?.result ?? res?.data ?? res;
             if (defaultBranch?.id) patchForm({ branch_id: defaultBranch.id });
-        }).catch(() => {});
+        }).catch(() => { });
     }, [defaultValues, formData.branch_id, patchForm]);
 
     const sortedTechnicalSections = useMemo(() => {
@@ -246,7 +270,45 @@ export default function QuotationForm({
         e.preventDefault();
         if (serverError) onClearServerError();
         const validationErrors = validate();
-        if (Object.keys(validationErrors).length > 0) return;
+        if (Object.keys(validationErrors).length > 0) {
+            toastError("Please fill in all required fields correctly.");
+
+            const firstErrorKey = Object.keys(validationErrors)[0];
+
+            // Try to map error key to accordion section and expand it
+            let sectionToExpand = null;
+            if (firstErrorKey.startsWith("structure")) sectionToExpand = "structure";
+            else if (firstErrorKey.startsWith("panel")) sectionToExpand = "panel";
+            else if (firstErrorKey.startsWith("inverter") && !firstErrorKey.startsWith("hybrid_inverter")) sectionToExpand = "inverter";
+            else if (firstErrorKey.startsWith("battery")) sectionToExpand = "battery";
+            else if (firstErrorKey.startsWith("hybrid_inverter")) sectionToExpand = "hybridInverter";
+            else if (firstErrorKey.startsWith("acdb")) sectionToExpand = "acdb";
+            else if (firstErrorKey.startsWith("dcdb")) sectionToExpand = "dcdb";
+            else if (firstErrorKey.startsWith("cable")) sectionToExpand = "cable";
+            else if (firstErrorKey.startsWith("accessories")) sectionToExpand = "accessories";
+            else if (firstErrorKey.startsWith("earthing")) sectionToExpand = "earthing";
+            else if (firstErrorKey.startsWith("la_")) sectionToExpand = "la";
+
+            if (sectionToExpand) {
+                setExpandedAccordions((prev) => {
+                    if (!prev[sectionToExpand]) {
+                        return { ...prev, [sectionToExpand]: true };
+                    }
+                    return prev;
+                });
+            }
+
+            // Focus and scroll to element after a brief timeout to allow accordion animation
+            setTimeout(() => {
+                const errorElement = document.querySelector(`[name="${firstErrorKey}"]`);
+                if (errorElement) {
+                    errorElement.focus();
+                    errorElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            }, 150);
+
+            return;
+        }
         setErrors({});
         onSubmit(buildPayload());
     };
@@ -263,7 +325,7 @@ export default function QuotationForm({
                 )}
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Basic Details</Typography>
+                    <Typography {...titleProps}>Basic Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -306,7 +368,7 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Customer Details</Typography>
+                    <Typography {...titleProps}>Customer Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -342,7 +404,7 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Project Details</Typography>
+                    <Typography {...titleProps}>Project Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -391,12 +453,12 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Technical Details</Typography>
+                    <Typography {...titleProps}>Technical Details</Typography>
                 </Box>
                 {sortedTechnicalSections.map((section) => (
                     <Accordion key={section.key} expanded={expandedAccordions[section.key]} onChange={handleAccordionChange(section.key)} sx={accordionStyles}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={accordionSummaryStyles}>
-                            <Typography variant="subtitle2" fontWeight={600}>{section.title}</Typography>
+                            <Typography variant="subtitle2" fontWeight={600} fontSize="0.8rem">{section.title}</Typography>
                         </AccordionSummary>
                         <AccordionDetails sx={accordionDetailsStyles}>
                             <TechnicalSection
@@ -415,7 +477,7 @@ export default function QuotationForm({
                 ))}
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Project Price Details</Typography>
+                    <Typography {...titleProps}>Project Price Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -478,7 +540,7 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Terms and Conditions</Typography>
+                    <Typography {...titleProps}>Terms and Conditions</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -493,7 +555,7 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Graph Generation Details</Typography>
+                    <Typography {...titleProps}>Graph Generation Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -511,7 +573,7 @@ export default function QuotationForm({
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
-                    <Typography variant="subtitle1" fontWeight={600}>Final Payable Details</Typography>
+                    <Typography {...titleProps}>Final Payable Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
