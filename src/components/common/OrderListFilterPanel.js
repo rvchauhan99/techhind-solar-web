@@ -12,7 +12,7 @@ import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
 
 const FILTER_KEYS = [
-  "customer_name", "consumer_no", "application_no", "reference_from", "mobile_number",
+  "status", "customer_name", "consumer_no", "application_no", "reference_from", "mobile_number",
   "branch_id", "inquiry_source_id", "handled_by", "order_number", "order_date_from", "order_date_to", "current_stage_key",
 ];
 
@@ -29,6 +29,7 @@ export const ORDER_STAGE_OPTIONS = [
   { value: "subsidy_claim", label: "Subsidy Claim" },
   { value: "subsidy_disbursed", label: "Subsidy Disbursed" },
   { value: "order_completed", label: "Order Completed" },
+  { value: "payment_outstanding", label: "Order Completed but payment pending" },
 ];
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
@@ -83,6 +84,12 @@ export default function OrderListFilterPanel({
       </button>
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+          <Select name="status" label="Status" value={localValues.status} onChange={(e) => handleChange("status", e.target.value)}>
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="completed">Completed</MenuItem>
+            <MenuItem value="cancelled">Cancelled</MenuItem>
+          </Select>
           <Input name="customer_name" label="Customer Name" placeholder="Search..." value={localValues.customer_name} onChange={(e) => handleChange("customer_name", e.target.value)} />
           <Input name="mobile_number" label="Mobile Number" placeholder="Search..." value={localValues.mobile_number} onChange={(e) => handleChange("mobile_number", e.target.value)} />
           <Input name="consumer_no" label="Consumer No" placeholder="Search..." value={localValues.consumer_no} onChange={(e) => handleChange("consumer_no", e.target.value)} />

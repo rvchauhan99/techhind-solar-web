@@ -48,9 +48,9 @@ export default function ListingPageContainer({
   children,
 }) {
   return (
-    <Container className="flex flex-col gap-1.5 py-1.5 h-full min-h-0 max-w-[1536px] mx-auto">
-      <div className="flex flex-shrink-0 justify-between items-center gap-2">
-        <h1 className="text-xl font-semibold">{title}</h1>
+    <Container className="flex flex-col gap-1 py-1 h-full min-h-0 max-w-[1536px] mx-auto">
+      <div className="flex flex-shrink-0 justify-between items-center gap-2 border-b border-border pb-1.5">
+        <h1 className="text-lg font-semibold text-[#1b365d] tracking-tight">{title}</h1>
         <div className="flex items-center gap-1.5">
           {onSecondaryClick && secondaryButtonLabel && (
             <Button onClick={onSecondaryClick} size="sm" variant="outline" className="gap-1">

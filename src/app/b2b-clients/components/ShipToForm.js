@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
+import Checkbox from "@/components/common/Checkbox";
 import { validatePincode } from "@/utils/validators";
 
 export default function ShipToForm({
@@ -161,16 +162,12 @@ export default function ShipToForm({
           <Input fullWidth name="phone" label="Phone" value={formData.phone} onChange={handleChange} />
           <Input fullWidth name="email" label="Email" type="email" value={formData.email} onChange={handleChange} />
         </div>
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+        <Checkbox
             name="is_default"
-            checked={formData.is_default}
+            label="Use as default shipping address"
+            checked={!!formData.is_default}
             onChange={handleChange}
-            className="size-4 rounded border-input"
           />
-          <span className="text-sm font-medium">Use as default shipping address</span>
-        </label>
         <FormActions>
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>

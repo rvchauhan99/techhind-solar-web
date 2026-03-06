@@ -4,13 +4,12 @@ import { useState, useEffect } from "react";
 import {
   Box,
   Button,
-  Checkbox,
-  FormControlLabel,
   Alert,
   Typography,
 } from "@mui/material";
 import Link from "next/link";
 import AutocompleteField from "@/components/common/AutocompleteField";
+import Checkbox from "@/components/common/Checkbox";
 
 export default function RoleModuleForm({ defaultValues = null, onSubmit, loading, roles = [], modules = [], serverError = null, onClearServerError = () => {} }) {
   const base = {
@@ -99,10 +98,10 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
         placeholder="Listing Criteria"
       />
 
-  <FormControlLabel control={<Checkbox name="can_create" checked={!!formData.can_create} onChange={(e) => handleCheckboxChange('can_create', e.target.checked)} />} label="Can Create" />
-  <FormControlLabel control={<Checkbox name="can_read" checked={!!formData.can_read} onChange={(e) => handleCheckboxChange('can_read', e.target.checked)} />} label="Can Read" />
-  <FormControlLabel control={<Checkbox name="can_update" checked={!!formData.can_update} onChange={(e) => handleCheckboxChange('can_update', e.target.checked)} />} label="Can Update" />
-  <FormControlLabel control={<Checkbox name="can_delete" checked={!!formData.can_delete} onChange={(e) => handleCheckboxChange('can_delete', e.target.checked)} />} label="Can Delete" />
+  <Checkbox name="can_create" label="Can Create" checked={!!formData.can_create} onChange={(e) => handleCheckboxChange('can_create', e.target.checked)} />
+  <Checkbox name="can_read" label="Can Read" checked={!!formData.can_read} onChange={(e) => handleCheckboxChange('can_read', e.target.checked)} />
+  <Checkbox name="can_update" label="Can Update" checked={!!formData.can_update} onChange={(e) => handleCheckboxChange('can_update', e.target.checked)} />
+  <Checkbox name="can_delete" label="Can Delete" checked={!!formData.can_delete} onChange={(e) => handleCheckboxChange('can_delete', e.target.checked)} />
 
       <Box mt={2}>
         <Button component={Link} href="/role-module" variant="outlined" sx={{ mr: 1 }} disabled={submitting}>Back</Button>

@@ -6,30 +6,16 @@ import {
     IconTool,
     IconBolt,
     IconReceipt,
-    IconTruckDelivery
+    IconTruckDelivery,
+    IconCircleCheck,
+    IconAlertTriangle,
 } from "@tabler/icons-react";
 import ordersDashboardService from "@/services/ordersDashboardService";
 
-const PLACEHOLDER_KPIS = [
-    { title: "Active Orders (30 days)", value: "0", trend: "", isPositive: true, icon: null },
-    { title: "Project Value (₹)", value: "0", trend: "", isPositive: true, icon: null },
-    { title: "Capacity (kW)", value: "0", trend: "", isPositive: true, icon: null },
-    { title: "Netmeter Pending", value: "0", trend: "", isPositive: false, icon: null },
-    { title: "Subsidy Pending", value: "0", trend: "", isPositive: false, icon: null },
-    { title: "Delivery Partial", value: "0", trend: "", isPositive: true, icon: null },
-];
+const formatLakh = (n) => `₹${(Number(n) / 100000).toFixed(2)} L`;
 
-const KPI_ICONS = [
-    <IconShoppingCart key="cart" className="w-5 h-5 text-blue-600" />,
-    <IconCurrencyRupee key="rupee" className="w-5 h-5 text-emerald-600" />,
-    <IconTool key="tool" className="w-5 h-5 text-amber-500" />,
-    <IconBolt key="bolt" className="w-5 h-5 text-violet-600" />,
-    <IconReceipt key="receipt" className="w-5 h-5 text-rose-500" />,
-    <IconTruckDelivery key="truck" className="w-5 h-5 text-cyan-600" />,
-];
-
-export default function KPICards({ filters, dashboardApiBase }) {
-    const [kpis, setKpis] = useState([]);
+export default function KPICards({ filters, dashboardApiBase, onCardClick }) {
+    const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -39,70 +25,11 @@ export default function KPICards({ filters, dashboardApiBase }) {
             .getOrdersDashboardKpis(filters || {}, dashboardApiBase)
             .then((res) => {
                 if (!isMounted) return;
-                const payload = res?.result || res?.data || res || {};
-                const totals = payload.totals || {};
-                const byStage = payload.by_stage || [];
-                const byDelivery = payload.by_delivery_status || [];
-
-                const totalOrders = totals.total_orders ?? 0;
-                const totalCapacity = totals.total_capacity_kw ?? 0;
-                const totalProjectCost = totals.total_project_cost ?? 0;
-                const netmeterPending =
-                    byStage.find((s) => s.current_stage_key === "netmeter_apply")?.count ?? 0;
-                const subsidyPending =
-                    byStage.find((s) => s.current_stage_key === "subsidy_claim")?.count ?? 0;
-                const deliveryPartial =
-                    byDelivery.find((d) => d.delivery_status === "partial")?.count ?? 0;
-
-                const nextKpis = [
-                    {
-                        title: "Active Orders (30 days)",
-                        value: String(totalOrders),
-                        trend: "",
-                        isPositive: true,
-                        icon: <IconShoppingCart className="w-5 h-5 text-blue-600" />,
-                    },
-                    {
-                        title: "Project Value (₹)",
-                        value: `₹${(totalProjectCost / 100000).toFixed(2)} L`,
-                        trend: "",
-                        isPositive: true,
-                        icon: <IconCurrencyRupee className="w-5 h-5 text-emerald-600" />,
-                    },
-                    {
-                        title: "Capacity (kW)",
-                        value: totalCapacity.toFixed(1),
-                        trend: "",
-                        isPositive: true,
-                        icon: <IconTool className="w-5 h-5 text-amber-500" />,
-                    },
-                    {
-                        title: "Netmeter Pending",
-                        value: String(netmeterPending),
-                        trend: "",
-                        isPositive: false,
-                        icon: <IconBolt className="w-5 h-5 text-violet-600" />,
-                    },
-                    {
-                        title: "Subsidy Pending",
-                        value: String(subsidyPending),
-                        trend: "",
-                        isPositive: false,
-                        icon: <IconReceipt className="w-5 h-5 text-rose-500" />,
-                    },
-                    {
-                        title: "Delivery Partial",
-                        value: String(deliveryPartial),
-                        trend: "",
-                        isPositive: deliveryPartial === 0,
-                        icon: <IconTruckDelivery className="w-5 h-5 text-cyan-600" />,
-                    },
-                ];
-                setKpis(nextKpis);
+                setData(res?.result || res?.data || res || {});
             })
             .catch(() => {
                 if (!isMounted) return;
-                setKpis([]);
+                setData(null);
             })
             .finally(() => {
                 if (isMounted) setLoading(false);
@@ -112,37 +39,161 @@ export default function KPICards({ filters, dashboardApiBase }) {
         };
     }, [filters, dashboardApiBase]);
 
-    const displayKpis =
-        kpis.length > 0
-            ? kpis
-            : PLACEHOLDER_KPIS.map((p, i) => ({
-                  ...p,
-                  value: loading ? "…" : p.value,
-                  icon: KPI_ICONS[i],
-              }));
+    const active = data?.active || {};
+    const completed = data?.completed || {};
+    const byStage = data?.by_stage || [];
+    const byDelivery = data?.by_delivery_status || [];
+    const redFlag = Number(data?.red_flag_payment_outstanding ?? 0);
+    const netmeterPending = byStage.find((s) => s.current_stage_key === "netmeter_apply")?.count ?? 0;
+    const subsidyPending = byStage.find((s) => s.current_stage_key === "subsidy_claim")?.count ?? 0;
+    const deliveryPartial = byDelivery.find((d) => d.delivery_status === "partial")?.count ?? 0;
+
+    const activeOrders = Number(active.total_orders ?? 0);
+    const activeValue = Number(active.total_project_cost ?? 0);
+    const activeCapacity = Number(active.total_capacity_kw ?? 0);
+    const completedOrders = Number(completed.total_orders ?? 0);
+    const completedValue = Number(completed.total_project_cost ?? 0);
+    const completedCapacity = Number(completed.total_capacity_kw ?? 0);
+
+    const cardClass = (clickable) =>
+        `rounded-xl shadow-sm border-slate-200 bg-white transition-all ${clickable ? "cursor-pointer hover:shadow-md hover:border-primary/30" : ""} ${loading ? "animate-pulse" : ""}`;
+
+    const handleClick = (filterPayload) => {
+        if (onCardClick && filterPayload) onCardClick(filterPayload);
+    };
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 h-auto lg:h-[100px]">
-            {displayKpis.map((kpi, index) => (
-                <Card key={index} className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md ${loading ? "animate-pulse" : ""}`}>
+        <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 h-auto">
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "active" })}>
                     <CardContent className="p-3 flex flex-col justify-between h-full">
                         <div className="flex justify-between items-start">
-                            <span className="text-xs font-medium text-slate-500">{kpi.title}</span>
-                            <div className="p-1 bg-slate-50 rounded-lg">
-                                {kpi.icon}
+                            <span className="text-xs font-medium text-slate-500">Active Orders</span>
+                            <div className="p-1 bg-blue-50 rounded-lg">
+                                <IconShoppingCart className="w-5 h-5 text-blue-600" />
                             </div>
                         </div>
-
-                        <div className="mt-2 flex items-baseline justify-between">
-                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>{kpi.value}</span>
-                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${kpi.isPositive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                }`}>
-                                {kpi.trend}
+                        <div className="mt-2">
+                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : String(activeOrders)}
                             </span>
                         </div>
                     </CardContent>
                 </Card>
-            ))}
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "active" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-slate-500">Active Value</span>
+                            <div className="p-1 bg-emerald-50 rounded-lg">
+                                <IconCurrencyRupee className="w-5 h-5 text-emerald-600" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-lg font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : formatLakh(activeValue)}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "active" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-slate-500">Active Capacity</span>
+                            <div className="p-1 bg-amber-50 rounded-lg">
+                                <IconTool className="w-5 h-5 text-amber-500" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : `${activeCapacity.toFixed(1)} kW`}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "completed" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-slate-500">Completed Orders</span>
+                            <div className="p-1 bg-slate-100 rounded-lg">
+                                <IconCircleCheck className="w-5 h-5 text-slate-600" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : String(completedOrders)}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "completed" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-slate-500">Completed Value</span>
+                            <div className="p-1 bg-slate-100 rounded-lg">
+                                <IconCurrencyRupee className="w-5 h-5 text-slate-600" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-lg font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : formatLakh(completedValue)}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ status: "completed" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-slate-500">Completed Capacity</span>
+                            <div className="p-1 bg-slate-100 rounded-lg">
+                                <IconTool className="w-5 h-5 text-slate-600" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-xl font-bold text-slate-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : `${completedCapacity.toFixed(1)} kW`}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(!!onCardClick)} onClick={() => handleClick({ current_stage_key: "payment_outstanding", status: "completed" })}>
+                    <CardContent className="p-3 flex flex-col justify-between h-full border-l-4 border-l-red-400 bg-red-50/50">
+                        <div className="flex justify-between items-start">
+                            <span className="text-xs font-medium text-red-800">Payment Outstanding (Completed)</span>
+                            <div className="p-1 bg-red-100 rounded-lg">
+                                <IconAlertTriangle className="w-5 h-5 text-red-600" />
+                            </div>
+                        </div>
+                        <div className="mt-2">
+                            <span className={`text-xl font-bold text-red-900 ${loading ? "opacity-80" : ""}`}>
+                                {loading ? "…" : String(redFlag)}
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+                <Card className={cardClass(false)}>
+                    <CardContent className="p-2.5 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-500">Netmeter Pending</span>
+                        <span className="text-sm font-bold text-violet-700">{loading ? "…" : netmeterPending}</span>
+                        <IconBolt className="w-4 h-4 text-violet-500" />
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(false)}>
+                    <CardContent className="p-2.5 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-500">Subsidy Pending</span>
+                        <span className="text-sm font-bold text-rose-700">{loading ? "…" : subsidyPending}</span>
+                        <IconReceipt className="w-4 h-4 text-rose-500" />
+                    </CardContent>
+                </Card>
+                <Card className={cardClass(false)}>
+                    <CardContent className="p-2.5 flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-500">Delivery Partial</span>
+                        <span className="text-sm font-bold text-cyan-700">{loading ? "…" : deliveryPartial}</span>
+                        <IconTruckDelivery className="w-4 h-4 text-cyan-500" />
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

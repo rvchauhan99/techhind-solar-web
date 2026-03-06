@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
+import Checkbox from "@/components/common/Checkbox";
 import { getNextClientCode } from "@/services/b2bClientService";
 import {
   validateGSTIN,
@@ -431,17 +432,12 @@ export default function B2bClientForm({
               onChange={handleChange}
             />
           </div>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="b2b-client-is_active"
-              name="is_active"
-              checked={formData.is_active}
-              onChange={handleChange}
-              className="size-4 rounded border-input"
-            />
-            <span className="text-sm font-medium cursor-pointer">Active</span>
-          </label>
+          <Checkbox
+            name="is_active"
+            label="Active"
+            checked={!!formData.is_active}
+            onChange={handleChange}
+          />
         </div>
         <FormActions>
           {onCancel && (
