@@ -3,8 +3,9 @@
 import { Grid, Button } from "@mui/material";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { COMPACT_FORM_SPACING } from "@/utils/formConstants";
 import MakeAutocomplete from "./MakeAutocomplete";
+
+const COMPACT_FORM_SPACING = 0.5;
 
 function toId(v) {
     if (v === "" || v === null || v === undefined) return "";
