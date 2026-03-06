@@ -30,7 +30,8 @@ function getInitialHomeFilters() {
     return {
         ...ORDER_FILTER_EMPTY_VALUES,
         order_date_from: p.toISOString().split("T")[0],
-        order_date_to: d.toISOString().split("T")[0]
+        order_date_to: d.toISOString().split("T")[0],
+        status: "active",
     };
 }
 
@@ -41,6 +42,7 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
     const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [activePreset, setActivePreset] = useState("Last 30 Days");
     const filterPanelRef = useRef(null);
+    const ordersTableSectionRef = useRef(null);
 
     const handleOpenDrawer = (order) => {
         setSelectedOrder(order);
@@ -48,7 +50,7 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
     };
 
     const handleApplyFilters = (next) => {
-        setFilters({ ...ORDER_FILTER_EMPTY_VALUES, ...(next || {}) });
+        setFilters((prev) => ({ ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) }));
         setFilterPanelOpen(false);
         setActivePreset(null);
     };
@@ -75,6 +77,19 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
         }
     };
 
+    const handleCardClick = (payload) => {
+        handleApplyFilters({ ...payload });
+        if (payload?.current_stage_key === "payment_outstanding" && ordersTableSectionRef.current) {
+            setTimeout(() => {
+                ordersTableSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 100);
+        }
+    };
+
+    const handleStageClick = (stageKey, payload) => {
+        handleApplyFilters({ current_stage_key: stageKey });
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
             {/* Main Content Container - 1440px max width constrained layout for enterprise standard check */}
@@ -91,6 +106,31 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                                Status:
+                            </span>
+                            {[
+                                { value: "active", label: "Active" },
+                                { value: "completed", label: "Completed" },
+                                { value: "all", label: "All" },
+                            ].map((s) => {
+                                const isAll = s.value === "all";
+                                const isActive = isAll
+                                    ? (!filters.status || filters.status === "all")
+                                    : filters.status === s.value;
+                                return (
+                                    <button
+                                        key={s.value}
+                                        onClick={() => handleApplyFilters({ status: isAll ? "" : s.value })}
+                                        className={[
+                                            "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                                            isActive ? "bg-primary text-primary-foreground border-primary" : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
+                                        ].join(" ")}
+                                    >
+                                        {s.label}
+                                    </button>
+                                );
+                            })}
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400 ml-1">
                                 <IconCalendar size={11} /> Quick:
                             </span>
                             {DATE_PRESETS.map((p) => (
@@ -128,11 +168,20 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
                 <AlertPanel filters={filters} dashboardApiBase={dashboardApiBase} />
 
                 {/* Section 1 - Top KPI Strip */}
-                <KPICards filters={filters} dashboardApiBase={dashboardApiBase} />
+                <KPICards
+                    filters={filters}
+                    dashboardApiBase={dashboardApiBase}
+                    onCardClick={handleCardClick}
+                />
 
                 {/* Section 2 - Order Pipeline Board */}
                 <div className="pt-1">
-                    <PipelineBoard filters={filters} onOrderSelect={handleOpenDrawer} dashboardApiBase={dashboardApiBase} />
+                    <PipelineBoard
+                        filters={filters}
+                        onOrderSelect={handleOpenDrawer}
+                        onStageClick={handleStageClick}
+                        dashboardApiBase={dashboardApiBase}
+                    />
                 </div>
 
                 {/* CSS Grid for 12 columns layout to hold main content below */}
@@ -145,7 +194,7 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
                     </div>
 
                     {/* Section 4 - Orders Table (Data Heavy) */}
-                    <div className="col-span-12">
+                    <div className="col-span-12" ref={ordersTableSectionRef}>
                         <OrdersTable
                             filters={filters}
                             onRowClick={handleOpenDrawer}
