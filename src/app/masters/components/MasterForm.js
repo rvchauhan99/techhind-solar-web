@@ -1,20 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Box,
-  Button,
-  FormControlLabel,
-  Checkbox,
-  Alert,
-  Typography,
-  FormHelperText,
-} from "@mui/material";
 import Link from "next/link";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsSearch, getFileUrl, removeMasterFile } from "@/services/mastersService";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
+import Checkbox from "@/components/common/Checkbox";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { toastError, toastSuccess } from "@/utils/toast";
 
 export default function MasterForm({ 
   fields = [], 
@@ -24,6 +19,7 @@ export default function MasterForm({
   serverError = null, 
   onClearServerError = () => {},
   masterName = "Master",
+  modelName = null,
   onCancel = null,
   viewMode = false, // If true, all inputs are disabled
   requiredFields = [] // Array of field names that are required
@@ -52,6 +48,7 @@ export default function MasterForm({
   const [formData, setFormData] = useState({ ...getInitialFormData(), ...(defaultValues || {}) });
   const [errors, setErrors] = useState({}); // Track validation errors
   const [selectedFile, setSelectedFile] = useState(null); // Store selected file for upload
+  const [removingFile, setRemovingFile] = useState(false);
 
   const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.username ?? (opt?.id != null ? String(opt.id) : '');
 
@@ -110,6 +107,42 @@ export default function MasterForm({
           return newErrors;
         });
       }
+    }
+  };
+
+  const handleRemoveFile = async (fieldName) => {
+    if (viewMode) return;
+    const recordId = defaultValues?.id;
+    if (!recordId || !modelName) {
+      // New record: just clear local selection/value
+      setSelectedFile(null);
+      setFormData((prev) => ({ ...prev, [fieldName]: '' }));
+      toastSuccess('File cleared');
+      return;
+    }
+    try {
+      setRemovingFile(true);
+      const res = await removeMasterFile(modelName, recordId, fieldName);
+      const updated = res?.result || res?.data || res;
+      // Clear local state
+      setSelectedFile(null);
+      setFormData((prev) => ({ ...prev, [fieldName]: updated?.[fieldName] ?? '' }));
+      toastSuccess('File removed');
+    } catch (e) {
+      toastError(e?.response?.data?.message || 'Failed to remove file');
+    } finally {
+      setRemovingFile(false);
+    }
+  };
+
+  const handleViewFile = async (fieldName) => {
+    const recordId = defaultValues?.id;
+    if (!recordId || !modelName) return;
+    try {
+      const url = await getFileUrl(modelName, recordId);
+      if (url) window.open(url, '_blank');
+    } catch (e) {
+      toastError(e?.response?.data?.message || 'Failed to get file URL');
     }
   };
 
@@ -218,17 +251,13 @@ export default function MasterForm({
     switch (field.type) {
       case 'BOOLEAN':
         return (
-          <FormControlLabel
+          <Checkbox
             key={fieldName}
-            control={
-              <Checkbox
-                name={fieldName}
-                checked={fieldValue === true || fieldValue === 'true' || fieldValue === 1}
-                onChange={handleChange}
-                disabled={viewMode}
-              />
-            }
+            name={fieldName}
             label={displayLabel}
+            checked={fieldValue === true || fieldValue === 'true' || fieldValue === 1}
+            onChange={handleChange}
+            disabled={viewMode}
           />
         );
 
@@ -309,47 +338,62 @@ export default function MasterForm({
       default:
         // Check if it's a file upload field (configured in masters.json)
         if (field.isFileUpload) {
+          const canActOnExisting = Boolean(defaultValues?.id && modelName);
+          const hasExistingFile = Boolean(fieldValue);
           return (
-            <Box key={fieldName} sx={{ mb: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: isRequired ? 'bold' : 'normal' }}>
+            <div key={fieldName} className="space-y-1.5">
+              <label className="block text-sm font-medium">
                 {displayLabel}
-                {isRequired && <span style={{ color: 'red' }}> *</span>}
-              </Typography>
+                {isRequired && <span className="text-destructive ml-0.5">*</span>}
+              </label>
               {!viewMode ? (
                 <>
                   <input
                     accept="*/*"
-                    style={{ display: 'none' }}
+                    className="hidden"
                     id={`file-upload-${fieldName}`}
                     type="file"
                     onChange={(e) => handleFileChange(e, fieldName)}
                   />
-                  <label htmlFor={`file-upload-${fieldName}`}>
-                    <Button variant="outlined" component="span" fullWidth>
-                      {selectedFile ? selectedFile.name : (fieldValue || 'Choose File')}
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <label htmlFor={`file-upload-${fieldName}`} className="flex-1 min-w-0">
+                      <Button type="button" variant="outline" className="w-full" asChild>
+                        <span>{selectedFile ? selectedFile.name : (fieldValue || 'Choose File')}</span>
+                      </Button>
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewFile(fieldName)}
+                      disabled={!canActOnExisting || !hasExistingFile}
+                    >
+                      View
                     </Button>
-                  </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/50 hover:bg-destructive/10"
+                      onClick={() => handleRemoveFile(fieldName)}
+                      disabled={removingFile || (!selectedFile && !hasExistingFile)}
+                    >
+                      {removingFile ? 'Removing...' : 'Remove'}
+                    </Button>
+                  </div>
                   {selectedFile && (
-                    <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-                      Selected: {selectedFile.name}
-                    </Typography>
+                    <p className="text-xs text-muted-foreground">Selected: {selectedFile.name}</p>
                   )}
                   {hasError && (
-                    <FormHelperText error>{errors[fieldName]}</FormHelperText>
+                    <p className="text-xs text-destructive">{errors[fieldName]}</p>
                   )}
                 </>
               ) : (
-                <Box>
-                  {fieldValue ? (
-                    <Typography variant="body2" color="text.secondary">
-                      File: {fieldValue}
-                    </Typography>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">No file uploaded</Typography>
-                  )}
-                </Box>
+                <p className="text-sm text-muted-foreground">
+                  {fieldValue ? `File: ${fieldValue}` : 'No file uploaded'}
+                </p>
               )}
-            </Box>
+            </div>
           );
         }
         
@@ -393,64 +437,63 @@ export default function MasterForm({
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <Typography>Loading...</Typography>
-      </Box>
+      <div className="flex justify-center items-center min-h-[200px] text-sm text-muted-foreground">
+        Loading...
+      </div>
     );
   }
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ display: "grid", gap: 2, pt: 1 }}>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 pt-1">
       {serverError ? (
-        <Alert severity="error" onClose={onClearServerError}>
-          {serverError}
-        </Alert>
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <span>{serverError}</span>
+          <button type="button" onClick={onClearServerError} className="shrink-0 hover:opacity-80" aria-label="Dismiss">
+            ×
+          </button>
+        </div>
       ) : null}
 
-      <Box sx={{ display: "grid", gap: 2 }}>
+      <div className="grid gap-2">
         {fields.map((field, index) => {
           const renderedField = renderField(field);
           if (!renderedField) return null;
-          
-          // Find first visible field (skip internal fields)
+
           const isFirstVisible = fields
             .slice(0, index)
             .every(f => ['id', 'created_at', 'updated_at', 'deleted_at'].includes(f.name));
-          
-          // Add extra margin to first visible field
-          if (isFirstVisible) {
-            return (
-              <Box key={field.name || `field-${index}`} sx={{ mt: 1 }}>
-                {renderedField}
-              </Box>
-            );
-          }
-          
+
           return (
-            <Box key={field.name || `field-${index}`}>
+            <div
+              key={field.name || `field-${index}`}
+              className={cn(isFirstVisible && "mt-0.5")}
+            >
               {renderedField}
-            </Box>
+            </div>
           );
         })}
-      </Box>
+      </div>
 
-      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+      <div className="flex gap-2 mt-2 flex-wrap">
         {onCancel ? (
-          <Button onClick={onCancel} variant="outlined">
+          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
             {viewMode ? 'Close' : 'Cancel'}
           </Button>
         ) : (
-          <Button component={Link} href="/masters" variant="outlined">
-            Back
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link href="/masters">Back</Link>
           </Button>
         )}
         {!viewMode && (
-          <Button variant="contained" type="submit" disabled={loading}>
+          <Button type="submit" size="sm" disabled={loading}>
             {loading ? 'Saving...' : (defaultValues?.id ? 'Update' : 'Create')}
           </Button>
         )}
-      </Box>
-    </Box>
+      </div>
+    </form>
   );
 }
 
