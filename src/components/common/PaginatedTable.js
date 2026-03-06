@@ -410,11 +410,11 @@ export default function PaginatedTable({
 
   return (
     <div
-      className="flex flex-col w-full max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white"
+      className="flex flex-col w-full max-w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm"
       style={{ height }}
     >
       {showSearch && (
-        <div className="shrink-0 p-2">
+        <div className="shrink-0 p-1.5">
           <SearchInput
             placeholder="Search"
             value={qDisplay}
@@ -426,8 +426,8 @@ export default function PaginatedTable({
 
       <div className="flex-1 min-w-0 overflow-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         <table className="w-full min-w-max table-auto" aria-label="paginated table">
-          <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 text-xs uppercase tracking-wider">
-            <tr>
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-[#1b365d] text-white">
               {columns.map((c, colIndex) => {
                 const isSortable = c.sortable === true;
                 const isActiveSort = sortBy === c.field;
@@ -439,32 +439,32 @@ export default function PaginatedTable({
                     key={c.field || c.label}
                     onClick={isSortable ? () => handleSortClick(c.field) : undefined}
                     className={cn(
-                      "text-left font-medium px-2 py-1.5 border-b border-slate-200 whitespace-nowrap",
-                      isLastColumn ? "" : "border-r border-slate-200",
-                      isSortable && "cursor-pointer hover:bg-muted/80",
-                      isActionColumn && "min-w-[150px] whitespace-normal",
-                      !isActionColumn && "min-w-[80px] overflow-hidden text-ellipsis",
-                      isFirstColumn && isActionColumn && "sticky left-0 z-20 bg-slate-50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
-                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-slate-50 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)]"
+                      "text-left font-semibold px-1.5 py-1 text-xs uppercase tracking-wide border-b border-[#1b365d] whitespace-nowrap",
+                      isLastColumn ? "" : "border-r border-white/20",
+                      isSortable && "cursor-pointer hover:bg-[#142847]",
+                      isActionColumn && "min-w-[120px] whitespace-normal",
+                      !isActionColumn && "min-w-[70px] overflow-hidden text-ellipsis",
+                      isFirstColumn && isActionColumn && "sticky left-0 z-20 bg-[#1b365d] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
+                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-[#1b365d] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                     )}
                     style={{
                       maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
                     }}
                   >
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       {c.headerRender ? c.headerRender() : <span>{c.label}</span>}
                       {isSortable && (
                         <span className="inline-flex flex-col -my-0.5">
                           <IconArrowUp
                             className={cn(
-                              "size-3.5",
-                              isActiveSort && sortOrder === "asc" ? "opacity-100 text-primary" : "opacity-30 text-muted-foreground"
+                              "size-3",
+                              isActiveSort && sortOrder === "asc" ? "opacity-100" : "opacity-40"
                             )}
                           />
                           <IconArrowDown
                             className={cn(
-                              "size-3.5 -mt-0.5",
-                              isActiveSort && sortOrder === "desc" ? "opacity-100 text-primary" : "opacity-30 text-muted-foreground"
+                              "size-3 -mt-0.5",
+                              isActiveSort && sortOrder === "desc" ? "opacity-100" : "opacity-40"
                             )}
                           />
                         </span>
@@ -475,7 +475,7 @@ export default function PaginatedTable({
               })}
             </tr>
             {hasColumnFilters && (
-              <tr className="[&_td]:py-0.5 [&_td]:px-1 [&_td]:align-middle [&_td]:border-b [&_td]:border-border">
+              <tr className="bg-[#f8fafc] [&_td]:py-0.5 [&_td]:px-1 [&_td]:align-middle [&_td]:border-b [&_td]:border-border">
                 {columns.map((c, colIndex) => {
                   const filterKey = c.filterKey ?? c.field;
                   const operatorKey = c.operatorKey ?? filterKey + "_op";
@@ -487,11 +487,11 @@ export default function PaginatedTable({
                     const isLastColumn = colIndex === columns.length - 1;
                     const stickyClass =
                       isFirstColumn && isActionColumn
-                        ? "sticky left-0 z-20 bg-[#F1F1F1] dark:bg-muted shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] "
+                        ? "sticky left-0 z-20 bg-[#f8fafc] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] "
                         : isLastColumn && isActionColumn
-                          ? "sticky right-0 z-20 bg-[#F1F1F1] dark:bg-muted shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.1)] "
+                          ? "sticky right-0 z-20 bg-[#f8fafc] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] "
                           : "";
-                    return <td key={(c.field || c.label) + "-filter"} className={cn(stickyClass, c.field === "actions" ? "min-w-[150px]" : "")} />;
+                    return <td key={(c.field || c.label) + "-filter"} className={cn(stickyClass, c.field === "actions" ? "min-w-[120px]" : "")} />;
                   }
                   const opKey = operatorKey;
                   const operatorValue =
@@ -658,9 +658,9 @@ export default function PaginatedTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-8">
+                <td colSpan={columns.length} className="text-center py-6 bg-card">
                   <div className="flex justify-center">
-                    <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <div className="size-6 animate-spin rounded-full border-2 border-[#00823b] border-t-transparent" />
                   </div>
                 </td>
               </tr>
@@ -676,7 +676,10 @@ export default function PaginatedTable({
                       }
                       : undefined
                   }
-                  className={onRowClick ? "cursor-pointer hover:bg-slate-50 transition-colors" : "hover:bg-slate-50 transition-colors"}
+                  className={cn(
+                    onRowClick ? "cursor-pointer" : "",
+                    "hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
+                  )}
                 >
                   {columns.map((c, colIndex) => {
                     const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
@@ -686,13 +689,13 @@ export default function PaginatedTable({
                       <td
                         key={(c.field || c.label) + getRowKey(row)}
                         className={cn(
-                          "px-2 py-1.5 border-b border-slate-200 text-sm text-slate-800",
-                          isActionColumn && "min-w-[150px] overflow-visible whitespace-normal",
-                          !isActionColumn && "min-w-[80px] overflow-hidden text-ellipsis",
+                          "px-1.5 py-1 border-b border-border text-sm text-foreground",
+                          isActionColumn && "min-w-[120px] overflow-visible whitespace-normal bg-card",
+                          !isActionColumn && "min-w-[70px] overflow-hidden text-ellipsis",
                           !isActionColumn && !c.wrap && "whitespace-nowrap",
                           !isActionColumn && c.wrap && "break-words",
-                          isFirstColumn && isActionColumn && "sticky left-0 z-10 bg-white shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
-                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-white shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                          isFirstColumn && isActionColumn && "sticky left-0 z-10 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]",
+                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-card shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.06)]"
                         )}
                         style={{ maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined }}
                       >
@@ -710,7 +713,7 @@ export default function PaginatedTable({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="text-center py-8 text-muted-foreground">
+                <td colSpan={columns.length} className="text-center py-6 text-muted-foreground bg-card">
                   No records found
                 </td>
               </tr>

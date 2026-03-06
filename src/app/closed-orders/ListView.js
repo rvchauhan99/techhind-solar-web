@@ -9,19 +9,20 @@ import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
-import { OrderListFilterDialog, ORDER_LIST_FILTER_KEYS } from "@/components/common";
+import { OrderListFilterPanel, ORDER_LIST_FILTER_KEYS } from "@/components/common";
+import { EMPTY_VALUES as ORDER_FILTER_EMPTY } from "@/components/common/OrderListFilterPanel";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import closedOrdersService from "@/services/closedOrdersService";
 import orderService from "@/services/orderService";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
-import { Button } from "@/components/ui/button";
 import { toastError } from "@/utils/toast";
+
+const DEFAULT_CLOSED_FILTERS = { ...ORDER_FILTER_EMPTY, current_stage_key: "order_completed" };
 
 const STAGES = [
   { key: "estimate_generated", label: "Estimate Generated" },
@@ -50,14 +51,15 @@ export default function ListView() {
     filterKeys: ORDER_LIST_FILTER_KEYS,
   });
   const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } = listingState;
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
   const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
 
   const fetchData = useCallback(async (params) => {
-    return await closedOrdersService.getClosedOrders(params);
+    const merged = { ...params, current_stage_key: params.current_stage_key || "order_completed" };
+    return await closedOrdersService.getClosedOrders(merged);
   }, []);
 
   const handleOpenDetails = useCallback((row) => {
@@ -338,48 +340,42 @@ export default function ListView() {
     );
   };
 
+  const effectiveFilters = { ...DEFAULT_CLOSED_FILTERS, ...filters };
+
   const calculateHeight = () => `calc(100vh - 125px)`;
 
   return (
     <Box sx={{ width: "100%" }}>
+      <div className="mb-2">
+        <OrderListFilterPanel
+          open={filterPanelOpen}
+          onToggle={setFilterPanelOpen}
+          values={effectiveFilters}
+          onApply={(v) => {
+            setFilters(v);
+            setFilterPanelOpen(false);
+          }}
+          onClear={() => {
+            setFilters(DEFAULT_CLOSED_FILTERS);
+            setFilterPanelOpen(false);
+          }}
+          defaultOpen={false}
+        />
+      </div>
       <PaginatedList
         fetcher={fetchData}
         renderItem={renderOrderItem}
-        searchPlaceholder="Search closed orders..."
+        showSearch={false}
         defaultSortBy="order_date"
         defaultSortOrder="DESC"
         height={calculateHeight()}
         q={q}
         onQChange={setQ}
-        filters={filters}
+        filters={effectiveFilters}
         page={page}
         setPage={setPage}
         limit={limit}
         setLimit={setLimit}
-        filterSlot={
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setFilterDialogOpen(true)}
-            className="shrink-0"
-          >
-            <FilterListIcon sx={{ fontSize: 18, mr: 0.5 }} />
-            Filter
-          </Button>
-        }
-      />
-      <OrderListFilterDialog
-        open={filterDialogOpen}
-        onClose={() => setFilterDialogOpen(false)}
-        values={filters}
-        onApply={(v) => {
-          setFilters(v);
-          setFilterDialogOpen(false);
-        }}
-        onClear={() => {
-          clearFilters();
-          setFilterDialogOpen(false);
-        }}
       />
       <OrderDetailsDrawer
         open={detailsOpen}

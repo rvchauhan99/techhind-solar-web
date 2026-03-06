@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
+import Checkbox from "@/components/common/Checkbox";
 import mastersService, { getDefaultState } from "@/services/mastersService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { getNextSupplierCode } from "@/services/supplierService";
@@ -414,19 +415,12 @@ export default function SupplierForm({
               inputProps={{ maxLength: 10 }}
               placeholder="ABCDE1234F"
             />
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="supplier-is_active"
-                name="is_active"
-                checked={formData.is_active}
-                onChange={handleChange}
-                className="size-4 rounded border-input"
-              />
-              <label htmlFor="supplier-is_active" className="text-sm font-medium cursor-pointer">
-                Is Active
-              </label>
-            </div>
+            <Checkbox
+              name="is_active"
+              label="Is Active"
+              checked={!!formData.is_active}
+              onChange={handleChange}
+            />
           </div>
         </div>
 
