@@ -102,9 +102,14 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
         if (value === "" || value == null) next.delete(key);
         else next.set(key, String(value));
       });
+      // Ensure listing params are preserved (in case they were missing from newFilters)
+      if (next.get("limit") == null && limit != null) next.set("limit", String(limit));
+      if (next.get("q") == null && q != null && q !== "") next.set("q", q);
+      if (next.get("sortBy") == null && sortBy) next.set("sortBy", sortBy);
+      if (next.get("sortOrder") == null && sortOrder) next.set("sortOrder", sortOrder);
       router.replace(`${pathname}${next.toString() ? `?${next.toString()}` : ""}`);
     },
-    [pathname, router, searchParams]
+    [pathname, router, searchParams, limit, q, sortBy, sortOrder]
   );
 
   const setFilter = useCallback(
