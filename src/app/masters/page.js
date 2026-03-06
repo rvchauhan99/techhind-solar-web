@@ -25,6 +25,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
@@ -681,11 +682,11 @@ export default function MastersPage() {
 
             {/* Add Master Dialog */}
             <Dialog open={showAddModal} onOpenChange={(open) => { if (!open) handleCloseAddModal(); }}>
-                <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
-                    <DialogHeader>
+                <DialogContent className={cn(DIALOG_FORM_MEDIUM, "gap-2 p-4")} showCloseButton={true}>
+                    <DialogHeader className="gap-0 pb-1">
                         <DialogTitle>Add {master.name}</DialogTitle>
                     </DialogHeader>
-                    <div className="pt-2">
+                    <div className="pt-0">
                         <MasterForm
                             fields={fields}
                             onSubmit={handleSubmit}
@@ -693,6 +694,7 @@ export default function MastersPage() {
                             serverError={serverError}
                             onClearServerError={() => setServerError(null)}
                             masterName={master.name}
+                            modelName={master.model_name}
                             onCancel={handleCloseAddModal}
                             requiredFields={requiredFields}
                         />
@@ -702,11 +704,11 @@ export default function MastersPage() {
 
             {/* View Master Dialog */}
             <Dialog open={showViewModal} onOpenChange={(open) => { if (!open) handleCloseViewModal(); }}>
-                <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
-                    <DialogHeader>
+                <DialogContent className={cn(DIALOG_FORM_MEDIUM, "gap-2 p-4")} showCloseButton={true}>
+                    <DialogHeader className="gap-0 pb-1">
                         <DialogTitle>View {master.name}</DialogTitle>
                     </DialogHeader>
-                    <div className="pt-2">
+                    <div className="pt-0">
                         {loadingRecord ? (
                             <div className="flex justify-center items-center min-h-[200px]">
                                 <Loader />
@@ -720,6 +722,7 @@ export default function MastersPage() {
                                 serverError={serverError}
                                 onClearServerError={() => setServerError(null)}
                                 masterName={master.name}
+                                modelName={master.model_name}
                                 onCancel={handleCloseViewModal}
                                 viewMode={true}
                                 requiredFields={requiredFields}
@@ -731,11 +734,11 @@ export default function MastersPage() {
 
             {/* Edit Master Dialog */}
             <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) handleCloseEditModal(); }}>
-                <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={true}>
-                    <DialogHeader>
+                <DialogContent className={cn(DIALOG_FORM_MEDIUM, "gap-2 p-4")} showCloseButton={true}>
+                    <DialogHeader className="gap-0 pb-1">
                         <DialogTitle>Edit {master.name}</DialogTitle>
                     </DialogHeader>
-                    <div className="pt-2">
+                    <div className="pt-0">
                         {loadingRecord ? (
                             <div className="flex justify-center items-center min-h-[200px]">
                                 <Loader />
@@ -749,6 +752,7 @@ export default function MastersPage() {
                                 serverError={serverError}
                                 onClearServerError={() => setServerError(null)}
                                 masterName={master.name}
+                                modelName={master.model_name}
                                 onCancel={handleCloseEditModal}
                                 requiredFields={requiredFields}
                             />

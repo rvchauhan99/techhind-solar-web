@@ -423,7 +423,18 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             setInputValue(e.target.value);
             setOpen(true);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            // When editing: do not open dropdown on focus if we already have a value (show label instead)
+            if (isAsyncMode && valueId != null && inputValue === "") {
+              setOpen(false);
+              return;
+            }
+            setOpen(true);
+          }}
+          onMouseDown={() => {
+            // Allow opening dropdown by click when field has a value (so user can change selection)
+            if (valueId != null && !open && inputValue === "") setOpen(true);
+          }}
           placeholder={defaultResolving ? "" : placeholder}
           disabled={disabled}
           autoComplete="off"

@@ -148,4 +148,8 @@ export const uploadMasterCsv = async (model, file) => {
 export const getFileUrl = (model, id) =>
   apiClient.get(`/masters/${id}/file-url`, { params: { model } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, uploadMasterCsv, getFileUrl };
+/** Remove (delete) a master file and clear its field. */
+export const removeMasterFile = (model, id, field) =>
+  apiClient.delete(`/masters/${id}/file`, { params: { model, field } }).then((r) => r.data);
+
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, uploadMasterCsv, getFileUrl, removeMasterFile };

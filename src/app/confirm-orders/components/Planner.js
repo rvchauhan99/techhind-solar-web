@@ -24,6 +24,7 @@ import Loader from "@/components/common/Loader";
 import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
 import quotationService from "@/services/quotationService";
+import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
@@ -69,6 +70,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [addBomQty, setAddBomQty] = useState(1);
     const [productsForBom, setProductsForBom] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    // Import BOM from project: when order has no BOM, show project dropdown
+    const [projectPricesWithBom, setProjectPricesWithBom] = useState([]);
+    const [loadingProjectPrices, setLoadingProjectPrices] = useState(false);
+    const [selectedProjectForImport, setSelectedProjectForImport] = useState(null);
+    const [importingFromProject, setImportingFromProject] = useState(false);
 
     useEffect(() => {
         fetchWarehouses();
@@ -286,6 +292,43 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const withinEditableWindow =
         isCompleted && completedAt && moment().diff(completedAt, "days") < PLANNER_EDITABLE_DAYS;
     const isPlannerLocked = isCompleted && !withinEditableWindow;
+
+    const hasNoBom = !orderData?.bom_snapshot?.length;
+    const showImportFromProject = hasNoBom && !isReadOnly && !isPlannerLocked;
+
+    useEffect(() => {
+        if (showImportFromProject && projectPricesWithBom.length === 0 && !loadingProjectPrices) {
+            setLoadingProjectPrices(true);
+            projectPriceService.getProjectPrices({ has_bom: true, limit: 500 })
+                .then((res) => {
+                    const raw = res?.result ?? res;
+                    const data = Array.isArray(raw?.data) ? raw.data : (Array.isArray(raw) ? raw : []);
+                    setProjectPricesWithBom(data);
+                })
+                .catch((err) => {
+                    console.error("Failed to fetch project prices:", err);
+                    toastError(err?.response?.data?.message || err?.message || "Failed to load projects");
+                    setProjectPricesWithBom([]);
+                })
+                .finally(() => setLoadingProjectPrices(false));
+        }
+    }, [showImportFromProject]);
+
+    const handleImportFromProjectSelect = async (e, newValue) => {
+        if (!newValue?.id) return;
+        setImportingFromProject(true);
+        try {
+            await orderService.updateOrder(orderId, { project_price_id: newValue.id });
+            toastSuccess("BOM imported from project. Refreshing…");
+            setSelectedProjectForImport(newValue);
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            console.error("Failed to import BOM from project:", err);
+            toastError(err?.response?.data?.message || err?.message || "Failed to import BOM");
+        } finally {
+            setImportingFromProject(false);
+        }
+    };
 
     // Toggle handler for BOM planning checkbox. This only updates local UI
     // state and does not affect the persisted order yet.
@@ -528,6 +571,37 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         </div>
                     </FormSection>
 
+                    {showImportFromProject && (
+                        <FormSection title="Import BOM from project">
+                            {orderData?.project_price_id ? (
+                                <Typography variant="body2" color="text.secondary">
+                                    Project selected. Materials below will reflect the imported BOM after refresh.
+                                </Typography>
+                            ) : (
+                                <>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                        Select a project with a linked BOM to import materials into this order.
+                                    </Typography>
+                                    <AutocompleteField
+                                        name="import_project_price_id"
+                                        label="Project (with BOM)"
+                                        options={projectPricesWithBom}
+                                        getOptionLabel={(o) => {
+                                            const cap = o?.project_capacity != null ? `${o.project_capacity} kW` : "";
+                                            const name = o?.bill_of_material_name ?? o?.billOfMaterial?.bom_name ?? "Project";
+                                            return cap ? `${cap} - ${name}` : name;
+                                        }}
+                                        value={selectedProjectForImport}
+                                        onChange={handleImportFromProjectSelect}
+                                        disabled={loadingProjectPrices || importingFromProject}
+                                        placeholder={loadingProjectPrices ? "Loading…" : "Select project"}
+                                    />
+                                    {importingFromProject && <Typography variant="caption" color="text.secondary">Importing…</Typography>}
+                                </>
+                            )}
+                        </FormSection>
+                    )}
+
                     <FormSection title="Materials for planning / delivery">
                         <div className="flex items-center justify-end gap-2 mb-2">
                             {!isReadOnly && !isPlannerLocked && (
@@ -748,9 +822,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 ? "Removed line"
                                                 : entry.action === "bom_qty_changed"
                                                     ? "Changed qty"
-                                                    : entry.action === "planner_saved"
-                                                        ? "Saved planner"
-                                                        : entry.action || "—";
+                                                    : entry.action === "bom_imported_from_project"
+                                                        ? "Imported BOM from project"
+                                                        : entry.action === "planner_saved"
+                                                            ? "Saved planner"
+                                                            : entry.action || "—";
                                     const when = entry.at ? moment(entry.at).format("DD MMM YYYY, HH:mm") : "—";
                                     const who = entry.user_name || (entry.user_id != null ? `User #${entry.user_id}` : "—");
                                     const product = entry.product_name ? `: ${entry.product_name}` : "";
