@@ -1,14 +1,18 @@
 "use client";
 
-import { Grid } from "@mui/material";
+import { Grid, Button } from "@mui/material";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { COMPACT_FORM_SPACING } from "@/utils/formConstants";
 import MakeAutocomplete from "./MakeAutocomplete";
 
-function productTypeMatches(product, typeName) {
-    const name = (product?.productType?.name || product?.productTypeName || "").toString().toLowerCase();
-    return name === (typeName || "").toLowerCase();
+function toId(v) {
+    if (v === "" || v === null || v === undefined) return "";
+    return String(v);
+}
+
+function normalizeType(v) {
+    return (v || "").toString().toLowerCase().trim().replace(/\s+/g, " ");
 }
 
 /** Build fallback display object from API product: { id: product_make_id, name: product_make_name }. Do not depend on options. */
@@ -22,7 +26,8 @@ function toFallbackMake(product) {
 
 function getProducts(products, typeName) {
     const list = Array.isArray(products) ? products : [];
-    return list.filter((p) => productTypeMatches(p, typeName));
+    const want = normalizeType(typeName);
+    return list.filter((p) => normalizeType(p?.productType?.name || p?.productTypeName || "") === want);
 }
 
 export default function TechnicalSection({
@@ -48,37 +53,182 @@ export default function TechnicalSection({
     const disabled = !!projectPriceDisabled;
     const disabledSx = disabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined;
 
+    const getMakeNameByProductId = (productId) => {
+        const id = productId != null && productId !== "" ? Number(productId) : null;
+        if (!id) return "";
+        const p = products.find((pp) => pp.id == id);
+        return p?.product_make_name ?? p?.productMake?.name ?? "";
+    };
+
+    const coerceItems = (items, fallbackSingle) => {
+        if (Array.isArray(items) && items.length > 0) return items;
+        if (!fallbackSingle) return [];
+        const pid = fallbackSingle.product_id ?? "";
+        const qty = fallbackSingle.quantity ?? "";
+        const desc = fallbackSingle.description ?? "";
+        if (pid === "" && qty === "" && desc === "") return [];
+        return [{ product_id: pid, quantity: qty, description: desc }];
+    };
+
+    const updateItems = (field, nextItems, scalarMap) => {
+        const clean = Array.isArray(nextItems) ? nextItems : [];
+        const patch = { [field]: clean };
+        if (scalarMap) {
+            const first = clean[0] || { product_id: "", quantity: "", description: "" };
+            Object.assign(patch, scalarMap(first));
+        }
+        patchForm(patch);
+    };
+
+    const renderMultiRows = ({ field, typeName, labelBase, qtyLabel, makeLabel, descLabel, scalarMap, fallbackSingle, allowMultiple = true, onPickProduct }) => {
+        const items = coerceItems(formData[field], fallbackSingle);
+        const baseItems = items.length > 0 ? items : (disabled ? [] : [{ product_id: "", quantity: "", description: "" }]);
+        const showItems = allowMultiple ? baseItems : baseItems.slice(0, 1);
+        const typeProducts = getProducts(products, typeName);
+
+        return (
+            <>
+                {showItems.map((item, idx) => {
+                    const namePrefix = field.replace(/_items$/, "");
+                    const productId = item?.product_id ?? "";
+                    const makeName = getMakeNameByProductId(productId);
+                    return (
+                        <Grid container spacing={COMPACT_FORM_SPACING} key={`${field}-${idx}`} sx={{ mb: 0.5 }}>
+                            <Grid item size={{ xs: 12, md: 3 }}>
+                                <AutocompleteField
+                                    fullWidth
+                                    name={`${namePrefix}_${idx}_product`}
+                                    label={idx === 0 ? labelBase : `${labelBase} ${idx + 1}`}
+                                    options={typeProducts}
+                                    getOptionLabel={(p) => p?.product_name ?? ""}
+                                    value={typeProducts.find((p) => p.id == productId) || (productId ? { id: productId } : null)}
+                                    onChange={(e, newValue) => {
+                                        const next = [...showItems];
+                                        const picked = newValue || null;
+                                        const base = { ...(next[idx] || {}), product_id: toId(picked?.id ?? "") };
+                                        next[idx] = typeof onPickProduct === "function" ? onPickProduct(base, picked) : base;
+                                        updateItems(field, next, scalarMap);
+                                    }}
+                                    placeholder="Type to search..."
+                                    disabled={disabled}
+                                    sx={disabledSx}
+                                />
+                            </Grid>
+                            <Grid item size={{ xs: 12, md: 2 }}>
+                                <Input
+                                    fullWidth
+                                    label={qtyLabel}
+                                    name={`${namePrefix}_${idx}_quantity`}
+                                    value={item?.quantity ?? ""}
+                                    onChange={(e) => {
+                                        const next = [...showItems];
+                                        next[idx] = { ...(next[idx] || {}), quantity: e.target.value ?? "" };
+                                        updateItems(field, next, scalarMap);
+                                    }}
+                                    disabled={disabled}
+                                    sx={disabledSx}
+                                />
+                            </Grid>
+                            <Grid item size={{ xs: 12, md: 2 }}>
+                                <Input
+                                    fullWidth
+                                    label={makeLabel}
+                                    name={`${namePrefix}_${idx}_make`}
+                                    value={makeName}
+                                    InputProps={{ readOnly: true }}
+                                    disabled
+                                    sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }}
+                                />
+                            </Grid>
+                            <Grid item size={{ xs: 12, md: 4 }}>
+                                <Input
+                                    fullWidth
+                                    label={descLabel}
+                                    name={`${namePrefix}_${idx}_description`}
+                                    value={item?.description ?? ""}
+                                    onChange={(e) => {
+                                        const next = [...showItems];
+                                        next[idx] = { ...(next[idx] || {}), description: e.target.value ?? "" };
+                                        updateItems(field, next, scalarMap);
+                                    }}
+                                    disabled={disabled}
+                                    sx={disabledSx}
+                                    multiline
+                                    rows={1}
+                                />
+                            </Grid>
+                            {allowMultiple && !disabled && (
+                                <Grid item size={{ xs: 12, md: 1 }} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                                    <Button
+                                        type="button"
+                                        variant="text"
+                                        size="small"
+                                        onClick={() => {
+                                            const next = showItems.filter((_, i) => i !== idx);
+                                            updateItems(field, next.length > 0 ? next : [{ product_id: "", quantity: "", description: "" }], scalarMap);
+                                        }}
+                                        sx={{ minWidth: 0, px: 1, py: 0.5 }}
+                                        disabled={showItems.length <= 1}
+                                    >
+                                        Remove
+                                    </Button>
+                                </Grid>
+                            )}
+                        </Grid>
+                    );
+                })}
+
+                {allowMultiple && !disabled && (
+                    <Grid container spacing={COMPACT_FORM_SPACING} sx={{ mb: 0.5 }}>
+                        <Grid item size={{ xs: 12 }}>
+                            <Button
+                                type="button"
+                                variant="text"
+                                size="small"
+                                onClick={() => {
+                                    updateItems(field, [...showItems, { product_id: "", quantity: "", description: "" }], scalarMap);
+                                }}
+                                sx={{ minWidth: 0, px: 1, py: 0.5 }}
+                            >
+                                Add
+                            </Button>
+                        </Grid>
+                    </Grid>
+                )}
+            </>
+        );
+    };
+
     switch (section.key) {
         case "structure":
             return (
-                <Grid container spacing={COMPACT_FORM_SPACING}>
-                    <Grid item size={{ xs: 12, md: 4 }}>
-                        <AutocompleteField
-                            fullWidth
-                            name="structure_product"
-                            label="Product"
-                            options={getProducts(products, "structure")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
-                            value={getProducts(products, "structure").find((p) => p.id == formData.structure_product) || (formData.structure_product ? { id: formData.structure_product } : null)}
-                            onChange={(e, newValue) => {
-                                const findProduct = newValue;
-                                patchForm({
-                                    structure_material: findProduct?.properties?.structure?.material ?? "",
-                                    structure_product: findProduct?.id ?? "",
-                                });
-                            }}
-                            placeholder="Type to search..."
-                            disabled={disabled}
-                            sx={disabledSx}
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Height" name="structure_height" value={formData.structure_height} onChange={handleChange} />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Material" name="structure_material" value={formData.structure_material} onChange={handleChange} />
-                    </Grid>
-                </Grid>
+                <>
+                    {renderMultiRows({
+                        field: "structure_items",
+                        typeName: "structure",
+                        labelBase: "Structure",
+                        qtyLabel: "Height",
+                        makeLabel: "Make",
+                        descLabel: "Material",
+                        fallbackSingle: {
+                            product_id: formData.structure_product ?? "",
+                            quantity: formData.structure_height ?? "",
+                            description: formData.structure_material ?? "",
+                        },
+                        onPickProduct: (item, picked) => ({
+                            ...item,
+                            description:
+                                item.description && String(item.description).trim() !== ""
+                                    ? item.description
+                                    : picked?.properties?.structure?.material ?? picked?.product_name ?? "",
+                        }),
+                        scalarMap: (first) => ({
+                            structure_product: first.product_id ? Number(first.product_id) : "",
+                            structure_height: first.quantity ?? "",
+                            structure_material: first.description ?? "",
+                        }),
+                    })}
+                </>
             );
 
         case "panel":
@@ -368,84 +518,77 @@ export default function TechnicalSection({
 
         case "cable":
             return (
-                <Grid container spacing={COMPACT_FORM_SPACING}>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <AutocompleteField
-                            fullWidth
-                            name="cable_ac_product"
-                            label="Ac Cable"
-                            options={getProducts(products, "ac cable")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
-                            value={getProducts(products, "ac cable").find((p) => p.id == formData.cable_ac_product) || (formData.cable_ac_product ? { id: formData.cable_ac_product } : null)}
-                            onChange={(e, newValue) => {
-                                const findProduct = newValue;
-                                patchForm({
-                                    cable_ac_product: findProduct?.id ?? "",
-                                    cable_ac_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    cable_ac_quantity: findProduct?.properties?.ac_cable?.ac_quantity ?? "",
-                                    cable_ac_description: findProduct?.product_description ?? "",
-                                });
-                            }}
-                            placeholder="Type to search..."
-                            disabled={disabled}
-                            sx={disabledSx}
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="AC Quantity" name="cable_ac_quantity" value={formData.cable_ac_quantity} onChange={handleChange} />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <MakeAutocomplete
-                            label="AC Make"
-                            valueIds={formData.cable_ac_make_ids || []}
-                            options={productMakes}
-                            fallbackMake={getFallbackMake("cable_ac", formData.cable_ac_product)}
-                            onChange={(ids) => handleAutocompleteChange("cable_ac_make_ids", ids)}
-                            disabled
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="AC Description" name="cable_ac_description" value={formData.cable_ac_description} onChange={handleChange} multiline rows={1} />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <AutocompleteField
-                            fullWidth
-                            name="cable_dc_product"
-                            label="Product"
-                            options={getProducts(products, "dc cable")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
-                            value={getProducts(products, "dc cable").find((p) => p.id == formData.cable_dc_product) || (formData.cable_dc_product ? { id: formData.cable_dc_product } : null)}
-                            onChange={(e, newValue) => {
-                                const findProduct = newValue;
-                                patchForm({
-                                    cable_dc_product: findProduct?.id ?? "",
-                                    cable_dc_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
-                                    cable_dc_quantity: findProduct?.properties?.dc_cable?.dc_quantity ?? "",
-                                    cable_dc_description: findProduct?.product_description ?? "",
-                                });
-                            }}
-                            placeholder="Type to search..."
-                            disabled={disabled}
-                            sx={disabledSx}
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="DC Quantity" name="cable_dc_quantity" value={formData.cable_dc_quantity} onChange={handleChange} />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <MakeAutocomplete
-                            label="DC Make"
-                            valueIds={formData.cable_dc_make_ids || []}
-                            options={productMakes}
-                            fallbackMake={getFallbackMake("cable_dc", formData.cable_dc_product)}
-                            onChange={(ids) => handleAutocompleteChange("cable_dc_make_ids", ids)}
-                            disabled
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="DC Description" name="cable_dc_description" value={formData.cable_dc_description} onChange={handleChange} multiline rows={1} />
-                    </Grid>
-                </Grid>
+                <>
+                    {renderMultiRows({
+                        field: "cable_ac_items",
+                        typeName: "ac cable",
+                        labelBase: "AC Cable",
+                        qtyLabel: "AC Quantity",
+                        makeLabel: "AC Make",
+                        descLabel: "AC Description",
+                        allowMultiple: false,
+                        fallbackSingle: {
+                            product_id: formData.cable_ac_product ?? "",
+                            quantity: formData.cable_ac_quantity ?? "",
+                            description: formData.cable_ac_description ?? "",
+                        },
+                        scalarMap: (first) => ({
+                            cable_ac_product: first.product_id ? Number(first.product_id) : "",
+                            cable_ac_quantity: first.quantity ?? "",
+                            cable_ac_description: first.description ?? "",
+                            cable_ac_make_ids: first.product_id ? (() => {
+                                const p = products.find((pp) => pp.id == first.product_id);
+                                const makeId = p?.product_make_id ?? p?.productMake?.id;
+                                return makeId != null ? [Number(makeId)] : [];
+                            })() : [],
+                        }),
+                    })}
+
+                    {renderMultiRows({
+                        field: "cable_dc_items",
+                        typeName: "dc cable",
+                        labelBase: "DC Cable",
+                        qtyLabel: "DC Quantity",
+                        makeLabel: "DC Make",
+                        descLabel: "DC Description",
+                        allowMultiple: false,
+                        fallbackSingle: {
+                            product_id: formData.cable_dc_product ?? "",
+                            quantity: formData.cable_dc_quantity ?? "",
+                            description: formData.cable_dc_description ?? "",
+                        },
+                        scalarMap: (first) => ({
+                            cable_dc_product: first.product_id ? Number(first.product_id) : "",
+                            cable_dc_quantity: first.quantity ?? "",
+                            cable_dc_description: first.description ?? "",
+                            cable_dc_make_ids: first.product_id ? (() => {
+                                const p = products.find((pp) => pp.id == first.product_id);
+                                const makeId = p?.product_make_id ?? p?.productMake?.id;
+                                return makeId != null ? [Number(makeId)] : [];
+                            })() : [],
+                        }),
+                    })}
+
+                    {renderMultiRows({
+                        field: "cable_la_items",
+                        typeName: "la cable",
+                        labelBase: "LA Cable",
+                        qtyLabel: "LA Quantity",
+                        makeLabel: "LA Make",
+                        descLabel: "LA Description",
+                        allowMultiple: false,
+                    })}
+
+                    {renderMultiRows({
+                        field: "cable_earthing_items",
+                        typeName: "earthing cable",
+                        labelBase: "Earthing Cable",
+                        qtyLabel: "Earthing Quantity",
+                        makeLabel: "Earthing Make",
+                        descLabel: "Earthing Description",
+                        allowMultiple: false,
+                    })}
+                </>
             );
 
         case "earthing":
@@ -490,6 +633,20 @@ export default function TechnicalSection({
                         <Input fullWidth label="Description" name="earthing_description" value={formData.earthing_description} onChange={handleChange} multiline rows={1} />
                     </Grid>
                 </Grid>
+            );
+
+        case "accessories":
+            return (
+                <>
+                    {renderMultiRows({
+                        field: "accessories_items",
+                        typeName: "accessories",
+                        labelBase: "Accessories",
+                        qtyLabel: "Quantity",
+                        makeLabel: "Make",
+                        descLabel: "Description",
+                    })}
+                </>
             );
 
         case "la":
