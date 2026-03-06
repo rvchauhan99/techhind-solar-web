@@ -39,6 +39,18 @@ export function mapBomResponseToForm(response) {
 
     let project_capacity = 0;
 
+    const normType = (v) =>
+        (v || "")
+            .toString()
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, " ");
+    const toBomItem = (element, product) => ({
+        product_id: product?.id ?? "",
+        quantity: element?.quantity ?? "",
+        description: element?.description ?? product?.product_description ?? "",
+    });
+
     // Initialize all BOM-driven fields
     Object.assign(formPatch, {
         project_price_id: datas.id ?? "",
@@ -51,6 +63,7 @@ export function mapBomResponseToForm(response) {
         structure_height: "",
         structure_material: "",
         structure_product: "",
+        structure_items: [],
         panel_size: "",
         panel_quantity: "",
         panel_make_ids: [],
@@ -89,6 +102,11 @@ export function mapBomResponseToForm(response) {
         cable_dc_make_ids: [],
         cable_dc_description: "",
         cable_dc_product: "",
+        cable_ac_items: [],
+        cable_dc_items: [],
+        cable_la_items: [],
+        cable_earthing_items: [],
+        accessories_items: [],
         earthing_quantity: "",
         earthing_make_ids: [],
         earthing_description: "",
@@ -105,13 +123,57 @@ export function mapBomResponseToForm(response) {
         const element = bomDetails[i];
         const product = element?.product;
         const properties = product?.properties || null;
-        const prodType = (product?.productType?.name || "").toLowerCase();
+        const prodType = normType(product?.productType?.name || "");
         const productWithMakeName = withMakeName(product);
 
+        // Multi-item collections by productType (case-insensitive)
+        if (prodType === "structure") {
+            formPatch.structure_items.push(toBomItem(element, product));
+            if (!formPatch.structure_product) {
+                formPatch.structure_product = product?.id ?? "";
+                formPatch.structure_height = element.quantity ?? "";
+                // Use BOM description if provided, else product structure material, else product name.
+                formPatch.structure_material =
+                    element?.description ??
+                    product?.properties?.structure?.material ??
+                    product?.product_name ??
+                    "";
+            }
+        } else if (prodType === "ac cable") {
+            formPatch.cable_ac_items.push(toBomItem(element, product));
+            if (!formPatch.cable_ac_product) {
+                formPatch.cable_ac_product = product?.id ?? "";
+                formPatch.cable_ac_quantity = element.quantity ?? "";
+                const makeId = product?.product_make_id ?? product?.productMake?.id;
+                formPatch.cable_ac_make_ids = makeId != null ? [Number(makeId)] : [];
+                formPatch.cable_ac_description = element?.description ?? "";
+            }
+            if (productWithMakeName) bomProductBySection.cable_ac = productWithMakeName;
+        } else if (prodType === "dc cable") {
+            formPatch.cable_dc_items.push(toBomItem(element, product));
+            if (!formPatch.cable_dc_product) {
+                formPatch.cable_dc_product = product?.id ?? "";
+                formPatch.cable_dc_quantity = element.quantity ?? "";
+                const makeId = product?.product_make_id ?? product?.productMake?.id;
+                formPatch.cable_dc_make_ids = makeId != null ? [Number(makeId)] : [];
+                formPatch.cable_dc_description = element?.description ?? "";
+            }
+            if (productWithMakeName) bomProductBySection.cable_dc = productWithMakeName;
+        } else if (prodType === "la cable") {
+            formPatch.cable_la_items.push(toBomItem(element, product));
+        } else if (prodType === "earthing cable") {
+            formPatch.cable_earthing_items.push(toBomItem(element, product));
+        } else if (prodType === "accessories" || prodType === "accessory") {
+            formPatch.accessories_items.push(toBomItem(element, product));
+        }
+
         if (properties?.structure) {
-            formPatch.structure_material = properties.structure.material ?? "";
-            formPatch.structure_height = element.quantity ?? "";
-            formPatch.structure_product = product?.id ?? "";
+            // Backward compatibility: keep scalar fields populated when the BOM uses properties
+            if (!formPatch.structure_product) {
+                formPatch.structure_material = properties.structure.material ?? "";
+                formPatch.structure_height = element.quantity ?? "";
+                formPatch.structure_product = product?.id ?? "";
+            }
         } else if (properties?.panel) {
             formPatch.panel_product = product?.id ?? "";
             formPatch.panel_size = product?.capacity ?? 0;
@@ -150,19 +212,25 @@ export function mapBomResponseToForm(response) {
             formPatch.battery_description_text = element?.description ?? "";
             if (productWithMakeName) bomProductBySection.battery = productWithMakeName;
         } else if (properties?.ac_cable) {
-            formPatch.cable_ac_product = product?.id ?? "";
-            formPatch.cable_ac_quantity = element.quantity ?? "";
-            const makeId = product?.product_make_id ?? product?.productMake?.id;
-            formPatch.cable_ac_make_ids = makeId != null ? [Number(makeId)] : [];
-            formPatch.cable_ac_description = element?.description ?? "";
-            if (productWithMakeName) bomProductBySection.cable_ac = productWithMakeName;
+            // Backward compatibility: keep scalar fields populated when the BOM uses properties
+            if (!formPatch.cable_ac_product) {
+                formPatch.cable_ac_product = product?.id ?? "";
+                formPatch.cable_ac_quantity = element.quantity ?? "";
+                const makeId = product?.product_make_id ?? product?.productMake?.id;
+                formPatch.cable_ac_make_ids = makeId != null ? [Number(makeId)] : [];
+                formPatch.cable_ac_description = element?.description ?? "";
+                if (productWithMakeName) bomProductBySection.cable_ac = productWithMakeName;
+            }
         } else if (properties?.dc_cable) {
-            formPatch.cable_dc_product = product?.id ?? "";
-            formPatch.cable_dc_quantity = element.quantity ?? "";
-            const makeId = product?.product_make_id ?? product?.productMake?.id;
-            formPatch.cable_dc_make_ids = makeId != null ? [Number(makeId)] : [];
-            formPatch.cable_dc_description = element?.description ?? "";
-            if (productWithMakeName) bomProductBySection.cable_dc = productWithMakeName;
+            // Backward compatibility: keep scalar fields populated when the BOM uses properties
+            if (!formPatch.cable_dc_product) {
+                formPatch.cable_dc_product = product?.id ?? "";
+                formPatch.cable_dc_quantity = element.quantity ?? "";
+                const makeId = product?.product_make_id ?? product?.productMake?.id;
+                formPatch.cable_dc_make_ids = makeId != null ? [Number(makeId)] : [];
+                formPatch.cable_dc_description = element?.description ?? "";
+                if (productWithMakeName) bomProductBySection.cable_dc = productWithMakeName;
+            }
         }
 
         if (prodType === "acdb") {
