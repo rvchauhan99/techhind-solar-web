@@ -18,7 +18,11 @@ export default function TwoFactorSetup({ onComplete, onSkip }) {
     setLoading(true);
     setError("");
     try {
-      const res = await apiClient.post("/auth/2fa/generate");
+      const issuer =
+        typeof window !== "undefined" && window.location?.hostname
+          ? window.location.hostname
+          : "";
+      const res = await apiClient.post("/auth/2fa/generate", { issuer: issuer || undefined });
       setQrCode(res.data.result.qrCodeUrl);
       setSecret(res.data.result.secret);
       setStep("qr");
