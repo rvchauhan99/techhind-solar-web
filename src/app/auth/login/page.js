@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Loader from "@/components/common/Loader";
 import { normalizeEmail } from "@/utils/validators";
+import { getTenantKeyFromSubdomain, getEffectiveTenantKey } from "@/utils/tenantKey";
 import {
   IconMail,
   IconLock,
@@ -25,16 +26,6 @@ function getSafeReturnUrl(searchParams) {
   const path = returnUrl.trim();
   if (!path.startsWith("/") || path.startsWith("//") || path.startsWith("/auth")) return "/home";
   return path;
-}
-
-function getTenantKeyFromSubdomain() {
-  if (typeof window === "undefined") return "";
-  const hostname = (window.location?.hostname || "").toLowerCase();
-  if (!hostname || hostname === "localhost" || /^127\./.test(hostname)) return "";
-  const parts = hostname.split(".");
-  // subdomain.domain.tld (e.g. demo.techhind.in) -> use first part if not "www"
-  if (parts.length >= 3 && parts[0] !== "www") return parts[0].trim();
-  return "";
 }
 
 export default function LoginPage() {
@@ -84,9 +75,7 @@ export default function LoginPage() {
       const normalizedEmail = normalizeEmail(email);
       const loginBody = { email: normalizedEmail, password };
       const effectiveTenantKey =
-        getTenantKeyFromSubdomain() ||
-        (process.env.NEXT_PUBLIC_TENANT_KEY || "").trim() ||
-        (tenantKey || "").trim();
+        getEffectiveTenantKey() || (tenantKey || "").trim();
       if (effectiveTenantKey) {
         loginBody.tenant_key = effectiveTenantKey;
       }

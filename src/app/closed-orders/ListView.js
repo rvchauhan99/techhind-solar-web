@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Paper, Typography, Box, Grid, Chip, Tooltip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -9,6 +9,7 @@ import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
+import PaymentIcon from "@mui/icons-material/Payment";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -218,6 +219,9 @@ export default function ListView() {
                 <Inventory2Icon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
+            <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
+              <PaymentIcon sx={{ fontSize: 16 }} />
+            </IconButton>
             <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
               <VisibilityIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -340,7 +344,10 @@ export default function ListView() {
     );
   };
 
-  const effectiveFilters = { ...DEFAULT_CLOSED_FILTERS, ...filters };
+  const effectiveFilters = useMemo(
+    () => ({ ...DEFAULT_CLOSED_FILTERS, ...filters }),
+    [filters]
+  );
 
   const calculateHeight = () => `calc(100vh - 125px)`;
 

@@ -30,17 +30,21 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
     useEffect(() => {
         if (orderData) {
             setFormData({
-                subsidy_disbursed: orderData.subsidy_disbursed !== undefined ? orderData.subsidy_disbursed : true,
+                subsidy_disbursed: true,
                 disbursed_date: orderData.disbursed_date ? moment(orderData.disbursed_date).format("YYYY-MM-DD") : "",
-                disbursed_amount: orderData.disbursed_amount || "",
+                disbursed_amount: orderData.disbursed_amount != null && orderData.disbursed_amount !== "" ? String(orderData.disbursed_amount) : "",
                 subsidy_disbursed_remarks: orderData.subsidy_disbursed_remarks || "",
             });
         }
     }, [orderData]);
 
+    const handleCheckboxChange = (e) => {
+        const checked = e.target.checked;
+        setFormData((prev) => ({ ...prev, subsidy_disbursed: checked }));
+    };
+
     const handleInputChange = (e) => {
-        const { name } = e.target;
-        const value = typeof e.target.checked === "boolean" ? e.target.checked : e.target.value;
+        const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
         if (fieldErrors[name]) {
             setFieldErrors((prev) => {
@@ -113,7 +117,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
                         name="subsidy_disbursed"
                         label="Subsidy Disbursed"
                         checked={formData.subsidy_disbursed}
-                        onChange={handleInputChange}
+                        onChange={handleCheckboxChange}
                         disabled={true}
                     />
                 </div>
