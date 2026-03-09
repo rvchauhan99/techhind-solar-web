@@ -1,4 +1,11 @@
 import apiClient from './apiClient';
+import { getEffectiveTenantKey } from '@/utils/tenantKey';
+
+function withTenantKey(body) {
+  const key = getEffectiveTenantKey();
+  if (!key) return body;
+  return { ...body, tenant_key: key };
+}
 
 /**
  * Send password reset OTP to user's email
@@ -6,7 +13,7 @@ import apiClient from './apiClient';
  * @returns {Promise} - API response
  */
 export const sendPasswordResetOtp = (email) => 
-  apiClient.post('/auth/forgot-password', { email }).then((r) => r.data);
+  apiClient.post('/auth/forgot-password', withTenantKey({ email })).then((r) => r.data);
 
 /**
  * Verify password reset OTP
@@ -15,7 +22,7 @@ export const sendPasswordResetOtp = (email) =>
  * @returns {Promise} - API response
  */
 export const verifyPasswordResetOtp = (email, otp) => 
-  apiClient.post('/auth/verify-reset-otp', { email, otp }).then((r) => r.data);
+  apiClient.post('/auth/verify-reset-otp', withTenantKey({ email, otp })).then((r) => r.data);
 
 /**
  * Reset password using verified OTP
@@ -26,12 +33,12 @@ export const verifyPasswordResetOtp = (email, otp) =>
  * @returns {Promise} - API response
  */
 export const resetPassword = (email, otp, newPassword, confirmPassword) => 
-  apiClient.post('/auth/reset-password', { 
+  apiClient.post('/auth/reset-password', withTenantKey({ 
     email, 
     otp, 
     new_password: newPassword, 
     confirm_password: confirmPassword 
-  }).then((r) => r.data);
+  })).then((r) => r.data);
 
 export default { 
   sendPasswordResetOtp, 

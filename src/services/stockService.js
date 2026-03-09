@@ -9,12 +9,13 @@ export const exportStocks = (params = {}) =>
 export const getStockById = (id) =>
   apiClient.get(`/stocks/${id}`).then((r) => r.data);
 
-export const getStocksByWarehouse = (warehouseId) =>
-  apiClient.get(`/stocks/warehouse/${warehouseId}`).then((r) => r.data);
+export const getStocksByWarehouse = (warehouseId, options = {}) =>
+  apiClient.get(`/stocks/warehouse/${warehouseId}`, { signal: options.signal }).then((r) => r.data);
 
-export const getAvailableSerials = (productId, warehouseId) =>
+export const getAvailableSerials = (productId, warehouseId, options = {}) =>
   apiClient.get("/stocks/serials/available", {
     params: { product_id: productId, warehouse_id: warehouseId },
+    signal: options.signal,
   }).then((r) => r.data);
 
 export const validateSerialAvailable = (serialNumber, productId, warehouseId) =>
