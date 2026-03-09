@@ -19,6 +19,9 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
+// In-flight fetch cache: reuse same request when effect runs twice (e.g. React Strict Mode)
+const inFlightByKey = new Map();
+
 /**
  * PaginatedList - list-based paginated data with search and pagination.
  * Supports optional controlled mode: pass q, onQChange, filters, page, setPage, limit, setLimit for URL-driven state.
@@ -139,26 +142,43 @@ export default function PaginatedList({
     fetcherRef.current = fetcher;
   }, [fetcher]);
 
+  const buildFetcherParams = React.useCallback(
+    (p, l, qVal, sBy, sOrder, filtersToMerge) => {
+      const apiPage = p + 1;
+      const fetcherParams = { page: apiPage, limit: l, q: qVal ?? "" };
+      if (sBy) {
+        fetcherParams.sortBy = sBy;
+        fetcherParams.sortOrder = sOrder;
+      }
+      if (filtersToMerge && typeof filtersToMerge === "object") {
+        Object.entries(filtersToMerge).forEach(([k, v]) => {
+          if (v != null && String(v).trim() !== "") fetcherParams[k] = v;
+        });
+      }
+      return fetcherParams;
+    },
+    []
+  );
+
+  const getOrCreatePromise = React.useCallback((params, skipCache) => {
+    const key = JSON.stringify(params);
+    if (skipCache) inFlightByKey.delete(key);
+    if (inFlightByKey.has(key)) return inFlightByKey.get(key);
+    const promise = fetcherRef.current(params).then(normalize);
+    inFlightByKey.set(key, promise);
+    promise.finally(() => inFlightByKey.delete(key));
+    return promise;
+  }, []);
+
   const load = React.useCallback(
-    async (p = effectivePage, l = effectiveRowsPerPage, q = effectiveDebouncedQ, sBy = sortBy, sOrder = sortOrder, filtersToMerge = controlledFilters) => {
+    async (skipCache = false, p = effectivePage, l = effectiveRowsPerPage, qVal = effectiveDebouncedQ, sBy = sortBy, sOrder = sortOrder, filtersToMerge = controlledFilters) => {
+      const params = buildFetcherParams(p, l, qVal, sBy, sOrder, filtersToMerge);
       setLoading(true);
       try {
-        const apiPage = p + 1;
-        const fetcherParams = { page: apiPage, limit: l, q: q ?? "" };
-        if (sBy) {
-          fetcherParams.sortBy = sBy;
-          fetcherParams.sortOrder = sOrder;
-        }
-        if (filtersToMerge && typeof filtersToMerge === "object") {
-          Object.entries(filtersToMerge).forEach(([k, v]) => {
-            if (v != null && String(v).trim() !== "") fetcherParams[k] = v;
-          });
-        }
-        const res = await fetcherRef.current(fetcherParams);
-        const { data, total } = normalize(res);
-        setRows(data);
-        setTotalCount(total);
-        if (onRowsChange) onRowsChange(data);
+        const result = await getOrCreatePromise(params, skipCache);
+        setRows(result.data);
+        setTotalCount(result.total);
+        if (onRowsChange) onRowsChange(result.data);
       } catch (err) {
         console.error("PaginatedList load error:", err);
         setRows([]);
@@ -167,16 +187,47 @@ export default function PaginatedList({
         setLoading(false);
       }
     },
-    [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, onRowsChange, controlledFilters]
+    [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, onRowsChange, controlledFilters, buildFetcherParams, getOrCreatePromise]
   );
 
   React.useEffect(() => {
     if (!isControlled && page !== 0) setPage(0);
   }, [effectiveDebouncedQ, isControlled]);
 
+  const mountedRef = React.useRef(true);
   React.useEffect(() => {
-    load();
-  }, [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, load]);
+    mountedRef.current = true;
+    const params = buildFetcherParams(
+      effectivePage,
+      effectiveRowsPerPage,
+      effectiveDebouncedQ,
+      sortBy,
+      sortOrder,
+      controlledFilters
+    );
+    setLoading(true);
+    getOrCreatePromise(params, false)
+      .then((result) => {
+        if (mountedRef.current) {
+          setRows(result.data);
+          setTotalCount(result.total);
+          if (onRowsChange) onRowsChange(result.data);
+        }
+      })
+      .catch((err) => {
+        console.error("PaginatedList load error:", err);
+        if (mountedRef.current) {
+          setRows([]);
+          setTotalCount(0);
+        }
+      })
+      .finally(() => {
+        if (mountedRef.current) setLoading(false);
+      });
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, buildFetcherParams, getOrCreatePromise, onRowsChange, controlledFilters]);
 
   const handleChangePage = (event, newPage) => {
     if (isPaginationControlled) controlledSetPage(newPage + 1);
@@ -193,7 +244,7 @@ export default function PaginatedList({
     }
   };
 
-  const reload = () => load();
+  const reload = () => load(true);
   const totalPages = Math.ceil(totalCount / effectiveRowsPerPage) || 1;
   const from = totalCount === 0 ? 0 : effectivePage * effectiveRowsPerPage + 1;
   const to = Math.min((effectivePage + 1) * effectiveRowsPerPage, totalCount);

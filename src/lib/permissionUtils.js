@@ -46,7 +46,8 @@ export function getAllowedRoutes(modules) {
  * Check if a path is allowed given a list of allowed routes.
  * Path is allowed if it exactly matches a route or is a child (path starts with route + "/").
  * Path and routes are normalized (trim, no trailing slash) so /inquiry/ and /inquiry match.
- * @param {string} pathname - e.g. "/purchase-orders", "/inquiry/add", "/inquiry/123"
+ * Order view/edit are also allowed when user has confirm-orders or closed-orders (same as backend child-API convention).
+ * @param {string} pathname - e.g. "/purchase-orders", "/inquiry/add", "/order/view"
  * @param {string[]} allowedRoutes - from getAllowedRoutes(profile.modules)
  * @returns {boolean}
  */
@@ -54,6 +55,12 @@ export function isPathAllowedByRoutes(pathname, allowedRoutes) {
   if (!pathname || typeof pathname !== "string") return false;
   const path = normalizePath(pathname);
   if (!path) return false;
+  const hasOrderChildAccess = allowedRoutes.some(
+    (r) => r === "/confirm-orders" || r === "/closed-orders"
+  );
+  if (hasOrderChildAccess && (path === "/order/view" || path.startsWith("/order/view/") || path === "/order/edit" || path.startsWith("/order/edit/"))) {
+    return true;
+  }
   return allowedRoutes.some(
     (route) => path === route || (route !== "/" && path.startsWith(route + "/"))
   );

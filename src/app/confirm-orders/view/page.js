@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     Box,
@@ -46,6 +46,22 @@ import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
 import { toastError } from "@/utils/toast";
 import CustomerProjectDetails from "./components/CustomerProjectDetails";
 
+// In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
+const inFlightFetchByOrderId = new Map();
+
+/** Pure fetch: returns { data, totalReceivedAmount, docs } or throws. No React state. */
+async function fetchOrderDataRaw(orderId) {
+    const [orderRes, paymentsRes, docsRes] = await Promise.all([
+        confirmOrdersService.getOrderById(orderId),
+        orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 }),
+        orderDocumentsService.getOrderDocuments({ order_id: orderId, limit: 1000 })
+    ]);
+    const data = orderRes?.result || orderRes;
+    const payments = paymentsRes?.result || [];
+    const totalReceivedAmount = payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
+    const docs = docsRes?.result?.data || docsRes?.data || [];
+    return { data, totalReceivedAmount, docs };
+}
 
 // --- Constants ---
 
@@ -150,6 +166,7 @@ function ConfirmedOrderViewPageContent() {
     const [orderDocuments, setOrderDocuments] = useState([]);
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [tabValue, setTabValue] = useState(0);
+    const mountedRef = useRef(true);
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -157,25 +174,14 @@ function ConfirmedOrderViewPageContent() {
             setLoading(false);
             return;
         }
-
+        inFlightFetchByOrderId.delete(orderId);
+        setLoading(true);
+        setError(null);
         try {
-            setLoading(true);
-            const [orderRes, paymentsRes, docsRes] = await Promise.all([
-                confirmOrdersService.getOrderById(orderId),
-                orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 }),
-                orderDocumentsService.getOrderDocuments({ order_id: orderId, limit: 1000 })
-            ]);
-
-            const data = orderRes?.result || orderRes;
-            setOrderData(data);
-
-            const payments = paymentsRes?.result || [];
-            const total = payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
-            setTotalReceivedAmount(total);
-
-            const docs = docsRes?.result?.data || docsRes?.data || [];
-            setOrderDocuments(docs);
-
+            const result = await fetchOrderDataRaw(orderId);
+            setOrderData(result.data);
+            setTotalReceivedAmount(result.totalReceivedAmount);
+            setOrderDocuments(result.docs);
             setError(null);
         } catch (err) {
             console.error("Failed to fetch order details:", err);
@@ -188,8 +194,44 @@ function ConfirmedOrderViewPageContent() {
     }, [orderId]);
 
     useEffect(() => {
-        fetchOrderData();
-    }, [fetchOrderData]);
+        mountedRef.current = true;
+        if (!orderId) {
+            setError("Order ID is required");
+            setLoading(false);
+            return () => { mountedRef.current = false; };
+        }
+        setLoading(true);
+        setError(null);
+        let promise = inFlightFetchByOrderId.get(orderId);
+        if (!promise) {
+            promise = fetchOrderDataRaw(orderId);
+            inFlightFetchByOrderId.set(orderId, promise);
+            promise.finally(() => inFlightFetchByOrderId.delete(orderId));
+        }
+        promise
+            .then((result) => {
+                if (mountedRef.current) {
+                    setOrderData(result.data);
+                    setTotalReceivedAmount(result.totalReceivedAmount);
+                    setOrderDocuments(result.docs);
+                    setError(null);
+                }
+            })
+            .catch((err) => {
+                console.error("Failed to fetch order details:", err);
+                if (mountedRef.current) {
+                    const msg = err?.response?.data?.message || err?.message || "Failed to load order data";
+                    setError(msg);
+                    toastError(msg);
+                }
+            })
+            .finally(() => {
+                if (mountedRef.current) setLoading(false);
+            });
+        return () => {
+            mountedRef.current = false;
+        };
+    }, [orderId]);
 
     useEffect(() => {
         if (orderData?.current_stage_key) {

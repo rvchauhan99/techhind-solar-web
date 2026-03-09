@@ -9,8 +9,8 @@ export const exportOrders = (params = {}) =>
 export const createOrder = (payload) =>
     apiClient.post("/order", payload).then((r) => r.data);
 
-export const getOrderById = (id) =>
-    apiClient.get(`/order/${id}`).then((r) => r.data);
+export const getOrderById = (id, options = {}) =>
+    apiClient.get(`/order/${id}`, { signal: options.signal }).then((r) => r.data);
 
 export const updateOrder = (id, payload) =>
     apiClient.put(`/order/${id}`, payload).then((r) => r.data);

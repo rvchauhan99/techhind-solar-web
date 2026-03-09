@@ -52,6 +52,23 @@ const makeErrorUserFriendly = (msg, lines) => {
     return result;
 };
 
+/** TTL for initial order+stock load cache (avoids duplicate API calls on Strict Mode remount). */
+const DELIVERY_CHALLAN_LOAD_CACHE_TTL_MS = 60 * 1000;
+const deliveryChallanLoadCache = {};
+
+function getCachedOrderLoad(orderId) {
+    if (!orderId) return null;
+    const key = String(orderId);
+    const entry = deliveryChallanLoadCache[key];
+    if (!entry || Date.now() - entry.timestamp > DELIVERY_CHALLAN_LOAD_CACHE_TTL_MS) return null;
+    return entry.data;
+}
+
+function setCachedOrderLoad(orderId, data) {
+    if (!orderId) return;
+    deliveryChallanLoadCache[String(orderId)] = { data, timestamp: Date.now() };
+}
+
 /**
  * DeliveryChallanForm
  *
@@ -148,17 +165,19 @@ export default function DeliveryChallanForm({
     };
 
     // ── Load a specific order by ID ────────────────────────────────────
-    const loadOrderById = async (id) => {
+    const loadOrderById = async (id, { signal } = {}) => {
         if (!id) return;
         try {
             setInitialLoading(true);
-            const res = await orderService.getOrderById(id);
+            const res = await orderService.getOrderById(id, { signal });
+            if (signal?.aborted) return;
             const data = res?.result || res;
             // Load stock for planned warehouse (if available) so we can show available quantities
             let stockMap = {};
             if (data?.planned_warehouse_id) {
                 try {
-                    const stockRes = await stockService.getStocksByWarehouse(data.planned_warehouse_id);
+                    const stockRes = await stockService.getStocksByWarehouse(data.planned_warehouse_id, { signal });
+                    if (signal?.aborted) return;
                     const stockData = stockRes?.result || stockRes || [];
                     if (Array.isArray(stockData)) {
                         stockData.forEach((s) => {
@@ -168,37 +187,41 @@ export default function DeliveryChallanForm({
                         });
                     }
                 } catch (stockErr) {
+                    if (signal?.aborted) return;
                     console.error("Failed to load warehouse stock for challan:", stockErr);
                     // Non-fatal: we can still proceed without stock info
                 }
             }
-            setStockByProductId(stockMap);
-            setOrder(data);
-            setSelectedOrderOption(null);
             const newLines = buildLinesFromOrder(data, stockMap);
-            setLines(newLines);
 
             // Load available serials for each serialized BOM line (for strict validation on add)
             const warehouseId = data?.planned_warehouse_id;
+            let byIndex = {};
             if (warehouseId) {
-                const byIndex = {};
                 await Promise.all(
                     newLines.map(async (line, index) => {
                         if (!line.serial_required) return;
                         try {
-                            const res = await stockService.getAvailableSerials(line.product_id, warehouseId);
-                            const list = res?.result ?? res ?? [];
+                            const serRes = await stockService.getAvailableSerials(line.product_id, warehouseId, { signal });
+                            if (signal?.aborted) return;
+                            const list = serRes?.result ?? serRes ?? [];
                             byIndex[index] = Array.isArray(list) ? list : [];
                         } catch (e) {
+                            if (signal?.aborted) return;
                             console.error("Failed to load available serials for line", index, e);
                             byIndex[index] = [];
                         }
                     })
                 );
-                setAvailableSerialsByLineIndex(byIndex);
-            } else {
-                setAvailableSerialsByLineIndex({});
             }
+            if (signal?.aborted) return;
+
+            setCachedOrderLoad(id, { order: data, lines: newLines, stockByProductId: stockMap, availableSerialsByLineIndex: byIndex });
+            setStockByProductId(stockMap);
+            setOrder(data);
+            setSelectedOrderOption(null);
+            setLines(newLines);
+            setAvailableSerialsByLineIndex(byIndex);
 
             // Clear order_id error when order is loaded
             setErrors((prev) => {
@@ -207,6 +230,7 @@ export default function DeliveryChallanForm({
                 return next;
             });
         } catch (err) {
+            if (signal?.aborted) return;
             console.error("Failed to load order for challan:", err);
             const msg = err?.response?.data?.message || err?.message || "Failed to load order";
             setOrder(null);
@@ -214,15 +238,33 @@ export default function DeliveryChallanForm({
             setAvailableSerialsByLineIndex({});
             toastError(msg);
         } finally {
-            setInitialLoading(false);
+            if (!signal?.aborted) setInitialLoading(false);
         }
     };
 
     // ── Initial load ───────────────────────────────────────────────────
     useEffect(() => {
+        let abortController = null;
+
         const init = async () => {
             if (orderIdParam) {
-                await loadOrderById(orderIdParam);
+                const cached = getCachedOrderLoad(orderIdParam);
+                if (cached) {
+                    setOrder(cached.order);
+                    setLines(cached.lines);
+                    setStockByProductId(cached.stockByProductId);
+                    setAvailableSerialsByLineIndex(cached.availableSerialsByLineIndex);
+                    setSelectedOrderOption(null);
+                    setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.order_id;
+                        return next;
+                    });
+                    setInitialLoading(false);
+                    return;
+                }
+                abortController = new AbortController();
+                await loadOrderById(orderIdParam, { signal: abortController.signal });
                 return;
             }
 
@@ -244,6 +286,10 @@ export default function DeliveryChallanForm({
         };
 
         init();
+
+        return () => {
+            if (abortController) abortController.abort();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderIdParam]);
 
