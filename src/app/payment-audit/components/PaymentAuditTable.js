@@ -10,6 +10,7 @@ import orderPaymentsService from "@/services/orderPaymentsService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import Input from "@/components/common/Input";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button as UiButton } from "@/components/ui/button";
+import AutocompleteField from "@/components/common/AutocompleteField";
 
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
 
@@ -39,7 +41,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     open: false,
     paymentId: null,
     orderId: null,
-    reason: "",
+    reasonId: null,
+    reasonLabel: "",
+    remarks: "",
     proofFile: null,
     reload: null,
   });
@@ -87,7 +91,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       open: false,
       paymentId: null,
       orderId: null,
-      reason: "",
+      reasonId: null,
+      reasonLabel: "",
+      remarks: "",
       proofFile: null,
       reload: null,
     });
@@ -95,9 +101,16 @@ export default function PaymentAuditTable({ filterParams = {} }) {
   };
 
   const handleConfirmReject = async () => {
-    const { paymentId, orderId, reason, proofFile, reload } = rejectDialog;
+    const { paymentId, orderId, reasonLabel, remarks, proofFile, reload } = rejectDialog;
     try {
-      await orderPaymentsService.rejectPayment(paymentId, reason || null);
+      const trimmedReason = String(reasonLabel || "").trim();
+      const trimmedRemarks = String(remarks || "").trim();
+      const rejectionReason =
+        trimmedReason && trimmedRemarks
+          ? `${trimmedReason} - ${trimmedRemarks}`
+          : (trimmedReason || null);
+
+      await orderPaymentsService.rejectPayment(paymentId, rejectionReason);
       if (proofFile && orderId) {
         const formData = new FormData();
         formData.append("document", proofFile);
@@ -336,7 +349,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                       open: true,
                       paymentId: row.id,
                       orderId: row.order_id || null,
-                      reason: "",
+                      reasonId: null,
+                      reasonLabel: "",
+                      remarks: "",
                       proofFile: null,
                       reload,
                     })
@@ -455,15 +470,41 @@ export default function PaymentAuditTable({ filterParams = {} }) {
             <DialogTitle>Reject Payment</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground mb-2">
-            Please enter a reason for rejection (optional).
+            Please select a reason for rejection.
+          </p>
+          <AutocompleteField
+            name="payment_rejection_reason"
+            label="Rejection Reason"
+            asyncLoadOptions={(q) =>
+              getReferenceOptionsSearch("reason.model", {
+                q,
+                limit: 20,
+                reason_type: "payment_rejection",
+                is_active: "true",
+              })
+            }
+            referenceModel="reason.model"
+            getOptionLabel={(o) => o?.reason ?? o?.label ?? ""}
+            value={rejectDialog.reasonId ? { id: rejectDialog.reasonId, reason: rejectDialog.reasonLabel } : null}
+            onChange={(e, v) =>
+              setRejectDialog((prev) => ({
+                ...prev,
+                reasonId: v?.id ?? null,
+                reasonLabel: v?.reason ?? v?.label ?? "",
+              }))
+            }
+            placeholder="Search reason…"
+          />
+          <p className="text-sm text-muted-foreground mt-3 mb-2">
+            Additional remarks (optional):
           </p>
           <Input
             fullWidth
             multiline
-            rows={3}
-            value={rejectDialog.reason}
+            rows={2}
+            value={rejectDialog.remarks}
             onChange={(e) =>
-              setRejectDialog((prev) => ({ ...prev, reason: e.target.value }))
+              setRejectDialog((prev) => ({ ...prev, remarks: e.target.value }))
             }
           />
           <p className="text-sm text-muted-foreground mt-3 mb-2">
@@ -487,6 +528,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               variant="destructive"
               size="sm"
               onClick={handleConfirmReject}
+              disabled={!String(rejectDialog.reasonLabel || "").trim()}
             >
               <IconX className="size-4 mr-1.5" />
               Reject Payment
