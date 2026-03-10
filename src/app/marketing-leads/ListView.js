@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconPhone } from "@tabler/icons-react";
 import { Badge } from "@/components/ui/badge";
 import moment from "moment";
@@ -12,6 +12,12 @@ import { useListingQueryState } from "@/hooks/useListingQueryState";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+
+const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
 const LEAD_LIST_FILTER_KEYS = [
   "customer_name",
@@ -84,6 +90,30 @@ export default function ListView() {
     clearFilters,
   } = listingState;
 
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [menuLead, setMenuLead] = useState(null);
+
+  const handleMenuOpen = useCallback((event, row) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setMenuLead(row);
+  }, []);
+
+  const handleMenuClose = useCallback(() => {
+    setMenuAnchor(null);
+    setMenuLead(null);
+  }, []);
+
+  const handleView = useCallback(() => {
+    if (menuLead?.id) router.push(`/marketing-leads/view?id=${menuLead.id}`);
+    handleMenuClose();
+  }, [menuLead, router]);
+
+  const handleEdit = useCallback(() => {
+    if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
+    handleMenuClose();
+  }, [menuLead, router]);
+
   const defaultDatesAppliedRef = useRef(false);
 
   useEffect(() => {
@@ -101,16 +131,11 @@ export default function ListView() {
   const fetchLeads = useCallback(async (params) => {
     const res = await marketingLeadsService.getMarketingLeads(params);
     const result = res?.result ?? res?.data ?? res;
-    const statusFilter = params?.status;
     if (Array.isArray(result)) {
-      const filteredData =
-        !statusFilter
-          ? result.filter((row) => row.status !== "converted")
-          : result;
       return {
-        data: filteredData,
+        data: result,
         meta: {
-          total: filteredData.length,
+          total: result.length,
           page: params.page || 1,
           pages: 1,
           limit: params.limit || 25,
@@ -118,21 +143,26 @@ export default function ListView() {
       };
     }
     if (result?.data && result?.meta) {
-      const rawData = Array.isArray(result.data) ? result.data : [];
-      const filteredData =
-        !statusFilter
-          ? rawData.filter((row) => row.status !== "converted")
-          : rawData;
-      return {
-        data: filteredData,
-        meta: { ...result.meta, total: filteredData.length },
-      };
+      return { data: result.data, meta: result.meta };
     }
     return res;
   }, []);
 
   const columns = useMemo(
     () => [
+      {
+        field: "actions",
+        label: "Actions",
+        sortable: false,
+        isActionColumn: true,
+        render: (row) => (
+          <Box display="flex" gap={0.5} alignItems="center" onClick={(e) => e.stopPropagation()}>
+            <IconButton size="small" onClick={(e) => handleMenuOpen(e, row)} sx={{ p: 0.5 }} aria-label="Actions">
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        ),
+      },
       {
         field: "lead_number",
         label: "Lead No",
@@ -245,7 +275,7 @@ export default function ListView() {
           row.created_at ? moment(row.created_at).format("DD-MM-YYYY") : "-",
       },
     ],
-    []
+    [handleMenuOpen]
   );
 
   const filterParams = useMemo(() => {
@@ -262,7 +292,14 @@ export default function ListView() {
         entries.push([key, value]);
       }
     });
-    return Object.fromEntries(entries);
+    const obj = Object.fromEntries(entries);
+    const hasStatusFilter = Array.isArray(filters?.status)
+      ? filters.status.length > 0
+      : filters?.status != null && String(filters.status).trim() !== "";
+    if (!hasStatusFilter && !obj.not_status) {
+      obj.not_status = "converted,not_interested,junk";
+    }
+    return obj;
   }, [filters]);
 
   return (
@@ -292,6 +329,22 @@ export default function ListView() {
           onSortChange={setSort}
           onRowClick={(row) => router.push(`/marketing-leads/view?id=${row.id}`)}
         />
+        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}>
+          <MenuItem onClick={handleView}>
+            <ListItemIcon>
+              <VisibilityIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>View</ListItemText>
+          </MenuItem>
+          {menuLead && !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
+            <MenuItem onClick={handleEdit}>
+              <ListItemIcon>
+                <EditIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Edit</ListItemText>
+            </MenuItem>
+          )}
+        </Menu>
       </div>
     </div>
   );
