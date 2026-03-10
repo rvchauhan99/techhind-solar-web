@@ -47,7 +47,7 @@ export default function B2bSalesQuoteForm({
     onSubmit,
     loading,
     serverError = null,
-    onClearServerError = () => {},
+    onClearServerError = () => { },
     onCancel = null,
 }) {
     const today = new Date().toISOString().split("T")[0];
@@ -85,7 +85,7 @@ export default function B2bSalesQuoteForm({
                 const r = res?.result ?? res;
                 setClients(r?.data ?? []);
             })
-            .catch(() => {})
+            .catch(() => { })
             .finally(() => setLoadingOptions(false));
     }, []);
 
@@ -94,14 +94,15 @@ export default function B2bSalesQuoteForm({
         if (!defaultValues?.id) return;
         const items = defaultValues.items?.length
             ? defaultValues.items.map((it) => ({
-                  product_id: it.product_id,
-                  product_label: it.product?.product_name || String(it.product_id),
-                  hsn_code: it.hsn_code ?? it.product?.hsn_code ?? "",
-                  quantity: it.quantity ?? 1,
-                  unit_rate: it.unit_rate ?? 0,
-                  discount_percent: it.discount_percent ?? 0,
-                  gst_percent: it.gst_percent ?? 0,
-              }))
+                product_id: it.product_id,
+                product_label: it.product?.product_name || String(it.product_id),
+                hsn_code: it.hsn_code ?? it.product?.hsn_code ?? "",
+                quantity: it.quantity ?? 1,
+                unit_rate: it.unit_rate ?? 0,
+                discount_percent: it.discount_percent ?? 0,
+                gst_percent: it.gst_percent ?? 0,
+                measurement_unit: it.measurement_unit || it.product?.measurement_unit_name || "",
+            }))
             : [];
         setFormData({
             quote_date: defaultValues.quote_date || today,
@@ -120,7 +121,7 @@ export default function B2bSalesQuoteForm({
         if (!formData.client_id) {
             setShipTos([]);
             setClientDetails(null);
-            setFormData((p) => ({ ...p, ship_to_id: "" }));
+            // setFormData((p) => ({ ...p, ship_to_id: "" })); // Removed to avoid infinite loops or clearing on initial load
             return;
         }
         b2bClientService
@@ -129,8 +130,12 @@ export default function B2bSalesQuoteForm({
                 const r = res?.result ?? res;
                 const data = r?.data ?? [];
                 setShipTos(data);
-                const defaultShipTo = data.find((s) => s.is_default) || data[0];
-                setFormData((p) => ({ ...p, ship_to_id: defaultShipTo?.id ?? "" }));
+                // Only auto-select if not in edit mode OR if client has changed from initial
+                const isInitialEditClient = defaultValues?.client_id && Number(formData.client_id) === Number(defaultValues.client_id);
+                if (!isInitialEditClient) {
+                    const defaultShipTo = data.find((s) => s.is_default) || data[0];
+                    setFormData((p) => ({ ...p, ship_to_id: defaultShipTo?.id ?? "" }));
+                }
             })
             .catch(() => setShipTos([]));
         b2bClientService
@@ -203,6 +208,7 @@ export default function B2bSalesQuoteForm({
                     unit_rate: parseFloat(currentItem.unit_rate),
                     discount_percent: parseFloat(currentItem.discount_percent || 0),
                     gst_percent: parseFloat(currentItem.gst_percent),
+                    measurement_unit: currentItem.measurement_unit || "",
                 },
             ],
         }));
@@ -425,7 +431,7 @@ export default function B2bSalesQuoteForm({
                                                 label: `${p.product_code || p.id} – ${p.product_name || p.name}`,
                                                 hsn_code: p.hsn_ssn_code || p.hsn_code || "",
                                                 gst_percent: p.gst_percent ?? "",
-                                                measurement_unit: p.measurement_unit?.unit || "",
+                                                measurement_unit: p.measurement_unit_name || "",
                                             }));
                                         }}
                                         value={currentItem.product_id}
@@ -455,18 +461,6 @@ export default function B2bSalesQuoteForm({
                                     onChange={handleCurrentItemChange}
                                 />
                                 <Input
-                                    name="unit_rate"
-                                    label="Rate (₹)"
-                                    placeholder="Enter rate"
-                                    type="number"
-                                    value={currentItem.unit_rate}
-                                    onChange={handleCurrentItemChange}
-                                    inputProps={{ min: 0, step: 0.01 }}
-                                    error={!!itemErrors.unit_rate}
-                                    helperText={itemErrors.unit_rate}
-                                    required
-                                />
-                                <Input
                                     name="quantity"
                                     label={
                                         currentItem.measurement_unit
@@ -480,6 +474,18 @@ export default function B2bSalesQuoteForm({
                                     inputProps={{ min: 1 }}
                                     error={!!itemErrors.quantity}
                                     helperText={itemErrors.quantity}
+                                    required
+                                />
+                                <Input
+                                    name="unit_rate"
+                                    label="Rate (₹)"
+                                    placeholder="Enter rate"
+                                    type="number"
+                                    value={currentItem.unit_rate}
+                                    onChange={handleCurrentItemChange}
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                    error={!!itemErrors.unit_rate}
+                                    helperText={itemErrors.unit_rate}
                                     required
                                 />
                                 <Input
@@ -553,7 +559,7 @@ export default function B2bSalesQuoteForm({
                                                     <TableCell>{index + 1}</TableCell>
                                                     <TableCell>{item.product_label || `Product #${item.product_id}`}</TableCell>
                                                     <TableCell>{item.hsn_code || "–"}</TableCell>
-                                                    <TableCell align="right">{qty}</TableCell>
+                                                    <TableCell align="right">{qty} {item.measurement_unit ? `(${item.measurement_unit})` : ""}</TableCell>
                                                     <TableCell align="right">₹{rate.toFixed(2)}</TableCell>
                                                     <TableCell align="right">{disc > 0 ? `${disc}%` : "–"}</TableCell>
                                                     <TableCell align="right">{gst}%</TableCell>
