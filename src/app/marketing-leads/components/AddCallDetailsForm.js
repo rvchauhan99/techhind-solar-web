@@ -190,10 +190,10 @@ export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted 
               />
               <Textarea
                 name="notes"
-                label="Call Notes"
+                label="Remarks"
                 value={formData.notes || ""}
                 onChange={handleChange}
-                minRows={4}
+                minRows={8}
                 className="md:col-span-2"
               />
               <div className="col-span-2 flex justify-end pt-2">

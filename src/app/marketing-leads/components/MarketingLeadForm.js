@@ -8,6 +8,7 @@ import mastersService, {
 } from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import Input from "@/components/common/Input";
+import Textarea from "@/components/common/Textarea";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
@@ -392,13 +393,13 @@ export default function MarketingLeadForm(props) {
               value={formData.expected_project_cost || ""}
               onChange={handleChange}
             />
-            <Input
+            <Textarea
               name="remarks"
               label="Remarks"
               value={formData.remarks || ""}
               onChange={handleChange}
-              multiline
-              rows={3}
+              minRows={5}
+              className="md:col-span-2 lg:col-span-3"
             />
           </FormGrid>
         </FormSection>
