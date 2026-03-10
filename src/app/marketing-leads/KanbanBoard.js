@@ -1,20 +1,31 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
   Paper,
   Stack,
   Typography,
   Grid,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import Input from "@/components/common/Input";
 import moment from "moment";
 
 const COLUMN_WIDTH = 320;
 const COLUMN_HEIGHT = "calc(100vh - 150px)";
+
+const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
 const STATUS_COLUMNS = [
   { key: "new", title: "New", color: "#0ea5e9" },
@@ -22,8 +33,6 @@ const STATUS_COLUMNS = [
   { key: "follow_up", title: "Follow Up", color: "#f97316" },
   { key: "interested", title: "Interested", color: "#22c55e" },
   { key: "converted", title: "Converted", color: "#16a34a" },
-  { key: "not_interested", title: "Not Interested", color: "#9ca3af" },
-  { key: "junk", title: "Junk", color: "#6b7280" },
 ];
 
 function buildColumns(leads = []) {
@@ -42,7 +51,31 @@ function buildColumns(leads = []) {
 }
 
 export default function KanbanBoard({ leads = [] }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [menuLead, setMenuLead] = useState(null);
+
+  const handleMenuOpen = (event, lead) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+    setMenuLead(lead);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuLead(null);
+  };
+
+  const handleView = () => {
+    if (menuLead?.id) router.push(`/marketing-leads/view?id=${menuLead.id}`);
+    handleMenuClose();
+  };
+
+  const handleEdit = () => {
+    if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
+    handleMenuClose();
+  };
 
   const columns = useMemo(() => buildColumns(leads), [leads]);
 
@@ -202,21 +235,41 @@ export default function KanbanBoard({ leads = [] }) {
                             mb={0.5}
                           >
                             <Typography
+                              component="span"
                               variant="caption"
-                              sx={{ fontWeight: 600, color: "primary.main" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/marketing-leads/view?id=${lead.id}`);
+                              }}
+                              sx={{
+                                fontWeight: 600,
+                                color: "primary.main",
+                                cursor: "pointer",
+                                "&:hover": { textDecoration: "underline" },
+                              }}
                             >
                               #{lead.lead_number || lead.id}
                             </Typography>
-                            {lead.campaign_name && (
-                              <Chip
-                                label={lead.campaign_name}
+                            <Stack direction="row" alignItems="center" spacing={0.25}>
+                              {lead.campaign_name && (
+                                <Chip
+                                  label={lead.campaign_name}
+                                  size="small"
+                                  sx={{
+                                    height: 18,
+                                    fontSize: "0.62rem",
+                                  }}
+                                />
+                              )}
+                              <IconButton
                                 size="small"
-                                sx={{
-                                  height: 18,
-                                  fontSize: "0.62rem",
-                                }}
-                              />
-                            )}
+                                onClick={(e) => handleMenuOpen(e, lead)}
+                                sx={{ p: 0.25 }}
+                                aria-label="Actions"
+                              >
+                                <MoreVertIcon fontSize="small" />
+                              </IconButton>
+                            </Stack>
                           </Stack>
 
                           <Typography
@@ -287,6 +340,29 @@ export default function KanbanBoard({ leads = [] }) {
           })}
         </Grid>
       </Box>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <MenuItem onClick={handleView}>
+          <ListItemIcon>
+            <VisibilityIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="View" />
+        </MenuItem>
+        {menuLead && !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
+          <MenuItem onClick={handleEdit}>
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Edit" />
+          </MenuItem>
+        )}
+      </Menu>
     </Paper>
   );
 }

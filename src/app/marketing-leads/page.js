@@ -50,6 +50,12 @@ export default function MarketingLeadsPage() {
     loadingRef.current = true;
     try {
       const apiFilters = buildApiFilters(filters);
+      const hasStatusFilter = Array.isArray(filters?.status)
+        ? filters.status.length > 0
+        : filters?.status != null && String(filters.status).trim() !== "";
+      if (!hasStatusFilter && !apiFilters.not_status) {
+        apiFilters.not_status = "converted,not_interested,junk";
+      }
       const res = await marketingLeadsService.getMarketingLeads({
         page: 1,
         limit: 10000,
@@ -58,12 +64,7 @@ export default function MarketingLeadsPage() {
       const payload = res?.result ?? res?.data ?? res;
       const data = Array.isArray(payload) ? payload : payload?.data ?? [];
       const list = Array.isArray(data) ? data : [];
-      const statusFilter = apiFilters?.status;
-      const filtered =
-        !statusFilter || statusFilter === ""
-          ? list.filter((lead) => lead.status !== "converted")
-          : list;
-      setKanbanLeads(filtered);
+      setKanbanLeads(list);
     } catch (e) {
       setKanbanLeads([]);
     } finally {

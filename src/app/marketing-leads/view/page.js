@@ -3,13 +3,14 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import { IconPhone } from "@tabler/icons-react";
+import { IconPhone, IconPencil } from "@tabler/icons-react";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import moment from "moment";
 import AddCallDetailsForm from "../components/AddCallDetailsForm";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -22,14 +23,16 @@ import {
 import Loader from "@/components/common/Loader";
 
 function LeadHeader({ lead }) {
+  const router = useRouter();
   if (!lead) return null;
+  const canEdit = lead.status && !["converted", "not_interested", "junk"].includes(lead.status);
   return (
-    <Card className="mb-4 bg-white dark:bg-zinc-900 border-border">
-      <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <Card className="mb-2 bg-white dark:bg-zinc-900 border-border">
+      <CardContent className="p-2 sm:p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
-          <div className="text-sm font-medium text-muted-foreground mb-1">Lead #{lead.lead_number || "-"}</div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold">{lead.customer_name || "-"}</h2>
+          <div className="text-sm font-medium text-muted-foreground mb-0.5">Lead #{lead.lead_number || "-"}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h2 className="text-lg font-semibold">{lead.customer_name || "-"}</h2>
             <Badge variant="default" className="text-[10px] h-5">
               {lead.status || "NEW"}
             </Badge>
@@ -39,23 +42,34 @@ function LeadHeader({ lead }) {
               </Badge>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-foreground">
-            <div className="flex items-center gap-1.5 font-medium">
+          <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-foreground">
+            <div className="flex items-center gap-1 font-medium">
               <IconPhone className="size-4 text-muted-foreground" />
               {lead.mobile_number || "-"}
             </div>
             {lead.campaign_name && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
+              <div className="flex items-center gap-1 text-muted-foreground">
                 <span className="font-semibold text-foreground">Campaign:</span> {lead.campaign_name}
               </div>
             )}
             {lead.branch_name && (
-              <div className="flex items-center gap-1.5 text-muted-foreground">
+              <div className="flex items-center gap-1 text-muted-foreground">
                 <span className="font-semibold text-foreground">Branch:</span> {lead.branch_name}
               </div>
             )}
           </div>
         </div>
+        {canEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/marketing-leads/edit?id=${lead.id}`)}
+            className="shrink-0"
+          >
+            <IconPencil className="size-4 mr-1.5" />
+            Edit Lead
+          </Button>
+        )}
       </CardContent>
     </Card>
   );
@@ -65,13 +79,13 @@ function LeadDetails({ lead }) {
   if (!lead) return null;
   return (
     <Card className="h-full bg-white dark:bg-zinc-900 border-border flex flex-col">
-      <CardHeader className="border-b pb-3 pt-4 px-4 sm:px-6 shrink-0">
+      <CardHeader className="border-b py-2 px-3 sm:px-4 shrink-0">
         <CardTitle>Lead Details</CardTitle>
       </CardHeader>
-      <CardContent className="p-4 sm:p-6 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-5">
+      <CardContent className="p-2 sm:p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2">
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Contact</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Contact</div>
           <div className="text-sm font-medium">
             {lead.customer_name} {lead.company_name ? `(${lead.company_name})` : ""}
           </div>
@@ -87,7 +101,7 @@ function LeadDetails({ lead }) {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Address</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Address</div>
           <div className="text-sm">{lead.address || "-"}</div>
           <div className="text-sm text-muted-foreground mt-0.5">
             {lead.city_name || ""} {lead.state_name ? `, ${lead.state_name}` : ""} {lead.pin_code || ""}
@@ -95,7 +109,7 @@ function LeadDetails({ lead }) {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Source & Campaign</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Source & Campaign</div>
           <div className="text-sm flex gap-2">
             <span className="text-muted-foreground w-20">Source:</span>
             <span className="font-medium">{lead.inquiry_source_name || "N/A"}</span>
@@ -107,7 +121,7 @@ function LeadDetails({ lead }) {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Assignment</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Assignment</div>
           <div className="text-sm flex gap-2">
             <span className="text-muted-foreground w-24">Assigned To:</span>
             <span className="font-medium">{lead.assigned_to_name || "Unassigned"}</span>
@@ -115,7 +129,7 @@ function LeadDetails({ lead }) {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Requirement</div>
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Requirement</div>
           <div className="text-sm flex gap-2">
             <span className="text-muted-foreground w-20">Capacity:</span>
             <span className="font-medium">{lead.expected_capacity_kw != null ? `${lead.expected_capacity_kw} kW` : "-"}</span>
@@ -131,8 +145,8 @@ function LeadDetails({ lead }) {
         </div>
 
         <div>
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</div>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed bg-muted/30 p-3 rounded-md border border-border/50">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Remarks</div>
+          <div className="text-sm whitespace-pre-wrap leading-relaxed bg-muted/30 p-2 rounded-md border border-border/50 min-h-[160px]">
             {lead.remarks || "-"}
           </div>
         </div>
@@ -173,15 +187,15 @@ function FollowUpHistory({ leadId, refreshKey }) {
 
   if (loading) {
     return (
-      <div className="py-8 flex justify-center">
+      <div className="py-4 flex justify-center">
         <Loader />
       </div>
     );
   }
   if (error) {
     return (
-      <div className="py-4">
-        <div className="p-4 bg-destructive/10 text-destructive text-sm rounded-md border border-destructive/20">
+      <div className="py-2">
+        <div className="p-2 bg-destructive/10 text-destructive text-sm rounded-md border border-destructive/20">
           {error}
         </div>
       </div>
@@ -189,7 +203,7 @@ function FollowUpHistory({ leadId, refreshKey }) {
   }
   if (!data.length) {
     return (
-      <div className="py-8 text-center border rounded-lg bg-muted/10 border-dashed">
+      <div className="py-4 text-center border rounded-lg bg-muted/10 border-dashed">
         <div className="text-sm text-muted-foreground">
           No follow-ups recorded yet.
         </div>
@@ -203,41 +217,41 @@ function FollowUpHistory({ leadId, refreshKey }) {
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Contacted At</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Channel</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Outcome</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Sub-status / Reason</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Next Follow-Up</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Promised Action</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">Call Notes</th>
-              <th className="px-4 py-3 font-semibold whitespace-nowrap">By</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Contacted At</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Channel</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Outcome</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Sub-status / Reason</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Next Follow-Up</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Promised Action</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">Remarks</th>
+              <th className="px-2 py-1.5 font-semibold whitespace-nowrap">By</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {data.map((fu) => (
               <tr key={fu.id} className="hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3 whitespace-nowrap text-foreground">
+                <td className="px-2 py-1.5 whitespace-nowrap text-foreground">
                   {fu.contacted_at
                     ? moment(fu.contacted_at).format("DD-MMM-YYYY HH:mm")
                     : "-"}
                 </td>
-                <td className="px-4 py-3 text-muted-foreground capitalize">{fu.contact_channel || "-"}</td>
-                <td className="px-4 py-3 whitespace-nowrap">
+                <td className="px-2 py-1.5 text-muted-foreground capitalize">{fu.contact_channel || "-"}</td>
+                <td className="px-2 py-1.5 whitespace-nowrap">
                   <Badge variant="outline" className="font-medium bg-background">
                     {fu.outcome?.replace(/_/g, " ") || "-"}
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{fu.outcome_sub_status || "-"}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-foreground">
+                <td className="px-2 py-1.5 text-muted-foreground">{fu.outcome_sub_status || "-"}</td>
+                <td className="px-2 py-1.5 whitespace-nowrap text-foreground">
                   {fu.next_follow_up_at
                     ? moment(fu.next_follow_up_at).format("DD-MMM-YYYY HH:mm")
                     : "-"}
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{fu.promised_action || "-"}</td>
-                <td className="px-4 py-3 max-w-[200px] truncate text-muted-foreground" title={fu.notes}>
+                <td className="px-2 py-1.5 text-muted-foreground">{fu.promised_action || "-"}</td>
+                <td className="px-2 py-1.5 max-w-[200px] truncate text-muted-foreground" title={fu.notes}>
                   {fu.notes || "-"}
                 </td>
-                <td className="px-4 py-3 text-foreground font-medium">{fu.created_by_name || "-"}</td>
+                <td className="px-2 py-1.5 text-foreground font-medium">{fu.created_by_name || "-"}</td>
               </tr>
             ))}
           </tbody>
@@ -309,18 +323,18 @@ function MarketingLeadViewContent() {
       listLabel="Leads"
       className="pb-6"
     >
-      <div className="mt-2 flex flex-col h-full gap-4">
+      <div className="mt-1 flex flex-col h-full gap-2">
         <LeadHeader lead={lead} />
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 flex-1 min-h-0">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 flex-1 min-h-0">
           <div className="md:col-span-4 lg:col-span-3 h-full">
             <LeadDetails lead={lead} />
           </div>
 
-          <div className="md:col-span-8 lg:col-span-9 h-[calc(100vh-210px)] flex flex-col min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+          <div className="md:col-span-8 lg:col-span-9 h-[calc(100vh-180px)] flex flex-col min-h-0">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-2">
               <Card className="shrink-0 bg-white dark:bg-zinc-900 border-border">
-                <CardContent className="p-0 sm:p-0">
+                <CardContent className="p-2 py-1">
                   <AddCallDetailsForm
                     leadId={lead.id}
                     lead={lead}
@@ -333,8 +347,8 @@ function MarketingLeadViewContent() {
                 </CardContent>
               </Card>
 
-              <div className="flex flex-col flex-1 shrink-0 pb-4">
-                <h3 className="text-lg font-semibold tracking-tight mb-3 px-1">
+              <div className="flex flex-col flex-1 shrink-0 pb-2">
+                <h3 className="text-base font-semibold tracking-tight mb-1.5 px-0">
                   Call History
                 </h3>
                 <FollowUpHistory leadId={lead.id} refreshKey={historyRefreshKey} />
