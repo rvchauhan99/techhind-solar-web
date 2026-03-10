@@ -683,6 +683,7 @@ export default function POInwardForm({
         if (formData.items.length === 0) {
             validationErrors.items = `At least one item is required to ${actionLabel}`;
         } else {
+            let hasPositiveReceived = false;
             formData.items.forEach((item, index) => {
                 const receivedQty = parseInt(item.received_quantity) || 0;
                 const rejectedQty = parseInt(item.rejected_quantity) || 0;
@@ -692,10 +693,12 @@ export default function POInwardForm({
                 const acceptedQty = item.accepted_quantity || 0;
                 const productName = item.product_name || `Item ${index + 1}`;
 
-                if (!item.received_quantity || receivedQty <= 0) {
-                    validationErrors[`item_${index}_received`] = `Received qty must be ≥ 1 for ${productName}`;
+                if (receivedQty < 0) {
+                    validationErrors[`item_${index}_received`] = `Received qty cannot be negative for ${productName}`;
                 } else if (receivedQty > pendingQty) {
                     validationErrors[`item_${index}_received`] = `Received (${receivedQty}) exceeds pending (${pendingQty}) for ${productName}`;
+                } else if (receivedQty > 0) {
+                    hasPositiveReceived = true;
                 }
                 const calculatedAccepted = receivedQty;
                 if (acceptedQty !== calculatedAccepted) {
@@ -713,6 +716,9 @@ export default function POInwardForm({
                     }
                 }
             });
+            if (!validationErrors.items && !hasPositiveReceived) {
+                validationErrors.items = `At least one item must have received quantity ≥ 1 to ${actionLabel}`;
+            }
         }
 
         if (Object.keys(validationErrors).length > 0) {
@@ -726,7 +732,11 @@ export default function POInwardForm({
         }
 
         setErrors({});
-        const totals = formData.items.reduce(
+        const receivedItems = formData.items.filter(
+            (item) => (parseInt(item.received_quantity) || 0) > 0
+        );
+
+        const totals = receivedItems.reduce(
             (acc, item) => {
                 acc.total_received += parseInt(item.received_quantity) || 0;
                 acc.total_accepted += parseInt(item.accepted_quantity) || 0;
@@ -744,7 +754,7 @@ export default function POInwardForm({
             total_received_quantity: totals.total_received,
             total_accepted_quantity: totals.total_accepted,
             total_rejected_quantity: 0,
-            items: formData.items.map((item) => {
+            items: receivedItems.map((item) => {
                 const acceptedQty = parseInt(item.accepted_quantity) || 0;
                 const taxableAmount = (parseFloat(item.rate) || 0) * acceptedQty;
                 const gstAmount = (taxableAmount * (parseFloat(item.gst_percent) || 0)) / 100;
@@ -785,6 +795,10 @@ export default function POInwardForm({
         },
         { ordered: 0, pending: 0, received: 0, accepted: 0 }
     );
+
+    const receivedLineCount = formData.items.filter(
+        (item) => (parseInt(item.received_quantity) || 0) > 0
+    ).length;
 
     const activeSerialItem = serialDialogIndex != null ? formData.items[serialDialogIndex] : null;
     const activeSerialInitial = activeSerialItem?.serials || [];
@@ -1212,7 +1226,7 @@ export default function POInwardForm({
                     {formData.items.length > 0 && (
                         <div className="mt-2 grid grid-cols-2 sm:grid-cols-5 gap-1.5">
                             {[
-                                { label: "Line Items", value: formData.items.length, color: "#6366f1" },
+                                { label: "Line Items", value: receivedLineCount, color: "#6366f1" },
                                 { label: "Total Ordered", value: totals.ordered, color: "#64748b" },
                                 { label: "This Receipt", value: totals.received, color: "#0ea5e9" },
                                 { label: "Accepted", value: totals.accepted, color: "#22c55e" },

@@ -39,6 +39,7 @@ const emptyCurrentItem = () => ({
     unit_rate: "",
     discount_percent: "",
     gst_percent: "",
+    measurement_unit: "",
 });
 
 export default function B2bSalesQuoteForm({
@@ -332,6 +333,7 @@ export default function B2bSalesQuoteForm({
                             <DateField
                                 name="quote_date"
                                 label="Quote Date"
+                                placeholder="Select quote date"
                                 value={formData.quote_date}
                                 onChange={handleChange}
                                 required
@@ -341,6 +343,7 @@ export default function B2bSalesQuoteForm({
                             <DateField
                                 name="valid_till"
                                 label="Valid Till"
+                                placeholder="Select valid till date"
                                 value={formData.valid_till}
                                 onChange={handleChange}
                                 required
@@ -350,7 +353,7 @@ export default function B2bSalesQuoteForm({
                             />
                             <AutocompleteField
                                 label="Client *"
-                                placeholder="Type to search..."
+                                placeholder="Search and select client"
                                 options={clients}
                                 getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
                                 value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
@@ -361,7 +364,7 @@ export default function B2bSalesQuoteForm({
                             />
                             <AutocompleteField
                                 label="Ship To"
-                                placeholder="Type to search..."
+                                placeholder="Search and select ship-to"
                                 options={shipTos}
                                 getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
                                 value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
@@ -371,12 +374,14 @@ export default function B2bSalesQuoteForm({
                             <Input
                                 name="payment_terms"
                                 label="Payment Terms"
+                                placeholder="Enter payment terms"
                                 value={formData.payment_terms}
                                 onChange={handleChange}
                             />
                             <Input
                                 name="delivery_terms"
                                 label="Delivery Terms"
+                                placeholder="Enter delivery terms"
                                 value={formData.delivery_terms}
                                 onChange={handleChange}
                             />
@@ -384,6 +389,7 @@ export default function B2bSalesQuoteForm({
                                 <Input
                                     name="remarks"
                                     label="Remarks"
+                                    placeholder="Enter any additional remarks"
                                     value={formData.remarks}
                                     onChange={handleChange}
                                     multiline
@@ -419,6 +425,7 @@ export default function B2bSalesQuoteForm({
                                                 label: `${p.product_code || p.id} – ${p.product_name || p.name}`,
                                                 hsn_code: p.hsn_ssn_code || p.hsn_code || "",
                                                 gst_percent: p.gst_percent ?? "",
+                                                measurement_unit: p.measurement_unit?.unit || "",
                                             }));
                                         }}
                                         value={currentItem.product_id}
@@ -429,10 +436,11 @@ export default function B2bSalesQuoteForm({
                                                 product_label: v?.label ?? "",
                                                 hsn_code: v?.hsn_code || p.hsn_code,
                                                 gst_percent: v?.gst_percent != null ? String(v.gst_percent) : p.gst_percent,
+                                                measurement_unit: v?.measurement_unit || p.measurement_unit || "",
                                             }));
                                             if (itemErrors.product_id) setItemErrors((e) => { const n = { ...e }; delete n.product_id; return n; });
                                         }}
-                                        placeholder="Search product *"
+                                        placeholder="Search and select product"
                                         getOptionLabel={(o) => o?.label ?? o?.product_name ?? String(o ?? "")}
                                         error={!!itemErrors.product_id}
                                         helperText={itemErrors.product_id}
@@ -442,12 +450,14 @@ export default function B2bSalesQuoteForm({
                                 <Input
                                     name="hsn_code"
                                     label="HSN Code"
+                                    placeholder="Enter HSN code"
                                     value={currentItem.hsn_code}
                                     onChange={handleCurrentItemChange}
                                 />
                                 <Input
                                     name="unit_rate"
-                                    label="Rate"
+                                    label="Rate (₹)"
+                                    placeholder="Enter rate"
                                     type="number"
                                     value={currentItem.unit_rate}
                                     onChange={handleCurrentItemChange}
@@ -458,7 +468,12 @@ export default function B2bSalesQuoteForm({
                                 />
                                 <Input
                                     name="quantity"
-                                    label="Quantity"
+                                    label={
+                                        currentItem.measurement_unit
+                                            ? `Quantity (${currentItem.measurement_unit})`
+                                            : "Quantity"
+                                    }
+                                    placeholder="Enter quantity"
                                     type="number"
                                     value={currentItem.quantity}
                                     onChange={handleCurrentItemChange}
@@ -511,7 +526,7 @@ export default function B2bSalesQuoteForm({
                                             <TableCell>Product</TableCell>
                                             <TableCell>HSN Code</TableCell>
                                             <TableCell align="right">Qty</TableCell>
-                                            <TableCell align="right">Rate</TableCell>
+                                            <TableCell align="right">Rate (₹)</TableCell>
                                             <TableCell align="right">Disc %</TableCell>
                                             <TableCell align="right">GST %</TableCell>
                                             <TableCell align="right">Taxable Amt</TableCell>
