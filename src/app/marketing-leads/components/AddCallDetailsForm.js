@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Input from "@/components/common/Input";
 import Textarea from "@/components/common/Textarea";
 import DateTimeField from "@/components/common/DateTimeField";
@@ -30,14 +30,45 @@ const INITIAL_FORM = {
   promised_action: "",
 };
 
-export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted }) {
-  const [formData, setFormData] = useState(INITIAL_FORM);
+export default function AddCallDetailsForm({
+  leadId,
+  lead,
+  onSaved,
+  onConverted,
+  defaultValues,
+  forcedStatus,
+}) {
+  const initialState = useMemo(() => {
+    const contactedAt = defaultValues?.contacted_at || new Date().toISOString();
+    return {
+      ...INITIAL_FORM,
+      ...(defaultValues || {}),
+      contacted_at: contactedAt,
+    };
+  }, [defaultValues]);
+
+  const [formData, setFormData] = useState(initialState);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  useEffect(() => {
+    setFormData(initialState);
+    setErrors({});
+    setConfirmOpen(false);
+  }, [initialState, leadId, forcedStatus]);
+
   const isAlreadyConverted =
     lead?.status === "converted" || !!lead?.converted_inquiry_id;
+
+  const buildPayload = useCallback(
+    (overrides = {}) => ({
+      ...formData,
+      ...overrides,
+      ...(forcedStatus ? { status: forcedStatus } : {}),
+    }),
+    [formData, forcedStatus]
+  );
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -72,7 +103,7 @@ export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted 
       }
       try {
         setSaving(true);
-        await marketingLeadsService.addFollowUp(leadId, formData);
+        await marketingLeadsService.addFollowUp(leadId, buildPayload());
         toastSuccess("Follow-up saved");
         setFormData((prev) => ({
           ...prev,
@@ -89,7 +120,7 @@ export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted 
         setSaving(false);
       }
     },
-    [leadId, formData, onSaved, lead, isAlreadyConverted]
+    [leadId, formData, onSaved, lead, isAlreadyConverted, buildPayload]
   );
 
   const handleConfirmConvert = useCallback(async () => {
@@ -97,7 +128,7 @@ export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted 
     try {
       setSaving(true);
       // 1) Save follow-up
-      await marketingLeadsService.addFollowUp(leadId, formData);
+      await marketingLeadsService.addFollowUp(leadId, buildPayload());
       // 2) Convert lead to inquiry (idempotent on backend)
       await marketingLeadsService.convertToInquiry(leadId, {});
       toastSuccess("Lead converted to inquiry successfully");
@@ -119,7 +150,7 @@ export default function AddCallDetailsForm({ leadId, lead, onSaved, onConverted 
     } finally {
       setSaving(false);
     }
-  }, [leadId, formData, onSaved, onConverted]);
+  }, [leadId, onSaved, onConverted, buildPayload]);
 
   return (
     <>

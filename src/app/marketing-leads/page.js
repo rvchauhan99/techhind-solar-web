@@ -23,7 +23,7 @@ import marketingLeadsService from "@/services/marketingLeadsService";
 
 export default function MarketingLeadsPage() {
   const router = useRouter();
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("kanban");
   const [kanbanLeads, setKanbanLeads] = useState([]);
   const [kanbanFilters, setKanbanFilters] = useState(DEFAULT_FILTER_LAST_30_DAYS);
   const loadingRef = useRef(false);
@@ -179,7 +179,10 @@ export default function MarketingLeadsPage() {
               }}
               defaultOpen={false}
             />
-            <KanbanBoard leads={kanbanLeads} />
+            <KanbanBoard
+              leads={kanbanLeads}
+              onRefresh={() => loadKanbanLeads(kanbanFilters)}
+            />
           </div>
         ) : (
           <div className="w-full flex-1 flex flex-col min-h-0">
