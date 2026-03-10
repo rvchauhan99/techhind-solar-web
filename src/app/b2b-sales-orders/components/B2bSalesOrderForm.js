@@ -47,7 +47,7 @@ export default function B2bSalesOrderForm({
   onSubmit,
   loading,
   serverError = null,
-  onClearServerError = () => {},
+  onClearServerError = () => { },
   onCancel = null,
 }) {
   const today = new Date().toISOString().split("T")[0];
@@ -90,18 +90,61 @@ export default function B2bSalesOrderForm({
     }
   }, [defaultValues?.planned_warehouse_id]);
 
+  // Populate form for editing
+  useEffect(() => {
+    if (defaultValues && Object.keys(defaultValues).length > 0 && !fromQuoteId) {
+      setFormData({
+        order_date: defaultValues.order_date || today,
+        client_id: defaultValues.client_id || "",
+        ship_to_id: defaultValues.ship_to_id || "",
+        payment_terms: defaultValues.payment_terms || "",
+        delivery_terms: defaultValues.delivery_terms || "",
+        remarks: defaultValues.remarks || "",
+        items: (defaultValues.items || []).map(it => ({
+          ...it,
+          product_id: it.product_id,
+          product_label: it.product?.product_name || it.product_label || `Product #${it.product_id}`,
+          measurement_unit: it.measurement_unit || it.product?.measurement_unit_name || ""
+        })),
+        planned_warehouse_id: defaultValues.planned_warehouse_id || "",
+      });
+
+      if (defaultValues.planned_warehouse_id) {
+        setPlannedWarehouseId(String(defaultValues.planned_warehouse_id));
+      }
+
+      if (defaultValues.client_id) {
+        setLoadingOptions(true);
+        b2bClientService
+          .getB2bClientById(defaultValues.client_id)
+          .then((res) => {
+            const r = res?.result ?? res;
+            setClientDetails(r ?? null);
+          })
+          .catch(() => setClientDetails(null))
+          .finally(() => setLoadingOptions(false));
+
+        b2bClientService
+          .getB2bShipTos({ client_id: defaultValues.client_id })
+          .then((res) => {
+            const r = res?.result ?? res;
+            setShipTos(r?.data ?? []);
+          })
+          .catch(() => setShipTos([]));
+      }
+    }
+  }, [defaultValues, fromQuoteId]);
+
   // Load clients for direct order form
   useEffect(() => {
     if (fromQuoteId) return;
-    setLoadingOptions(true);
     b2bClientService
       .getB2bClients({ limit: 500, is_active: true })
       .then((res) => {
         const r = res?.result ?? res;
         setClients(r?.data ?? []);
       })
-      .catch(() => {})
-      .finally(() => setLoadingOptions(false));
+      .catch(() => { });
   }, [fromQuoteId]);
 
   // Load ship-tos and client details when client changes (direct order); pre-select default or first
@@ -119,8 +162,12 @@ export default function B2bSalesOrderForm({
         const r = res?.result ?? res;
         const data = r?.data ?? [];
         setShipTos(data);
-        const defaultShipTo = data.find((s) => s.is_default) || data[0];
-        setFormData((p) => ({ ...p, ship_to_id: defaultShipTo?.id ?? "" }));
+        // Only auto-select if not in edit mode OR if client has changed from initial
+        const isInitialEditClient = defaultValues?.client_id && Number(formData.client_id) === Number(defaultValues.client_id);
+        if (!isInitialEditClient) {
+          const defaultShipTo = data.find((s) => s.is_default) || data[0];
+          setFormData((p) => ({ ...p, ship_to_id: defaultShipTo?.id ?? "" }));
+        }
       })
       .catch(() => setShipTos([]));
     b2bClientService
@@ -195,6 +242,7 @@ export default function B2bSalesOrderForm({
           unit_rate: parseFloat(currentItem.unit_rate),
           discount_percent: parseFloat(currentItem.discount_percent || 0),
           gst_percent: parseFloat(currentItem.gst_percent),
+          measurement_unit: currentItem.measurement_unit || "",
         },
       ],
     }));
@@ -247,6 +295,7 @@ export default function B2bSalesOrderForm({
       order_date: formData.order_date,
       client_id: Number(formData.client_id),
       ship_to_id: formData.ship_to_id ? Number(formData.ship_to_id) : null,
+      planned_warehouse_id: plannedWarehouseId ? parseInt(plannedWarehouseId, 10) : null,
       payment_terms: formData.payment_terms || null,
       delivery_terms: formData.delivery_terms || null,
       remarks: formData.remarks || null,
@@ -353,6 +402,16 @@ export default function B2bSalesOrderForm({
                 onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                 disabled={!formData.client_id}
               />
+              {defaultValues?.id && (
+                <AutocompleteField
+                  label="Planned Warehouse"
+                  placeholder="Type to search..."
+                  options={warehouses}
+                  getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+                  value={warehouses.find((w) => w.id === parseInt(plannedWarehouseId)) || (plannedWarehouseId ? { id: parseInt(plannedWarehouseId) } : null)}
+                  onChange={(e, newValue) => setPlannedWarehouseId(newValue?.id ?? "")}
+                />
+              )}
               <Input
                 name="payment_terms"
                 label="Payment Terms"
@@ -407,7 +466,7 @@ export default function B2bSalesOrderForm({
                         label: `${p.product_code || p.id} – ${p.product_name || p.name}`,
                         hsn_code: p.hsn_ssn_code || p.hsn_code || "",
                         gst_percent: p.gst_percent ?? "",
-                        measurement_unit: p.measurement_unit?.unit || "",
+                        measurement_unit: p.measurement_unit_name || "",
                       }));
                     }}
                     value={currentItem.product_id}
@@ -437,18 +496,6 @@ export default function B2bSalesOrderForm({
                   onChange={handleCurrentItemChange}
                 />
                 <Input
-                  name="unit_rate"
-                  label="Rate (₹)"
-                  placeholder="Enter rate"
-                  type="number"
-                  value={currentItem.unit_rate}
-                  onChange={handleCurrentItemChange}
-                  inputProps={{ min: 0, step: 0.01 }}
-                  error={!!itemErrors.unit_rate}
-                  helperText={itemErrors.unit_rate}
-                  required
-                />
-                <Input
                   name="quantity"
                   label={
                     currentItem.measurement_unit
@@ -462,6 +509,18 @@ export default function B2bSalesOrderForm({
                   inputProps={{ min: 1 }}
                   error={!!itemErrors.quantity}
                   helperText={itemErrors.quantity}
+                  required
+                />
+                <Input
+                  name="unit_rate"
+                  label="Rate (₹)"
+                  placeholder="Enter rate"
+                  type="number"
+                  value={currentItem.unit_rate}
+                  onChange={handleCurrentItemChange}
+                  inputProps={{ min: 0, step: 0.01 }}
+                  error={!!itemErrors.unit_rate}
+                  helperText={itemErrors.unit_rate}
                   required
                 />
                 <Input
@@ -531,7 +590,7 @@ export default function B2bSalesOrderForm({
                           <TableCell>{index + 1}</TableCell>
                           <TableCell>{item.product_label || `Product #${item.product_id}`}</TableCell>
                           <TableCell>{item.hsn_code || "–"}</TableCell>
-                          <TableCell align="right">{qty}</TableCell>
+                          <TableCell align="right">{qty} {item.measurement_unit ? `(${item.measurement_unit})` : ""}</TableCell>
                           <TableCell align="right">₹{rate.toFixed(2)}</TableCell>
                           <TableCell align="right">{disc > 0 ? `${disc}%` : "–"}</TableCell>
                           <TableCell align="right">{gst}%</TableCell>
@@ -592,7 +651,7 @@ export default function B2bSalesOrderForm({
           loading={loading}
           className="min-w-[120px]"
         >
-          Create Order
+          {defaultValues?.id ? "Save Changes" : "Create Order"}
         </LoadingButton>
       </div>
     </Box>

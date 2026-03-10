@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
-import B2bSalesOrderEditForm from "../components/B2bSalesOrderEditForm";
+import B2bSalesOrderForm from "../components/B2bSalesOrderForm";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 
 function EditB2bSalesOrderContent() {
@@ -81,10 +81,9 @@ function EditB2bSalesOrderContent() {
   return (
     <ProtectedRoute>
       <AddEditPageShell title="Edit B2B Sales Order" listHref="/b2b-sales-orders" listLabel="B2B Sales Orders">
-        <B2bSalesOrderEditForm
+        <B2bSalesOrderForm
           defaultValues={defaultValues}
           onSubmit={handleSubmit}
-          onConfirm={handleConfirm}
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}

@@ -106,7 +106,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             };
             setFormData(newFormData);
             setAttachments(defaultValues.attachments || []);
-            
+
             // Load warehouses for the bill_to_id if it exists
             if (newFormData.bill_to_id) {
                 companyService.listWarehouses(parseInt(newFormData.bill_to_id))
@@ -173,7 +173,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 const warehousesRes = await companyService.listWarehouses(parseInt(billToId));
                 const warehouses = warehousesRes?.result || warehousesRes?.data || warehousesRes || [];
                 const warehousesArray = Array.isArray(warehouses) ? warehouses : [];
-                
+
                 setOptions((prev) => ({
                     ...prev,
                     warehouses: warehousesArray,
@@ -203,7 +203,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        
+
         // If bill_to_id changes, clear ship_to_id to force re-selection
         if (name === "bill_to_id") {
             setFormData((prev) => ({
@@ -256,7 +256,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     product_name: product.product_name || prev.product_name,
                     hsn_code: product.hsn_ssn_code || "",
                     gst_percent: product.gst_percent || "",
-                    measurement_unit: product.measurement_unit?.unit || prev.measurement_unit || "",
+                    measurement_unit: product.measurement_unit_name || prev.measurement_unit || "",
                 }));
             }
         }
@@ -268,7 +268,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
         // Validate required fields before adding to table
         const validationErrors = {};
-        
+
         // Product validation (mandatory)
         if (!currentItem.product_id) {
             validationErrors.product_id = "Product is required";
@@ -280,17 +280,17 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 validationErrors.product_id = "This product is already added. Please remove it first or update the quantity.";
             }
         }
-        
+
         // Rate validation (mandatory)
         if (!currentItem.rate || currentItem.rate === "" || Number(currentItem.rate) <= 0) {
             validationErrors.rate = "Rate is required and must be greater than 0";
         }
-        
+
         // Quantity validation (mandatory)
         if (!currentItem.quantity || currentItem.quantity === "" || Number(currentItem.quantity) <= 0) {
             validationErrors.quantity = "Quantity is required and must be greater than 0";
         }
-        
+
         // GST validation (mandatory)
         if (currentItem.gst_percent === "" || currentItem.gst_percent === null || currentItem.gst_percent === undefined) {
             validationErrors.gst_percent = "GST % is required";
@@ -308,7 +308,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
         // All validations passed - add item to table
         const product = options.products.find((p) => p.id === parseInt(currentItem.product_id));
-        
+
         const newItem = {
             product_id: parseInt(currentItem.product_id),
             product_name: currentItem.product_name || product?.product_name || "",
@@ -384,7 +384,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         e.preventDefault();
 
         const validationErrors = {};
-        
+
         // Required field validations
         if (!formData.supplier_id) {
             validationErrors.supplier_id = "Supplier is required";
@@ -401,7 +401,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         if (!formData.due_date) {
             validationErrors.due_date = "Due Date is required";
         }
-        
+
         // Date validation: due_date should be after or equal to po_date
         if (formData.po_date && formData.due_date) {
             const poDate = new Date(formData.po_date);
@@ -410,7 +410,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 validationErrors.due_date = "Due Date must be on or after PO Date";
             }
         }
-        
+
         // Items validation - validate all table rows on submit
         const tableErrors = {};
         if (formData.items.length === 0) {
@@ -452,7 +452,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 }
 
                 // Check for duplicate products
-                const duplicateIndex = formData.items.findIndex((itm, idx) => 
+                const duplicateIndex = formData.items.findIndex((itm, idx) =>
                     idx !== index && itm.product_id === item.product_id && item.product_id
                 );
                 if (duplicateIndex !== -1) {
@@ -693,52 +693,51 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         {/* Add Item Form */}
                         <Paper sx={{ p: 1, mb: 1 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
-                            <AutocompleteField
-                                label="Product *"
-                                placeholder="Search and select product"
-                                options={[]}
-                                asyncLoadOptions={async (q) => {
-                                    const res = await productService.getProducts({ q: q || undefined, limit: 20 });
-                                    const data = res?.result?.data ?? res?.data ?? [];
-                                    return Array.isArray(data) ? data : [];
-                                }}
-                                resolveOptionById={async (id) => {
-                                    if (id == null || id === "") return null;
-                                    const p = await productService.getProductById(id);
-                                    const row = p?.result ?? p;
-                                    return row
-                                        ? {
-                                              id: row.id,
-                                              product_name: row.product_name,
-                                              hsn_ssn_code: row.hsn_ssn_code,
-                                              gst_percent: row.gst_percent,
-                                              measurement_unit: row.measurement_unit || null,
-                                          }
-                                        : null;
-                                }}
-                                getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
-                                value={currentItem.product_id ? { id: currentItem.product_id } : null}
-                                onChange={(e, newValue) => {
-                                    handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
-                                    if (newValue) {
-                                        setCurrentItem((prev) => ({
-                                            ...prev,
-                                            product_id: newValue.id ?? prev.product_id,
-                                            product_name: newValue.product_name ?? prev.product_name,
-                                            hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
-                                            gst_percent: newValue.gst_percent ?? prev.gst_percent,
-                                            measurement_unit:
-                                                newValue.measurement_unit?.unit ||
-                                                newValue.measurement_unit ||
-                                                prev.measurement_unit ||
-                                                "",
-                                        }));
-                                    }
-                                }}
-                                error={!!itemErrors.product_id}
-                                helperText={itemErrors.product_id}
-                                required
-                            />
+                                <AutocompleteField
+                                    label="Product *"
+                                    placeholder="Search and select product"
+                                    options={[]}
+                                    asyncLoadOptions={async (q) => {
+                                        const res = await productService.getProducts({ q: q || undefined, limit: 20 });
+                                        const data = res?.result?.data ?? res?.data ?? [];
+                                        return Array.isArray(data) ? data : [];
+                                    }}
+                                    resolveOptionById={async (id) => {
+                                        if (id == null || id === "") return null;
+                                        const p = await productService.getProductById(id);
+                                        const row = p?.result ?? p;
+                                        return row
+                                            ? {
+                                                id: row.id,
+                                                product_name: row.product_name,
+                                                hsn_ssn_code: row.hsn_ssn_code,
+                                                gst_percent: row.gst_percent,
+                                                measurement_unit_name: row.measurement_unit_name || null,
+                                            }
+                                            : null;
+                                    }}
+                                    getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
+                                    value={currentItem.product_id ? { id: currentItem.product_id } : null}
+                                    onChange={(e, newValue) => {
+                                        handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
+                                        if (newValue) {
+                                            setCurrentItem((prev) => ({
+                                                ...prev,
+                                                product_id: newValue.id ?? prev.product_id,
+                                                product_name: newValue.product_name ?? prev.product_name,
+                                                hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
+                                                gst_percent: newValue.gst_percent ?? prev.gst_percent,
+                                                measurement_unit:
+                                                    newValue.measurement_unit_name ||
+                                                    prev.measurement_unit ||
+                                                    "",
+                                            }));
+                                        }
+                                    }}
+                                    error={!!itemErrors.product_id}
+                                    helperText={itemErrors.product_id}
+                                    required
+                                />
                                 <Input
                                     name="hsn_code"
                                     label="HSN Code"
@@ -747,18 +746,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     onChange={handleItemChange}
                                     error={!!itemErrors.hsn_code}
                                     helperText={itemErrors.hsn_code}
-                                />
-                                <Input
-                                    name="rate"
-                                    label="Rate (₹)"
-                                    placeholder="Enter rate"
-                                    type="number"
-                                    value={currentItem.rate}
-                                    onChange={handleItemChange}
-                                    inputProps={{ min: 0, step: 0.01 }}
-                                    error={!!itemErrors.rate}
-                                    helperText={itemErrors.rate}
-                                    required
                                 />
                                 <Input
                                     name="quantity"
@@ -774,6 +761,18 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     inputProps={{ min: 1 }}
                                     error={!!itemErrors.quantity}
                                     helperText={itemErrors.quantity}
+                                    required
+                                />
+                                <Input
+                                    name="rate"
+                                    label="Rate (₹)"
+                                    placeholder="Enter rate"
+                                    type="number"
+                                    value={currentItem.rate}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 0, step: 0.01 }}
+                                    error={!!itemErrors.rate}
+                                    helperText={itemErrors.rate}
                                     required
                                 />
                                 <Input
@@ -811,8 +810,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                         <TableRow>
                                             <TableCell>Product</TableCell>
                                             <TableCell>HSN Code</TableCell>
+                                            <TableCell align="right">Qty</TableCell>
                                             <TableCell align="right">Rate (₹)</TableCell>
-                                            <TableCell align="right">Quantity</TableCell>
                                             <TableCell align="right">GST %</TableCell>
                                             <TableCell align="right">Taxable Amount</TableCell>
                                             <TableCell align="right">GST Amount</TableCell>
@@ -848,6 +847,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                         )}
                                                     </TableCell>
                                                     <TableCell>{item.hsn_code || "-"}</TableCell>
+                                                    <TableCell align="right">
+                                                        {item.quantity} {item.measurement_unit ? `(${item.measurement_unit})` : ""}
+                                                        {rowErrors.quantity && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.quantity}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell align="right">
                                                         {item.rate > 0 ? `₹${parseFloat(item.rate).toFixed(2)}` : <Typography color="error" variant="caption">Invalid</Typography>}
                                                         {rowErrors.rate && (
