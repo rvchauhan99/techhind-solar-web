@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toastError, toastSuccess } from "@/utils/toast";
 
+const REASON_TYPE_OPTIONS = [
+  { value: "payment_rejection", label: "Payment Rejection" },
+];
+
 export default function MasterForm({ 
   fields = [], 
   defaultValues = null, 
@@ -415,6 +419,28 @@ export default function MasterForm({
               error={hasError}
               helperText={hasError ? errors[fieldName] : null}
               placeholder="Status"
+            />
+          );
+        }
+
+        if (fieldName === "reason_type") {
+          const val = String(fieldValue || "").trim();
+          return (
+            <AutocompleteField
+              key={fieldName}
+              name={fieldName}
+              label={displayLabel}
+              options={REASON_TYPE_OPTIONS}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={REASON_TYPE_OPTIONS.find((o) => o.value === val) || (val ? { value: val, label: val } : null)}
+              onChange={(e, newValue) =>
+                handleChange({ target: { name: fieldName, value: newValue?.value ?? "" } })
+              }
+              disabled={viewMode}
+              required={isRequired && !viewMode}
+              error={hasError}
+              helperText={hasError ? errors[fieldName] : null}
+              placeholder="Select type..."
             />
           );
         }
