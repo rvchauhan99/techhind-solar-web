@@ -51,16 +51,57 @@ export default function InquiryFilterPanel({
 
     const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
 
+    const getAppliedFiltersSummary = () => {
+        const labels = {
+            status: "Stage",
+            customer_name: "Name",
+            mobile_number: "Mobile",
+            inquiry_source: "Source",
+            reference_from: "Ref",
+            branch_name: "Branch",
+            handled_by: "User",
+            inquiry_by: "Inquiry By",
+            channel_partner: "Partner",
+            project_scheme: "Scheme",
+            capacity: "Capacity",
+            city_name: "City",
+            state_name: "State",
+            discom_name: "Discom",
+            date_of_inquiry_from: "Date From",
+            date_of_inquiry_to: "Date To",
+            created_at_from: "Created From",
+            created_at_to: "Created To",
+        };
+
+        return Object.entries(values || {})
+            .filter(([key, val]) => val != null && val !== "")
+            .map(([key]) => labels[key] || key);
+    };
+
+    const appliedSummary = getAppliedFiltersSummary();
+
     return (
         <Card className="rounded-xl shadow-sm border-slate-200 bg-white mb-2 overflow-visible">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-50 transition-colors rounded-xl"
+                className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-50 transition-colors rounded-xl focus:outline-none"
             >
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                    <IconFilter size={14} /> Advanced Filters
-                    {activeCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1 leading-none">{activeCount}</Badge>}
+                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <div className="flex items-center gap-1.5">
+                        <IconFilter size={14} /> Advanced Filters
+                        {activeCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1 leading-none">{activeCount}</Badge>}
+                    </div>
+                    <div className="hidden sm:flex items-center gap-1 ml-2 border-l border-slate-200 pl-2 overflow-hidden">
+                        {appliedSummary.map((label) => (
+                            <span
+                                key={label}
+                                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] bg-green-50 text-green-700 border border-green-200 whitespace-nowrap"
+                            >
+                                {label}
+                            </span>
+                        ))}
+                    </div>
                 </span>
                 {open ? <IconChevronUp size={14} className="text-slate-400" /> : <IconChevronDown size={14} className="text-slate-400" />}
             </button>

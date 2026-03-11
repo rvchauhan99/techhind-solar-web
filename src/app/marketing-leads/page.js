@@ -80,115 +80,103 @@ export default function MarketingLeadsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="w-full pt-2 flex flex-col h-full overflow-hidden">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 shrink-0">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight text-slate-800">
-              Marketing Leads
-            </h2>
-          </div>
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-bold flex-1">Marketing Leads</h1>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="default"
-              size="sm"
               onClick={() => router.push("/marketing-leads/add")}
             >
-              <IconPlus className="size-4 mr-1.5" />
+              <IconPlus className="mr-2 size-4" />
               Add Lead
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => router.push("/marketing-leads/upload")}
             >
-              <IconUpload className="size-4 mr-1.5" />
+              <IconUpload className="mr-2 size-4" />
               Import Leads
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => router.push("/marketing-leads/call-report")}
             >
-              <IconPhoneCall className="size-4 mr-1.5" />
+              <IconPhoneCall className="mr-2 size-4" />
               Call Report
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => router.push("/marketing-leads/assign")}
             >
-              <IconUserPlus className="size-4 mr-1.5" />
+              <IconUserPlus className="mr-2 size-4" />
               Assign Leads
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
-              <IconReport className="size-4 mr-1.5" />
+              <IconReport className="mr-2 size-4" />
               Summary
             </Button>
             <Button
               variant="outline"
-              size="sm"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
-              <IconChartPie className="size-4 mr-1.5" />
+              <IconChartPie className="mr-2 size-4" />
               Analysis
             </Button>
             <Button
               variant="secondary"
-              size="sm"
               onClick={() =>
                 setView((prev) => (prev === "kanban" ? "list" : "kanban"))
               }
             >
               {view === "kanban" ? (
                 <>
-                  <IconList className="size-4 mr-1.5" />
+                  <IconList className="mr-2 size-4" />
                   List View
                 </>
               ) : (
                 <>
-                  <IconLayoutKanban className="size-4 mr-1.5" />
+                  <IconLayoutKanban className="mr-2 size-4" />
                   Kanban View
                 </>
               )}
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => router.push("/home")}
             >
-              <IconHome className="size-4 mr-1.5" />
+              <IconHome className="mr-2 size-4" />
               Home
             </Button>
           </div>
         </div>
-        {view === "kanban" ? (
-          <div className="w-full flex-1 flex flex-col min-h-0">
-            <LeadListFilterPanel
-              values={kanbanFilters}
-              onApply={(v) => {
-                setKanbanFilters(v);
-                loadKanbanLeads(v);
-              }}
-              onClear={() => {
-                setKanbanFilters(EMPTY_VALUES);
-                loadKanbanLeads(EMPTY_VALUES);
-              }}
-              defaultOpen={false}
-            />
+        <div className="shrink-0">
+          <LeadListFilterPanel
+            values={kanbanFilters}
+            onApply={(v) => {
+              setKanbanFilters(v);
+              loadKanbanLeads(v);
+            }}
+            onClear={() => {
+              setKanbanFilters(EMPTY_VALUES);
+              loadKanbanLeads(EMPTY_VALUES);
+            }}
+            defaultOpen={false}
+          />
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {view === "kanban" ? (
             <KanbanBoard
               leads={kanbanLeads}
               onRefresh={() => loadKanbanLeads(kanbanFilters)}
             />
-          </div>
-        ) : (
-          <div className="w-full flex-1 flex flex-col min-h-0">
+          ) : (
             <ListView />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   );
