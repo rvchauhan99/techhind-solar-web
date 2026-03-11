@@ -314,7 +314,8 @@ export default function ListView() {
         <PaginatedTable
           columns={columns}
           fetcher={fetchLeads}
-          showSearch
+          showSearch={false}
+          size="small"
           moduleKey="marketing-leads"
           height="100%"
           filterParams={filterParams}
