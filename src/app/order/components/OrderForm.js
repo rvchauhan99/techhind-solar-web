@@ -258,6 +258,9 @@ export default function OrderForm({
         if (!formData.customer_id) newErrors.customer_id = "Customer is required";
         if (!formData.discom_id) newErrors.discom_id = "Discom is required";
         if (!formData.consumer_no) newErrors.consumer_no = "Consumer number is required";
+        if (!formData.pin_code) newErrors.pin_code = "Pin code is required";
+        if (!formData.address) newErrors.address = "Address is required";
+        if (!formData.payment_type) newErrors.payment_type = "Payment type is required";
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -318,6 +321,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.inquiry_by}
                             helperText={errors.inquiry_by}
+                            disabled={!!formData.inquiry_id}
                             required
                         />
                         <AutocompleteField
@@ -331,6 +335,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.handled_by}
                             helperText={errors.handled_by}
+                            disabled={!!formData.inquiry_id}
                             required
                         />
                         <Input
@@ -338,6 +343,7 @@ export default function OrderForm({
                             label="Reference From"
                             value={formData.reference_from || ""}
                             onChange={handleChangeEvent}
+                            disabled={!!formData.inquiry_id}
                         />
                     </FormGrid>
                 </FormSection>
@@ -364,6 +370,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.branch_id}
                             helperText={errors.branch_id}
+                            disabled={!!formData.inquiry_id}
                             required
                         />
                         <AutocompleteField
@@ -375,6 +382,7 @@ export default function OrderForm({
                             value={formData.channel_partner_id ? { id: formData.channel_partner_id } : null}
                             onChange={(e, newValue) => handleChange("channel_partner_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
+                            disabled={!!formData.inquiry_id}
                         />
                         <AutocompleteField
                             name="project_scheme_id"
@@ -387,6 +395,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.project_scheme_id}
                             helperText={errors.project_scheme_id}
+                            disabled={!!formData.inquiry_id}
                             required
                         />
                         <Input
@@ -397,6 +406,7 @@ export default function OrderForm({
                             onChange={handleChangeEvent}
                             error={!!errors.capacity}
                             helperText={errors.capacity}
+                            disabled={!!formData.inquiry_id}
                             required
                             inputProps={{ min: 0, step: 0.01 }}
                         />
@@ -406,6 +416,7 @@ export default function OrderForm({
                             label="Existing PV Capacity"
                             value={formData.existing_pv_capacity ?? ""}
                             onChange={handleChangeEvent}
+                            disabled={!!formData.inquiry_id}
                             inputProps={{ min: 0, step: 0.01 }}
                         />
                         <Input
@@ -416,6 +427,7 @@ export default function OrderForm({
                             onChange={handleChangeEvent}
                             error={!!errors.project_cost}
                             helperText={errors.project_cost}
+                            disabled={!!formData.inquiry_id}
                             required
                             inputProps={{ min: 0, step: 0.01 }}
                         />
@@ -425,6 +437,7 @@ export default function OrderForm({
                             label="Discount"
                             value={formData.discount ?? ""}
                             onChange={handleChangeEvent}
+                            disabled={!!formData.inquiry_id}
                             inputProps={{ min: 0, step: 0.01 }}
                         />
                         <AutocompleteField
@@ -438,6 +451,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.order_type_id}
                             helperText={errors.order_type_id}
+                            disabled={!!formData.inquiry_id}
                             required
                         />
                         <AutocompleteField
@@ -448,6 +462,7 @@ export default function OrderForm({
                             value={dropdowns.solarPanels.find((p) => p.id === formData.solar_panel_id) || (formData.solar_panel_id ? { id: formData.solar_panel_id } : null)}
                             onChange={(e, newValue) => handleChange("solar_panel_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
+                            disabled={!!formData.inquiry_id}
                         />
                         <AutocompleteField
                             name="inverter_id"
@@ -457,6 +472,7 @@ export default function OrderForm({
                             value={dropdowns.inverters.find((p) => p.id === formData.inverter_id) || (formData.inverter_id ? { id: formData.inverter_id } : null)}
                             onChange={(e, newValue) => handleChange("inverter_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
+                            disabled={!!formData.inquiry_id}
                         />
                         <Input
                             name="order_remarks"
@@ -476,56 +492,51 @@ export default function OrderForm({
                             label="Customer Name"
                             value={formData.customer_name ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="mobile_number"
                             label="Mobile Number"
                             value={formData.mobile_number ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="company_name"
                             label="Company Name"
                             value={formData.company_name ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="phone_no"
                             label="Phone No"
                             value={formData.phone_no ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="email"
                             label="Email Id"
                             value={formData.email ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="pin_code"
                             label="Pin Code"
                             value={formData.pin_code ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
+                            error={!!errors.pin_code}
+                            helperText={errors.pin_code}
+                            required
                         />
                         <Input
                             name="state_id"
                             label="State"
                             value={formData.state_id ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="city_id"
                             label="City"
                             value={formData.city_id ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="address"
@@ -534,21 +545,21 @@ export default function OrderForm({
                             onChange={handleChangeEvent}
                             multiline
                             rows={1}
-                            disabled
+                            error={!!errors.address}
+                            helperText={errors.address}
+                            required
                         />
                         <Input
                             name="landmark_area"
                             label="Landmark / Area"
                             value={formData.landmark_area ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                         <Input
                             name="district"
                             label="District"
                             value={formData.district ?? ""}
                             onChange={handleChangeEvent}
-                            disabled
                         />
                     </FormGrid>
                 </FormSection>
@@ -660,6 +671,9 @@ export default function OrderForm({
                             value={formData.payment_type ? { value: formData.payment_type, label: formData.payment_type } : null}
                             onChange={(e, newValue) => handleChange("payment_type", newValue?.value ?? newValue ?? "")}
                             placeholder="Type to search..."
+                            error={!!errors.payment_type}
+                            helperText={errors.payment_type}
+                            required
                         />
                         <AutocompleteField
                             name="loan_type_id"
