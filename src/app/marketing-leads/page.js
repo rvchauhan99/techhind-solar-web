@@ -153,20 +153,22 @@ export default function MarketingLeadsPage() {
             </Button>
           </div>
         </div>
-        <div className="shrink-0">
-          <LeadListFilterPanel
-            values={kanbanFilters}
-            onApply={(v) => {
-              setKanbanFilters(v);
-              loadKanbanLeads(v);
-            }}
-            onClear={() => {
-              setKanbanFilters(EMPTY_VALUES);
-              loadKanbanLeads(EMPTY_VALUES);
-            }}
-            defaultOpen={false}
-          />
-        </div>
+        {view === "kanban" && (
+          <div className="shrink-0">
+            <LeadListFilterPanel
+              values={kanbanFilters}
+              onApply={(v) => {
+                setKanbanFilters(v);
+                loadKanbanLeads(v);
+              }}
+              onClear={() => {
+                setKanbanFilters(EMPTY_VALUES);
+                loadKanbanLeads(EMPTY_VALUES);
+              }}
+              defaultOpen={false}
+            />
+          </div>
+        )}
         <div className="min-h-0 flex-1 overflow-hidden">
           {view === "kanban" ? (
             <KanbanBoard
