@@ -187,20 +187,9 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
         display: "flex",
         flexDirection: "column",
         height: COLUMN_HEIGHT,
-        p: 2,
+        p: 0,
       }}
     >
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mb={2}>
-        <Input
-          placeholder="Search marketing leads..."
-          size="small"
-          fullWidth
-          name="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </Stack>
-
       <DragDropContext onDragEnd={onDragEnd}>
         <Box
           sx={{
@@ -231,7 +220,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                   <Paper
                     elevation={0}
                     sx={{
-                      p: 1.25,
+                      p: 0.5,
                       borderRadius: 1,
                       border: 1,
                       borderColor: "divider",
@@ -251,9 +240,9 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                       alignItems="center"
                       justifyContent="space-between"
                       sx={{
-                        mb: 1,
+                        mb: 0.5,
                         px: 1,
-                        py: 0.6,
+                        py: 0.25,
                         borderRadius: 1,
                         bgcolor: colCfg?.color || "#0ea5e9",
                         color: "#fff",
@@ -318,8 +307,8 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                     {...dragProvided.dragHandleProps}
                                     elevation={0}
                                     sx={{
-                                      mb: 1,
-                                      p: 1,
+                                      mb: 0.5,
+                                      p: 0.5,
                                       borderRadius: 1,
                                       border: 1,
                                       borderColor: dragSnapshot.isDragging
