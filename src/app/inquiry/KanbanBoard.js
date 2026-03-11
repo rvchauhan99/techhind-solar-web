@@ -188,7 +188,6 @@ const siteVisitModalStyle = {
 export default function KanbanBoard({ search, inquiries, onRefresh }) {
   const router = useRouter();
   const [data, setData] = useState(buildBoardState(inquiries));
-  const [query, setQuery] = useState("");
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuInquiryId, setMenuInquiryId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -222,31 +221,6 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     }
     return out;
   }, [data]);
-
-  // Filtered view for search
-  const filtered = useMemo(() => {
-    if (!query.trim()) return data;
-    const q = query.toLowerCase();
-    const cols = {};
-    for (const key of data.columnOrder) {
-      cols[key] = {
-        ...data.columns[key],
-        items: data.columns[key].items.filter((it) =>
-          [
-            it.id,
-            it.inquiryNumber,
-            it.source,
-            it.inquiryBy,
-            it.handledBy,
-            it.mobile,
-          ]
-            .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(q))
-        ),
-      };
-    }
-    return { ...data, columns: cols };
-  }, [data, query]);
 
   const handleMenuOpen = (event, item) => {
     setMenuAnchor(event.currentTarget);
@@ -649,13 +623,13 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
   };
 
   const calculateKanbanBoardHeight = () => {
-    // Optimized: Navbar(56px) + Toolbar(40px) + Page header(~54px) = ~150px (no footer)
-    return `calc(100vh - 150px)`;
+    // Optimized height for dense ERP view
+    return `calc(100vh - 125px)`;
   };
 
   const calculateDroppableHeight = () => {
-    // Use full height minus padding for the droppable area
-    return `calc(100vh - 170px)`;
+    // Dense ERP view
+    return `calc(100vh - 145px)`;
   };
 
   return (
@@ -664,19 +638,9 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
         display: "flex",
         flexDirection: "column",
         height: calculateKanbanBoardHeight(),
-        padding: 2,
+        padding: 0.5,
       }}
     >
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} mt={2} mb={2}>
-        <Input
-          placeholder="Search option"
-          size="small"
-          fullWidth
-          name="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </Stack>
 
       <DragDropContext
         onDragStart={onDragStart}
@@ -697,9 +661,9 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
             },
           }}
         >
-          <Grid container spacing={2} wrap="nowrap" sx={{ height: "100%" }}>
-            {filtered.columnOrder.map((colKey) => {
-              const col = filtered.columns[colKey];
+          <Grid container spacing={1} wrap="nowrap" sx={{ height: "100%" }}>
+            {data.columnOrder.map((colKey) => {
+              const col = data.columns[colKey];
               const total = totals[colKey];
 
               return (

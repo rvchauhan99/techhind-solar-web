@@ -26,6 +26,7 @@ import {
   IconUpload,
 } from "@tabler/icons-react";
 import Container from "@/components/container";
+import InquiryFilterPanel from "@/components/common/InquiryFilterPanel";
 
 export default function InquiryPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -36,7 +37,6 @@ export default function InquiryPage() {
     can_delete: false,
   };
 
-  const [query, setQuery] = useState("");
   const [view, setView] = useState("kanban");
   const [inquiries, setInquiries] = useState([]);
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -49,13 +49,26 @@ export default function InquiryPage() {
   const importFileInputRef = useRef(null);
   const router = useRouter();
 
+  // --- Advanced Filter Panel state ---
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [filterValues, setFilterValues] = useState({});
+
+  // Build active filter params (strip empty values)
+  const activeFilters = useCallback(() => {
+    const result = {};
+    Object.entries(filterValues).forEach(([k, v]) => {
+      if (v != null && String(v).trim() !== "") result[k] = v;
+    });
+    return result;
+  }, [filterValues]);
+
   // Allow add/import for anyone who has access to the Inquiry module.
   const canAccessInquiryModule = currentPerm.can_create || currentPerm.can_read;
 
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      const blob = await inquiryService.exportInquiries({ q: query || undefined, is_dead: showDeadOnly });
+      const blob = await inquiryService.exportInquiries({ is_dead: showDeadOnly, ...activeFilters() });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -71,7 +84,7 @@ export default function InquiryPage() {
     } finally {
       setExporting(false);
     }
-  }, [query, showDeadOnly]);
+  }, [showDeadOnly, activeFilters]);
   const fetchingRef = useRef(null);
 
   const loadInquiries = useCallback(async () => {
@@ -80,10 +93,10 @@ export default function InquiryPage() {
     fetchingRef.current = requestId;
     try {
       const res = await inquiryService.getInquiries({
-        q: query || undefined,
         is_dead: showDeadOnly,
         page: 1,
         limit: 10000,
+        ...activeFilters(),
       });
       if (fetchingRef.current === requestId) {
         const result = res?.result ?? res?.data ?? res;
@@ -98,7 +111,7 @@ export default function InquiryPage() {
     } finally {
       if (fetchingRef.current === requestId) fetchingRef.current = null;
     }
-  }, [query, showDeadOnly]);
+  }, [showDeadOnly, activeFilters]);
 
   useEffect(() => {
     loadInquiries();
@@ -107,10 +120,10 @@ export default function InquiryPage() {
   const handleRefreshInquiries = useCallback(async () => {
     try {
       const res = await inquiryService.getInquiries({
-        q: query || undefined,
         is_dead: showDeadOnly,
         page: 1,
         limit: 10000,
+        ...activeFilters(),
       });
       const result = res?.result ?? res?.data ?? res;
       const payload = Array.isArray(result) ? result : (result?.data ?? []);
@@ -118,7 +131,18 @@ export default function InquiryPage() {
     } catch (e) {
       console.error("Failed to refresh inquiries", e);
     }
-  }, [query, showDeadOnly]);
+  }, [showDeadOnly, activeFilters]);
+
+  const handleFilterApply = useCallback((values) => {
+    setFilterValues(values);
+    setFilterPanelOpen(false);
+    setReloadTrigger((prev) => prev + 1);
+  }, []);
+
+  const handleFilterClear = useCallback(() => {
+    setFilterValues({});
+    setReloadTrigger((prev) => prev + 1);
+  }, []);
 
   return (
     <ProtectedRoute>
@@ -202,10 +226,20 @@ export default function InquiryPage() {
           </div>
         </div>
 
+        {/* Advanced Filter Panel */}
+        <div className="shrink-0">
+          <InquiryFilterPanel
+            open={filterPanelOpen}
+            onToggle={setFilterPanelOpen}
+            values={filterValues}
+            onApply={handleFilterApply}
+            onClear={handleFilterClear}
+          />
+        </div>
+
         <div className="min-h-0 flex-1 overflow-hidden">
           {view === "kanban" ? (
             <KanbanBoard
-              search={query}
               inquiries={inquiries}
               onRefresh={handleRefreshInquiries}
             />
@@ -213,7 +247,7 @@ export default function InquiryPage() {
             <ListView
               onRefresh={handleRefreshInquiries}
               showAssignment={showAssignment}
-              filterParams={{ is_dead: showDeadOnly }}
+              filterParams={{ is_dead: showDeadOnly, ...activeFilters() }}
             />
           )}
         </div>
