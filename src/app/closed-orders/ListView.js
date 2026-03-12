@@ -367,6 +367,7 @@ export default function ListView() {
             setFilterPanelOpen(false);
           }}
           defaultOpen={false}
+          variant="closed"
         />
       </div>
       <PaginatedList

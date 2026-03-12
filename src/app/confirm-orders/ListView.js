@@ -314,10 +314,11 @@ export default function ListView() {
                 onToggle={setFilterPanelOpen}
                 values={filters}
                 onApply={(v) => {
-                    setFilters(v);
+                    setFilters(v, true, true);
                     setFilterPanelOpen(false);
                 }}
                 onClear={() => clearFilters()}
+                variant="confirm"
             />
             <PaginatedList
                 fetcher={fetchData}
