@@ -32,14 +32,25 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 
-const DOC_TYPE_OPTIONS = [
-    { value: "aadhar_card", label: "Aadhar Card" },
-    { value: "pan_card", label: "PAN Card" },
-    { value: "electricity_bill", label: "Electricity Bill" },
-    { value: "registration_letter", label: "Registration Letter" },
-    { value: "payment_receipt", label: "Payment Receipt" },
-    { value: "other", label: "Other" },
-];
+const LEGACY_ORDER_DOC_TYPE_LABELS = {
+    electricity_bill: "Electricity Bill",
+    house_tax_bill: "House Tax Bill",
+    aadhar_card: "Aadhar Card",
+    passport_photo: "Passport Size Picture",
+    pan_card: "PAN Card or Driving Licence",
+    cancelled_cheque: "Cancelled Cheque",
+    customer_sign: "Customer Sign",
+    registration_letter: "Registration Letter",
+    payment_receipt: "Payment Receipt",
+};
+
+const resolveOrderDocTypeLabel = (docType, masterTypes = []) => {
+    if (!docType) return "";
+    const str = String(docType);
+    const found = Array.isArray(masterTypes) ? masterTypes.find((t) => t?.type === str) : null;
+    if (found?.type) return found.type;
+    return LEGACY_ORDER_DOC_TYPE_LABELS[str] || str;
+};
 
 function TabPanel({ children, value, index }) {
     return (
@@ -49,7 +60,7 @@ function TabPanel({ children, value, index }) {
     );
 }
 
-function RegistrationForm({ orderData, orderId }) {
+function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     const router = useRouter();
     const [formData, setFormData] = useState({
         discom_id: "",
@@ -116,10 +127,17 @@ function RegistrationForm({ orderData, orderId }) {
 
             // Upload registration letter if provided
             if (registrationLetter) {
+                const registrationType = (orderDocumentTypes || []).find((t) => t?.type === "Registration Letter");
+                if (!registrationType) {
+                    const msg = "Please add 'Registration Letter' in Masters → Order Document Type, then upload again.";
+                    setErrors({ submit: msg });
+                    toastError(msg);
+                    return;
+                }
                 const formDataUpload = new FormData();
                 formDataUpload.append('document', registrationLetter);
                 formDataUpload.append('order_id', orderId);
-                formDataUpload.append('doc_type', 'registration_letter');
+                formDataUpload.append('doc_type', registrationType.type);
                 formDataUpload.append('remarks', 'Registration Letter');
 
                 await orderDocumentsService.createOrderDocument(formDataUpload);
@@ -274,7 +292,7 @@ function RegistrationForm({ orderData, orderId }) {
     );
 }
 
-function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
+function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [] }) {
     const [formData, setFormData] = useState({
         order_id: orderId,
         date_of_payment: "",
@@ -369,10 +387,15 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved }) {
             // Also save receipt to order_documents if file exists
             if (receiptFile) {
                 try {
+                    const receiptType = (orderDocumentTypes || []).find((t) => t?.type === "Payment Receipt");
+                    if (!receiptType) {
+                        toastError("Please add 'Payment Receipt' in Masters → Order Document Type to save receipt in Documents.");
+                        return;
+                    }
                     const docFormData = new FormData();
                     docFormData.append('document', receiptFile);
                     docFormData.append('order_id', orderId);
-                    docFormData.append('doc_type', 'payment_receipt');
+                    docFormData.append('doc_type', receiptType.type);
                     docFormData.append('remarks', `Payment Receipt - ${formData.date_of_payment}`);
                     await orderDocumentsService.createOrderDocument(docFormData);
                 } catch (docErr) {
@@ -742,7 +765,7 @@ function RemarksForm({ orderData, orderId }) {
     );
 }
 
-function UploadDocumentsForm({ orderId }) {
+function UploadDocumentsForm({ orderId, orderDocumentTypes = [], loadingDocumentTypes = false }) {
     const [formData, setFormData] = useState({
         doc_type: "",
         remarks: "",
@@ -815,11 +838,16 @@ function UploadDocumentsForm({ orderId }) {
                         name="doc_type"
                         label="Document Type"
                         required
-                        options={DOC_TYPE_OPTIONS}
-                        getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
-                        value={formData.doc_type ? DOC_TYPE_OPTIONS.find((o) => o.value === formData.doc_type) || { value: formData.doc_type, label: formData.doc_type } : null}
-                        onChange={(e, newValue) => handleChange("doc_type", newValue?.value ?? "")}
+                        options={orderDocumentTypes}
+                        getOptionLabel={(t) => t?.type ?? ""}
+                        value={
+                            formData.doc_type
+                                ? (orderDocumentTypes || []).find((t) => t?.type === formData.doc_type) || { type: formData.doc_type }
+                                : null
+                        }
+                        onChange={(e, newValue) => handleChange("doc_type", newValue?.type ?? "")}
                         placeholder="Type to search..."
+                        disabled={loading || loadingDocumentTypes}
                         error={!!errors.doc_type}
                         helperText={errors.doc_type}
                     />
@@ -899,6 +927,8 @@ function OrderViewPageContent() {
     const [visitedTabs, setVisitedTabs] = useState(new Set([initialTab || 0])); // Track visited tabs, start with initialTab
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
+    const [orderDocumentTypes, setOrderDocumentTypes] = useState([]);
+    const [loadingOrderDocumentTypes, setLoadingOrderDocumentTypes] = useState(false);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -958,6 +988,28 @@ function OrderViewPageContent() {
         fetchTotalReceivedAmount();
     }, [orderId]);
 
+    useEffect(() => {
+        let active = true;
+        const fetchDocTypes = async () => {
+            setLoadingOrderDocumentTypes(true);
+            try {
+                const response = await mastersService.getList("order_document_type", { page: 1, limit: 1000 });
+                const data = response?.result?.data || response?.data || response?.result || response || [];
+                const arr = Array.isArray(data) ? data : [];
+                if (active) setOrderDocumentTypes(arr);
+            } catch (err) {
+                console.error("Failed to fetch order document types:", err);
+                if (active) setOrderDocumentTypes([]);
+            } finally {
+                if (active) setLoadingOrderDocumentTypes(false);
+            }
+        };
+        fetchDocTypes();
+        return () => {
+            active = false;
+        };
+    }, []);
+
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
         setVisitedTabs(prev => new Set([...prev, newValue])); // Mark tab as visited
@@ -1001,16 +1053,7 @@ function OrderViewPageContent() {
             field: "doc_type",
             sortable: true,
             render: (row) => {
-                const labels = {
-                    electricity_bill: "Electricity Bill",
-                    house_tax_bill: "House Tax Bill",
-                    aadhar_card: "Aadhar Card",
-                    passport_photo: "Passport Size Picture",
-                    pan_card: "PAN Card or Driving Licence",
-                    cancelled_cheque: "Cancelled Cheque",
-                    customer_sign: "Customer Sign",
-                };
-                return labels[row.doc_type] || row.doc_type;
+                return resolveOrderDocTypeLabel(row.doc_type, orderDocumentTypes);
             },
         },
         {
@@ -1239,7 +1282,13 @@ function OrderViewPageContent() {
                             </Tabs>
 
                             <TabPanel value={tabValue} index={0}>
-                                {visitedTabs.has(0) && <RegistrationForm orderData={orderData} orderId={orderId} />}
+                                {visitedTabs.has(0) && (
+                                    <RegistrationForm
+                                        orderData={orderData}
+                                        orderId={orderId}
+                                        orderDocumentTypes={orderDocumentTypes}
+                                    />
+                                )}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={1}>
@@ -1258,7 +1307,14 @@ function OrderViewPageContent() {
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={2}>
-                                {visitedTabs.has(2) && <ReceivePaymentForm orderData={orderData} orderId={orderId} onPaymentSaved={handlePaymentSaved} />}
+                                {visitedTabs.has(2) && (
+                                    <ReceivePaymentForm
+                                        orderData={orderData}
+                                        orderId={orderId}
+                                        onPaymentSaved={handlePaymentSaved}
+                                        orderDocumentTypes={orderDocumentTypes}
+                                    />
+                                )}
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={3}>
@@ -1270,7 +1326,13 @@ function OrderViewPageContent() {
                             </TabPanel>
 
                             <TabPanel value={tabValue} index={5}>
-                                {visitedTabs.has(5) && <UploadDocumentsForm orderId={orderId} />}
+                                {visitedTabs.has(5) && (
+                                    <UploadDocumentsForm
+                                        orderId={orderId}
+                                        orderDocumentTypes={orderDocumentTypes}
+                                        loadingDocumentTypes={loadingOrderDocumentTypes}
+                                    />
+                                )}
                             </TabPanel>
                         </Paper>
                     </Grid>

@@ -34,6 +34,7 @@ import inquiryDocumentsService from "@/services/inquiryDocumentsService";
 import { Snackbar, Alert, CircularProgress } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 const COLUMN_WIDTH = 330;
 const COLUMN_HEIGHT = "calc(100vh - 150px)"; // Optimized: Navbar(56px) + Toolbar(40px) + Page header(54px) = 150px
@@ -310,7 +311,10 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
       setDocumentModalOpen(false);
       setDocumentServerError(null);
       setSelectedInquiryId(null);
-      // Optionally show success message or refresh data
+      toastSuccess("Document uploaded successfully");
+      if (onRefresh) {
+        await onRefresh();
+      }
     } catch (err) {
       // Extract error message from response - check multiple possible locations
       let errorMessage = "Failed to upload document";
@@ -343,6 +347,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
 
       // Set error state - this will prevent modal from closing
       setDocumentServerError(errorMessage);
+      toastError(errorMessage);
       // DO NOT close modal on error - keep it open so user can see the error
       // Modal will remain open because we're not calling handleCloseDocumentModal()
       // Note: Form state is preserved so user can fix and retry
