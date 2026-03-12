@@ -17,6 +17,7 @@ import mastersService from "@/services/mastersService";
 import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
 
 const FILTER_KEYS = [
+  "q",
   "customer_name",
   "consumer_no",
   "application_no",
