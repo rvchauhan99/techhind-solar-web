@@ -42,6 +42,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { PAGE_PADDING, FORM_PADDING } from "@/utils/formConstants";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 const modalStyle = {
   position: "absolute",
@@ -218,6 +219,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
       setSelectedInquiryId(null);
       setReloadTrigger((prev) => prev + 1);
       if (onRefresh) await onRefresh();
+      toastSuccess("Document uploaded successfully");
     } catch (err) {
       let errorMessage = "Failed to upload document";
       if (err.response) {
@@ -244,6 +246,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         errorMessage = err.message;
       }
       setDocumentServerError(errorMessage);
+      toastError(errorMessage);
     } finally {
       setDocumentLoading(false);
     }
