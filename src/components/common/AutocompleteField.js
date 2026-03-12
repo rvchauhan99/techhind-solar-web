@@ -39,6 +39,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     usePortal = false,
     /** "bottom" = list below input (default), "top" = list above input */
     dropdownPlacement = "bottom",
+    variant = "default", // ["default", "minimal"]
     ...otherProps
   },
   ref
@@ -440,6 +441,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           autoComplete="off"
           className={cn(
             size === "small" && `${FIELD_HEIGHT_CLASS_SMALL} ${FIELD_TEXT_SMALL}`,
+            variant === "minimal" && "border-none shadow-none bg-transparent p-0 h-auto focus-visible:ring-0",
             error && "border-destructive",
             className
           )}
