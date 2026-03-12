@@ -1,10 +1,20 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { IconFilter, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { 
+    IconFilter, 
+    IconChevronDown, 
+    IconChevronUp, 
+    IconSearch, 
+    IconUser, 
+    IconBuilding, 
+    IconSourceCode, 
+    IconLayoutGrid,
+    IconX
+} from "@tabler/icons-react";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
@@ -21,7 +31,7 @@ export const INQUIRY_STATUS_OPTIONS = [
 ];
 
 const FILTER_KEYS = [
-    "status", "customer_name", "mobile_number", "inquiry_source", "reference_from",
+    "q", "inquiry_number", "status", "customer_name", "mobile_number", "inquiry_source", "reference_from",
     "branch_name", "handled_by", "inquiry_by", "channel_partner", "project_scheme",
     "capacity", "city_name", "state_name", "discom_name",
     "date_of_inquiry_from", "date_of_inquiry_to", "created_at_from", "created_at_to",
@@ -48,6 +58,51 @@ export default function InquiryFilterPanel({
     const handleClear = useCallback(() => { setLocalValues({ ...EMPTY_VALUES }); onClear?.(); }, [onClear]);
 
     const activeCount = Object.values(values || {}).filter((v) => v != null && v !== "").length;
+
+    const [quickSearch, setQuickSearch] = useState("");
+
+    const [isSearching, setIsSearching] = useState(false);
+    const debounceTimerRef = useRef(null);
+
+    const handleQuickSearchChange = (val) => {
+        setQuickSearch(val);
+        setIsSearching(true);
+
+        if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+        }
+
+        debounceTimerRef.current = setTimeout(() => {
+            const nextValues = { ...localValues };
+
+            // Clear previous specific quick search fields to avoid "AND" logic conflicts
+            nextValues.inquiry_number = "";
+            nextValues.customer_name = "";
+            nextValues.mobile_number = "";
+            nextValues.reference_from = "";
+            
+            // Set the generic search parameter
+            nextValues.q = val;
+
+            setLocalValues(nextValues);
+            onApply?.(nextValues);
+            setIsSearching(false);
+        }, 500); // 500ms debounce
+    };
+
+    // Cleanup timer on unmount
+    useEffect(() => {
+        return () => {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        };
+    }, []);
+
+    const quickFilterOptions = [
+        { key: "status", label: "Stage", icon: <IconLayoutGrid size={16} />, options: INQUIRY_STATUS_OPTIONS },
+        { key: "inquiry_source", label: "Source", icon: <IconSourceCode size={16} />, model: "inquiry_source.model" },
+        { key: "branch_name", label: "Branch", icon: <IconBuilding size={16} />, model: "company_branch.model" },
+        { key: "handled_by", label: "User", icon: <IconUser size={16} />, model: "user.model" },
+    ];
 
     const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
 
@@ -82,31 +137,64 @@ export default function InquiryFilterPanel({
 
     return (
         <Card className="rounded-xl shadow-sm border-slate-200 bg-white mb-2 overflow-visible">
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-50 transition-colors rounded-xl focus:outline-none"
-            >
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                    <div className="flex items-center gap-1.5">
+            <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5 h-auto sm:h-12">
+                {/* Advanced Filter Toggle (Button Style) */}
+                <button
+                    type="button"
+                    onClick={() => setOpen(!open)}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors rounded-lg border border-slate-200 focus:outline-none shrink-0"
+                >
+                    <span className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-tight">
                         <IconFilter size={14} /> Advanced Filters
-                        {activeCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1 leading-none">{activeCount}</Badge>}
+                        {activeCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1 leading-none bg-green-100 text-green-700 border-green-200">{activeCount}</Badge>}
+                    </span>
+                    {open ? <IconChevronUp size={14} className="text-slate-400" /> : <IconChevronDown size={14} className="text-slate-400" />}
+                </button>
+
+                {/* Applied Filters Chips (Horizontal Scroll on small) */}
+                <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                    {appliedSummary.map((label) => (
+                        <span
+                            key={label}
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-green-50 text-green-700 border border-green-200 whitespace-nowrap uppercase tracking-tighter"
+                        >
+                            {label}
+                        </span>
+                    ))}
+                </div>
+
+                {/* Integrated Quick Search */}
+                <div className="w-full sm:w-80 relative shrink-0">
+                    <div className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? "text-green-500 animate-pulse" : "text-slate-400"}`}>
+                        {isSearching ? <div className="h-4 w-4 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /> : <IconSearch size={16} />}
                     </div>
-                    <div className="hidden sm:flex items-center gap-1 ml-2 border-l border-slate-200 pl-2 overflow-hidden">
-                        {appliedSummary.map((label) => (
-                            <span
-                                key={label}
-                                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] bg-green-50 text-green-700 border border-green-200 whitespace-nowrap"
-                            >
-                                {label}
-                            </span>
-                        ))}
-                    </div>
-                </span>
-                {open ? <IconChevronUp size={14} className="text-slate-400" /> : <IconChevronDown size={14} className="text-slate-400" />}
-            </button>
+                    <input 
+                        type="text"
+                        placeholder="Quick Search (Name/Mobile/Inquiry #)"
+                        className="w-full h-10 pl-10 pr-8 bg-white border-2 border-green-200/60 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all placeholder:text-slate-400 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]"
+                        value={quickSearch}
+                        onChange={(e) => handleQuickSearchChange(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                                handleQuickSearchChange(quickSearch); // Trigger immediately
+                            }
+                        }}
+                    />
+                    {quickSearch && (
+                        <button 
+                            onClick={() => handleQuickSearchChange("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                            <IconX size={14} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {open && (
-                <div className="border-t border-slate-100 px-2.5 py-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+                <div className="border-t border-slate-100 px-2.5 py-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 bg-slate-50/30">
+                    <Input name="inquiry_number" label="Inquiry #" placeholder="Search..." value={localValues.inquiry_number} onChange={(e) => handleChange("inquiry_number", e.target.value)} />
                     <Select name="status" label="Stage" value={localValues.status} onChange={(e) => handleChange("status", e.target.value)}>
                         <MenuItem value="">All</MenuItem>
                         {INQUIRY_STATUS_OPTIONS.map((opt) => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
