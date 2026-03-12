@@ -62,13 +62,7 @@ export default function PaginatedList({
   const isPaginationControlled = controlledPage != null && controlledSetPage != null;
   const isLimitControlled = controlledLimit != null && controlledSetLimit != null;
   const effectiveQ = isControlled ? (controlledQ ?? "") : query;
-  const [debouncedControlledQ, setDebouncedControlledQ] = React.useState(controlledQ ?? "");
-  React.useEffect(() => {
-    if (!isControlled) return;
-    const t = setTimeout(() => setDebouncedControlledQ(controlledQ ?? ""), 500);
-    return () => clearTimeout(t);
-  }, [controlledQ, isControlled]);
-  const effectiveDebouncedQ = isControlled ? debouncedControlledQ : debouncedQuery;
+  const effectiveDebouncedQ = isControlled ? effectiveQ : debouncedQuery;
   const effectivePage = isPaginationControlled ? Math.max(0, Number(controlledPage) - 1) : page;
   const effectiveRowsPerPage = isLimitControlled ? Number(controlledLimit) : rowsPerPage;
   const { modulePermissions, currentModuleId, fetchPermissionForModule, user } =
