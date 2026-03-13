@@ -22,6 +22,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import quotationService from "@/services/quotationService";
 import apiClient from "@/services/apiClient";
 import moment from "moment";
+import { calculateTotals } from "../components/quotation/quotationCalculations";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -342,6 +343,15 @@ export default function QuotationDetail() {
         return `₹${Number(amount).toLocaleString("en-IN")}`;
     };
 
+    const totals = quotation ? calculateTotals(quotation) : null;
+    const headerTotalPayableRaw =
+        (totals && totals.totalPayable) ??
+        quotation?.total_payable ??
+        quotation?.effective_cost ??
+        quotation?.total_project_value ??
+        0;
+    const headerTotalPayable = Math.round(Number(headerTotalPayableRaw) || 0);
+
     if (loading) {
         return (
             <ProtectedRoute>
@@ -568,7 +578,7 @@ export default function QuotationDetail() {
                                     mb: 0.5
                                 }}
                             >
-                                Payable Amount: {formatCurrency(quotation?.effective_cost || quotation?.total_project_value)}
+                                Total Payable: {formatCurrency(headerTotalPayable)}
                             </Typography>
                             <Typography
                                 variant="caption"
@@ -579,7 +589,7 @@ export default function QuotationDetail() {
                                     letterSpacing: "0.5px"
                                 }}
                             >
-                                {numberToWords(quotation?.effective_cost || quotation?.total_project_value)}
+                                {numberToWords(headerTotalPayable)}
                             </Typography>
                         </Box>
                     </Box>

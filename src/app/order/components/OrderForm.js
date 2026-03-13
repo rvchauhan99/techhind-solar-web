@@ -214,7 +214,6 @@ export default function OrderForm({
             setFormData(prev => ({
                 ...prev,
                 capacity: quotationData.project_capacity ? Number(quotationData.project_capacity) : prev.capacity,
-                project_cost: quotationData.project_cost ? Number(quotationData.project_cost) : prev.project_cost,
                 project_scheme_id: quotationData.project_scheme_id ? Number(quotationData.project_scheme_id) : prev.project_scheme_id,
                 order_type_id: quotationData.order_type_id ? Number(quotationData.order_type_id) : prev.order_type_id,
                 solar_panel_id: solar_panel_id ?? prev.solar_panel_id,
@@ -422,7 +421,7 @@ export default function OrderForm({
                         <Input
                             type="number"
                             name="project_cost"
-                            label="Project Cost"
+                            label="Order Amount (Total Payable)"
                             value={formData.project_cost ?? ""}
                             onChange={handleChangeEvent}
                             error={!!errors.project_cost}
