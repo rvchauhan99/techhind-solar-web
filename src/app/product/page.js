@@ -409,7 +409,7 @@ export default function ProductPage() {
                 <IconPencil className="size-4" />
               </Button>
             )}
-            {perms?.can_delete && (
+            {perms?.can_update && row.is_active && (
               <Button
                 size="icon"
                 variant="ghost"
@@ -523,7 +523,10 @@ export default function ProductPage() {
     if (!productToDelete) return;
     setDeleting(true);
     try {
-      await productService.deleteProduct(productToDelete.id);
+      await productService.updateProduct(productToDelete.id, {
+        ...productToDelete,
+        is_active: false,
+      });
       setTableKey((prev) => prev + 1);
       setShowDeleteDialog(false);
       setProductToDelete(null);

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import marketingLeadsService from "@/services/marketingLeadsService";
+import mastersService from "@/services/mastersService";
 import { toastError, toastSuccess } from "@/utils/toast";
 
 const INITIAL_FORM = {
@@ -30,6 +31,17 @@ const INITIAL_FORM = {
   promised_action: "",
 };
 
+const ALL_OUTCOME_OPTIONS = [
+  { value: "viewed", label: "Viewed" },
+  { value: "follow_up", label: "Follow Up Needed" },
+  { value: "callback_scheduled", label: "Callback Scheduled" },
+  { value: "converted", label: "Converted" },
+  { value: "no_answer", label: "No Answer" },
+  { value: "switched_off", label: "Switch Off" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "wrong_number", label: "Wrong Number" },
+];
+
 export default function AddCallDetailsForm({
   leadId,
   lead,
@@ -37,26 +49,62 @@ export default function AddCallDetailsForm({
   onConverted,
   defaultValues,
   forcedStatus,
+  forcedOutcome = null,
+  allowedOutcomes = null,
 }) {
   const initialState = useMemo(() => {
     const contactedAt = defaultValues?.contacted_at || new Date().toISOString();
+    const outcome = forcedOutcome ?? defaultValues?.outcome ?? "";
     return {
       ...INITIAL_FORM,
       ...(defaultValues || {}),
       contacted_at: contactedAt,
+      outcome,
     };
-  }, [defaultValues]);
+  }, [defaultValues, forcedOutcome]);
 
   const [formData, setFormData] = useState(initialState);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
+  const [selectedPaymentType, setSelectedPaymentType] = useState("");
+  const [paymentTypeError, setPaymentTypeError] = useState("");
 
   useEffect(() => {
-    setFormData(initialState);
+    setFormData((prev) => ({
+      ...initialState,
+      outcome: forcedOutcome ?? (prev.outcome || initialState.outcome),
+    }));
     setErrors({});
     setConfirmOpen(false);
-  }, [initialState, leadId, forcedStatus]);
+    setSelectedPaymentType("");
+    setPaymentTypeError("");
+  }, [initialState, leadId, forcedStatus, forcedOutcome]);
+
+  useEffect(() => {
+    const loadPaymentTypes = async () => {
+      try {
+        const res = await mastersService.getConstants();
+        const payload = res?.result || res;
+        const raw = payload?.paymentTypes || [];
+        const normalized =
+          Array.isArray(raw)
+            ? raw
+                .map((p) =>
+                  typeof p === "string" ? p : p?.name ?? p?.label ?? p?.value ?? ""
+                )
+                .filter(Boolean)
+            : [];
+        setPaymentTypeOptions(normalized);
+      } catch (err) {
+        // Non-blocking; user can still attempt convert, backend will validate
+        // eslint-disable-next-line no-console
+        console.error("Failed to load payment types", err);
+      }
+    };
+    loadPaymentTypes();
+  }, []);
 
   const isAlreadyConverted =
     lead?.status === "converted" || !!lead?.converted_inquiry_id;
@@ -65,9 +113,10 @@ export default function AddCallDetailsForm({
     (overrides = {}) => ({
       ...formData,
       ...overrides,
+      outcome: forcedOutcome ?? formData.outcome,
       ...(forcedStatus ? { status: forcedStatus } : {}),
     }),
-    [formData, forcedStatus]
+    [formData, forcedStatus, forcedOutcome]
   );
 
   const handleChange = useCallback((e) => {
@@ -86,18 +135,19 @@ export default function AddCallDetailsForm({
     async (e) => {
       e.preventDefault();
       const newErrors = {};
-      if (!formData.outcome) {
+      const outcomeToValidate = forcedOutcome ?? formData.outcome;
+      if (!outcomeToValidate) {
         newErrors.outcome = "Please select outcome";
       }
-       if (formData.outcome === "converted" && isAlreadyConverted) {
-         newErrors.outcome = "This lead is already converted to an inquiry";
-       }
+      if (outcomeToValidate === "converted" && isAlreadyConverted) {
+        newErrors.outcome = "This lead is already converted to an inquiry";
+      }
       if (Object.keys(newErrors).length) {
         setErrors(newErrors);
         return;
       }
       setErrors({});
-      if (formData.outcome === "converted" && lead) {
+      if (outcomeToValidate === "converted" && lead) {
         setConfirmOpen(true);
         return;
       }
@@ -120,7 +170,7 @@ export default function AddCallDetailsForm({
         setSaving(false);
       }
     },
-    [leadId, formData, onSaved, lead, isAlreadyConverted, buildPayload]
+    [leadId, formData, forcedOutcome, onSaved, lead, isAlreadyConverted, buildPayload]
   );
 
   const handleConfirmConvert = useCallback(async () => {
@@ -128,9 +178,21 @@ export default function AddCallDetailsForm({
     try {
       setSaving(true);
       // 1) Save follow-up
-      await marketingLeadsService.addFollowUp(leadId, buildPayload());
+      await marketingLeadsService.addFollowUp(
+        leadId,
+        buildPayload(
+          selectedPaymentType
+            ? { payment_type: selectedPaymentType }
+            : {}
+        )
+      );
       // 2) Convert lead to inquiry (idempotent on backend)
-      await marketingLeadsService.convertToInquiry(leadId, {});
+      await marketingLeadsService.convertToInquiry(
+        leadId,
+        selectedPaymentType
+          ? { payment_type: selectedPaymentType }
+          : {}
+      );
       toastSuccess("Lead converted to inquiry successfully");
       setConfirmOpen(false);
       setFormData((prev) => ({
@@ -139,6 +201,8 @@ export default function AddCallDetailsForm({
         contacted_at: new Date().toISOString(),
         contact_channel: prev.contact_channel,
       }));
+      setSelectedPaymentType("");
+      setPaymentTypeError("");
       onSaved?.();
       onConverted?.();
     } catch (err) {
@@ -180,27 +244,60 @@ export default function AddCallDetailsForm({
                 <MenuItem value="email">Email</MenuItem>
                 <MenuItem value="visit">Visit</MenuItem>
               </Select>
-              <Select
-                name="outcome"
-                label="Outcome"
-                value={formData.outcome}
-                onChange={handleChange}
-                error={!!errors.outcome}
-                helperText={errors.outcome}
-                required
-              >
-                <MenuItem value="">Select...</MenuItem>
-                <MenuItem value="interested">Interested</MenuItem>
-                <MenuItem value="follow_up">Need Follow-up</MenuItem>
-                <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
-                <MenuItem value="converted" disabled={isAlreadyConverted}>
-                  Converted
-                </MenuItem>
-                <MenuItem value="no_answer">No Answer</MenuItem>
-                <MenuItem value="switched_off">Switched Off</MenuItem>
-                <MenuItem value="not_interested">Not Interested</MenuItem>
-                <MenuItem value="wrong_number">Wrong Number</MenuItem>
-              </Select>
+              {forcedOutcome ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Outcome</label>
+                  <div className="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm">
+                    {ALL_OUTCOME_OPTIONS.find((o) => o.value === forcedOutcome)?.label ?? forcedOutcome}
+                  </div>
+                </div>
+              ) : (
+                <Select
+                  name="outcome"
+                  label="Outcome"
+                  value={formData.outcome}
+                  onChange={handleChange}
+                  error={!!errors.outcome}
+                  helperText={errors.outcome}
+                  required
+                >
+                  <MenuItem value="">Select...</MenuItem>
+                  {(allowedOutcomes && allowedOutcomes.length > 0
+                    ? ALL_OUTCOME_OPTIONS.filter((o) => allowedOutcomes.includes(o.value))
+                    : ALL_OUTCOME_OPTIONS
+                  ).map((opt) => (
+                    <MenuItem
+                      key={opt.value}
+                      value={opt.value}
+                      disabled={opt.value === "converted" && isAlreadyConverted}
+                    >
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+              {(forcedOutcome === "converted" || formData.outcome === "converted") && (
+                <Select
+                  name="payment_type"
+                  label="Payment Type"
+                  value={selectedPaymentType}
+                  onChange={(e) => {
+                    setSelectedPaymentType(e.target.value ?? "");
+                    if (paymentTypeError) {
+                      setPaymentTypeError("");
+                    }
+                  }}
+                  error={!!paymentTypeError}
+                  helperText={paymentTypeError}
+                >
+                  <MenuItem value="">Select...</MenuItem>
+                  {paymentTypeOptions.map((pt) => (
+                    <MenuItem key={pt} value={pt}>
+                      {pt}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
               <Input
                 name="outcome_sub_status"
                 label="Sub-status / Reason"
@@ -292,6 +389,28 @@ export default function AddCallDetailsForm({
                 </div>
               </div>
             )}
+            <div className="pt-1">
+              <Select
+                name="payment_type"
+                label="Payment Type"
+                value={selectedPaymentType}
+                onChange={(e) => {
+                  setSelectedPaymentType(e.target.value ?? "");
+                  if (paymentTypeError) {
+                    setPaymentTypeError("");
+                  }
+                }}
+                error={!!paymentTypeError}
+                helperText={paymentTypeError}
+              >
+                <MenuItem value="">Select...</MenuItem>
+                {paymentTypeOptions.map((pt) => (
+                  <MenuItem key={pt} value={pt}>
+                    {pt}
+                  </MenuItem>
+                ))}
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button

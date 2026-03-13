@@ -58,8 +58,8 @@ const INITIAL_FILTERS = {
 };
 
 const STATUS_COLORS = {
-  new: "#3b82f6", contacted: "#f59e0b", follow_up: "#8b5cf6",
-  interested: "#10b981", converted: "#22c55e", not_interested: "#ef4444", junk: "#64748b",
+  new: "#3b82f6", viewed: "#f59e0b", follow_up: "#8b5cf6",
+  converted: "#22c55e", not_interested: "#ef4444", junk: "#64748b",
 };
 
 const PRIORITY_COLORS = { hot: "#ef4444", high: "#f97316", medium: "#f59e0b", low: "#94a3b8" };
@@ -76,10 +76,10 @@ const DATE_PRESETS = [
 const STATUS_TABS = [
   { value: null, label: "All", cls: "text-slate-600 border-slate-200 hover:border-slate-400" },
   { value: "new", label: "New", cls: "text-blue-600 border-blue-200 hover:border-blue-400", activeCls: "bg-blue-50 border-blue-400 text-blue-700" },
-  { value: "contacted", label: "Contacted", cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
+  { value: "viewed", label: "Viewed", cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
   { value: "follow_up", label: "Follow Up", cls: "text-purple-600 border-purple-200 hover:border-purple-400", activeCls: "bg-purple-50 border-purple-400 text-purple-700" },
-  { value: "interested", label: "Interested", cls: "text-emerald-600 border-emerald-200 hover:border-emerald-400", activeCls: "bg-emerald-50 border-emerald-400 text-emerald-700" },
   { value: "converted", label: "Converted", cls: "text-green-600 border-green-200 hover:border-green-400", activeCls: "bg-green-50 border-green-400 text-green-700" },
+  { value: "not_interested", label: "Not Interested", cls: "text-slate-600 border-slate-200 hover:border-slate-400", activeCls: "bg-slate-50 border-slate-400 text-slate-700" },
 ];
 
 const FILTER_LABELS = {
@@ -384,7 +384,7 @@ export default function MarketingLeadAnalysisPage() {
                   {branchOptions.map((b) => <MenuItem key={b.id} value={String(b.id)}>{b.name ?? b.label ?? b.id}</MenuItem>)}
                 </Select>
                 <MultiSelect name="source_ids" label="Sources" fullWidth placeholder="Sources…" options={sourceOptions.map((s) => ({ value: String(s.id), label: s.source_name || s.name || String(s.id) }))} value={filters.source_ids} onChange={(e) => fc("source_ids", e.target.value)} />
-                <MultiSelect name="status" label="Status" fullWidth placeholder="Status…" options={[{ value: "new", label: "New" }, { value: "contacted", label: "Contacted" }, { value: "follow_up", label: "Follow Up" }, { value: "interested", label: "Interested" }, { value: "converted", label: "Converted" }, { value: "not_interested", label: "Not Interested" }, { value: "junk", label: "Junk" }]} value={filters.status} onChange={(e) => { fc("status", e.target.value); setActiveStatusTab(null); }} />
+                <MultiSelect name="status" label="Status" fullWidth placeholder="Status…" options={[{ value: "new", label: "New" }, { value: "viewed", label: "Viewed" }, { value: "follow_up", label: "Follow Up" }, { value: "converted", label: "Converted" }, { value: "not_interested", label: "Not Interested" }, { value: "junk", label: "Junk" }]} value={filters.status} onChange={(e) => { fc("status", e.target.value); setActiveStatusTab(null); }} />
                 <MultiSelect name="priority" label="Priority" fullWidth placeholder="Priority…" options={[{ value: "hot", label: "🔴 Hot" }, { value: "high", label: "🟠 High" }, { value: "medium", label: "🟡 Medium" }, { value: "low", label: "⚪ Low" }]} value={filters.priority} onChange={(e) => fc("priority", e.target.value)} />
                 <Select name="lead_segment" label="Segment" fullWidth value={filters.lead_segment} onChange={(e) => fc("lead_segment", e.target.value)}>
                   <MenuItem value="">All Segments</MenuItem>
