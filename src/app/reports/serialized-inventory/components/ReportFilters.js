@@ -1,18 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import {
-  Box,
-  Grid,
-  Button,
-  Collapse,
-  Typography,
-  IconButton,
-  Paper,
-} from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -33,210 +20,123 @@ const ISSUED_AGAINST_OPTIONS = [
   { value: "b2b_sales_order", label: "Sales Order" },
 ];
 
-export default function ReportFilters({ filters, onFiltersChange, onApply, onClear }) {
-  const [expanded, setExpanded] = useState(false);
-  const [localFilters, setLocalFilters] = useState(filters || {});
-  const [products, setProducts] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    loadFilterOptions();
-  }, []);
-
-  useEffect(() => {
-    setLocalFilters(filters || {});
-  }, [filters]);
-
-  const loadFilterOptions = async () => {
-    setLoading(true);
-    try {
-      const [productsRes, warehousesRes] = await Promise.all([
-        productService.getProducts({ limit: 1000 }),
-        companyService.listWarehouses(),
-      ]);
-
-      const productsData = productsRes?.result?.data || productsRes?.data || [];
-      const warehousesData = warehousesRes?.result || warehousesRes?.data || warehousesRes || [];
-
-      setProducts(Array.isArray(productsData) ? productsData : []);
-      setWarehouses(Array.isArray(warehousesData) ? warehousesData : []);
-    } catch (err) {
-      console.error("Failed to load filter options", err);
-    } finally {
-      setLoading(false);
-    }
+export default function ReportFilters({ filters, onFiltersChange, onApply, onReset }) {
+  const fc = (name, value) => {
+    const next = { ...filters, [name]: value };
+    onFiltersChange?.(next);
   };
 
-  const handleFilterChange = (name, value) => {
-    const newFilters = { ...localFilters, [name]: value };
-    setLocalFilters(newFilters);
-    onFiltersChange?.(newFilters);
+  const loadProductOptions = async (q) => {
+    const res = await productService.getProducts({ limit: 50, q: q || undefined });
+    const data = res?.result?.data || res?.data || [];
+    const list = Array.isArray(data) ? data : [];
+    return list.map((p) => ({ id: p.id, product_name: p.product_name ?? p.name }));
   };
 
-  const handleApply = () => {
-    onApply?.(localFilters);
+  const loadWarehouseOptions = async (q) => {
+    const res = await companyService.listWarehouses();
+    const data = res?.result ?? res?.data ?? res ?? [];
+    const list = Array.isArray(data) ? data : [];
+    const filtered = q
+      ? list.filter(
+          (w) =>
+            (w.name || "").toLowerCase().includes((q || "").toLowerCase()) ||
+            (w.label || "").toLowerCase().includes((q || "").toLowerCase())
+        )
+      : list;
+    return filtered.slice(0, 50).map((w) => ({ id: w.id, name: w.name ?? w.label }));
   };
-
-  const handleClear = () => {
-    const clearedFilters = {};
-    setLocalFilters(clearedFilters);
-    onFiltersChange?.(clearedFilters);
-    onClear?.();
-  };
-
-  const hasActiveFilters = Object.values(localFilters).some(
-    (value) => value !== null && value !== undefined && value !== ""
-  );
 
   return (
-    <Paper sx={{ mb: 2, p: 2 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: expanded ? 2 : 0,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <FilterListIcon />
-          <Typography variant="h6">Filters</Typography>
-          {hasActiveFilters && (
-            <Typography
-              variant="caption"
-              sx={{
-                bgcolor: "primary.main",
-                color: "white",
-                px: 1,
-                py: 0.5,
-                borderRadius: 1,
-              }}
-            >
-              Active
-            </Typography>
-          )}
-        </Box>
-        <IconButton onClick={() => setExpanded(!expanded)} size="small">
-          {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-        </IconButton>
-      </Box>
-
-      <Collapse in={expanded}>
-        <Grid container spacing={2}>
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <AutocompleteField
-              name="product_id"
-              label="Product"
-              options={products}
-              getOptionLabel={(p) => p?.product_name ?? p?.name ?? ""}
-              value={localFilters.product_id ? { id: localFilters.product_id } : null}
-              onChange={(e, newValue) => handleFilterChange("product_id", newValue?.id ?? null)}
-              placeholder="All Products"
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <AutocompleteField
-              name="warehouse_id"
-              label="Warehouse"
-              options={warehouses}
-              getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
-              value={localFilters.warehouse_id ? { id: localFilters.warehouse_id } : null}
-              onChange={(e, newValue) => handleFilterChange("warehouse_id", newValue?.id ?? null)}
-              placeholder="All Warehouses"
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <AutocompleteField
-              name="product_type_id"
-              label="Product Type"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
-              referenceModel="product_type.model"
-              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-              value={localFilters.product_type_id ? { id: localFilters.product_type_id } : null}
-              onChange={(e, newValue) => handleFilterChange("product_type_id", newValue?.id ?? null)}
-              placeholder="All Product Types"
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <AutocompleteField
-              name="status"
-              label="Status"
-              multiple
-              options={SERIAL_STATUSES}
-              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
-              value={(Array.isArray(localFilters.status) ? localFilters.status : []).map((v) => SERIAL_STATUSES.find((s) => s.value === v)).filter(Boolean)}
-              onChange={(e, newValue) => handleFilterChange("status", newValue?.length ? newValue.map((o) => o.value) : null)}
-              placeholder="All Statuses"
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Input
-              name="serial_number"
-              label="Serial Number"
-              value={localFilters.serial_number || ""}
-              onChange={(e) => handleFilterChange("serial_number", e.target.value || null)}
-              placeholder="Search by serial number..."
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <AutocompleteField
-              name="issued_against"
-              label="Issued Against"
-              options={ISSUED_AGAINST_OPTIONS}
-              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
-              value={ISSUED_AGAINST_OPTIONS.find((o) => o.value === (localFilters.issued_against ?? "")) ?? ISSUED_AGAINST_OPTIONS[0]}
-              onChange={(e, newValue) => handleFilterChange("issued_against", newValue?.value ? newValue.value : null)}
-              placeholder="All"
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Input
-              name="reference_number"
-              label="Reference Number"
-              value={localFilters.reference_number || ""}
-              onChange={(e) => handleFilterChange("reference_number", e.target.value || null)}
-              placeholder="Order / B2B order number..."
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <DateField
-              name="start_date"
-              label="Inward Date From"
-              value={localFilters.start_date || ""}
-              onChange={(e) => handleFilterChange("start_date", e.target.value || null)}
-            />
-          </Grid>
-
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <DateField
-              name="end_date"
-              label="Inward Date To"
-              value={localFilters.end_date || ""}
-              onChange={(e) => handleFilterChange("end_date", e.target.value || null)}
-              minDate={localFilters.start_date || undefined}
-            />
-          </Grid>
-
-          <Grid item size={12}>
-            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-              <Button variant="outlined" onClick={handleClear} disabled={!hasActiveFilters}>
-                Clear Filters
-              </Button>
-              <Button variant="contained" onClick={handleApply}>
-                Apply Filters
-              </Button>
-            </Box>
-          </Grid>
-        </Grid>
-      </Collapse>
-    </Paper>
+    <div className="border-t border-slate-100 px-2 py-1.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
+      <DateField
+        label="Inward Date From"
+        name="start_date"
+        value={filters.start_date || ""}
+        onChange={(e) => fc("start_date", e.target.value || "")}
+        size="small"
+      />
+      <DateField
+        label="Inward Date To"
+        name="end_date"
+        value={filters.end_date || ""}
+        onChange={(e) => fc("end_date", e.target.value || "")}
+        minDate={filters.start_date || undefined}
+        size="small"
+      />
+      <AutocompleteField
+        name="product_id"
+        label="Product"
+        asyncLoadOptions={loadProductOptions}
+        getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+        value={filters.product_id ? { id: filters.product_id } : null}
+        onChange={(e, v) => fc("product_id", v?.id ?? "")}
+        placeholder="Search product…"
+        size="small"
+      />
+      <AutocompleteField
+        name="warehouse_id"
+        label="Warehouse"
+        asyncLoadOptions={loadWarehouseOptions}
+        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        value={filters.warehouse_id ? { id: filters.warehouse_id } : null}
+        onChange={(e, v) => fc("warehouse_id", v?.id ?? "")}
+        placeholder="Search warehouse…"
+        size="small"
+      />
+      <AutocompleteField
+        name="product_type_id"
+        label="Product Type"
+        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
+        referenceModel="product_type.model"
+        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        value={filters.product_type_id ? { id: filters.product_type_id } : null}
+        onChange={(e, v) => fc("product_type_id", v?.id ?? "")}
+        placeholder="All Product Types"
+        size="small"
+      />
+      <AutocompleteField
+        name="status"
+        label="Status"
+        multiple
+        options={SERIAL_STATUSES}
+        getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+        value={(Array.isArray(filters.status) ? filters.status : [])
+          .map((v) => SERIAL_STATUSES.find((s) => s.value === v))
+          .filter(Boolean)}
+        onChange={(e, v) => fc("status", v?.length ? v.map((o) => o.value) : null)}
+        placeholder="All Statuses"
+        size="small"
+      />
+      <Input
+        name="serial_number"
+        label="Serial Number"
+        value={filters.serial_number || ""}
+        onChange={(e) => fc("serial_number", e.target.value || "")}
+        placeholder="Search serial…"
+        size="small"
+      />
+      <AutocompleteField
+        name="issued_against"
+        label="Issued Against"
+        options={ISSUED_AGAINST_OPTIONS}
+        getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+        value={
+          ISSUED_AGAINST_OPTIONS.find((o) => o.value === (filters.issued_against ?? "")) ??
+          ISSUED_AGAINST_OPTIONS[0]
+        }
+        onChange={(e, v) => fc("issued_against", v?.value ? v.value : "")}
+        placeholder="All"
+        size="small"
+      />
+      <Input
+        name="reference_number"
+        label="Reference Number"
+        value={filters.reference_number || ""}
+        onChange={(e) => fc("reference_number", e.target.value || "")}
+        placeholder="Order / B2B order…"
+        size="small"
+      />
+    </div>
   );
 }

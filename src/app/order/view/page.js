@@ -977,7 +977,13 @@ function OrderViewPageContent() {
             try {
                 const response = await orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 });
                 const payments = response?.result || [];
-                const total = payments.reduce((sum, payment) => sum + parseFloat(payment.payment_amount || 0), 0);
+                const paidPayments = payments.filter(
+                    (p) => p.status === "approved" || p.status === "pending_approval"
+                );
+                const total = paidPayments.reduce(
+                    (sum, payment) => sum + parseFloat(payment.payment_amount || 0),
+                    0
+                );
                 setTotalReceivedAmount(total);
             } catch (err) {
                 console.error("Failed to fetch payment total:", err);
@@ -1019,7 +1025,13 @@ function OrderViewPageContent() {
         try {
             const response = await orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 });
             const payments = response?.result || [];
-            const total = payments.reduce((sum, payment) => sum + parseFloat(payment.payment_amount || 0), 0);
+            const paidPayments = payments.filter(
+                (p) => p.status === "approved" || p.status === "pending_approval"
+            );
+            const total = paidPayments.reduce(
+                (sum, payment) => sum + parseFloat(payment.payment_amount || 0),
+                0
+            );
             setTotalReceivedAmount(total);
         } catch (err) {
             console.error("Failed to refresh payment total:", err);
