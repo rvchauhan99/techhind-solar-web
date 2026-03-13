@@ -34,10 +34,10 @@ const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
 const STATUS_COLUMNS = [
   { key: "new", title: "New", color: "#0ea5e9" },
-  { key: "contacted", title: "Contacted", color: "#6366f1" },
+  { key: "viewed", title: "Viewed", color: "#6366f1" },
   { key: "follow_up", title: "Follow Up", color: "#f97316" },
-  { key: "interested", title: "Interested", color: "#22c55e" },
   { key: "converted", title: "Converted", color: "#16a34a" },
+  { key: "not_interested", title: "Not Interested", color: "#94a3b8" },
 ];
 
 function buildBoardState(leads = []) {
@@ -47,7 +47,8 @@ function buildBoardState(leads = []) {
   });
 
   leads.forEach((lead) => {
-    const statusKey = lead.status || "new";
+    let statusKey = lead.status || "new";
+    if (statusKey === "contacted") statusKey = "viewed"; // legacy pre-migration
     const colKey = columns[statusKey] ? statusKey : "new";
     columns[colKey].items.push(lead);
   });
@@ -133,9 +134,18 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
 
   const outcomeForStatus = (statusKey) => {
     if (statusKey === "follow_up") return "follow_up";
-    if (statusKey === "interested") return "interested";
     if (statusKey === "converted") return "converted";
+    if (statusKey === "viewed") return "viewed";
+    if (statusKey === "not_interested") return "not_interested";
     return "";
+  };
+
+  const getOutcomeRulesForStatus = (statusKey) => {
+    if (statusKey === "viewed") return { forcedOutcome: "viewed", allowedOutcomes: null };
+    if (statusKey === "follow_up") return { forcedOutcome: null, allowedOutcomes: ["follow_up", "no_answer", "switched_off"] };
+    if (statusKey === "not_interested") return { forcedOutcome: null, allowedOutcomes: ["not_interested", "wrong_number"] };
+    if (statusKey === "converted") return { forcedOutcome: "converted", allowedOutcomes: null };
+    return { forcedOutcome: null, allowedOutcomes: null };
   };
 
   const pendingStatusTitle =
@@ -498,6 +508,8 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               leadId={pendingLeadId}
               lead={pendingLead}
               forcedStatus={pendingToStatus}
+              forcedOutcome={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).forcedOutcome : null}
+              allowedOutcomes={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).allowedOutcomes : null}
               defaultValues={{
                 outcome: outcomeForStatus(pendingToStatus),
               }}

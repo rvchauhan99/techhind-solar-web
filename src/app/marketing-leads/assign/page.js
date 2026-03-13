@@ -21,12 +21,10 @@ const getStatusBadgeVariant = (status) => {
   switch (status) {
     case "new":
       return "bg-sky-500 text-white hover:bg-sky-600 border-transparent text-[10px] uppercase";
-    case "contacted":
+    case "viewed":
       return "bg-indigo-500 text-white hover:bg-indigo-600 border-transparent text-[10px] uppercase";
     case "follow_up":
       return "bg-orange-500 text-white hover:bg-orange-600 border-transparent text-[10px] uppercase";
-    case "interested":
-      return "bg-green-500 text-white hover:bg-green-600 border-transparent text-[10px] uppercase";
     case "converted":
       return "bg-green-600 text-white hover:bg-green-700 border-transparent text-[10px] uppercase";
     case "not_interested":

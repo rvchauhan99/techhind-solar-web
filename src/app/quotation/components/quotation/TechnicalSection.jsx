@@ -260,7 +260,15 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Size" name="panel_size" value={formData.panel_size} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Size"
+                            name="panel_size"
+                            value={formData.panel_size}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input
@@ -278,6 +286,8 @@ export default function TechnicalSection({
                                     project_capacity: (((findProduct?.capacity ?? 0) * (qty ?? 0)) / 1000).toFixed(2),
                                 });
                             }}
+                            disabled={disabled}
+                            sx={disabledSx}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -291,13 +301,37 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Type" name="panel_type" value={formData.panel_type} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Type"
+                            name="panel_type"
+                            value={formData.panel_type}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Warranty" name="panel_warranty" value={formData.panel_warranty} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Warranty"
+                            name="panel_warranty"
+                            value={formData.panel_warranty}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Performance Warranty" name="panel_performance_warranty" value={formData.panel_performance_warranty} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Performance Warranty"
+                            name="panel_performance_warranty"
+                            value={formData.panel_performance_warranty}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -328,10 +362,27 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Size" name="inverter_size" value={formData.inverter_size} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Size"
+                            name="inverter_size"
+                            value={formData.inverter_size}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth type="number" label="Quantity" name="inverter_quantity" value={formData.inverter_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            type="number"
+                            label="Quantity"
+                            name="inverter_quantity"
+                            value={formData.inverter_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <MakeAutocomplete
@@ -344,7 +395,15 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Warranty" name="inverter_warranty" value={formData.inverter_warranty} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Warranty"
+                            name="inverter_warranty"
+                            value={formData.inverter_warranty}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -377,10 +436,27 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Size" name="battery_size" value={formData.battery_size} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Size"
+                            name="battery_size"
+                            value={formData.battery_size}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth type="number" label="Quantity" name="battery_quantity" value={formData.battery_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            type="number"
+                            label="Quantity"
+                            name="battery_quantity"
+                            value={formData.battery_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <MakeAutocomplete
@@ -393,13 +469,39 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Type" name="battery_type" value={formData.battery_type} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Type"
+                            name="battery_type"
+                            value={formData.battery_type}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Warranty" name="battery_warranty" value={formData.battery_warranty} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Warranty"
+                            name="battery_warranty"
+                            value={formData.battery_warranty}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Battery Description Text" name="battery_description_text" value={formData.battery_description_text} onChange={handleChange} multiline rows={2} />
+                        <Input
+                            fullWidth
+                            label="Battery Description Text"
+                            name="battery_description_text"
+                            value={formData.battery_description_text}
+                            onChange={handleChange}
+                            multiline
+                            rows={2}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -430,10 +532,27 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Size" name="hybrid_inverter_size" value={formData.hybrid_inverter_size} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Size"
+                            name="hybrid_inverter_size"
+                            value={formData.hybrid_inverter_size}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth type="number" label="Quantity" name="hybrid_inverter_quantity" value={formData.hybrid_inverter_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            type="number"
+                            label="Quantity"
+                            name="hybrid_inverter_quantity"
+                            value={formData.hybrid_inverter_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <MakeAutocomplete
@@ -442,11 +561,19 @@ export default function TechnicalSection({
                             options={productMakes}
                             fallbackMake={getFallbackMake("hybridInverter", formData.hybrid_inverter_product)}
                             onChange={(ids) => handleAutocompleteChange("hybrid_inverter_make_ids", ids)}
-                            disabled={false}
+                            disabled={disabled}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Warranty" name="hybrid_inverter_warranty" value={formData.hybrid_inverter_warranty} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Warranty"
+                            name="hybrid_inverter_warranty"
+                            value={formData.hybrid_inverter_warranty}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -476,10 +603,28 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Quantity" name="acdb_quantity" value={formData.acdb_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Quantity"
+                            name="acdb_quantity"
+                            value={formData.acdb_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Description" name="acdb_description" value={formData.acdb_description} onChange={handleChange} multiline rows={1} />
+                        <Input
+                            fullWidth
+                            label="Description"
+                            name="acdb_description"
+                            value={formData.acdb_description}
+                            onChange={handleChange}
+                            multiline
+                            rows={1}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -509,10 +654,28 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Quantity" name="dcdb_quantity" value={formData.dcdb_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Quantity"
+                            name="dcdb_quantity"
+                            value={formData.dcdb_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
-                        <Input fullWidth label="Description" name="dcdb_description" value={formData.dcdb_description} onChange={handleChange} multiline rows={1} />
+                        <Input
+                            fullWidth
+                            label="Description"
+                            name="dcdb_description"
+                            value={formData.dcdb_description}
+                            onChange={handleChange}
+                            multiline
+                            rows={1}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -618,7 +781,15 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Quantity" name="earthing_quantity" value={formData.earthing_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Quantity"
+                            name="earthing_quantity"
+                            value={formData.earthing_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <MakeAutocomplete
@@ -631,7 +802,17 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Description" name="earthing_description" value={formData.earthing_description} onChange={handleChange} multiline rows={1} />
+                        <Input
+                            fullWidth
+                            label="Description"
+                            name="earthing_description"
+                            value={formData.earthing_description}
+                            onChange={handleChange}
+                            multiline
+                            rows={1}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -676,7 +857,15 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Quantity" name="la_quantity" value={formData.la_quantity} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Quantity"
+                            name="la_quantity"
+                            value={formData.la_quantity}
+                            onChange={handleChange}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <MakeAutocomplete
@@ -689,7 +878,17 @@ export default function TechnicalSection({
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Description" name="la_description" value={formData.la_description} onChange={handleChange} multiline rows={1} />
+                        <Input
+                            fullWidth
+                            label="Description"
+                            name="la_description"
+                            value={formData.la_description}
+                            onChange={handleChange}
+                            multiline
+                            rows={1}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );
@@ -698,7 +897,17 @@ export default function TechnicalSection({
             return (
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 6 }}>
-                        <Input fullWidth label="MIS Description" name="mis_description" value={formData.mis_description} onChange={handleChange} multiline rows={2} />
+                        <Input
+                            fullWidth
+                            label="MIS Description"
+                            name="mis_description"
+                            value={formData.mis_description}
+                            onChange={handleChange}
+                            multiline
+                            rows={2}
+                            disabled={disabled}
+                            sx={disabledSx}
+                        />
                     </Grid>
                 </Grid>
             );

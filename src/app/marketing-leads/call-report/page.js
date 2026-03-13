@@ -268,7 +268,7 @@ export default function MarketingLeadsCallReportPage() {
                       }
                     >
                       <MenuItem value="">All Statuses</MenuItem>
-                      <MenuItem value="interested">Interested</MenuItem>
+                      <MenuItem value="viewed">Viewed</MenuItem>
                       <MenuItem value="follow_up">Follow Up</MenuItem>
                       <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
                       <MenuItem value="converted">Converted</MenuItem>

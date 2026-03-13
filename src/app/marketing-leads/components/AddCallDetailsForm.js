@@ -30,6 +30,17 @@ const INITIAL_FORM = {
   promised_action: "",
 };
 
+const ALL_OUTCOME_OPTIONS = [
+  { value: "viewed", label: "Viewed" },
+  { value: "follow_up", label: "Follow Up Needed" },
+  { value: "callback_scheduled", label: "Callback Scheduled" },
+  { value: "converted", label: "Converted" },
+  { value: "no_answer", label: "No Answer" },
+  { value: "switched_off", label: "Switch Off" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "wrong_number", label: "Wrong Number" },
+];
+
 export default function AddCallDetailsForm({
   leadId,
   lead,
@@ -37,15 +48,19 @@ export default function AddCallDetailsForm({
   onConverted,
   defaultValues,
   forcedStatus,
+  forcedOutcome = null,
+  allowedOutcomes = null,
 }) {
   const initialState = useMemo(() => {
     const contactedAt = defaultValues?.contacted_at || new Date().toISOString();
+    const outcome = forcedOutcome ?? defaultValues?.outcome ?? "";
     return {
       ...INITIAL_FORM,
       ...(defaultValues || {}),
       contacted_at: contactedAt,
+      outcome,
     };
-  }, [defaultValues]);
+  }, [defaultValues, forcedOutcome]);
 
   const [formData, setFormData] = useState(initialState);
   const [saving, setSaving] = useState(false);
@@ -53,10 +68,13 @@ export default function AddCallDetailsForm({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    setFormData(initialState);
+    setFormData((prev) => ({
+      ...initialState,
+      outcome: forcedOutcome ?? (prev.outcome || initialState.outcome),
+    }));
     setErrors({});
     setConfirmOpen(false);
-  }, [initialState, leadId, forcedStatus]);
+  }, [initialState, leadId, forcedStatus, forcedOutcome]);
 
   const isAlreadyConverted =
     lead?.status === "converted" || !!lead?.converted_inquiry_id;
@@ -65,9 +83,10 @@ export default function AddCallDetailsForm({
     (overrides = {}) => ({
       ...formData,
       ...overrides,
+      outcome: forcedOutcome ?? formData.outcome,
       ...(forcedStatus ? { status: forcedStatus } : {}),
     }),
-    [formData, forcedStatus]
+    [formData, forcedStatus, forcedOutcome]
   );
 
   const handleChange = useCallback((e) => {
@@ -86,18 +105,19 @@ export default function AddCallDetailsForm({
     async (e) => {
       e.preventDefault();
       const newErrors = {};
-      if (!formData.outcome) {
+      const outcomeToValidate = forcedOutcome ?? formData.outcome;
+      if (!outcomeToValidate) {
         newErrors.outcome = "Please select outcome";
       }
-       if (formData.outcome === "converted" && isAlreadyConverted) {
-         newErrors.outcome = "This lead is already converted to an inquiry";
-       }
+      if (outcomeToValidate === "converted" && isAlreadyConverted) {
+        newErrors.outcome = "This lead is already converted to an inquiry";
+      }
       if (Object.keys(newErrors).length) {
         setErrors(newErrors);
         return;
       }
       setErrors({});
-      if (formData.outcome === "converted" && lead) {
+      if (outcomeToValidate === "converted" && lead) {
         setConfirmOpen(true);
         return;
       }
@@ -120,7 +140,7 @@ export default function AddCallDetailsForm({
         setSaving(false);
       }
     },
-    [leadId, formData, onSaved, lead, isAlreadyConverted, buildPayload]
+    [leadId, formData, forcedOutcome, onSaved, lead, isAlreadyConverted, buildPayload]
   );
 
   const handleConfirmConvert = useCallback(async () => {
@@ -180,27 +200,38 @@ export default function AddCallDetailsForm({
                 <MenuItem value="email">Email</MenuItem>
                 <MenuItem value="visit">Visit</MenuItem>
               </Select>
-              <Select
-                name="outcome"
-                label="Outcome"
-                value={formData.outcome}
-                onChange={handleChange}
-                error={!!errors.outcome}
-                helperText={errors.outcome}
-                required
-              >
-                <MenuItem value="">Select...</MenuItem>
-                <MenuItem value="interested">Interested</MenuItem>
-                <MenuItem value="follow_up">Need Follow-up</MenuItem>
-                <MenuItem value="callback_scheduled">Callback Scheduled</MenuItem>
-                <MenuItem value="converted" disabled={isAlreadyConverted}>
-                  Converted
-                </MenuItem>
-                <MenuItem value="no_answer">No Answer</MenuItem>
-                <MenuItem value="switched_off">Switched Off</MenuItem>
-                <MenuItem value="not_interested">Not Interested</MenuItem>
-                <MenuItem value="wrong_number">Wrong Number</MenuItem>
-              </Select>
+              {forcedOutcome ? (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Outcome</label>
+                  <div className="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm">
+                    {ALL_OUTCOME_OPTIONS.find((o) => o.value === forcedOutcome)?.label ?? forcedOutcome}
+                  </div>
+                </div>
+              ) : (
+                <Select
+                  name="outcome"
+                  label="Outcome"
+                  value={formData.outcome}
+                  onChange={handleChange}
+                  error={!!errors.outcome}
+                  helperText={errors.outcome}
+                  required
+                >
+                  <MenuItem value="">Select...</MenuItem>
+                  {(allowedOutcomes && allowedOutcomes.length > 0
+                    ? ALL_OUTCOME_OPTIONS.filter((o) => allowedOutcomes.includes(o.value))
+                    : ALL_OUTCOME_OPTIONS
+                  ).map((opt) => (
+                    <MenuItem
+                      key={opt.value}
+                      value={opt.value}
+                      disabled={opt.value === "converted" && isAlreadyConverted}
+                    >
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
               <Input
                 name="outcome_sub_status"
                 label="Sub-status / Reason"

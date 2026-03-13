@@ -54,7 +54,7 @@ export default function MarketingLeadsPage() {
         ? filters.status.length > 0
         : filters?.status != null && String(filters.status).trim() !== "";
       if (!hasStatusFilter && !apiFilters.not_status) {
-        apiFilters.not_status = "converted,not_interested,junk";
+        apiFilters.not_status = "junk";
       }
       const res = await marketingLeadsService.getMarketingLeads({
         page: 1,

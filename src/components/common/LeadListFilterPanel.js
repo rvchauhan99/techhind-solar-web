@@ -309,9 +309,8 @@ export default function LeadListFilterPanel({
             placeholder="All statuses"
             options={[
               { value: "new", label: "New" },
-              { value: "contacted", label: "Contacted" },
+              { value: "viewed", label: "Viewed" },
               { value: "follow_up", label: "Follow Up" },
-              { value: "interested", label: "Interested" },
               { value: "converted", label: "Converted" },
               { value: "not_interested", label: "Not Interested" },
               { value: "junk", label: "Junk" },
