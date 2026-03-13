@@ -64,7 +64,13 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                 });
                 const payload = constantsRes?.result || constantsRes;
                 setRatingOptions(payload?.ratings || []);
-                setPaymentTypeOptions(payload?.paymentTypes || []);
+                const paymentTypesRaw = payload?.paymentTypes || [];
+                const normalizedPaymentTypes = Array.isArray(paymentTypesRaw)
+                    ? paymentTypesRaw.map((p) =>
+                        typeof p === "string" ? p : p?.name ?? p?.label ?? p?.value ?? ""
+                    ).filter(Boolean)
+                    : [];
+                setPaymentTypeOptions(normalizedPaymentTypes);
             } catch (err) {
                 console.error("Failed to load reference options", err);
             }

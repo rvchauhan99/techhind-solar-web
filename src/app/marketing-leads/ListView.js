@@ -39,12 +39,10 @@ const getStatusBadgeVariant = (status) => {
   switch (status) {
     case "new":
       return "bg-sky-100 text-sky-800";
-    case "contacted":
+    case "viewed":
       return "bg-indigo-100 text-indigo-800";
     case "follow_up":
       return "bg-orange-100 text-orange-800";
-    case "interested":
-      return "bg-emerald-100 text-emerald-800";
     case "converted":
       return "bg-[#138808]/10 text-[#138808]";
     case "not_interested":
@@ -297,7 +295,7 @@ export default function ListView() {
       ? filters.status.length > 0
       : filters?.status != null && String(filters.status).trim() !== "";
     if (!hasStatusFilter && !obj.not_status) {
-      obj.not_status = "converted,not_interested,junk";
+      obj.not_status = "junk";
     }
     return obj;
   }, [filters]);
