@@ -1,303 +1,368 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  Chip,
-  CircularProgress,
-  Alert,
-  Card,
-  CardContent,
-  Grid,
-  IconButton,
-  Tooltip,
-} from "@mui/material";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import DownloadIcon from "@mui/icons-material/Download";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import { useCallback, useRef, useState } from "react";
+import { IconPackage, IconCheck, IconClock, IconTruck, IconLock, IconDownload } from "@tabler/icons-react";
+import { Card, CardContent } from "@/components/ui/card";
+import PaginatedTable from "@/components/common/PaginatedTable";
 import serializedInventoryService from "@/services/serializedInventoryService";
 import { toastError } from "@/utils/toast";
-import { formatCurrency } from "@/utils/dataTableUtils";
 import SerialLedgerDialog from "./SerialLedgerDialog";
-import PaginationControls from "@/components/common/PaginationControls";
-
-const SERIAL_STATUS_COLORS = {
-  AVAILABLE: "success",
-  RESERVED: "warning",
-  ISSUED: "info",
-  BLOCKED: "error",
-};
 
 const ISSUED_AGAINST_LABELS = {
   customer_order: "Customer Order",
   b2b_sales_order: "Sales Order",
 };
 
+const STATUS_BADGE = {
+  AVAILABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  RESERVED: "bg-amber-50 text-amber-700 border-amber-200",
+  ISSUED: "bg-blue-50 text-blue-700 border-blue-200",
+  BLOCKED: "bg-red-50 text-red-600 border-red-200",
+};
+
+function buildParams(filters, page, limit, sortBy, sortOrder) {
+  const status =
+    filters?.status && Array.isArray(filters.status)
+      ? filters.status.join(",")
+      : filters?.status;
+  return {
+    page,
+    limit,
+    product_id: filters?.product_id || undefined,
+    warehouse_id: filters?.warehouse_id || undefined,
+    product_type_id: filters?.product_type_id || undefined,
+    status: status ?? undefined,
+    serial_number: filters?.serial_number || undefined,
+    issued_against: filters?.issued_against || undefined,
+    reference_number: filters?.reference_number || undefined,
+    start_date: filters?.start_date || undefined,
+    end_date: filters?.end_date || undefined,
+    sortBy: sortBy || "id",
+    sortOrder: sortOrder === "asc" ? "ASC" : "DESC",
+  };
+}
+
+function formatCurrency(value) {
+  if (value === null || value === undefined) return "—";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
+function KpiCard({ icon: Icon, iconColor, label, value, loading }) {
+  return (
+    <Card className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md ${loading ? "animate-pulse" : ""}`}>
+      <CardContent className="p-2 flex flex-col justify-center h-full gap-0.5">
+        <div className="flex justify-between items-center mb-0.5">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight leading-none">{label}</span>
+          {Icon && (
+            <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${iconColor}`}>
+              <Icon size={11} />
+            </div>
+          )}
+        </div>
+        <div className="text-lg font-bold text-slate-900 leading-none">
+          {loading ? "…" : value}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SerializedInventoryReport({ filters, onRefresh }) {
-  const [data, setData] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
-  const [total, setTotal] = useState(0);
   const [selectedSerial, setSelectedSerial] = useState(null);
   const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false);
+  const setErrorRef = useRef(() => {});
+  setErrorRef.current = setError;
 
-  useEffect(() => {
-    loadData();
-  }, [filters, page, limit]);
-
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {
-        page,
-        limit,
-        ...filters,
-        status: filters?.status && Array.isArray(filters.status) ? filters.status.join(",") : filters?.status,
-        issued_against: filters?.issued_against || undefined,
-        reference_number: filters?.reference_number || undefined,
-      };
-
-      const response = await serializedInventoryService.getSerializedInventoryReport(params);
-      const result = response.result || response;
-      setData(result.data || []);
-      setSummary(result.summary || null);
-      setTotal(result.meta?.total || 0);
-    } catch (err) {
-      console.error("Failed to load serialized inventory", err);
-      setError(err.response?.data?.message || "Failed to load serialized inventory report");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleViewLedger = (serial) => {
-    setSelectedSerial(serial);
+  const handleViewLedger = (row) => {
+    setSelectedSerial(row);
     setLedgerDialogOpen(true);
   };
 
+  const filterParams = useCallback(() => {
+    const status =
+      filters?.status && Array.isArray(filters.status)
+        ? filters.status.join(",")
+        : filters?.status;
+    return {
+      ...filters,
+      status: status ?? undefined,
+      product_id: filters?.product_id || undefined,
+      warehouse_id: filters?.warehouse_id || undefined,
+      product_type_id: filters?.product_type_id || undefined,
+      serial_number: filters?.serial_number || undefined,
+      issued_against: filters?.issued_against || undefined,
+      reference_number: filters?.reference_number || undefined,
+      start_date: filters?.start_date || undefined,
+      end_date: filters?.end_date || undefined,
+    };
+  }, [filters]);
+
+  const fetcher = useCallback(
+    async (params) => {
+      setError(null);
+      setSummaryLoading(true);
+      const page = params.page ?? 1;
+      const limit = params.limit ?? 25;
+      const sortBy = params.sortBy || "id";
+      const sortOrder = params.sortOrder || "desc";
+      const apiParams = buildParams(filters, page, limit, sortBy, sortOrder);
+      try {
+        const response = await serializedInventoryService.getSerializedInventoryReport(apiParams);
+        const result = response.result || response;
+        setSummary(result.summary || null);
+        return {
+          data: result.data || [],
+          meta: { total: result.meta?.total ?? 0 },
+        };
+      } catch (err) {
+        setSummary(null);
+        setErrorRef.current(
+          err?.response?.data?.message || "Failed to load serialized inventory report"
+        );
+        return { data: [], meta: { total: 0 } };
+      } finally {
+        setSummaryLoading(false);
+      }
+    },
+    [filters]
+  );
+
   const handleExport = async (format = "csv") => {
     try {
+      const status =
+        filters?.status && Array.isArray(filters.status)
+          ? filters.status.join(",")
+          : filters?.status;
       const params = {
-        ...filters,
-        status: filters?.status && Array.isArray(filters.status) ? filters.status.join(",") : filters?.status,
+        product_id: filters?.product_id || undefined,
+        warehouse_id: filters?.warehouse_id || undefined,
+        product_type_id: filters?.product_type_id || undefined,
+        status: status ?? undefined,
+        serial_number: filters?.serial_number || undefined,
         issued_against: filters?.issued_against || undefined,
         reference_number: filters?.reference_number || undefined,
+        start_date: filters?.start_date || undefined,
+        end_date: filters?.end_date || undefined,
       };
       await serializedInventoryService.exportReport(params, format);
     } catch (err) {
-      console.error("Failed to export report", err);
-      toastError(err?.response?.data?.message || "Failed to export report. Please try again.");
+      toastError(err?.response?.data?.message || "Failed to export report.");
     }
   };
 
-  const handlePageChange = (zeroBasedPage) => {
-    setPage(zeroBasedPage + 1);
-  };
+  const columns = [
+    {
+      field: "serial_number",
+      label: "Serial #",
+      sortable: true,
+      render: (row) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewLedger(row);
+          }}
+          className="text-[10px] font-medium text-primary hover:underline text-left"
+        >
+          {row.serial_number || "—"}
+        </button>
+      ),
+    },
+    {
+      field: "product_name",
+      label: "Product",
+      render: (row) => (
+        <span className="text-[10px] text-slate-700">
+          {row.product_name ?? row.product?.product_name ?? row.product?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      field: "product_type",
+      label: "Product Type",
+      render: (row) => (
+        <span className="text-[10px] text-slate-500">
+          {row.product_type ?? row.product_type_name ?? row.product?.productType?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      field: "hsn_code",
+      label: "HSN",
+      render: (row) => (
+        <span className="text-[10px] text-slate-500">
+          {row.hsn_code ?? row.product?.hsn_ssn_code ?? "—"}
+        </span>
+      ),
+    },
+    {
+      field: "warehouse_name",
+      label: "Warehouse",
+      render: (row) => <span className="text-[10px] text-slate-500">{row.warehouse_name || "—"}</span>,
+    },
+    {
+      field: "status",
+      label: "Status",
+      render: (row) => (
+        <span
+          className={`text-[9px] font-semibold px-1 py-0 rounded-full border ${STATUS_BADGE[row.status] || "bg-slate-50 text-slate-500 border-slate-200"}`}
+        >
+          {row.status || "—"}
+        </span>
+      ),
+    },
+    {
+      field: "issued_against",
+      label: "Issued Against",
+      render: (row) => (
+        <span className="text-[10px] text-slate-500">
+          {row.issued_against ? ISSUED_AGAINST_LABELS[row.issued_against] ?? row.issued_against : "—"}
+        </span>
+      ),
+    },
+    {
+      field: "reference_number",
+      label: "Reference #",
+      render: (row) => <span className="text-[10px] text-slate-500">{row.reference_number || "—"}</span>,
+    },
+    {
+      field: "unit_price",
+      label: "Unit Price",
+      sortable: true,
+      render: (row) => (
+        <span className="text-[10px] font-medium text-slate-800">{formatCurrency(row.unit_price)}</span>
+      ),
+    },
+    {
+      field: "inward_date",
+      label: "Inward Date",
+      sortable: true,
+      render: (row) => (
+        <span className="text-[10px] text-slate-600">
+          {row.inward_date ? new Date(row.inward_date).toLocaleDateString("en-IN") : "—"}
+        </span>
+      ),
+    },
+    {
+      field: "outward_date",
+      label: "Outward Date",
+      sortable: true,
+      render: (row) => (
+        <span className="text-[10px] text-slate-600">
+          {row.outward_date ? new Date(row.outward_date).toLocaleDateString("en-IN") : "—"}
+        </span>
+      ),
+    },
+    {
+      field: "actions",
+      label: "",
+      isActionColumn: true,
+      render: (row) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewLedger(row);
+          }}
+          className="text-[9px] flex items-center gap-1 px-1 py-0 rounded border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
+        >
+          Ledger
+        </button>
+      ),
+    },
+  ];
 
-  const handleLimitChange = (newLimit) => {
-    setLimit(newLimit);
-    setPage(1);
-  };
+  const totalSerials = summary?.total ?? 0;
+  const available = summary?.by_status?.AVAILABLE ?? 0;
+  const reserved = summary?.by_status?.RESERVED ?? 0;
+  const issued = summary?.by_status?.ISSUED ?? 0;
 
   return (
-    <Box>
-      {/* Summary Cards */}
-      {summary && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Total Serials
-                </Typography>
-                <Typography variant="h4">{summary.total || 0}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Available
-                </Typography>
-                <Typography variant="h4" color="success.main">
-                  {summary.by_status?.AVAILABLE || 0}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Reserved
-                </Typography>
-                <Typography variant="h4" color="warning.main">
-                  {summary.by_status?.RESERVED || 0}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item size={{ xs: 12, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom variant="body2">
-                  Issued
-                </Typography>
-                <Typography variant="h4" color="info.main">
-                  {summary.by_status?.ISSUED || 0}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
+    <div className="space-y-2">
+      {/* KPI strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 lg:h-[68px]">
+        <KpiCard
+          icon={IconPackage}
+          iconColor="bg-slate-100 text-slate-600"
+          label="Total Serials"
+          value={totalSerials}
+          loading={summaryLoading}
+        />
+        <KpiCard
+          icon={IconCheck}
+          iconColor="bg-emerald-100 text-emerald-600"
+          label="Available"
+          value={available}
+          loading={summaryLoading}
+        />
+        <KpiCard
+          icon={IconClock}
+          iconColor="bg-amber-100 text-amber-600"
+          label="Reserved"
+          value={reserved}
+          loading={summaryLoading}
+        />
+        <KpiCard
+          icon={IconTruck}
+          iconColor="bg-blue-100 text-blue-600"
+          label="Issued"
+          value={issued}
+          loading={summaryLoading}
+        />
+      </div>
 
-      {/* Export Buttons */}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mb: 2 }}>
-        <Button
-          variant="outlined"
-          startIcon={<FileDownloadIcon />}
-          onClick={() => handleExport("csv")}
-          disabled={loading}
-        >
-          Export CSV
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<DownloadIcon />}
-          onClick={() => handleExport("excel")}
-          disabled={loading}
-        >
-          Export Excel
-        </Button>
-      </Box>
+      {/* Table card */}
+      <Card className="rounded-xl shadow-sm border-slate-200 bg-white overflow-hidden">
+        <div className="flex items-center justify-between px-2 py-1 border-b border-slate-100">
+          <div>
+            <h3 className="text-[11px] font-semibold text-slate-700">Serialized Inventory</h3>
+            <p className="text-[9px] text-slate-400 mt-0">Click a row or Ledger to view serial ledger</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] text-slate-400">Export:</span>
+            <button
+              type="button"
+              onClick={() => handleExport("csv")}
+              className="flex items-center gap-0.5 text-[10px] px-1.5 py-0 rounded border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
+            >
+              <IconDownload size={10} /> CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExport("excel")}
+              className="flex items-center gap-0.5 text-[10px] px-1.5 py-0 rounded border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-colors"
+            >
+              <IconDownload size={10} /> Excel
+            </button>
+          </div>
+        </div>
 
-      {/* Error Alert */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Table */}
-      <TableContainer component={Paper}>
-        {loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-            <CircularProgress />
-          </Box>
+        {error && (
+          <div className="mx-3 my-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+            {error}
+          </div>
         )}
 
-        {!loading && data.length === 0 && (
-          <Box sx={{ p: 4, textAlign: "center" }}>
-            <Typography variant="body1" color="text.secondary">
-              No serialized inventory found. Try adjusting your filters.
-            </Typography>
-          </Box>
-        )}
+        <PaginatedTable
+          columns={columns}
+          fetcher={fetcher}
+          filterParams={filterParams()}
+          initialPage={1}
+          initialLimit={25}
+          showSearch={false}
+          height="calc(100vh - 300px)"
+          getRowKey={(row) => row.id ?? row.serial_number ?? Math.random()}
+          onRowClick={(row) => handleViewLedger(row)}
+        />
+      </Card>
 
-        {!loading && data.length > 0 && (
-          <>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Serial Number</strong></TableCell>
-                  <TableCell><strong>Product Name</strong></TableCell>
-                  <TableCell><strong>Product Type</strong></TableCell>
-                  <TableCell><strong>HSN Code</strong></TableCell>
-                  <TableCell><strong>Warehouse</strong></TableCell>
-                  <TableCell><strong>Status</strong></TableCell>
-                  <TableCell><strong>Issued Against</strong></TableCell>
-                  <TableCell><strong>Reference Number</strong></TableCell>
-                  <TableCell><strong>Unit Price</strong></TableCell>
-                  <TableCell><strong>Inward Date</strong></TableCell>
-                  <TableCell><strong>Outward Date</strong></TableCell>
-                  <TableCell><strong>Actions</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {data.map((item, index) => (
-                  <TableRow
-                    key={item.id || index}
-                    sx={{ "&:nth-of-type(odd)": { backgroundColor: "action.hover" } }}
-                    hover
-                  >
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: "medium",
-                          color: "primary.main",
-                          cursor: "pointer",
-                          "&:hover": { textDecoration: "underline" },
-                        }}
-                        onClick={() => handleViewLedger(item)}
-                      >
-                        {item.serial_number || "-"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{item.product_name || "-"}</TableCell>
-                    <TableCell>{item.product_type || "-"}</TableCell>
-                    <TableCell>{item.hsn_code || "-"}</TableCell>
-                    <TableCell>{item.warehouse_name || "-"}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={item.status || "UNKNOWN"}
-                        size="small"
-                        color={SERIAL_STATUS_COLORS[item.status] || "default"}
-                      />
-                    </TableCell>
-                    <TableCell>{item.issued_against ? (ISSUED_AGAINST_LABELS[item.issued_against] ?? item.issued_against) : "—"}</TableCell>
-                    <TableCell>{item.reference_number || "—"}</TableCell>
-                    <TableCell>{formatCurrency(item.unit_price)}</TableCell>
-                    <TableCell>
-                      {item.inward_date ? new Date(item.inward_date).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      {item.outward_date ? new Date(item.outward_date).toLocaleDateString() : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="View Ledger">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleViewLedger(item)}
-                          color="primary"
-                        >
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-
-            <PaginationControls
-              page={page - 1}
-              rowsPerPage={limit}
-              totalCount={total}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleLimitChange}
-              rowsPerPageOptions={[20, 50, 100, 200]}
-            />
-          </>
-        )}
-      </TableContainer>
-
-      {/* Ledger Dialog */}
       <SerialLedgerDialog
         open={ledgerDialogOpen}
         onClose={() => {
@@ -307,6 +372,6 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
         serialId={selectedSerial?.id}
         serialNumber={selectedSerial?.serial_number}
       />
-    </Box>
+    </div>
   );
 }
