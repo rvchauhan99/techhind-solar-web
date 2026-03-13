@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import marketingLeadsService from "@/services/marketingLeadsService";
+import mastersService from "@/services/mastersService";
 import { toastError, toastSuccess } from "@/utils/toast";
 
 const INITIAL_FORM = {
@@ -66,6 +67,9 @@ export default function AddCallDetailsForm({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
+  const [selectedPaymentType, setSelectedPaymentType] = useState("");
+  const [paymentTypeError, setPaymentTypeError] = useState("");
 
   useEffect(() => {
     setFormData((prev) => ({
@@ -74,7 +78,33 @@ export default function AddCallDetailsForm({
     }));
     setErrors({});
     setConfirmOpen(false);
+    setSelectedPaymentType("");
+    setPaymentTypeError("");
   }, [initialState, leadId, forcedStatus, forcedOutcome]);
+
+  useEffect(() => {
+    const loadPaymentTypes = async () => {
+      try {
+        const res = await mastersService.getConstants();
+        const payload = res?.result || res;
+        const raw = payload?.paymentTypes || [];
+        const normalized =
+          Array.isArray(raw)
+            ? raw
+                .map((p) =>
+                  typeof p === "string" ? p : p?.name ?? p?.label ?? p?.value ?? ""
+                )
+                .filter(Boolean)
+            : [];
+        setPaymentTypeOptions(normalized);
+      } catch (err) {
+        // Non-blocking; user can still attempt convert, backend will validate
+        // eslint-disable-next-line no-console
+        console.error("Failed to load payment types", err);
+      }
+    };
+    loadPaymentTypes();
+  }, []);
 
   const isAlreadyConverted =
     lead?.status === "converted" || !!lead?.converted_inquiry_id;
@@ -148,9 +178,21 @@ export default function AddCallDetailsForm({
     try {
       setSaving(true);
       // 1) Save follow-up
-      await marketingLeadsService.addFollowUp(leadId, buildPayload());
+      await marketingLeadsService.addFollowUp(
+        leadId,
+        buildPayload(
+          selectedPaymentType
+            ? { payment_type: selectedPaymentType }
+            : {}
+        )
+      );
       // 2) Convert lead to inquiry (idempotent on backend)
-      await marketingLeadsService.convertToInquiry(leadId, {});
+      await marketingLeadsService.convertToInquiry(
+        leadId,
+        selectedPaymentType
+          ? { payment_type: selectedPaymentType }
+          : {}
+      );
       toastSuccess("Lead converted to inquiry successfully");
       setConfirmOpen(false);
       setFormData((prev) => ({
@@ -159,6 +201,8 @@ export default function AddCallDetailsForm({
         contacted_at: new Date().toISOString(),
         contact_channel: prev.contact_channel,
       }));
+      setSelectedPaymentType("");
+      setPaymentTypeError("");
       onSaved?.();
       onConverted?.();
     } catch (err) {
@@ -228,6 +272,28 @@ export default function AddCallDetailsForm({
                       disabled={opt.value === "converted" && isAlreadyConverted}
                     >
                       {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              )}
+              {(forcedOutcome === "converted" || formData.outcome === "converted") && (
+                <Select
+                  name="payment_type"
+                  label="Payment Type"
+                  value={selectedPaymentType}
+                  onChange={(e) => {
+                    setSelectedPaymentType(e.target.value ?? "");
+                    if (paymentTypeError) {
+                      setPaymentTypeError("");
+                    }
+                  }}
+                  error={!!paymentTypeError}
+                  helperText={paymentTypeError}
+                >
+                  <MenuItem value="">Select...</MenuItem>
+                  {paymentTypeOptions.map((pt) => (
+                    <MenuItem key={pt} value={pt}>
+                      {pt}
                     </MenuItem>
                   ))}
                 </Select>
@@ -323,6 +389,28 @@ export default function AddCallDetailsForm({
                 </div>
               </div>
             )}
+            <div className="pt-1">
+              <Select
+                name="payment_type"
+                label="Payment Type"
+                value={selectedPaymentType}
+                onChange={(e) => {
+                  setSelectedPaymentType(e.target.value ?? "");
+                  if (paymentTypeError) {
+                    setPaymentTypeError("");
+                  }
+                }}
+                error={!!paymentTypeError}
+                helperText={paymentTypeError}
+              >
+                <MenuItem value="">Select...</MenuItem>
+                {paymentTypeOptions.map((pt) => (
+                  <MenuItem key={pt} value={pt}>
+                    {pt}
+                  </MenuItem>
+                ))}
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button
