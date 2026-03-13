@@ -24,6 +24,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
+import { calculateTotals } from "@/app/quotation/components/quotation/quotationCalculations";
 
 export default function AddOrder() {
     return (
@@ -49,6 +50,7 @@ function AddOrderContent() {
     const [confirmNoApprovedOpen, setConfirmNoApprovedOpen] = useState(false);
     const [fullQuotationDetails, setFullQuotationDetails] = useState(null);
     const [fullQuotationDetailsLoading, setFullQuotationDetailsLoading] = useState(false);
+    const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
 
     // Get inquiry ID from URL params
     // Fetch inquiry and quotation data
@@ -74,12 +76,12 @@ function AddOrderContent() {
 
                     if (quotations.length > 0) {
                         // Priority 1: Find quotation with is_approved = true
-                        let selectedQuotation = quotations.find(q => q.is_approved === true);
+                        let selectedQuotation = quotations.find((q) => q.is_approved === true);
 
                         // Priority 2: If no approved quotation, get the latest by created_at and show confirmation
                         if (!selectedQuotation) {
-                            const sorted = [...quotations].sort((a, b) =>
-                                new Date(b.created_at) - new Date(a.created_at)
+                            const sorted = [...quotations].sort(
+                                (a, b) => new Date(b.created_at) - new Date(a.created_at)
                             );
                             selectedQuotation = sorted[0];
                             setQuotationData(selectedQuotation);
@@ -87,6 +89,20 @@ function AddOrderContent() {
                         } else {
                             setQuotationData(selectedQuotation);
                         }
+
+                        // Fetch full quotation details for totals and header preview
+                        try {
+                            const fullRes = await quotationService.getQuotationById(selectedQuotation.id);
+                            const full =
+                                fullRes?.result ??
+                                fullRes?.data ??
+                                fullRes;
+                            setSelectedQuotationDetails(full);
+                        } catch {
+                            setSelectedQuotationDetails(null);
+                        }
+                    } else {
+                        setSelectedQuotationDetails(null);
                     }
                 }
             } catch (err) {
@@ -126,6 +142,11 @@ function AddOrderContent() {
             });
         return () => { cancelled = true; };
     }, [confirmNoApprovedOpen, quotationData?.id]);
+
+    const dialogTotals = useMemo(
+        () => (fullQuotationDetails ? calculateTotals(fullQuotationDetails) : null),
+        [fullQuotationDetails]
+    );
 
     const handleSubmit = async (data) => {
         setLoading(true);
@@ -207,6 +228,11 @@ function AddOrderContent() {
         }
     };
 
+    const quotationTotals = useMemo(
+        () => (selectedQuotationDetails ? calculateTotals(selectedQuotationDetails) : null),
+        [selectedQuotationDetails]
+    );
+
     // Prepare default values from inquiry and quotation data
     const defaultValues = useMemo(() => {
         const defaults = {};
@@ -256,7 +282,19 @@ function AddOrderContent() {
         // From quotation (latest fetched quotation) - OVERRIDE inquiry data if available
         if (quotationData) {
             defaults.quotation_id = quotationData.id;
-            defaults.project_cost = quotationData.total_project_value || quotationData.project_cost || 0;
+
+            // Prefer Total Payable from full quotation details; fall back to legacy project values
+            if (quotationTotals && typeof quotationTotals.totalPayable === "number") {
+                defaults.project_cost = Math.round(quotationTotals.totalPayable);
+            } else {
+                const baseAmount =
+                    quotationData.total_payable ??
+                    quotationData.total_project_value ??
+                    quotationData.project_cost ??
+                    0;
+                defaults.project_cost = Number(baseAmount) || 0;
+            }
+
             defaults.discount = quotationData.discount || 0;
 
             // Override assignment fields from quotation if available
@@ -290,7 +328,6 @@ function AddOrderContent() {
             if (quotationData.order_type_id) defaults.order_type_id = Number(quotationData.order_type_id);
             if (quotationData.project_scheme_id) defaults.project_scheme_id = Number(quotationData.project_scheme_id);
             if (quotationData.project_capacity) defaults.capacity = Number(quotationData.project_capacity);
-            if (quotationData.project_cost) defaults.project_cost = Number(quotationData.project_cost);
             // Prefer panel/inverter from bom_snapshot, fallback to legacy panel_product/inverter_product
             let panelId = null;
             let inverterId = null;
@@ -410,8 +447,14 @@ function AddOrderContent() {
                                         <span>{fullQuotationDetails.inquiry?.inquiry_number ?? fullQuotationDetails.inquiry_number ?? "-"}</span>
                                         <span>Capacity</span>
                                         <span>{fullQuotationDetails.project_capacity != null ? `${fullQuotationDetails.project_capacity} KW` : "-"}</span>
-                                        <span>Total value</span>
+                                        <span>Project Cost</span>
                                         <span>{fullQuotationDetails.total_project_value != null ? formatCurrency(fullQuotationDetails.total_project_value) : "-"}</span>
+                                        {dialogTotals && (
+                                            <>
+                                                <span>Total Payable</span>
+                                                <span>{formatCurrency(dialogTotals.totalPayable)}</span>
+                                            </>
+                                        )}
                                         {fullQuotationDetails.discount != null && Number(fullQuotationDetails.discount) !== 0 && (
                                             <>
                                                 <span>Discount</span>
