@@ -58,7 +58,13 @@ async function fetchOrderDataRaw(orderId) {
     ]);
     const data = orderRes?.result || orderRes;
     const payments = paymentsRes?.result || [];
-    const totalReceivedAmount = payments.reduce((sum, p) => sum + parseFloat(p.payment_amount || 0), 0);
+    const paidPayments = payments.filter(
+        (p) => p.status === "approved" || p.status === "pending_approval"
+    );
+    const totalReceivedAmount = paidPayments.reduce(
+        (sum, p) => sum + parseFloat(p.payment_amount || 0),
+        0
+    );
     const docs = docsRes?.result?.data || docsRes?.data || [];
     return { data, totalReceivedAmount, docs };
 }

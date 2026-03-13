@@ -56,22 +56,29 @@ export const getReferenceOptions = (model, params = {}) => {
   return apiClient.get(`/masters/reference-options?${searchParams.toString()}`).then((r) => r.data);
 };
 
+const REFERENCE_OPTION_PARAMS = ['q', 'limit', 'status', 'status_in', 'id'];
+
 /**
  * Fetch reference options with search and limit (for async/API-backed selects).
  * @param {string} model - Master model name (e.g. 'user.model')
- * @param {{ q?: string, limit?: number, status?: string }} params - q: search term; limit: max results (default 20); status: optional filter
- * @returns {Promise<Array>} - Array of option objects { id, label, value, ... }
+ * @param {{ q?: string, limit?: number, status?: string, reason_type?: string, is_active?: boolean, [k: string]: any }} params - q: search term; limit: max results (default 20); status/reason_type/is_active etc. as filters
+ * @returns {Promise<Array>} - Array of option objects { id, label, value, reason, ... }
  */
-export const getReferenceOptionsSearch = (model, { q = '', limit = 20, status, status_in, id } = {}) => {
-  const params = { model };
-  if (q != null && String(q).trim() !== '') params.q = String(q).trim();
-  if (limit != null) params.limit = limit;
-  if (status != null && status !== '') params.status = status;
-  if (status_in != null && status_in !== '') params.status_in = status_in;
-  if (id != null && id !== '') params.id = id;
-  const searchParams = new URLSearchParams(params);
+export const getReferenceOptionsSearch = (model, params = {}) => {
+  const { q = '', limit = 20, status, status_in, id } = params;
+  const searchParams = { model };
+  if (q != null && String(q).trim() !== '') searchParams.q = String(q).trim();
+  if (limit != null) searchParams.limit = limit;
+  if (status != null && status !== '') searchParams.status = status;
+  if (status_in != null && status_in !== '') searchParams.status_in = status_in;
+  if (id != null && id !== '') searchParams.id = id;
+  Object.keys(params).forEach((key) => {
+    if (REFERENCE_OPTION_PARAMS.includes(key) || params[key] == null || params[key] === '') return;
+    searchParams[key] = params[key];
+  });
+  const urlParams = new URLSearchParams(searchParams);
   return apiClient
-    .get(`/masters/reference-options?${searchParams.toString()}`)
+    .get(`/masters/reference-options?${urlParams.toString()}`)
     .then((r) => r.data?.result ?? r.data?.data ?? r.data ?? []);
 };
 
