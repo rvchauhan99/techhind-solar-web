@@ -334,15 +334,22 @@ export default function QuotationList() {
       },
       {
         field: "total_project_value",
-        label: "Total Value",
+        label: "Total Payable",
         sortable: true,
         filterType: "number",
         filterKey: "total_project_value",
         filterKeyTo: "total_project_value_to",
         operatorKey: "total_project_value_op",
         defaultFilterOperator: "equals",
-        render: (row) =>
-          row.total_project_value != null ? `₹${Number(row.total_project_value).toLocaleString()}` : "-",
+        render: (row) => {
+          const value =
+            row.total_payable != null && row.total_payable !== ""
+              ? Number(row.total_payable)
+              : row.total_project_value != null && row.total_project_value !== ""
+              ? Number(row.total_project_value)
+              : null;
+          return value != null && !Number.isNaN(value) ? `₹${value.toLocaleString()}` : "-";
+        },
       },
       {
         field: "is_approved",
