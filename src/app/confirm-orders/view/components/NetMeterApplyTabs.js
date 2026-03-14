@@ -4,12 +4,12 @@ import { useState } from "react";
 import { Box, Tabs, Tab } from "@mui/material";
 import { usePathname } from "next/navigation";
 import NetMeterApplyForm from "./NetMeterApplyForm";
-import PredefinedDocuments from "./PredefinedDocuments";
+import PredefinedDocumentsTab from "./PredefinedDocumentsTab";
 
 function TabPanel({ children, value, index }) {
     return (
         <div role="tabpanel" hidden={value !== index}>
-            {value === index && <Box sx={{ p: index == 1 ? 0 : 3 }}>{children}</Box>}
+            {value === index && <Box sx={{ p: index === 1 ? 0 : 2 }}>{children}</Box>}
         </div>
     );
 }
@@ -43,7 +43,7 @@ export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, 
             </TabPanel>
 
             <TabPanel value={tabValue} index={1}>
-                <PredefinedDocuments />
+                <PredefinedDocumentsTab orderId={orderId} orderNumber={orderData?.order_number} />
             </TabPanel>
         </Box>
     );
