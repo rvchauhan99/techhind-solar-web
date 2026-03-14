@@ -17,7 +17,7 @@
 export default function ChartCard({
     title,
     subtitle,
-    height = 300,
+    height = 260,
     action,
     children,
     isEmpty = false,
@@ -32,7 +32,7 @@ export default function ChartCard({
             className={`rounded-xl border border-border bg-card shadow-sm flex flex-col overflow-hidden ${className}`}
         >
             {/* Header */}
-            <div className="flex items-start justify-between gap-2 px-4 pt-4 pb-2 shrink-0">
+            <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1.5 shrink-0">
                 <div>
                     <h3 className="text-sm font-semibold text-foreground leading-tight">{title}</h3>
                     {subtitle && (
@@ -43,11 +43,11 @@ export default function ChartCard({
             </div>
 
             {/* Divider */}
-            <div className="border-t border-border/50 mx-4" />
+            <div className="border-t border-border/50 mx-3" />
 
             {/* Chart area */}
             <div
-                className="relative flex-1 px-2 py-2"
+                className="relative flex-1 px-1.5 py-1.5"
                 style={{ minHeight: contentHeight }}
             >
                 {loading ? (

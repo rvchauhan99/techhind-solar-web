@@ -142,7 +142,7 @@ const MultiSelect = forwardRef(function MultiSelect(
             </div>
 
             {isOpen && (
-                <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-80">
+                <div className="absolute z-[9999] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-80">
                     <div className="p-1">
                         {options.length === 0 ? (
                             <div className="py-6 text-center text-sm text-muted-foreground">

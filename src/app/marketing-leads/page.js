@@ -116,13 +116,6 @@ export default function MarketingLeadsPage() {
               variant="outline"
               onClick={() => router.push("/marketing-leads/analysis")}
             >
-              <IconReport className="mr-2 size-4" />
-              Summary
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/marketing-leads/analysis")}
-            >
               <IconChartPie className="mr-2 size-4" />
               Analysis
             </Button>

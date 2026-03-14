@@ -36,7 +36,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     asyncDebounceMs = 300,
     resolveOptionById,
     referenceModel,
-    usePortal = false,
+    usePortal = true,
     /** "bottom" = list below input (default), "top" = list above input */
     dropdownPlacement = "bottom",
     variant = "default", // ["default", "minimal"]
