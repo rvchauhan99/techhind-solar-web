@@ -80,6 +80,7 @@ export default function CompanyProfilePage() {
         company_website: "",
     });
     const [bankFormData, setBankFormData] = useState({
+        branch_id: null,
         bank_name: "",
         bank_account_name: "",
         bank_account_number: "",
@@ -126,6 +127,10 @@ export default function CompanyProfilePage() {
                 .catch(() => setQuotationTemplateOptions([]));
         }
     }, [branchDialogOpen]);
+
+    useEffect(() => {
+        if (bankDialogOpen && !branchesLoaded) loadBranches();
+    }, [bankDialogOpen]);
 
     const loadCompanyProfile = async () => {
         try {
@@ -366,6 +371,7 @@ export default function CompanyProfilePage() {
             setBankDialogOpen(false);
             setEditingBankAccount(null);
             setBankFormData({
+                branch_id: null,
                 bank_name: "",
                 bank_account_name: "",
                 bank_account_number: "",
@@ -390,6 +396,7 @@ export default function CompanyProfilePage() {
     const handleEditBankAccount = (account) => {
         setEditingBankAccount(account);
         setBankFormData({
+            branch_id: account.branch_id ?? account.branch?.id ?? null,
             bank_name: account.bank_name || "",
             bank_account_name: account.bank_account_name || "",
             bank_account_number: account.bank_account_number || "",
@@ -431,6 +438,7 @@ export default function CompanyProfilePage() {
     const handleNewBankAccount = () => {
         setEditingBankAccount(null);
         setBankFormData({
+            branch_id: null,
             bank_name: "",
             bank_account_name: "",
             bank_account_number: "",
@@ -447,6 +455,7 @@ export default function CompanyProfilePage() {
         setBankDialogOpen(false);
         setEditingBankAccount(null);
         setBankFormData({
+            branch_id: null,
             bank_name: "",
             bank_account_name: "",
             bank_account_number: "",
@@ -1271,7 +1280,8 @@ export default function CompanyProfilePage() {
                                 value={activeTab}
                                 onValueChange={(v) => {
                                     setActiveTab(v);
-                                    if (v === "1" && !branchesLoaded) loadBranches();
+                                    if (v === "0" && !branchesLoaded) loadBranches();
+                                    else if (v === "1" && !branchesLoaded) loadBranches();
                                     else if (v === "3" && !warehousesLoaded) loadWarehouses();
                                 }}
                                 className="w-full"
@@ -1299,7 +1309,8 @@ export default function CompanyProfilePage() {
                                                         <th className="px-4 py-3">Account Name</th>
                                                         <th className="px-4 py-3">Account No</th>
                                                         <th className="px-4 py-3">IFSC</th>
-                                                        <th className="px-4 py-3">Branch</th>
+                                                        <th className="px-4 py-3">Company Branch</th>
+                                                        <th className="px-4 py-3">Bank branch</th>
                                                         <th className="px-4 py-3">UPI ID</th>
                                                         <th className="px-4 py-3">Active</th>
                                                         <th className="px-4 py-3">Default</th>
@@ -1309,7 +1320,7 @@ export default function CompanyProfilePage() {
                                                 <tbody className="divide-y divide-gray-200">
                                                     {bankAccounts.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                                                                 No bank accounts found
                                                             </td>
                                                         </tr>
@@ -1320,6 +1331,7 @@ export default function CompanyProfilePage() {
                                                                 <td className="px-4 py-3">{account.bank_account_name}</td>
                                                                 <td className="px-4 py-3">{account.bank_account_number}</td>
                                                                 <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
+                                                                <td className="px-4 py-3">{account.branch?.name ?? "—"}</td>
                                                                 <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
                                                                 <td className="px-4 py-3">{account.upi_id || "-"}</td>
                                                                 <td className="px-4 py-3">
@@ -2005,6 +2017,26 @@ export default function CompanyProfilePage() {
                                             fullWidth
                                             required
                                         />
+                                        <Select
+                                            name="branch_id"
+                                            label="Company Branch"
+                                            value={bankFormData.branch_id ?? ""}
+                                            onChange={(e) =>
+                                                setBankFormData((prev) => ({
+                                                    ...prev,
+                                                    branch_id: e.target.value ? Number(e.target.value) : null,
+                                                }))
+                                            }
+                                            placeholder="Select branch"
+                                            className="min-w-[200px]"
+                                        >
+                                            <MenuItem value="">None</MenuItem>
+                                            {branches.map((b) => (
+                                                <MenuItem key={b.id} value={b.id}>
+                                                    {b.name}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
                                         <Input
                                             name="bank_account_ifsc"
                                             label="IFSC Code"
@@ -2014,7 +2046,7 @@ export default function CompanyProfilePage() {
                                         />
                                         <Input
                                             name="bank_account_branch"
-                                            label="Branch"
+                                            label="Bank branch (name)"
                                             value={bankFormData.bank_account_branch}
                                             onChange={handleBankInputChange}
                                             fullWidth
