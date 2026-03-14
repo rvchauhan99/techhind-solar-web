@@ -3,6 +3,9 @@ import apiClient from "./apiClient";
 export const getStocks = (params = {}) =>
   apiClient.get("/stocks", { params }).then((r) => r.data);
 
+export const getStockSummary = (params = {}) =>
+  apiClient.get("/stocks/summary", { params }).then((r) => r.data);
+
 export const exportStocks = (params = {}) =>
   apiClient.get("/stocks/export", { params, responseType: "blob" }).then((r) => r.data);
 
@@ -30,6 +33,7 @@ export const validateSerialNotExists = (serialNumber, productId, warehouseId) =>
 
 export default {
   getStocks,
+  getStockSummary,
   exportStocks,
   getStockById,
   getStocksByWarehouse,
