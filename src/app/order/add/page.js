@@ -270,7 +270,7 @@ function AddOrderContent() {
             defaults.inquiry_by = inquiryData.inquiry_by_id || inquiryData.inquiry_by;
             defaults.handled_by = inquiryData.handled_by_id || inquiryData.handled_by;
             defaults.branch_id = inquiryData.branch_id;
-            defaults.channel_partner_id = inquiryData.channel_partner_id;
+            defaults.channel_partner_id = inquiryData.channel_partner_id ?? inquiryData.channel_partner;
             defaults.discom_id = inquiryData.discom_id;
             defaults.payment_type = inquiryData.payment_type; // payment_type is a string from constants
         } else if (user?.id) {
