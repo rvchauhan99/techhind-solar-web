@@ -190,6 +190,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
             if (Object.keys(newFieldErrors).length > 0) {
                 setFieldErrors(newFieldErrors);
+                setSubmitting(false);
                 return;
             }
 
@@ -211,6 +212,12 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         planned_qty: plannedQty,
                     };
                 });
+            }
+
+            if (updatedBomSnapshot.length === 0) {
+                setError("At least 1 product should be planned for delivery.");
+                setSubmitting(false);
+                return;
             }
 
             const updatedStages = {
