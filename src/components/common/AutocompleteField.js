@@ -166,7 +166,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     value != null
       ? multiple
         ? (Array.isArray(value) ? value : []).map(getOptionLabel).join(", ")
-        : (typeof value === "object" && value !== null && (value?.name ?? value?.label ?? value?.username ?? value?.source_name) != null
+        : (typeof value === "object" && value !== null && (value?.name ?? value?.label ?? value?.username ?? value?.product_name ?? value?.source_name) != null
             ? getOptionLabel(value)
             : getOptionLabel(
                 options.find((o) => (o?.id ?? o?.value) == valueId) ??
@@ -425,9 +425,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             setOpen(true);
           }}
           onFocus={() => {
-            // When editing: do not open dropdown on focus if we already have a value (show label instead)
+            // When editing: do not close dropdown — onMouseDown already opened it for re-selection
             if (isAsyncMode && valueId != null && inputValue === "") {
-              setOpen(false);
               return;
             }
             setOpen(true);
