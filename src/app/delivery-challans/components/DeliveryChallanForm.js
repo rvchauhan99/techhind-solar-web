@@ -32,6 +32,7 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { toastError } from "@/utils/toast";
@@ -39,6 +40,9 @@ import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
+import productService from "@/services/productService";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 /** Replace product id N with product names from lines for user-friendly error display */
 const makeErrorUserFriendly = (msg, lines) => {
@@ -125,6 +129,13 @@ export default function DeliveryChallanForm({
     const [scanTargetIndex, setScanTargetIndex] = useState(null);
     const [gunScanValue, setGunScanValue] = useState("");
     const gunScanRef = useRef(null);
+
+    // ── Add Product Dialog State (Commercial Projects) ───────────────────
+    const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
+    const [dialogSearchQuery, setDialogSearchQuery] = useState("");
+    const [dialogSearchResults, setDialogSearchResults] = useState([]);
+    const [dialogSearchLoading, setDialogSearchLoading] = useState(false);
+    const [dialogSelectedProduct, setDialogSelectedProduct] = useState(null);
 
     // ── Build BOM lines from order data ────────────────────────────────
     const buildLinesFromOrder = (data, stockMap = stockByProductId) => {
@@ -293,6 +304,32 @@ export default function DeliveryChallanForm({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderIdParam]);
 
+    // ── Add Product Dialog: debounced search (>=2 chars) ──────────────────
+    useEffect(() => {
+        if (!addProductDialogOpen) return;
+        const q = (dialogSearchQuery || "").trim();
+        if (q.length < 2) {
+            setDialogSearchResults([]);
+            return;
+        }
+        const t = setTimeout(async () => {
+            setDialogSearchLoading(true);
+            try {
+                const res = await productService.getProducts({ q, limit: 20 });
+                const data = res?.result?.data || res?.data || [];
+                setDialogSearchResults(Array.isArray(data) ? data : []);
+            } catch (err) {
+                console.error("Failed to search products:", err);
+                setDialogSearchResults([]);
+            } finally {
+                setDialogSearchLoading(false);
+            }
+        }, 300);
+        return () => clearTimeout(t);
+    }, [addProductDialogOpen, dialogSearchQuery]);
+
+    const isCommercialProject = (order?.project_scheme_name || "").toLowerCase() === "commercial project";
+
     // ── Handlers ───────────────────────────────────────────────────────
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -345,11 +382,13 @@ export default function DeliveryChallanForm({
                 return next;
             }
 
+            const skipQtyValidation = isCommercialProject || line?.is_custom;
             if (!Number.isInteger(shipNowNum)) {
                 next[key] = "Must be a whole number";
-            } else if (shipNowNum > pendingForLine) {
+            } else if (!skipQtyValidation && shipNowNum > pendingForLine) {
                 next[key] = `Cannot exceed remaining (${pendingForLine})`;
             } else if (
+                !skipQtyValidation &&
                 availableForLine != null &&
                 !Number.isNaN(Number(availableForLine)) &&
                 shipNowNum > availableForLine
@@ -429,6 +468,95 @@ export default function DeliveryChallanForm({
                 return { ...line, serials: newSerials };
             })
         );
+    };
+
+    // ── Additional Product Handlers ────────────────────────────────────
+    const handleAddCustomProduct = async () => {
+        if (!dialogSelectedProduct || !order?.planned_warehouse_id) return;
+        const p = dialogSelectedProduct;
+
+        // Check if already in lines
+        const exists = lines.find((l) => l.product_id === p.id);
+        if (exists) {
+            toastError("This product is already in the list");
+            return;
+        }
+
+        let available = 0;
+        let availableSerials = [];
+        try {
+            const stockRes = await stockService.getStocksByWarehouse(order.planned_warehouse_id);
+            const stockList = stockRes?.result || stockRes || [];
+            const stockItem = Array.isArray(stockList) ? stockList.find((s) => s.product_id === p.id) : null;
+            available = Number(stockItem?.quantity_available) || 0;
+
+            if (p.serial_required) {
+                const serRes = await stockService.getAvailableSerials(p.id, order.planned_warehouse_id);
+                const list = serRes?.result ?? serRes ?? [];
+                availableSerials = Array.isArray(list) ? list : [];
+            }
+        } catch (err) {
+            console.error("Failed to load stock for custom product:", err);
+        }
+
+        const newLine = {
+            product_id: p.id,
+            product_name: p.product_name || "",
+            product_type_name: p.product_type_name || "",
+            make_name: p.product_make_name || "",
+            required_qty: 0,
+            shipped_qty: 0,
+            pending_qty: 0, // Not applicable for custom additions
+            available_qty: available,
+            unit_name: p.measurement_unit_name || "",
+            ship_now: "",
+            serials: [],
+            serial_required: !!p.serial_required,
+            is_custom: true,
+        };
+
+        const newIndex = lines.length;
+        setLines((prev) => [...prev, newLine]);
+        setAvailableSerialsByLineIndex((prev) => ({ ...prev, [newIndex]: availableSerials }));
+
+        setDialogSelectedProduct(null);
+        setDialogSearchQuery("");
+        setDialogSearchResults([]);
+        setAddProductDialogOpen(false);
+    };
+
+    const handleRemoveCustomProduct = (index) => {
+        setLines((prev) => prev.filter((_, i) => i !== index));
+        // Also cleanup other related states if needed, though they mostly key off index
+        setAvailableSerialsByLineIndex((prev) => {
+            const next = { ...prev };
+            delete next[index];
+            // Fixup indices for lines after the removed one
+            Object.keys(prev).forEach((k) => {
+                const ki = parseInt(k, 10);
+                if (ki > index) {
+                    next[ki - 1] = prev[ki];
+                    delete next[ki];
+                }
+            });
+            return next;
+        });
+        setErrors((prev) => {
+            const next = { ...prev };
+            Object.keys(prev).forEach((k) => {
+                if (k.startsWith(`line_${index}_`)) delete next[k];
+                // Fixup higher indices
+                const match = k.match(/^line_(\d+)_(.*)/);
+                if (match) {
+                    const idx = parseInt(match[1], 10);
+                    if (idx > index) {
+                        next[`line_${idx - 1}_${match[2]}`] = prev[k];
+                        delete next[k];
+                    }
+                }
+            });
+            return next;
+        });
     };
 
     const toggleSerialRowExpand = (lineIndex) => {
@@ -801,12 +929,13 @@ export default function DeliveryChallanForm({
             hasShipItems = true;
 
             const productLabel = line.product_name ? ` for ${line.product_name}` : "";
+            const skipQty = isCommercialProject || line.is_custom;
             if (!Number.isInteger(shipNow)) {
                 validationErrors[`line_${index}_ship_now`] = `Must be a whole number${productLabel}`;
             }
-            if (shipNow > line.pending_qty) {
+            if (!skipQty && shipNow > line.pending_qty) {
                 validationErrors[`line_${index}_ship_now`] = `Cannot exceed remaining (${line.pending_qty})${productLabel}`;
-            } else if (line.available_qty != null && !Number.isNaN(Number(line.available_qty)) && shipNow > line.available_qty) {
+            } else if (!skipQty && line.available_qty != null && !Number.isNaN(Number(line.available_qty)) && shipNow > line.available_qty) {
                 validationErrors[`line_${index}_ship_now`] = `Cannot exceed available stock (${line.available_qty})${productLabel}`;
             }
 
@@ -900,6 +1029,13 @@ export default function DeliveryChallanForm({
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {makeErrorUserFriendly(serverError, lines)}
+                        </Alert>
+                    )}
+
+                    {/* Commercial Project Header Helper */}
+                    {order && (order.project_scheme_name || "").toLowerCase() === "commercial project" && (
+                        <Alert severity="info" sx={{ mb: 1 }}>
+                            <strong>Commercial Project:</strong> You can add additional products for delivery.
                         </Alert>
                     )}
 
@@ -1046,14 +1182,25 @@ export default function DeliveryChallanForm({
                                                         {line.serial_required && (
                                                             <Chip label="SERIAL" size="small" color="primary" sx={{ height: 20, fontSize: "0.65rem", flexShrink: 0 }} />
                                                         )}
+                                                        {line.is_custom && (
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                sx={{ p: 0.25, ml: "auto" }}
+                                                                onClick={() => handleRemoveCustomProduct(index)}
+                                                                title="Remove custom product"
+                                                            >
+                                                                <DeleteIcon fontSize="inherit" />
+                                                            </IconButton>
+                                                        )}
                                                     </Box>
 
                                                     {/* Stats row */}
                                                     <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", mb: 1.25 }}>
                                                         {[
-                                                            { label: "Planned", value: line.required_qty },
+                                                            { label: "Planned", value: Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0 },
                                                             { label: "Avail", value: Number(line.available_qty) || 0 },
-                                                            { label: "Shipped", value: line.shipped_qty },
+                                                            { label: "Shipped", value: Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0 },
                                                         ].map(({ label, value }) => (
                                                             <Box key={label}>
                                                                 <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
@@ -1063,7 +1210,7 @@ export default function DeliveryChallanForm({
                                                         <Box>
                                                             <Typography variant="caption" color="text.secondary" display="block">Remaining</Typography>
                                                             <Typography variant="body2" fontWeight="medium" color={line.pending_qty > 0 ? "warning.main" : "success.main"}>
-                                                                {line.pending_qty} {line.unit_name || ""}
+                                                                {Number.isFinite(Number(line.pending_qty)) ? line.pending_qty : 0} {line.unit_name || ""}
                                                             </Typography>
                                                         </Box>
                                                     </Box>
@@ -1261,20 +1408,34 @@ export default function DeliveryChallanForm({
                                                                     {line.serial_required && (
                                                                         <Chip label="SERIAL" size="small" color="primary" sx={{ mt: 0.25, height: 18, fontSize: "0.65rem" }} />
                                                                     )}
+                                                                    {line.is_custom && (
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            sx={{ p: 0.25, ml: 0.5 }}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleRemoveCustomProduct(index);
+                                                                            }}
+                                                                            title="Remove custom product"
+                                                                        >
+                                                                            <DeleteIcon fontSize="inherit" />
+                                                                        </IconButton>
+                                                                    )}
                                                                 </Box>
                                                             </TableCell>
                                                             <TableCell sx={compactCellSx}>{line.product_type_name}</TableCell>
                                                             <TableCell sx={compactCellSx}>{line.make_name}</TableCell>
-                                                            <TableCell sx={compactCellSx} align="right">{line.required_qty}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0}</TableCell>
                                                             <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
-                                                            <TableCell sx={compactCellSx} align="right">{line.shipped_qty}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0}</TableCell>
                                                             <TableCell sx={compactCellSx} align="right">
                                                                 <Typography
                                                                     variant="body2"
                                                                     fontWeight="medium"
                                                                     color={line.pending_qty > 0 ? "warning.main" : "success.main"}
                                                                 >
-                                                                    {line.pending_qty} {line.unit_name || ""}
+                                                                    {Number.isFinite(Number(line.pending_qty)) ? line.pending_qty : 0} {line.unit_name || ""}
                                                                 </Typography>
                                                             </TableCell>
                                                             <TableCell sx={compactCellSx} data-no-row-toggle>
@@ -1407,6 +1568,21 @@ export default function DeliveryChallanForm({
                                     {order ? "No BOM lines found for this order" : "Select an Order to load BOM lines"}
                                 </Alert>
                             )}
+
+                            {/* Add Product for Commercial Projects — opens dialog */}
+                            {order && (order.project_scheme_name || "").toLowerCase() === "commercial project" && (
+                                <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: "divider" }}>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setAddProductDialogOpen(true)}
+                                        className="flex items-center gap-1.5"
+                                    >
+                                        <AddIcon sx={{ fontSize: 18 }} />
+                                        Add Additional Product
+                                    </Button>
+                                </Box>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -1457,6 +1633,108 @@ export default function DeliveryChallanForm({
                     </LoadingButton>
                 </FormActions>
             </FormContainer>
+
+            {/* ─── Add Product Dialog (Commercial Projects) ───────────── */}
+            <Dialog
+                open={addProductDialogOpen}
+                onOpenChange={(open) => {
+                    setAddProductDialogOpen(open);
+                    if (!open) {
+                        setDialogSearchQuery("");
+                        setDialogSearchResults([]);
+                        setDialogSelectedProduct(null);
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Add Additional Product</DialogTitle>
+                    </DialogHeader>
+                    <TextField
+                        size="small"
+                        fullWidth
+                        label="Search by name"
+                        placeholder="Type at least 2 characters..."
+                        value={dialogSearchQuery}
+                        onChange={(e) => setDialogSearchQuery(e.target.value)}
+                        autoComplete="off"
+                        sx={{ mb: 1.5 }}
+                    />
+                    <Box sx={{ maxHeight: 320, overflow: "auto", border: 1, borderColor: "divider", borderRadius: 1, py: 0.5 }}>
+                        {dialogSearchLoading && (
+                            <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                                <CircularProgress size={24} />
+                            </Box>
+                        )}
+                        {!dialogSearchLoading && (dialogSearchQuery || "").trim().length < 2 && (
+                            <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 2 }}>
+                                Type at least 2 characters to search products.
+                            </Typography>
+                        )}
+                        {!dialogSearchLoading && (dialogSearchQuery || "").trim().length >= 2 && dialogSearchResults.length === 0 && (
+                            <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 2 }}>
+                                No products found.
+                            </Typography>
+                        )}
+                        {!dialogSearchLoading && dialogSearchResults.length > 0 && (
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell sx={compactCellSx}><strong>Product</strong></TableCell>
+                                            <TableCell sx={compactCellSx}><strong>Type</strong></TableCell>
+                                            <TableCell sx={compactCellSx}><strong>Make</strong></TableCell>
+                                            <TableCell sx={compactCellSx} align="right"><strong>Avail.</strong></TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {dialogSearchResults.map((p) => {
+                                            const inLines = lines.some((l) => l.product_id === p.id);
+                                            const selected = dialogSelectedProduct?.id === p.id;
+                                            const avail = stockByProductId[p.id];
+                                            const qty = Number.isFinite(Number(avail?.quantity_available)) ? Number(avail?.quantity_available) : 0;
+                                            return (
+                                                <TableRow
+                                                    key={p.id}
+                                                    onClick={() => !inLines && setDialogSelectedProduct(selected ? null : p)}
+                                                    sx={{
+                                                        cursor: inLines ? "not-allowed" : "pointer",
+                                                        opacity: inLines ? 0.6 : 1,
+                                                        bgcolor: selected ? "primary.main" : undefined,
+                                                        color: selected ? "primary.contrastText" : undefined,
+                                                        "&:hover": inLines ? {} : { bgcolor: selected ? "primary.dark" : "action.hover" },
+                                                    }}
+                                                >
+                                                    <TableCell sx={compactCellSx}>{p.product_name || ""}</TableCell>
+                                                    <TableCell sx={compactCellSx}>{p.product_type_name || ""}</TableCell>
+                                                    <TableCell sx={compactCellSx}>{p.product_make_name || ""}</TableCell>
+                                                    <TableCell sx={compactCellSx} align="right">{qty}</TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        )}
+                    </Box>
+                    <DialogFooter showCloseButton={false} className="mt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setAddProductDialogOpen(false);
+                                setDialogSearchQuery("");
+                                setDialogSearchResults([]);
+                                setDialogSelectedProduct(null);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={handleAddCustomProduct} disabled={!dialogSelectedProduct}>
+                            Add
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* ─── Barcode / QR Scanner modal ─────────────────────── */}
             <BarcodeScanner
