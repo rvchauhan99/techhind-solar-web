@@ -7,7 +7,7 @@ export const getOrderById = (id) =>
     apiClient.get(`/confirm-orders/${id}`).then((r) => r.data);
 
 /**
- * Get Model Agreement PDF as blob (runtime generation).
+ * Get Model Agreement PDF as blob (view or download).
  * @param {string|number} orderId
  * @param {{ action: 'view' | 'download' }} options
  * @returns {Promise<Blob>}
