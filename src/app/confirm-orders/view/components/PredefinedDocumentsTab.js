@@ -116,7 +116,7 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                 showSearch={false}
                 showPagination={false}
                 initialPage={1}
-                initialLimit={PREDEFINED_DOCUMENTS.length}
+                initialLimit={Math.max(PREDEFINED_DOCUMENTS.length, 1)}
                 height="120px"
                 getRowKey={(row) => row.id}
             />
