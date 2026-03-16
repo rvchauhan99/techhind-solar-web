@@ -389,6 +389,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         const productName = p?.product_name ?? p?.name ?? "";
         const typeName = p?.productType?.name ?? p?.product_type_name ?? "";
         const makeName = p?.productMake?.name ?? p?.product_make_name ?? "";
+        const measurementUnitName =
+            p?.measurement_unit_name ?? p?.measurementUnit?.unit ?? "";
+        const serialRequired = !!p?.serial_required;
         const newLine = {
             product_id: p.id,
             quantity: qty,
@@ -401,10 +404,14 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 product_name: productName,
                 product_type_name: typeName,
                 product_make_name: makeName,
+                measurement_unit_name: measurementUnitName,
+                serial_required: serialRequired,
             },
             product_name: productName,
             product_type_name: typeName,
             product_make_name: makeName,
+            measurement_unit_name: measurementUnitName,
+            serial_required: serialRequired,
         };
         setBomPlan((prev) => [...prev, newLine]);
         if (fieldErrors.bomPlan) {
