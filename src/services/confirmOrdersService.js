@@ -13,10 +13,13 @@ export const getOrderById = (id) =>
  * @returns {Promise<Blob>}
  */
 export const getModelAgreementPdf = (orderId, options = {}) => {
-    const action = options.action === "download" ? "download" : "view";
+    const isDownload = options.action === "download";
+    const params = {};
+    if (isDownload) params.action = "download";
+    if (options.withSignatures) params.with_signatures = "true";
     return apiClient
         .get(`/confirm-orders/${orderId}/model-agreement-pdf`, {
-            params: action === "download" ? { action: "download" } : undefined,
+            params: Object.keys(params).length ? params : undefined,
             responseType: "blob",
         })
         .then((r) => r.data);
