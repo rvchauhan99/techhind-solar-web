@@ -64,8 +64,22 @@ export default function CompanyProfilePage() {
     const [managersSelectedIds, setManagersSelectedIds] = useState([]);
     const [activeTab, setActiveTab] = useState("0");
     const [quotationTemplateOptions, setQuotationTemplateOptions] = useState([]);
-    const [imageUrls, setImageUrls] = useState({ logo: null, header: null, footer: null, stamp: null });
-    const fileInputRefs = useRef({ logo: null, header: null, footer: null, stamp: null });
+    const [imageUrls, setImageUrls] = useState({
+        logo: null,
+        header: null,
+        footer: null,
+        stamp: null,
+        authorized_signature: null,
+        stamp_with_signature: null,
+    });
+    const fileInputRefs = useRef({
+        logo: null,
+        header: null,
+        footer: null,
+        stamp: null,
+        authorized_signature: null,
+        stamp_with_signature: null,
+    });
     const [formData, setFormData] = useState({
         company_name: "",
         company_code: "",
@@ -153,8 +167,15 @@ export default function CompanyProfilePage() {
             });
             setError("");
             // Fetch signed URLs for bucket-stored images (skip legacy paths starting with /)
-            setImageUrls({ logo: null, header: null, footer: null, stamp: null });
-            const types = ["logo", "header", "footer", "stamp"];
+            setImageUrls({
+                logo: null,
+                header: null,
+                footer: null,
+                stamp: null,
+                authorized_signature: null,
+                stamp_with_signature: null,
+            });
+            const types = ["logo", "header", "footer", "stamp", "authorized_signature", "stamp_with_signature"];
             for (const type of types) {
                 const path = companyData[type];
                 if (path && typeof path === "string" && !path.startsWith("/")) {
@@ -1626,7 +1647,10 @@ export default function CompanyProfilePage() {
                                                                     }}
                                                                 />
                                                             </div>
-                                                            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
                                                                 onClick={() => handleImageDelete("stamp")}
                                                                 disabled={saving}
                                                             >
@@ -1661,6 +1685,132 @@ export default function CompanyProfilePage() {
                                                                 onClick={() => fileInputRefs.current.stamp?.click()}
                                                             >
                                                                 Upload Stamp
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Authorized Signature */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Authorized Signature
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.authorized_signature ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("authorized_signature")}
+                                                                    alt="Authorized Signature"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "200px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("authorized_signature")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500">
+                                                            No authorized signature uploaded
+                                                        </p>
+                                                    )}
+                                                    {!company?.authorized_signature && (
+                                                        <>
+                                                            <input
+                                                                ref={(el) => { fileInputRefs.current.authorized_signature = el; }}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleImageUpload("authorized_signature", file);
+                                                                        e.target.value = "";
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                                onClick={() => fileInputRefs.current.authorized_signature?.click()}
+                                                            >
+                                                                Upload Authorized Signature
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Stamp with Signature */}
+                                            <div>
+                                                <h3 className="text-lg font-semibold mb-4 text-gray-900">
+                                                    Stamp with Signature
+                                                </h3>
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    {company?.stamp_with_signature ? (
+                                                        <>
+                                                            <div className="border border-gray-200 rounded-md p-2 bg-white flex items-center justify-center min-w-[200px] min-h-[100px] max-w-[600px] shadow-sm">
+                                                                <img
+                                                                    src={getImageUrl("stamp_with_signature")}
+                                                                    alt="Stamp with Signature"
+                                                                    style={{
+                                                                        maxWidth: "100%",
+                                                                        maxHeight: "200px",
+                                                                        objectFit: "contain",
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                                onClick={() => handleImageDelete("stamp_with_signature")}
+                                                                disabled={saving}
+                                                            >
+                                                                <DeleteIcon />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500">
+                                                            No stamp with signature uploaded
+                                                        </p>
+                                                    )}
+                                                    {!company?.stamp_with_signature && (
+                                                        <>
+                                                            <input
+                                                                ref={(el) => { fileInputRefs.current.stamp_with_signature = el; }}
+                                                                type="file"
+                                                                className="hidden"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        handleImageUpload("stamp_with_signature", file);
+                                                                        e.target.value = "";
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                disabled={saving}
+                                                                onClick={() => fileInputRefs.current.stamp_with_signature?.click()}
+                                                            >
+                                                                Upload Stamp with Signature
                                                             </Button>
                                                         </>
                                                     )}

@@ -12,9 +12,16 @@ const PREDEFINED_DOCUMENTS = [
     {
         id: "model-agreement",
         name: "Model Agreement",
-        getViewBlob: (orderId) => confirmOrdersService.getModelAgreementPdf(orderId, { action: "view" }),
-        getDownloadBlob: (orderId) => confirmOrdersService.getModelAgreementPdf(orderId, { action: "download" }),
-        getDownloadFilename: (orderNumber, orderId) => `model-agreement-${orderNumber || orderId}.pdf`,
+        getViewBlob: (orderId) =>
+            confirmOrdersService.getModelAgreementPdf(orderId, { action: "view" }),
+        getDownloadBlob: (orderId) =>
+            confirmOrdersService.getModelAgreementPdf(orderId, { action: "download" }),
+        getDownloadWithSignaturesBlob: (orderId) =>
+            confirmOrdersService.getModelAgreementPdf(orderId, { action: "download", withSignatures: true }),
+        getDownloadFilename: (orderNumber, orderId) =>
+            `model-agreement-${orderNumber || orderId}.pdf`,
+        getSignedDownloadFilename: (orderNumber, orderId) =>
+            `model-agreement-signed-${orderNumber || orderId}.pdf`,
     },
 ];
 
@@ -66,6 +73,29 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
         [orderId, orderNumber, setLoading]
     );
 
+
+    const handleDownloadWithSignatures = useCallback(
+        async (doc) => {
+            if (!orderId) return;
+            setLoading(doc.id, "download-signed", true);
+            try {
+                const blob = await doc.getDownloadWithSignaturesBlob(orderId);
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = doc.getSignedDownloadFilename(orderNumber, orderId);
+                a.click();
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                console.error(`${doc.name} PDF signed download failed:`, err);
+                toastError(err?.response?.data?.message || err?.message || "Failed to download signed PDF");
+            } finally {
+                setLoading(doc.id, "download-signed", false);
+            }
+        },
+        [orderId, orderNumber, setLoading]
+    );
+
     const fetcher = useCallback(
         async () => ({
             data: PREDEFINED_DOCUMENTS,
@@ -100,6 +130,16 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                             disabled={loadingIds[`${row.id}-download`]}
                         >
                             Download
+                        </Button>
+                        <Button
+                            size="small"
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<DownloadIcon />}
+                            onClick={() => handleDownloadWithSignatures(row)}
+                            disabled={loadingIds[`${row.id}-download-signed`]}
+                        >
+                            Download With Sign & Stamp
                         </Button>
                     </Box>
                 ),
