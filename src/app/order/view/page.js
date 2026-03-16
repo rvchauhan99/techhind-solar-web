@@ -104,6 +104,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     };
 
     const handleSave = async () => {
+        if (loading) return;
         try {
             setLoading(true);
             setErrors({});
