@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, useDayPicker } from "react-day-picker";
 import { cn } from "@/lib/utils";
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -31,8 +31,9 @@ function clampMonthWithinRange(date, fromDate, toDate) {
 }
 
 function CalendarCaption(props) {
-  const { displayMonth, onMonthChange, fromDate, toDate, fromYear, toYear } = props;
-  const [editing, setEditing] = React.useState(false);
+  const { calendarMonth } = props;
+  const displayMonth = calendarMonth.date;
+  const { goToMonth, fromDate, toDate, fromYear, toYear } = useDayPicker();
 
   const displayYear = displayMonth.getFullYear();
   const displayMonthIndex = displayMonth.getMonth();
@@ -56,104 +57,76 @@ function CalendarCaption(props) {
     [effectiveFromYear, effectiveToYear]
   );
 
-  const handleLabelClick = () => {
-    setEditing(true);
-  };
-
   const handleMonthChange = (event) => {
     const monthIndex = Number(event.target.value);
     if (Number.isNaN(monthIndex)) return;
     const next = clampMonthWithinRange(new Date(displayYear, monthIndex, 1), fromDate, toDate);
-    onMonthChange?.(next);
+    goToMonth(next);
   };
 
   const handleYearChange = (event) => {
     const year = Number(event.target.value);
     if (Number.isNaN(year)) return;
     const next = clampMonthWithinRange(new Date(year, displayMonthIndex, 1), fromDate, toDate);
-    onMonthChange?.(next);
-  };
-
-  const handleBlurContainer = (event) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setEditing(false);
-    }
+    goToMonth(next);
   };
 
   return (
-    <div
-      className="flex w-full items-center justify-between px-1 pt-1 gap-1"
-      onBlur={handleBlurContainer}
-    >
-      {!editing ? (
+    <div className="flex w-full items-center justify-between px-1 pt-1 gap-1">
+      <div className="flex items-center gap-1">
+        <select
+          className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          value={displayMonthIndex}
+          onChange={handleMonthChange}
+        >
+          {MONTH_LABELS.map((label, index) => (
+            <option key={label} value={index}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          value={displayYear}
+          onChange={handleYearChange}
+        >
+          {years.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-0.5">
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          onClick={handleLabelClick}
+          className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={() => {
+            const prev = clampMonthWithinRange(
+              new Date(displayYear, displayMonthIndex - 1, 1),
+              fromDate,
+              toDate
+            );
+            goToMonth(prev);
+          }}
         >
-          <span>
-            {MONTH_LABELS[displayMonthIndex]} {displayYear}
-          </span>
-          <span className="text-[10px] leading-none">▾</span>
+          {"<"}
         </button>
-      ) : (
-        <div className="flex items-center gap-1">
-          <select
-            className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight"
-            value={displayMonthIndex}
-            onChange={handleMonthChange}
-          >
-            {MONTH_LABELS.map((label, index) => (
-              <option key={label} value={index}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-6 rounded border border-input bg-background px-1 text-[11px] leading-tight"
-            value={displayYear}
-            onChange={handleYearChange}
-          >
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      {props.nextMonth && props.previousMonth && (
-        <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            onClick={() => {
-              const prev = clampMonthWithinRange(
-                new Date(displayYear, displayMonthIndex - 1, 1),
-                fromDate,
-                toDate
-              );
-              onMonthChange?.(prev);
-            }}
-          >
-            {"<"}
-          </button>
-          <button
-            type="button"
-            className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            onClick={() => {
-              const next = clampMonthWithinRange(
-                new Date(displayYear, displayMonthIndex + 1, 1),
-                fromDate,
-                toDate
-              );
-              onMonthChange?.(next);
-            }}
-          >
-            {">"}
-          </button>
-        </div>
-      )}
+        <button
+          type="button"
+          className="size-7 rounded border border-input bg-background inline-flex items-center justify-center hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onClick={() => {
+            const next = clampMonthWithinRange(
+              new Date(displayYear, displayMonthIndex + 1, 1),
+              fromDate,
+              toDate
+            );
+            goToMonth(next);
+          }}
+        >
+          {">"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -204,13 +177,9 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        Caption: (captionProps) => (
+        MonthCaption: (captionProps) => (
           <CalendarCaption
             {...captionProps}
-            fromDate={fromDate}
-            toDate={toDate}
-            fromYear={resolvedFromYear}
-            toYear={resolvedToYear}
           />
         ),
       }}
