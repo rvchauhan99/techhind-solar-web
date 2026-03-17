@@ -46,6 +46,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
 ) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
   const [dropdownStyle, setDropdownStyle] = useState({});
@@ -85,6 +86,11 @@ const AutocompleteField = forwardRef(function AutocompleteField(
         const lbl = getOptionLabel(opt);
         return String(lbl).toLowerCase().includes(String(inputValue).toLowerCase());
       });
+
+  // Reset active index when list changes or opens
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [filterOptions.length, open]);
 
   // Keep selected option cache in sync when value or options change
   useEffect(() => {
@@ -330,7 +336,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
   }, [open, isAsyncMode, usePortal]);
 
   const handleSelect = (option) => {
-    if (option) selectedOptionCacheRef.current = option;
+    if (!option) return;
+    selectedOptionCacheRef.current = option;
     if (multiple) {
       const arr = Array.isArray(value) ? [...value] : [];
       const optVal = option?.id ?? option?.value;
@@ -343,6 +350,36 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       setInputValue("");
       setOpen(false);
       if (isAsyncMode) initialOptionsLoadedRef.current = false;
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+      } else {
+        setActiveIndex((prev) => (prev + 1 >= filterOptions.length ? 0 : prev + 1));
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+      } else {
+        setActiveIndex((prev) => (prev <= 0 ? filterOptions.length - 1 : prev - 1));
+      }
+    } else if (e.key === "Enter") {
+      if (open) {
+        e.preventDefault();
+        if (activeIndex >= 0 && activeIndex < filterOptions.length) {
+          handleSelect(filterOptions[activeIndex]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setInputValue("");
     }
   };
 
@@ -378,6 +415,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
+            onKeyDown={handleKeyDown}
             placeholder={selected.length === 0 ? placeholder : ""}
             disabled={disabled}
             autoComplete="off"
@@ -396,7 +434,12 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                 <li
                   key={i}
                   role="option"
-                  className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                  className={cn(
+                    "cursor-pointer px-3 py-2 text-sm transition-colors",
+                    (i === activeIndex) 
+                      ? "bg-primary text-primary-foreground" 
+                      : "hover:bg-primary hover:text-primary-foreground"
+                  )}
                   onClick={() => handleSelect(opt)}
                 >
                   {getOptionLabel(opt)}
@@ -435,6 +478,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             // Allow opening dropdown by click when field has a value (so user can change selection)
             if (valueId != null && !open && inputValue === "") setOpen(true);
           }}
+          onKeyDown={handleKeyDown}
           placeholder={defaultResolving ? "" : placeholder}
           disabled={disabled}
           autoComplete="off"
@@ -471,7 +515,12 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                   <li
                     key={i}
                     role="option"
-                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                    className={cn(
+                      "cursor-pointer px-3 py-2 text-sm transition-colors",
+                      (i === activeIndex) 
+                        ? "bg-primary text-primary-foreground" 
+                        : "hover:bg-primary hover:text-primary-foreground"
+                    )}
                     onClick={() => handleSelect(opt)}
                   >
                     {getOptionLabel(opt)}
@@ -500,7 +549,12 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                 <li
                   key={i}
                   role="option"
-                  className="cursor-pointer px-3 py-2 text-sm hover:bg-accent"
+                  className={cn(
+                    "cursor-pointer px-3 py-2 text-sm transition-colors",
+                    (i === activeIndex) 
+                      ? "bg-primary text-primary-foreground" 
+                      : "hover:bg-primary hover:text-primary-foreground"
+                  )}
                   onClick={() => handleSelect(opt)}
                 >
                   {getOptionLabel(opt)}

@@ -307,6 +307,9 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         if (!formData.city_id) {
             newErrors.city_id = "City is required";
         }
+        if (!formData.taluka || formData.taluka.trim() === "") {
+            newErrors.taluka = "Taluka is required";
+        }
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
@@ -551,6 +554,9 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             label="Taluka"
                             value={formData.taluka || ""}
                             onChange={handleChange}
+                            error={!!errors.taluka}
+                            helperText={errors.taluka}
+                            required
                         />
                         <Input
                             name="address"
