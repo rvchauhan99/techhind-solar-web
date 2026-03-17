@@ -51,7 +51,7 @@ export default function MarketingLeadsAssignPage() {
 
   const loadUsers = useCallback(() => {
     mastersService
-      .getReferenceOptions("user.model")
+      .getReferenceOptions("user.model", { status: "active" })
       .then((r) => {
         const data = r?.result ?? r?.data ?? r;
         if (Array.isArray(data)) setUserOptions(data);

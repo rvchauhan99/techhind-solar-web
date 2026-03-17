@@ -15,6 +15,7 @@ import {
     Divider,
     Button,
     MenuItem,
+    Tooltip,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
 import PrintIcon from "@mui/icons-material/Print";
@@ -639,7 +640,41 @@ function PreviousPaymentsTable({ orderId }) {
             id: "payment_remarks",
             label: "Remarks",
             field: "payment_remarks",
-            render: (row) => row.payment_remarks || "-",
+            render: (row) => {
+                const hasReceive = !!row.payment_remarks;
+                const hasApprove = row.status === "approved" && !!row.approval_remarks;
+                const hasReject = row.status === "rejected" && !!row.rejection_reason;
+
+                if (!hasReceive && !hasApprove && !hasReject) {
+                    return "-";
+                }
+
+                return (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+                        {hasReceive && (
+                            <Tooltip title={row.payment_remarks}>
+                                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                                    <strong>Receive:</strong> {row.payment_remarks}
+                                </span>
+                            </Tooltip>
+                        )}
+                        {hasApprove && (
+                            <Tooltip title={row.approval_remarks}>
+                                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                                    <strong>Approve:</strong> {row.approval_remarks}
+                                </span>
+                            </Tooltip>
+                        )}
+                        {hasReject && (
+                            <Tooltip title={row.rejection_reason}>
+                                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                                    <strong>Reject:</strong> {row.rejection_reason}
+                                </span>
+                            </Tooltip>
+                        )}
+                    </Box>
+                );
+            },
         },
         {
             id: "status",

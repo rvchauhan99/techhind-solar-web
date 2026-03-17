@@ -299,7 +299,7 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
                         <AutocompleteField
                             name="service_assign_to"
                             label="Service Assign To"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                             referenceModel="user.model"
                             getOptionLabel={(option) => option?.name ?? option?.username ?? option?.email ?? ""}
                             value={formData.service_assign_to ? { id: formData.service_assign_to } : null}
