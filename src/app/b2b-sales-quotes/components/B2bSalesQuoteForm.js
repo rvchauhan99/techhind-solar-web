@@ -94,6 +94,52 @@ export default function B2bSalesQuoteForm({
             .finally(() => setLoadingOptions(false));
     }, []);
 
+    // Load default Terms & Conditions masters for new quotes (not editing)
+    useEffect(() => {
+        if (defaultValues?.id) return;
+        let cancelled = false;
+        const loadDefaults = async () => {
+            try {
+                const [freightList, paymentList, deliveryList] = await Promise.all([
+                    getReferenceOptionsSearch("termsAndConditions.model", {
+                        limit: 1,
+                        type: "freight",
+                        is_active: "true",
+                        is_default: "true",
+                    }),
+                    getReferenceOptionsSearch("termsAndConditions.model", {
+                        limit: 1,
+                        type: "payment_terms",
+                        is_active: "true",
+                        is_default: "true",
+                    }),
+                    getReferenceOptionsSearch("termsAndConditions.model", {
+                        limit: 1,
+                        type: "delivery_schedule",
+                        is_active: "true",
+                        is_default: "true",
+                    }),
+                ]);
+                if (cancelled) return;
+                const freight = Array.isArray(freightList) ? freightList[0] : null;
+                const payment = Array.isArray(paymentList) ? paymentList[0] : null;
+                const delivery = Array.isArray(deliveryList) ? deliveryList[0] : null;
+                setFormData((prev) => ({
+                    ...prev,
+                    freight_terms_id: prev.freight_terms_id || (freight?.id ?? ""),
+                    payment_terms_id: prev.payment_terms_id || (payment?.id ?? ""),
+                    delivery_schedule_id: prev.delivery_schedule_id || (delivery?.id ?? ""),
+                }));
+            } catch {
+                // Ignore defaults loading error; user can still select manually
+            }
+        };
+        loadDefaults();
+        return () => {
+            cancelled = true;
+        };
+    }, [defaultValues?.id]);
+
     // Load existing values for edit mode
     useEffect(() => {
         if (!defaultValues?.id) return;
