@@ -229,7 +229,7 @@ export default function InquiryFilterPanel({
                     <AutocompleteField
                         name="handled_by"
                         label="Handled By"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.handled_by ? { name: localValues.handled_by } : null}
@@ -240,7 +240,7 @@ export default function InquiryFilterPanel({
                     <AutocompleteField
                         name="inquiry_by"
                         label="Inquiry By"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.inquiry_by ? { name: localValues.inquiry_by } : null}
@@ -251,7 +251,7 @@ export default function InquiryFilterPanel({
                     <AutocompleteField
                         name="channel_partner"
                         label="Channel Partner"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.channel_partner ? { name: localValues.channel_partner } : null}

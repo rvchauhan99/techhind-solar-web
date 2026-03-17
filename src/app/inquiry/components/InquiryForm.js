@@ -355,7 +355,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                         <AutocompleteField
                             name="inquiry_by"
                             label="Inquiry By"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                             referenceModel="user.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.inquiry_by ? { id: formData.inquiry_by } : null}
@@ -368,7 +368,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                         <AutocompleteField
                             name="handled_by"
                             label="Handled By"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                             referenceModel="user.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.handled_by ? { id: formData.handled_by } : null}
@@ -381,7 +381,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                         <AutocompleteField
                             name="channel_partner"
                             label="Channel Partner"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                             referenceModel="user.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.channel_partner ? { id: formData.channel_partner } : null}

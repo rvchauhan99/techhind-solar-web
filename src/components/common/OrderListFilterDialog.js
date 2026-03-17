@@ -67,7 +67,7 @@ export default function OrderListFilterDialog({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
-      mastersService.getReferenceOptions("user.model").then((r) => {
+      mastersService.getReferenceOptions("user.model", { status_in: "active,inactive" }).then((r) => {
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),

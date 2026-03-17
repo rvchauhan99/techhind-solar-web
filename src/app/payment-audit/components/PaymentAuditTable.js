@@ -31,6 +31,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     open: false,
     paymentId: null,
     orderId: null,
+    approvalRemarks: "",
     proofFile: null,
     reload: null,
   });
@@ -55,6 +56,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       open: false,
       paymentId: null,
       orderId: null,
+      approvalRemarks: "",
       proofFile: null,
       reload: null,
     });
@@ -62,10 +64,10 @@ export default function PaymentAuditTable({ filterParams = {} }) {
   };
 
   const handleConfirmApprove = async () => {
-    const { paymentId, orderId, proofFile, reload } = approveDialog;
+    const { paymentId, orderId, approvalRemarks, proofFile, reload } = approveDialog;
     setApproveConfirmLoading(true);
     try {
-      await orderPaymentsService.approvePayment(paymentId);
+      await orderPaymentsService.approvePayment(paymentId, approvalRemarks);
       if (proofFile && orderId) {
         const formData = new FormData();
         formData.append("document", proofFile);
@@ -332,6 +334,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                       open: true,
                       paymentId: row.id,
                       orderId: row.order_id || null,
+                      approvalRemarks: "",
                       proofFile: null,
                       reload,
                     })
@@ -421,6 +424,18 @@ export default function PaymentAuditTable({ filterParams = {} }) {
           <p className="text-sm text-muted-foreground mb-2">
             Are you sure you want to approve this payment?
           </p>
+          <p className="text-sm text-muted-foreground mt-1 mb-2">
+            Approval remarks (optional):
+          </p>
+          <Input
+            fullWidth
+            multiline
+            rows={2}
+            value={approveDialog.approvalRemarks}
+            onChange={(e) =>
+              setApproveDialog((prev) => ({ ...prev, approvalRemarks: e.target.value }))
+            }
+          />
           <p className="text-sm text-muted-foreground mb-2">
             Payment proof (optional):
           </p>

@@ -29,7 +29,7 @@ export default function MarketingLeadsCallReportPage() {
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("user.model")
+      .getReferenceOptions("user.model", { status_in: "active,inactive" })
       .then((r) => {
         const data = r?.result ?? r?.data ?? r;
         if (Array.isArray(data)) setUserOptions(data);

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 import mastersService from "@/services/mastersService";
+import { IconX } from "@tabler/icons-react";
 
 /**
  * AutocompleteField (shadcn-based). Same API: options, getOptionLabel, value, onChange(e, newValue), label, placeholder, error, helperText, multiple.
@@ -40,6 +41,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     /** "bottom" = list below input (default), "top" = list above input */
     dropdownPlacement = "bottom",
     variant = "default", // ["default", "minimal"]
+    clearable = true,
     ...otherProps
   },
   ref
@@ -395,32 +397,48 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             {required && <span className="text-destructive ml-0.5">*</span>}
           </Label>
         )}
-        <div className="flex flex-wrap gap-2 rounded-lg border border-input bg-background p-2 min-h-10">
-          {selected.map((opt, i) => (
-            <Badge
-              key={i}
-              variant="secondary"
-              className="cursor-pointer"
-              onClick={() => handleSelect(opt)}
+        <div className="flex items-center rounded-lg border border-input bg-background px-2 py-1 min-h-10">
+          <div className="flex flex-wrap gap-2 flex-1">
+            {selected.map((opt, i) => (
+              <Badge
+                key={i}
+                variant="secondary"
+                className="cursor-pointer"
+                onClick={() => handleSelect(opt)}
+              >
+                {getOptionLabel(opt)} ×
+              </Badge>
+            ))}
+            <input
+              ref={ref}
+              type="text"
+              value={inputValue}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onKeyDown={handleKeyDown}
+              placeholder={selected.length === 0 ? placeholder : ""}
+              disabled={disabled}
+              autoComplete="off"
+              className="flex-1 min-w-[120px] border-0 bg-transparent outline-none text-sm"
+            />
+          </div>
+          {clearable && !disabled && selected.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange?.({ target: { value: null } }, []);
+              }}
+              className="ml-1 text-muted-foreground hover:text-destructive"
+              aria-label="Clear selection"
+              title="Clear selection"
             >
-              {getOptionLabel(opt)} ×
-            </Badge>
-          ))}
-          <input
-            ref={ref}
-            type="text"
-            value={inputValue}
-            onChange={(e) => {
-              setInputValue(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onKeyDown={handleKeyDown}
-            placeholder={selected.length === 0 ? placeholder : ""}
-            disabled={disabled}
-            autoComplete="off"
-            className="flex-1 min-w-[120px] border-0 bg-transparent outline-none text-sm"
-          />
+              <IconX className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         {open && (
           <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50">
@@ -490,6 +508,28 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           )}
           {...otherProps}
         />
+        {clearable && !disabled && !multiple && !defaultResolving && displayValue && (
+          <button
+            type="button"
+            className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              setInputValue("");
+              setOpen(false);
+              selectedOptionCacheRef.current = null;
+              if (isAsyncMode) {
+                setAsyncOptions([]);
+                setAsyncError(null);
+                initialOptionsLoadedRef.current = false;
+              }
+              onChange?.({ target: { value: null } }, null);
+            }}
+            aria-label="Clear selection"
+            title="Clear selection"
+          >
+            <IconX className="h-3.5 w-3.5" />
+          </button>
+        )}
         {defaultResolving && !open && (
           <div className="absolute inset-y-0 left-0 flex items-center px-3 pointer-events-none">
             <div className="h-3.5 w-24 rounded bg-muted animate-pulse" />

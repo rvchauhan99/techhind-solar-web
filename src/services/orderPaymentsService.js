@@ -34,8 +34,8 @@ const orderPaymentsService = {
         apiClient.get(`/order-payments/${id}/receipt-url`).then((r) => r.data?.result?.url ?? r.data?.url ?? null),
 
     // Approve payment
-    approvePayment: (id) =>
-        apiClient.post(`/order-payments/${id}/approve`).then((r) => r.data),
+    approvePayment: (id, approval_remarks) =>
+        apiClient.post(`/order-payments/${id}/approve`, { approval_remarks }).then((r) => r.data),
 
     // Reject payment
     rejectPayment: (id, rejection_reason) =>
