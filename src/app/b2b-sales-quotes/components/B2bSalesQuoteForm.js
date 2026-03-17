@@ -30,6 +30,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 
 const emptyCurrentItem = () => ({
     product_id: "",
@@ -60,7 +61,11 @@ export default function B2bSalesQuoteForm({
         ship_to_id: "",
         payment_terms: "",
         delivery_terms: "",
-        remarks: "",
+        order_remarks: "",
+        terms_remarks: "Loading will be in buyer's scope.",
+        freight_terms_id: "",
+        payment_terms_id: "",
+        delivery_schedule_id: "",
         items: [],
     });
 
@@ -111,7 +116,11 @@ export default function B2bSalesQuoteForm({
             ship_to_id: defaultValues.ship_to_id ?? "",
             payment_terms: defaultValues.payment_terms ?? "",
             delivery_terms: defaultValues.delivery_terms ?? "",
-            remarks: defaultValues.remarks ?? "",
+            order_remarks: defaultValues.remarks ?? "",
+            terms_remarks: defaultValues.terms_remarks ?? "Loading will be in buyer's scope.",
+            freight_terms_id: defaultValues.freight_terms_id ?? "",
+            payment_terms_id: defaultValues.payment_terms_id ?? "",
+            delivery_schedule_id: defaultValues.delivery_schedule_id ?? "",
             items,
         });
     }, [defaultValues?.id]);
@@ -280,7 +289,11 @@ export default function B2bSalesQuoteForm({
             ship_to_id: formData.ship_to_id ? Number(formData.ship_to_id) : null,
             payment_terms: formData.payment_terms || null,
             delivery_terms: formData.delivery_terms || null,
-            remarks: formData.remarks || null,
+            remarks: formData.order_remarks || null,
+            terms_remarks: formData.terms_remarks || null,
+            freight_terms_id: formData.freight_terms_id || null,
+            payment_terms_master_id: formData.payment_terms_id || null,
+            delivery_schedule_id: formData.delivery_schedule_id || null,
             items: formData.items.map((it) => ({
                 product_id: typeof it.product_id === "object" ? it.product_id?.id : it.product_id,
                 quantity: parseInt(it.quantity, 10) || 1,
@@ -335,91 +348,165 @@ export default function B2bSalesQuoteForm({
 
                     {/* ── Header Fields ── */}
                     <div className="w-full">
-                        <FormGrid cols={2} className="lg:grid-cols-4">
-                            <DateField
-                                name="quote_date"
-                                label="Quote Date"
-                                placeholder="Select quote date"
-                                value={formData.quote_date}
-                                onChange={handleChange}
-                                required
-                                error={!!errors.quote_date}
-                                helperText={errors.quote_date}
-                            />
-                            <DateField
-                                name="valid_till"
-                                label="Valid Till"
-                                placeholder="Select valid till date"
-                                value={formData.valid_till}
-                                onChange={handleChange}
-                                required
-                                error={!!errors.valid_till}
-                                helperText={errors.valid_till}
-                                minDate={formData.quote_date || undefined}
-                            />
-                            <AutocompleteField
-                                label="Client *"
-                                placeholder="Search and select client"
-                                options={clients}
-                                getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
-                                value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
-                                onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
-                                required
-                                error={!!errors.client_id}
-                                helperText={errors.client_id}
-                            />
-                            <AutocompleteField
-                                label="Ship To"
-                                placeholder="Search and select ship-to"
-                                options={shipTos}
-                                getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
-                                value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
-                                onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
-                                disabled={!formData.client_id}
-                            />
-                            <Input
-                                name="payment_terms"
-                                label="Payment Terms"
-                                placeholder="Enter payment terms"
-                                value={formData.payment_terms}
-                                onChange={handleChange}
-                            />
-                            <Input
-                                name="delivery_terms"
-                                label="Delivery Terms"
-                                placeholder="Enter delivery terms"
-                                value={formData.delivery_terms}
-                                onChange={handleChange}
-                            />
-                            <div className="md:col-span-2 lg:col-span-2">
-                                <Input
-                                    name="remarks"
-                                    label="Remarks"
-                                    placeholder="Enter any additional remarks"
-                                    value={formData.remarks}
+                        <Paper sx={{ p: 0.75, mb: 1, bgcolor: "#fafafa" }}>
+                            <FormGrid cols={6}>
+                                <DateField
+                                    name="quote_date"
+                                    label="Quote Date"
+                                    value={formData.quote_date}
                                     onChange={handleChange}
-                                    multiline
-                                    rows={2}
+                                    required
+                                    error={!!errors.quote_date}
+                                    helperText={errors.quote_date}
+                                    className="lg:col-span-1"
                                 />
-                            </div>
-                        </FormGrid>
-                        <BillToShipToDisplay
-                            billTo={clientDetails}
-                            shipTo={shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null}
-                            className="mt-2"
-                        />
+                                <DateField
+                                    name="valid_till"
+                                    label="Valid Till"
+                                    value={formData.valid_till}
+                                    onChange={handleChange}
+                                    required
+                                    error={!!errors.valid_till}
+                                    helperText={errors.valid_till}
+                                    minDate={formData.quote_date || undefined}
+                                    className="lg:col-span-1"
+                                />
+                                <div className="lg:col-span-2">
+                                    <AutocompleteField
+                                        label="Client *"
+                                        options={clients}
+                                        getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
+                                        value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
+                                        onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
+                                        required
+                                        error={!!errors.client_id}
+                                        helperText={errors.client_id}
+                                    />
+                                </div>
+                                <div className="lg:col-span-2">
+                                    <AutocompleteField
+                                        label="Ship To"
+                                        options={shipTos}
+                                        getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
+                                        value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
+                                        onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
+                                        disabled={!formData.client_id}
+                                    />
+                                </div>
+
+                                {/* Second row of grid: Terms */}
+                                <div className="lg:col-span-2">
+                                    <AutocompleteField
+                                        name="freight_terms_id"
+                                        label="Freight"
+                                        asyncLoadOptions={(q) =>
+                                            getReferenceOptionsSearch("termsAndConditions.model", {
+                                                q,
+                                                limit: 20,
+                                                type: "freight",
+                                                is_active: "true",
+                                            })
+                                        }
+                                        referenceModel="termsAndConditions.model"
+                                        getOptionLabel={(o) => o?.title ?? o?.label ?? ""}
+                                        value={formData.freight_terms_id ? { id: formData.freight_terms_id } : null}
+                                        onChange={(_e, v) =>
+                                            handleChange({
+                                                target: { name: "freight_terms_id", value: v?.id ?? "" },
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="lg:col-span-2">
+                                    <AutocompleteField
+                                        name="payment_terms_id"
+                                        label="Payment terms"
+                                        asyncLoadOptions={(q) =>
+                                            getReferenceOptionsSearch("termsAndConditions.model", {
+                                                q,
+                                                limit: 20,
+                                                type: "payment_terms",
+                                                is_active: "true",
+                                            })
+                                        }
+                                        referenceModel="termsAndConditions.model"
+                                        getOptionLabel={(o) => o?.title ?? o?.label ?? ""}
+                                        value={formData.payment_terms_id ? { id: formData.payment_terms_id } : null}
+                                        onChange={(_e, v) =>
+                                            handleChange({
+                                                target: { name: "payment_terms_id", value: v?.id ?? "" },
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="lg:col-span-2">
+                                    <AutocompleteField
+                                        name="delivery_schedule_id"
+                                        label="Delivery Schedule"
+                                        asyncLoadOptions={(q) =>
+                                            getReferenceOptionsSearch("termsAndConditions.model", {
+                                                q,
+                                                limit: 20,
+                                                type: "delivery_schedule",
+                                                is_active: "true",
+                                            })
+                                        }
+                                        referenceModel="termsAndConditions.model"
+                                        getOptionLabel={(o) => o?.title ?? o?.label ?? ""}
+                                        value={formData.delivery_schedule_id ? { id: formData.delivery_schedule_id } : null}
+                                        onChange={(_e, v) =>
+                                            handleChange({
+                                                target: { name: "delivery_schedule_id", value: v?.id ?? "" },
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                {/* Third row of grid: Remarks */}
+                                <div className="lg:col-span-3">
+                                    <Input
+                                        name="terms_remarks"
+                                        label="T&C Remarks"
+                                        placeholder="Extra terms..."
+                                        value={formData.terms_remarks}
+                                        onChange={handleChange}
+                                        multiline
+                                        rows={2}
+                                    />
+                                </div>
+                                <div className="lg:col-span-3">
+                                    <Input
+                                        name="order_remarks"
+                                        label="Order Remarks"
+                                        placeholder="Internal notes/remarks"
+                                        value={formData.order_remarks}
+                                        onChange={handleChange}
+                                        multiline
+                                        rows={2}
+                                    />
+                                </div>
+                            </FormGrid>
+                        </Paper>
+
+                        {clientDetails && (
+                            <BillToShipToDisplay
+                                billTo={clientDetails}
+                                shipTo={shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null}
+                                className="mt-0.5 mb-1"
+                            />
+                        )}
                     </div>
 
                     {/* ── Items Section ── */}
-                    <FormSection title="Items" className="mt-2" data-items-section>
+                    <FormSection title="Items" className="mt-1" data-items-section>
                         {errors.items && (
-                            <Alert severity="error" sx={{ mb: 1 }}>
+                            <Alert severity="error" sx={{ mb: 1, py: 0 }}>
                                 {errors.items}
                             </Alert>
                         )}
 
                         {/* Add Item Input Row */}
-                        <Paper sx={{ p: 1, mb: 1 }}>
+                        <Paper sx={{ p: 0.75, mb: 1 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
                                 <div>
                                     <AutocompleteField
@@ -613,8 +700,8 @@ export default function B2bSalesQuoteForm({
                     </FormSection>
 
                     {/* ── Attachments Section ── */}
-                    <FormSection title="Attachments" className="mt-2">
-                        <Paper sx={{ p: 1 }}>
+                    <FormSection title="Attachments" className="mt-1">
+                        <Paper sx={{ p: 0.75 }}>
                             <FormGrid cols={2} className="lg:grid-cols-4 mb-1">
                                 <div className="md:col-span-2 lg:col-span-3">
                                     <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>

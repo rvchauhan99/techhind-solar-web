@@ -122,6 +122,7 @@ export default function CompanyProfilePage() {
         email: "",
         phone_no: "",
         address: "",
+        branch_id: null,
         is_active: true,
     });
 
@@ -716,8 +717,13 @@ export default function CompanyProfilePage() {
     // Warehouse Handlers
     const handleWarehouseInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        // Convert state_id to number for Select component
-        let processedValue = name === "state_id" && value !== "" ? Number(value) : (type === "checkbox" ? checked : value);
+        // Convert IDs to number for Select/Autocomplete components
+        let processedValue = value;
+        if ((name === "state_id" || name === "branch_id") && value !== "") {
+            processedValue = Number(value);
+        } else if (type === "checkbox") {
+            processedValue = checked;
+        }
 
         setWarehouseFormData((prev) => ({
             ...prev,
@@ -803,6 +809,9 @@ export default function CompanyProfilePage() {
             if (!warehouseFormData.address || warehouseFormData.address.trim() === "") {
                 validationErrors.address = "This field is required";
             }
+            if (!warehouseFormData.branch_id || warehouseFormData.branch_id === null || warehouseFormData.branch_id === "") {
+                validationErrors.branch_id = "This field is required";
+            }
 
             // If there are validation errors, set them and return
             if (Object.keys(validationErrors).length > 0) {
@@ -835,6 +844,7 @@ export default function CompanyProfilePage() {
                 email: "",
                 phone_no: "",
                 address: "",
+                branch_id: null,
                 is_active: true,
             });
             await loadWarehouses(true); // Force reload after save
@@ -2477,6 +2487,23 @@ export default function CompanyProfilePage() {
                                             required
                                             error={!!warehouseErrors.address}
                                             helperText={warehouseErrors.address || ""}
+                                        />
+                                        <AutocompleteField
+                                            name="branch_id"
+                                            label="Branch"
+                                            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                                            referenceModel="company_branch.model"
+                                            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                                            value={warehouseFormData.branch_id ? { id: warehouseFormData.branch_id } : null}
+                                            onChange={(e, newValue) =>
+                                                handleWarehouseInputChange({
+                                                    target: { name: "branch_id", value: newValue?.id ?? "" },
+                                                })
+                                            }
+                                            placeholder="Type to search..."
+                                            required
+                                            error={!!warehouseErrors.branch_id}
+                                            helperText={warehouseErrors.branch_id || ""}
                                         />
                                         <Checkbox
                                             name="is_active"
