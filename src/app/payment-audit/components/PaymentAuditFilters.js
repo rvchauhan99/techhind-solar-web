@@ -116,7 +116,7 @@ export default function PaymentAuditFilters({
           <AutocompleteField
             name="handled_by"
             label="Handled By"
-            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
             referenceModel="user.model"
             getOptionLabel={(o) => o?.name ?? o?.email ?? o?.username ?? ""}
             value={localFilters.handled_by ? { id: localFilters.handled_by } : null}

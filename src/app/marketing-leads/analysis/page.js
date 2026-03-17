@@ -197,7 +197,7 @@ export default function MarketingLeadAnalysisPage() {
     Promise.all([
       companyService.listBranches().then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
       mastersService.getReferenceOptions("inquiry_source.model").then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
-      mastersService.getReferenceOptions("user.model").then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
+      mastersService.getReferenceOptions("user.model", { status_in: "active,inactive" }).then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
     ]).then(([b, s, u]) => { setBranchOptions(b); setSourceOptions(s); setUserOptions(u); }).catch(() => { });
   }, []);
 

@@ -88,7 +88,6 @@ export default function LeadListFilterPanel({
 
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
-  const [userOptions, setUserOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [localValues, setLocalValues] = useState(() =>
     normalizeLocalValues(values)
@@ -109,20 +108,14 @@ export default function LeadListFilterPanel({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
-      mastersService.getReferenceOptions("user.model").then((r) => {
-        const data = r?.result ?? r?.data ?? r;
-        return Array.isArray(data) ? data : [];
-      }),
     ])
-      .then(([branches, sources, users]) => {
+      .then(([branches, sources]) => {
         setBranchOptions(branches);
         setSourceOptions(sources);
-        setUserOptions(users);
       })
       .catch(() => {
         setBranchOptions([]);
         setSourceOptions([]);
-        setUserOptions([]);
       })
       .finally(() => setLoadingOptions(false));
   }, []);
@@ -387,10 +380,7 @@ export default function LeadListFilterPanel({
             name="assigned_to"
             label="Assigned To"
             placeholder="All users"
-            options={userOptions.map((u) => ({
-              value: String(u.id),
-              label: u.name ?? u.label ?? `User #${u.id}`,
-            }))}
+            options={[]}
             value={
               Array.isArray(localValues.assigned_to)
                 ? localValues.assigned_to
@@ -400,6 +390,25 @@ export default function LeadListFilterPanel({
             }
             onChange={(e) => handleChange("assigned_to", e.target.value)}
             disabled={loadingOptions}
+            searchable
+            searchPlaceholder="Search users..."
+            asyncLoadOptions={(q) =>
+              mastersService
+                .getReferenceOptionsSearch("user.model", {
+                  q,
+                  limit: 20,
+                  status_in: "active,inactive",
+                })
+                .then((res) => {
+                  const data = res?.result ?? res?.data ?? res;
+                  return Array.isArray(data)
+                    ? data.map((u) => ({
+                        value: String(u.id),
+                        label: u.name ?? u.label ?? `User #${u.id}`,
+                      }))
+                    : [];
+                })
+            }
           />
 
           <DateField

@@ -91,7 +91,7 @@ export default function OrderListFilterPanel({
     Promise.all([
       companyService.listBranches().then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
       mastersService.getReferenceOptions("inquiry_source.model").then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
-      mastersService.getReferenceOptions("user.model").then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
+      mastersService.getReferenceOptions("user.model", { status_in: "active,inactive" }).then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
     ]).then(([branches, sources, users]) => {
       setBranchOptions(branches); setSourceOptions(sources); setUserOptions(users);
     }).catch(() => { }).finally(() => setLoadingOptions(false));

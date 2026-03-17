@@ -736,7 +736,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
                   name="handled_by"
                   label="Handled By"
                   required
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                   referenceModel="user.model"
                   getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
                   value={assignmentData.handled_by ? { id: assignmentData.handled_by } : null}
@@ -751,7 +751,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
                   name="channel_partner"
                   label="Channel Partner"
                   required
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                   referenceModel="user.model"
                   getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
                   value={assignmentData.channel_partner ? { id: assignmentData.channel_partner } : null}
@@ -766,7 +766,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
                   name="inquiry_by"
                   label="Inquired By"
                   required
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
                   referenceModel="user.model"
                   getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
                   value={assignmentData.inquiry_by ? { id: assignmentData.inquiry_by } : null}

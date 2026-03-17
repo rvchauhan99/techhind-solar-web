@@ -52,6 +52,7 @@ export default function AssignFabricatorAndInstaller({
         const list = await getReferenceOptionsSearch("user.model", {
             q: inputValue || "",
             limit: 20,
+            status: "active",
         });
         return Array.isArray(list) ? list : [];
     }, []);

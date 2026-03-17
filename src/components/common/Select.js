@@ -11,6 +11,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
+import { IconX } from "@tabler/icons-react";
 
 /**
  * MenuItem-compatible option for use with Select. Use like: <Select><MenuItem value="x">Label</MenuItem></Select>
@@ -43,6 +44,7 @@ const Select = forwardRef(function Select(
     required = false,
     renderValue = null,
     placeholder = "Select...",
+    clearable = true,
     className,
     ...otherProps
   },
@@ -115,7 +117,7 @@ const Select = forwardRef(function Select(
         <SelectTrigger
           id={name}
           className={cn(
-            "w-full",
+            "w-full relative",
             size === "small" && `${FIELD_HEIGHT_CLASS_SMALL} ${FIELD_TEXT_SMALL}`,
             error && "border-destructive",
             className
@@ -128,6 +130,28 @@ const Select = forwardRef(function Select(
                 ? options.find((o) => o.value === stringValue)?.label ?? stringValue
                 : placeholder}
           </SelectValue>
+          {clearable && !disabled && stringValue !== "" && (
+            <span
+              role="button"
+              tabIndex={0}
+              className="absolute inset-y-0 right-7 flex items-center text-muted-foreground hover:text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleValueChange("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleValueChange("");
+                }
+              }}
+              aria-label="Clear selection"
+              title="Clear selection"
+            >
+              <IconX className="h-3.5 w-3.5" />
+            </span>
+          )}
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__empty__">{placeholder}</SelectItem>
