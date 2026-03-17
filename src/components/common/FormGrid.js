@@ -20,7 +20,11 @@ export default function FormGrid({
       ? "grid-cols-1"
       : cols === 2
         ? "grid-cols-1 md:grid-cols-2"
-        : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
+        : cols === 4
+          ? "grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+          : cols === 6
+            ? "grid-cols-2 md:grid-cols-4 lg:grid-cols-6"
+            : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3";
 
   return (
     <div
