@@ -17,7 +17,7 @@ function TabPanel({ children, value, index }) {
 export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, onRefresh }) {
     const [tabValue, setTabValue] = useState(0);
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
 
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);

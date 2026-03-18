@@ -19,7 +19,7 @@ import moment from "moment";
 
 export default function NetMeterInstalledForm({ orderId, orderData, orderDocuments, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
         netmeter_serial_no: "",
         solarmeter_serial_no: "",

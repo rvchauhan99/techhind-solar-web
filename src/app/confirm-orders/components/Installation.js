@@ -42,7 +42,7 @@ function getDocumentUrlById(id) {
 export default function Installation({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
     const { user } = useAuth();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const isCompleted = orderData?.stages?.installation === "completed";
     const canComplete = orderData?.stages?.fabrication === "completed" && !isCompleted && !isReadOnly;
 
