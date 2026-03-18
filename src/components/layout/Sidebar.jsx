@@ -501,6 +501,22 @@ export default function Sidebar({
 
         {/* Main Menu */}
         <nav className="mb-6 space-y-1">
+          {/* Ensure Payment Outstanding is reachable even if not yet configured as a module */}
+          {(() => {
+            const hasPaymentOutstanding = flatItems.some((i) => i.route === "/payment-outstanding");
+            if (hasPaymentOutstanding) return null;
+            return (
+              <Link
+                href="/payment-outstanding"
+                onClick={() => setSidebarOpen?.(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors border-l-4 text-blue-100 hover:bg-[#142847] hover:text-white border-transparent"
+                title="Payment Outstanding"
+              >
+                <span className="h-5 w-5 shrink-0 rounded bg-[#00823b]/20 border border-[#00823b]/30" />
+                <span>Payment Outstanding</span>
+              </Link>
+            );
+          })()}
           {modules.map((item, index) => (
             <MenuItemComponent
               key={item.id || `${item.name}-${index}`}
