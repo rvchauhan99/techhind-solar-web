@@ -250,8 +250,8 @@ export default function TechnicalSection({
                                     panel_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     panel_size: findProduct?.capacity ?? "",
                                     panel_type: findProduct?.properties?.panel?.type ?? "",
-                                    panel_warranty: findProduct?.properties?.panel?.warranty ?? "",
-                                    panel_performance_warranty: findProduct?.properties?.panel?.performance_warranty ?? "",
+                                    panel_warranty: findProduct?.properties?.additional?.warranty ?? findProduct?.properties?.panel?.warranty ?? "",
+                                    panel_performance_warranty: findProduct?.properties?.additional?.performance_warranty ?? findProduct?.properties?.panel?.performance_warranty ?? "",
                                 });
                             }}
                             placeholder="Type to search..."
@@ -353,7 +353,7 @@ export default function TechnicalSection({
                                     inverter_product: findProduct?.id ?? "",
                                     inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     inverter_size: findProduct?.capacity ?? "",
-                                    inverter_warranty: findProduct?.properties?.inverter?.warranty ?? "",
+                                    inverter_warranty: findProduct?.properties?.additional?.warranty ?? findProduct?.properties?.inverter?.warranty ?? "",
                                 });
                             }}
                             placeholder="Type to search..."
@@ -426,7 +426,7 @@ export default function TechnicalSection({
                                     battery_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     battery_size: findProduct?.capacity ?? "",
                                     battery_type: findProduct?.properties?.battery?.type ?? "",
-                                    battery_warranty: findProduct?.properties?.battery?.warranty ?? "",
+                                    battery_warranty: findProduct?.properties?.additional?.warranty ?? findProduct?.properties?.battery?.warranty ?? "",
                                     battery_description_text: findProduct?.product_description ?? "",
                                 });
                             }}
@@ -523,7 +523,7 @@ export default function TechnicalSection({
                                     hybrid_inverter_product: findProduct?.id ?? "",
                                     hybrid_inverter_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     hybrid_inverter_size: findProduct?.capacity ?? "",
-                                    hybrid_inverter_warranty: findProduct?.properties?.hybrid_inverter?.warranty ?? "",
+                                    hybrid_inverter_warranty: findProduct?.properties?.additional?.warranty ?? findProduct?.properties?.hybrid_inverter?.warranty ?? "",
                                 });
                             }}
                             placeholder="Type to search..."
