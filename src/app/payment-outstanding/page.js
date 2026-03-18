@@ -2,11 +2,12 @@
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IconCash, IconTrendingDown, IconChartLine, IconDownload, IconNotes } from "@tabler/icons-react";
-import OrderListFilterPanel, { EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES } from "@/components/common/OrderListFilterPanel";
+import { IconCash, IconTrendingDown, IconChartLine, IconDownload, IconNotes, IconFilter, IconRefresh, IconCalendar, IconX } from "@tabler/icons-react";
+import OrderListFilterPanel, { EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES, ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import paymentOutstandingService from "@/services/paymentOutstandingService";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import PaymentFollowUpForm from "./components/PaymentFollowUpForm";
 import PaymentFollowUpHistory from "./components/PaymentFollowUpHistory";
@@ -18,23 +19,92 @@ const TT_STYLE = { borderRadius: 6, border: "none", boxShadow: "0 4px 12px rgb(0
 
 function getInitialFilters() {
   const n = new Date(); const p = new Date(n); p.setDate(n.getDate() - 30);
-  return { ...ORDER_FILTER_EMPTY_VALUES, order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] };
+  return { ...ORDER_FILTER_EMPTY_VALUES, payment_type: "", order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] };
+}
+
+const DATE_PRESETS = [
+  { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
+  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: m.toISOString().split("T")[0], order_date_to: e.toISOString().split("T")[0] }; } },
+  { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
+  { label: "Last 30D", fn: () => { const n = new Date(), p = new Date(n); p.setDate(n.getDate() - 30); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
+  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
+  { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
+];
+
+const PAYMENT_TYPE_TABS = [
+  { value: "", label: "All", cls: "text-slate-600 border-slate-200 hover:border-slate-400", activeCls: "bg-slate-100 border-slate-400 text-slate-700" },
+  { value: "Direct Payment", label: "Direct", cls: "text-sky-600 border-sky-200 hover:border-sky-400", activeCls: "bg-sky-50 border-sky-400 text-sky-700" },
+  { value: "Loan", label: "Loan", cls: "text-indigo-600 border-indigo-200 hover:border-indigo-400", activeCls: "bg-indigo-50 border-indigo-400 text-indigo-700" },
+  { value: "PDC", label: "PDC", cls: "text-rose-600 border-rose-200 hover:border-rose-400", activeCls: "bg-rose-50 border-rose-400 text-rose-700" },
+];
+
+const FILTER_LABELS = {
+  order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
+  branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
+  order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
+  reference_from: "Reference", current_stage_key: "Stage", inquiry_source_id: "Source", q: "Search",
+};
+
+function getChips(filters) {
+  return Object.entries(filters || {})
+    .filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .map(([key, value]) => ({
+      key,
+      label: FILTER_LABELS[key] || key,
+      value: key === "payment_type"
+        ? (PAYMENT_TYPE_TABS.find((o) => o.value === value)?.label || value)
+        : key === "current_stage_key"
+          ? (ORDER_STAGE_OPTIONS.find((o) => o.value === value)?.label || value)
+          : String(value),
+    }));
+}
+
+function countActive(f) {
+  if (!f) return 0;
+  return Object.entries(f).filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
 }
 
 export default function PaymentOutstandingPage() {
   const [filters, setFilters] = useState(getInitialFilters());
-  const [filterPanelOpen, setFilterPanelOpen] = useState(true);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [activePreset, setActivePreset] = useState(null);
+  const [activePaymentTypeTab, setActivePaymentTypeTab] = useState("");
   const [summary, setSummary] = useState(null);
   const [trend, setTrend] = useState([]);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpOrder, setFollowUpOrder] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
+  const activeCount = countActive(filters);
+  const chips = getChips(filters);
+
   const handleApplyFilters = (next) => {
     setFilters((prev) => ({ ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) }));
     setFilterPanelOpen(false);
   };
-  const handleClearFilters = () => setFilters(getInitialFilters());
+  const handleClearFilters = () => {
+    setFilters(getInitialFilters());
+    setActivePreset(null);
+    setActivePaymentTypeTab("");
+  };
+
+  const handlePreset = (preset) => {
+    const dates = preset.fn();
+    setFilters((prev) => ({ ...prev, ...dates }));
+    setActivePreset(preset.label);
+  };
+
+  const handlePaymentTypeTab = (value) => {
+    setActivePaymentTypeTab(value);
+    setFilters((prev) => ({ ...prev, payment_type: value || "" }));
+  };
+
+  const removeChip = (key) => {
+    const empty = getInitialFilters();
+    setFilters((prev) => ({ ...prev, [key]: empty[key] ?? "" }));
+    if (key === "order_date_from" || key === "order_date_to") setActivePreset(null);
+    if (key === "payment_type") setActivePaymentTypeTab("");
+  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -98,6 +168,11 @@ export default function PaymentOutstandingPage() {
     { field: "payment_type", label: "Payment Type" },
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
     { field: "order_date", label: "Order Date", render: (row) => row.order_date ? new Date(row.order_date).toLocaleDateString("en-IN") : "-" },
+    { field: "current_stage_key", label: "Stage", render: (row) => {
+      const key = row.current_stage_key;
+      const label = ORDER_STAGE_OPTIONS.find((o) => o.value === key)?.label;
+      return <span className="text-[11px]">{label || key || "-"}</span>;
+    } },
     { field: "branch.name", label: "Branch", render: (row) => <span className="text-[11px] text-slate-500">{row.branch?.name || "-"}</span> },
     { field: "handledBy.name", label: "Handled By", render: (row) => <span className="text-[11px] text-slate-500">{row.handledBy?.name || "-"}</span> },
   ]), []);
@@ -118,19 +193,103 @@ export default function PaymentOutstandingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-[1440px] px-3 py-2 space-y-2">
-        <div>
-          <h1 className="text-xl font-bold leading-tight">Payment Outstanding</h1>
-          <p className="text-[11px] text-slate-500">All orders with pending payment and quick actions.</p>
+        {/* Header + Quick Filters */}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <div className="bg-emerald-500/10 p-1.5 rounded-lg">
+              <IconCash size={16} stroke={2} className="text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">Payment Outstanding</h1>
+              <p className="text-[11px] text-slate-500">All orders with pending payment and quick actions.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="flex items-center gap-1 text-[10px] text-slate-400">
+              <IconCalendar size={11} /> Quick:
+            </span>
+            {DATE_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                onClick={() => handlePreset(p)}
+                className={[
+                  "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                  activePreset === p.label
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
+                ].join(" ")}
+              >
+                {p.label}
+              </button>
+            ))}
+            {activeCount > 0 && (
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{activeCount} active</Badge>
+            )}
+            <div className="h-4 w-px bg-slate-200 mx-0.5" />
+            <Button size="sm" variant="outline" onClick={handleClearFilters} className="h-7 text-xs gap-1 px-2">
+              <IconRefresh size={11} /> Reset
+            </Button>
+            <Button size="sm" onClick={() => setFilterPanelOpen((o) => !o)} className="h-7 text-xs gap-1 px-2">
+              <IconFilter size={11} /> {filterPanelOpen ? "Hide" : "Filters"}
+            </Button>
+          </div>
         </div>
 
-        <OrderListFilterPanel
-          open={filterPanelOpen}
-          onToggle={setFilterPanelOpen}
-          values={filters}
-          onApply={handleApplyFilters}
-          onClear={handleClearFilters}
-          defaultOpen
-        />
+        {/* Payment Type Quick Tabs */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {PAYMENT_TYPE_TABS.map((tab) => {
+            const isActive = activePaymentTypeTab === tab.value;
+            return (
+              <button
+                key={tab.value || "all"}
+                onClick={() => handlePaymentTypeTab(tab.value)}
+                className={[
+                  "flex items-center gap-1 text-[11px] font-semibold px-3 py-1 rounded-full border transition-all",
+                  isActive
+                    ? (tab.activeCls || "bg-primary text-primary-foreground border-primary")
+                    : `bg-white ${tab.cls}`,
+                ].join(" ")}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Collapsible Advanced Filters */}
+        {filterPanelOpen && (
+          <OrderListFilterPanel
+            open
+            onToggle={() => setFilterPanelOpen(false)}
+            values={filters}
+            onApply={(next) => { handleApplyFilters(next); setFilterPanelOpen(false); }}
+            onClear={handleClearFilters}
+            defaultOpen
+          />
+        )}
+
+        {/* Active Filter Chips */}
+        {chips.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Filters:</span>
+            {chips.map(({ key, label, value }) => (
+              <button
+                key={key}
+                onClick={() => removeChip(key)}
+                className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/8 border border-primary/20 text-primary/80 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+              >
+                {label}: <span className="font-semibold">{value}</span>
+                <IconX size={9} />
+              </button>
+            ))}
+            <button
+              onClick={handleClearFilters}
+              className="text-[10px] px-2 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:border-red-300 hover:text-red-500 transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -178,7 +337,7 @@ export default function PaymentOutstandingPage() {
           fetcher={fetcher}
           initialPage={1}
           initialLimit={25}
-          showSearch
+          showSearch={false}
           height="calc(100vh - 420px)"
           moduleKey="/order"
         />
