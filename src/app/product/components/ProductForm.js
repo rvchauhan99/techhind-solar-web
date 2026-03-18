@@ -67,8 +67,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         panel_technology_id: "",
         // extra_size: "",
         extra_type: "",
-        extra_warranty: "",
-        additional_type: "",
         additional_warranty: "",
         additional_performance_warranty: "",
         ac_quantity: "",
@@ -90,36 +88,52 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
 
     useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
+            const properties = defaultValues?.properties || {};
+            const getLegacyWarranty = () => {
+                const candidates = [
+                    properties?.inverter?.warranty,
+                    properties?.hybrid_inverter?.warranty,
+                    properties?.battery?.warranty,
+                    properties?.structure?.warranty,
+                    properties?.panel?.warranty,
+                    properties?.ac_cable?.warranty,
+                    properties?.dc_cable?.warranty,
+                    properties?.earthing?.warranty,
+                    properties?.acdb?.warranty,
+                    properties?.dcdb?.warranty,
+                    properties?.la?.warranty,
+                ];
+                const found = candidates.find((v) => v != null && String(v).trim() !== "");
+                return found ?? "";
+            };
+
             // Get product type from properties key
             const typeName = defaultValues?.properties
-                ? Object.keys(defaultValues.properties)[0]
+                ? Object.keys(properties)[0]
                 : null;
 
             // Extract properties based on detected type
             // let extra_size = "";
             let extra_type = "";
-            let extra_warranty = "";
 
-            if (typeName && defaultValues.properties?.[typeName]) {
-                const props = defaultValues.properties[typeName];
+            if (typeName && properties?.[typeName]) {
+                const props = properties[typeName];
 
                 // extra_size = props.size ?? "";
                 extra_type = props.type ?? "";
-                extra_warranty = props.warranty ?? "";
             }
 
             let ac_quantity = "";
             let ac_description = "";
             let dc_quantity = "";
             let dc_description = "";
-            const additional_type = defaultValues.properties?.additional?.type ?? "";
             const additional_warranty =
-                defaultValues.properties?.additional?.warranty ??
-                defaultValues.properties?.panel?.warranty ??
+                properties?.additional?.warranty ??
+                getLegacyWarranty() ??
                 "";
             const additional_performance_warranty =
-                defaultValues.properties?.additional?.performance_warranty ??
-                defaultValues.properties?.panel?.performance_warranty ??
+                properties?.additional?.performance_warranty ??
+                properties?.panel?.performance_warranty ??
                 "";
             // if (typeName === "cable" && defaultValues.properties?.cable) {
             //     const props = defaultValues.properties.cable;
@@ -130,10 +144,10 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             //     dc_description = props.dc_description ?? "";
             // }
             if (typeName == "ac_cable") {
-                ac_quantity = defaultValues.properties.ac_cable.ac_quantity ?? "";
+                ac_quantity = properties.ac_cable?.ac_quantity ?? "";
             }
             if (typeName == "dc_cable") {
-                dc_quantity = defaultValues.properties.dc_cable.dc_quantity ?? ""
+                dc_quantity = properties.dc_cable?.dc_quantity ?? ""
             }
 
 
@@ -154,15 +168,12 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 tracking_type: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() : "LOT",
                 serial_required: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() === "SERIAL" : false,
                 serial_number_length: defaultValues.serial_number_length ?? "",
-                material: defaultValues.properties?.structure?.material ?? "",
-                warranty: defaultValues.properties?.structure?.warranty ?? "",
-                // panel_size: defaultValues.properties?.panel?.size ?? "",
-                panel_type: defaultValues.properties?.panel?.type ?? "",
-                panel_technology_id: defaultValues.properties?.panel?.panel_technology_id ?? "",
+                material: properties?.structure?.material ?? "",
+                // panel_size: properties?.panel?.size ?? "",
+                panel_type: properties?.panel?.type ?? "",
+                panel_technology_id: properties?.panel?.panel_technology_id ?? "",
                 // extra_size,
                 extra_type,
-                extra_warranty,
-                additional_type,
                 additional_warranty,
                 additional_performance_warranty,
                 ac_quantity,
@@ -398,7 +409,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         if (selectedTypeName === "structure") {
             payloadProperties.structure = {
                 material: formData.material,
-                warranty: formData.extra_warranty
             };
         } else if (selectedTypeName === "panel") {
             payloadProperties.panel = {
@@ -410,32 +420,25 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         const typeName = selectedTypeName.replace(/\s+/g, "_");
         // Build properties object based on product type
         if (["inverter", "hybrid_inverter", "earthing", "acdb", "dcdb", "la"].includes(typeName)) {
-            payloadProperties[typeName] = {
-                // size: formData.extra_size ? Number(formData.extra_size) : null,
-                warranty: formData.extra_warranty || null
-            };
+            payloadProperties[typeName] = {};
         }
 
         else if (typeName === "battery") {
             payloadProperties.battery = {
                 // size: formData.extra_size ? Number(formData.extra_size) : null,
                 type: formData.extra_type || null,
-                warranty: formData.extra_warranty || null
             };
         } else if (typeName == "ac_cable") {
             payloadProperties.ac_cable = {
                 ac_quantity: formData.ac_quantity ? Number(formData.ac_quantity) : null,
-                warranty: formData.extra_warranty || null
             };
         } else if (typeName == "dc_cable") {
             payloadProperties.dc_cable = {
                 dc_quantity: formData.dc_quantity ? Number(formData.dc_quantity) : null,
-                warranty: formData.extra_warranty || null
             };
         }
 
         payloadProperties.additional = {
-            type: formData.additional_type || null,
             warranty: formData.additional_warranty || null,
             performance_warranty: formData.additional_performance_warranty || null
         };
@@ -463,8 +466,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         delete payload.panel_technology_id;
         // delete payload.extra_size;
         delete payload.extra_type;
-        delete payload.extra_warranty;
-        delete payload.additional_type;
         delete payload.additional_warranty;
         delete payload.additional_performance_warranty;
         delete payload.ac_quantity;
@@ -812,14 +813,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input
-                            name="additional_type"
-                            label="Type"
-                            value={formData.additional_type}
-                            onChange={handleChange}
-                        />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input
                             name="additional_warranty"
                             label="Warranty"
                             value={formData.additional_warranty}
@@ -853,50 +846,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                     onChange={handleChange}
                                 />
                             </Grid>
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="extra_warranty"
-                                    label="Warranty"
-                                    value={formData.extra_warranty}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
                         </>
                     )}
-
-                    {/* Inverter/Hybrid/Earthing/ACDB/DCDB/LA Details */}
-                    {["inverter", "hybrid inverter", "earthing", "acdb", "dcdb", "la"].includes(
-                        selectedTypeName
-                    ) && (
-                            <>
-                                <Grid item size={12}>
-                                    <Divider sx={{ my: 2 }}>
-                                        <Typography variant="subtitle1" fontWeight="bold">
-                                            Type Details
-                                        </Typography>
-                                    </Divider>
-                                </Grid>
-
-                                {/* <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="extra_size"
-                                    label="Size"
-                                    type="number"
-                                    value={formData.extra_size}
-                                    onChange={handleChange}
-                                />
-                            </Grid> */}
-
-                                <Grid item size={{ xs: 12, md: 3 }}>
-                                    <Input
-                                        name="extra_warranty"
-                                        label="Warranty"
-                                        value={formData.extra_warranty}
-                                        onChange={handleChange}
-                                    />
-                                </Grid>
-                            </>
-                        )}
 
                     {/* Battery Details */}
                     {selectedTypeName === "battery" && (
@@ -924,15 +875,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                     name="extra_type"
                                     label="Type"
                                     value={formData.extra_type}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
-
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="extra_warranty"
-                                    label="Warranty"
-                                    value={formData.extra_warranty}
                                     onChange={handleChange}
                                 />
                             </Grid>
@@ -985,14 +927,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 onChange={handleChange}
                             />
                         </Grid> */}
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="extra_warranty"
-                                    label="Warranty"
-                                    value={formData.extra_warranty}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
                         </>
                     )}
 
@@ -1042,14 +976,6 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 onChange={handleChange}
                             />
                         </Grid> */}
-                            <Grid item size={{ xs: 12, md: 3 }}>
-                                <Input
-                                    name="extra_warranty"
-                                    label="Warranty"
-                                    value={formData.extra_warranty}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
                         </>
                     )}
 

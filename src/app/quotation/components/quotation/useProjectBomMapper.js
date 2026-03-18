@@ -181,8 +181,8 @@ export function mapBomResponseToForm(response) {
             const makeId = product?.product_make_id ?? product?.productMake?.id;
             formPatch.panel_make_ids = makeId != null ? [Number(makeId)] : [];
             formPatch.panel_type = properties.panel?.type ?? "";
-            formPatch.panel_warranty = properties.panel?.warranty ?? properties?.additional?.warranty ?? "";
-            formPatch.panel_performance_warranty = properties?.additional?.performance_warranty ?? "";
+            formPatch.panel_warranty = properties?.additional?.warranty ?? properties.panel?.warranty ?? "";
+            formPatch.panel_performance_warranty = properties?.additional?.performance_warranty ?? properties.panel?.performance_warranty ?? "";
             project_capacity = (((product?.capacity ?? 0) * (element?.quantity ?? 0)) / 1000).toFixed(2);
             if (productWithMakeName) bomProductBySection.panel = productWithMakeName;
         } else if (properties?.inverter) {
@@ -191,7 +191,7 @@ export function mapBomResponseToForm(response) {
             formPatch.inverter_quantity = element.quantity ?? "";
             const makeId = product?.product_make_id ?? product?.productMake?.id;
             formPatch.inverter_make_ids = makeId != null ? [Number(makeId)] : [];
-            formPatch.inverter_warranty = properties.inverter?.warranty ?? "";
+            formPatch.inverter_warranty = properties?.additional?.warranty ?? properties.inverter?.warranty ?? "";
             if (productWithMakeName) bomProductBySection.inverter = productWithMakeName;
         } else if (properties?.hybrid_inverter) {
             formPatch.hybrid_inverter_product = product?.id ?? "";
@@ -199,7 +199,7 @@ export function mapBomResponseToForm(response) {
             formPatch.hybrid_inverter_quantity = element.quantity ?? "";
             const makeId = product?.product_make_id ?? product?.productMake?.id;
             formPatch.hybrid_inverter_make_ids = makeId != null ? [Number(makeId)] : [];
-            formPatch.hybrid_inverter_warranty = properties.hybrid_inverter?.warranty ?? "";
+            formPatch.hybrid_inverter_warranty = properties?.additional?.warranty ?? properties.hybrid_inverter?.warranty ?? "";
             if (productWithMakeName) bomProductBySection.hybridInverter = productWithMakeName;
         } else if (properties?.battery) {
             formPatch.battery_product = product?.id ?? "";
@@ -208,7 +208,7 @@ export function mapBomResponseToForm(response) {
             const makeId = product?.product_make_id ?? product?.productMake?.id;
             formPatch.battery_make_ids = makeId != null ? [Number(makeId)] : [];
             formPatch.battery_type = properties.battery?.type ?? "";
-            formPatch.battery_warranty = properties.battery?.warranty ?? "";
+            formPatch.battery_warranty = properties?.additional?.warranty ?? properties.battery?.warranty ?? "";
             formPatch.battery_description_text = element?.description ?? "";
             if (productWithMakeName) bomProductBySection.battery = productWithMakeName;
         } else if (properties?.ac_cable) {
