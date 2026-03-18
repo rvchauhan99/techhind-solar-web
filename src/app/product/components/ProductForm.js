@@ -60,6 +60,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         min_stock_quantity: "",
         tracking_type: "LOT",
         serial_required: false,
+        serial_number_length: "",
         material: "",
         // panel_size: "",
         panel_type: "",
@@ -152,6 +153,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 min_stock_quantity: defaultValues.min_stock_quantity ?? "",
                 tracking_type: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() : "LOT",
                 serial_required: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() === "SERIAL" : false,
+                serial_number_length: defaultValues.serial_number_length ?? "",
                 material: defaultValues.properties?.structure?.material ?? "",
                 warranty: defaultValues.properties?.structure?.warranty ?? "",
                 // panel_size: defaultValues.properties?.panel?.size ?? "",
@@ -236,6 +238,22 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         loadProductMakes();
     }, [formData.product_type_id, defaultValues?.product_type_id]);
 
+    // Default to SERIAL when product type is panel or inverter (compare lowercase) - only for new products
+    useEffect(() => {
+        if (defaultValues?.id) return; // Edit mode: keep existing tracking_type
+        const selectedType = options.productTypes.find(
+            (t) => String(t.id) === String(formData.product_type_id)
+        );
+        const typeNameLower = (selectedType?.name ?? "").toLowerCase();
+        if (typeNameLower === "panel" || typeNameLower === "inverter") {
+            setFormData((prev) => ({
+                ...prev,
+                tracking_type: "SERIAL",
+                serial_required: true,
+            }));
+        }
+    }, [formData.product_type_id, options.productTypes, defaultValues?.id]);
+
     // Auto-generate product name for Panel type from Make, Panel Type, Panel Technology, Capacity
     useEffect(() => {
         const generatedName = getPanelProductName(formData, options);
@@ -256,13 +274,14 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
 
-        // Handle tracking_type change - automatically set serial_required
+        // Handle tracking_type change - automatically set serial_required and clear serial_number_length when LOT
         if (name === "tracking_type") {
             const normalizedTrackingType = value ? value.toUpperCase() : "LOT";
             setFormData((prev) => ({
                 ...prev,
                 tracking_type: normalizedTrackingType,
-                serial_required: normalizedTrackingType === "SERIAL", // If SERIAL, set to true, else false
+                serial_required: normalizedTrackingType === "SERIAL",
+                serial_number_length: normalizedTrackingType === "LOT" ? "" : prev.serial_number_length,
             }));
         } else {
             setFormData((prev) => ({
@@ -342,6 +361,13 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         serial_required: expectedSerialRequired,
                     }));
                 }
+                // Serial number length required when serialized
+                if (expectedSerialRequired) {
+                    const len = formData.serial_number_length;
+                    if (len == null || len === "" || Number(len) < 1) {
+                        validationErrors.serial_number_length = "Serial number character length is required and must be at least 1";
+                    }
+                }
             }
         }
 
@@ -357,7 +383,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         const payload = {
             ...formData,
             tracking_type: normalizedTrackingType,
-            serial_required: normalizedTrackingType === "SERIAL", // Ensure consistency
+            serial_required: normalizedTrackingType === "SERIAL",
+            serial_number_length: formData.serial_number_length ? Number(formData.serial_number_length) : null,
             capacity: formData.capacity ? Number(formData.capacity) : null,
             purchase_price: Number(formData.purchase_price),
             selling_price: Number(formData.selling_price),
@@ -637,6 +664,23 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 : "Disabled for LOT tracking"}
                         </FormHelperText>
                     </Grid>
+
+                    {/* Serial Number Character Length - shown when serialized */}
+                    {formData.serial_required && (
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <Input
+                                name="serial_number_length"
+                                label="Serial Number Characters Length"
+                                type="number"
+                                value={formData.serial_number_length}
+                                onChange={handleChange}
+                                inputProps={{ min: 1, step: 1 }}
+                                required
+                                error={!!errors.serial_number_length}
+                                helperText={errors.serial_number_length}
+                            />
+                        </Grid>
+                    )}
 
                     {/* Is Active */}
                     <Grid item size={{ xs: 12, md: 3 }}>
