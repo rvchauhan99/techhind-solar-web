@@ -57,6 +57,9 @@ export const downloadOrderPDF = (id) =>
             };
         });
 
+export const forceCompleteDelivery = (id, payload = {}) =>
+    apiClient.post(`/order/${id}/force-complete-delivery`, payload).then((r) => r.data);
+
 export default {
     getOrders,
     exportOrders,
@@ -74,4 +77,5 @@ export default {
     getInstallationByOrderId,
     saveInstallation,
     downloadOrderPDF,
+    forceCompleteDelivery,
 };

@@ -15,6 +15,10 @@ import {
   MenuItem,
   Paper,
   TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   Tooltip,
   Typography,
 } from "@mui/material";
@@ -23,10 +27,11 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import GroupIcon from "@mui/icons-material/Group";
 import AddIcon from "@mui/icons-material/Add";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 import { useRouter } from "next/navigation";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
-import { toastError } from "@/utils/toast";
+import { toastError, toastSuccess } from "@/utils/toast";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import AssignFabricatorAndInstaller from "@/app/confirm-orders/components/AssignFabricatorAndInstaller";
 import {
@@ -115,6 +120,9 @@ export default function DeliveryExecutionPage() {
   const [assignTeamLoading, setAssignTeamLoading] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuOrder, setMenuOrder] = useState(null);
+  const [forceCompleteDialogOpen, setForceCompleteDialogOpen] = useState(false);
+  const [forceCompleteOrder, setForceCompleteOrder] = useState(null);
+  const [forceCompleteLoading, setForceCompleteLoading] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -272,9 +280,42 @@ export default function DeliveryExecutionPage() {
     handleMenuClose();
   };
 
+  const handleMenuForceCompleteDelivery = () => {
+    if (menuOrder) {
+      setForceCompleteOrder(menuOrder);
+      setForceCompleteDialogOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleForceCompleteCancel = () => {
+    if (forceCompleteLoading) return;
+    setForceCompleteDialogOpen(false);
+    setForceCompleteOrder(null);
+  };
+
+  const handleForceCompleteConfirm = async () => {
+    if (!forceCompleteOrder?.id) return;
+    try {
+      setForceCompleteLoading(true);
+      await orderService.forceCompleteDelivery(forceCompleteOrder.id);
+      toastSuccess("Delivery marked as complete");
+      setForceCompleteDialogOpen(false);
+      setForceCompleteOrder(null);
+      await fetchData();
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message || err?.message || "Failed to mark delivery as complete";
+      toastError(msg);
+    } finally {
+      setForceCompleteLoading(false);
+    }
+  };
+
   const menuStatus = menuOrder?.kanban_status || menuOrder?.delivery_status || "pending";
   const showAssignTeam = menuStatus === "partial" || menuStatus === "complete";
   const showNewChallan = menuStatus === "pending" || menuStatus === "partial";
+  const showForceComplete = menuStatus === "partial";
 
   return (
     <Box
@@ -655,6 +696,14 @@ export default function DeliveryExecutionPage() {
             <ListItemText primary="New Challan" />
           </MenuItem>
         )}
+        {showForceComplete && (
+          <MenuItem onClick={handleMenuForceCompleteDelivery}>
+            <ListItemIcon>
+              <DoneAllIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText primary="Force Delivery Complete" />
+          </MenuItem>
+        )}
       </Menu>
 
       <Drawer anchor="right" open={assignTeamDrawerOpen} onClose={handleCloseAssignTeam}>
@@ -689,6 +738,43 @@ export default function DeliveryExecutionPage() {
         showPrint
         showDeliverySnapshot
       />
+
+      <Dialog
+        open={forceCompleteDialogOpen}
+        onClose={forceCompleteLoading ? undefined : handleForceCompleteCancel}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>Force Delivery Complete?</DialogTitle>
+        <DialogContent sx={{ pb: 1 }}>
+          <Typography variant="body2">
+            Remaining pending items for this order will be treated as not required and the delivery
+            will be marked as completed. This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 2, pb: 1.5 }}>
+          <Button
+            size="small"
+            onClick={handleForceCompleteCancel}
+            disabled={forceCompleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            color="success"
+            onClick={handleForceCompleteConfirm}
+            disabled={forceCompleteLoading}
+          >
+            {forceCompleteLoading ? (
+              <CircularProgress size={16} sx={{ color: "inherit" }} />
+            ) : (
+              "Confirm"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
