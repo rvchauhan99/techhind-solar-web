@@ -17,7 +17,7 @@ import { toastSuccess, toastError } from "@/utils/toast";
 
 export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
         estimate_quotation_serial_no: "",
         estimate_amount: "",

@@ -17,6 +17,10 @@ import {
     Stack,
     IconButton,
     Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import HomeIcon from "@mui/icons-material/Home";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -43,8 +47,9 @@ import NetMeterInstalled from "../components/NetMeterInstalled";
 import SubsidyClaim from "../components/SubsidyClaim";
 import SubsidyDisbursed from "../components/SubsidyDisbursed";
 import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
-import { toastError } from "@/utils/toast";
+import { toastError, toastSuccess } from "@/utils/toast";
 import CustomerProjectDetails from "./components/CustomerProjectDetails";
+import orderService from "@/services/orderService";
 
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
@@ -173,6 +178,9 @@ function ConfirmedOrderViewPageContent() {
     const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [tabValue, setTabValue] = useState(0);
     const mountedRef = useRef(true);
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState("");
+    const [cancelling, setCancelling] = useState(false);
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -257,6 +265,40 @@ function ConfirmedOrderViewPageContent() {
         return `calc(100vh - 140px)`;
     };
 
+    const canCancelOrder = () => {
+        if (!orderData) return false;
+        const status = String(orderData.status || "").toLowerCase();
+        const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
+        if (status !== "pending" && status !== "confirmed") return false;
+        if (status === "cancelled" || status === "completed") return false;
+        if (deliveryStatus === "partial" || deliveryStatus === "complete") return false;
+        return true;
+    };
+
+    const handleOpenCancelDialog = () => {
+        setCancelReason("");
+        setCancelDialogOpen(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!orderId) return;
+        try {
+            setCancelling(true);
+            await orderService.cancelOrder(orderId, {
+                cancellation_reason: cancelReason?.trim() || undefined,
+            });
+            toastSuccess("Order cancelled successfully");
+            setCancelDialogOpen(false);
+            router.push("/confirm-orders");
+        } catch (err) {
+            console.error("Failed to cancel order:", err);
+            const msg = err?.response?.data?.message || err?.message || "Failed to cancel order";
+            toastError(msg);
+        } finally {
+            setCancelling(false);
+        }
+    };
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -290,6 +332,28 @@ function ConfirmedOrderViewPageContent() {
 
     return (
         <Box>
+            <Box px={1} py={0.5} display="flex" justifyContent="space-between" alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <Tooltip title="Back to Confirmed Orders">
+                        <IconButton size="small" onClick={() => router.push("/confirm-orders")}>
+                            <HomeIcon fontSize="small" />
+                        </IconButton>
+                    </Tooltip>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                        Confirmed Order - {orderData?.order_number || "N/A"}
+                    </Typography>
+                </Stack>
+                {canCancelOrder() && (
+                    <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        onClick={handleOpenCancelDialog}
+                    >
+                        Cancel Order
+                    </Button>
+                )}
+            </Box>
             {/* Pipeline Top Bar */}
             <PipelineStages
                 currentStageKey={currentStageKey}
@@ -482,6 +546,43 @@ function ConfirmedOrderViewPageContent() {
                     </Paper>
                 </Grid>
             </Grid>
+
+            <Dialog
+                open={cancelDialogOpen}
+                onClose={() => !cancelling && setCancelDialogOpen(false)}
+                maxWidth="xs"
+                fullWidth
+            >
+                <DialogTitle>Cancel Order</DialogTitle>
+                <DialogContent dividers>
+                    <Typography variant="body2" mb={1}>
+                        Are you sure you want to cancel this order? This action cannot be undone.
+                    </Typography>
+                    <Input
+                        fullWidth
+                        label="Reason (optional)"
+                        name="cancellation_reason"
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        multiline
+                        rows={3}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setCancelDialogOpen(false)} disabled={cancelling} size="small">
+                        Close
+                    </Button>
+                    <Button
+                        onClick={handleConfirmCancel}
+                        color="error"
+                        variant="contained"
+                        size="small"
+                        disabled={cancelling}
+                    >
+                        {cancelling ? "Cancelling..." : "Confirm Cancel"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

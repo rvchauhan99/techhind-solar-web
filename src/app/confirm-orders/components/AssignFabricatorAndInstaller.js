@@ -27,7 +27,7 @@ export default function AssignFabricatorAndInstaller({
 }) {
     const pathname = usePathname();
     const { user } = useAuth();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [canAssign, setCanAssign] = useState(false);
     const [managerCheckLoading, setManagerCheckLoading] = useState(true);
     const [managerCheckError, setManagerCheckError] = useState(null);

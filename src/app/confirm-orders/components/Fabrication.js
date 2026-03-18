@@ -41,7 +41,7 @@ function getDocumentUrlById(id) {
 export default function Fabrication({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
     const { user } = useAuth();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const isCompleted = orderData?.stages?.fabrication === "completed";
     const canComplete = orderData?.stages?.planner === "completed" && !isCompleted && !isReadOnly;
 

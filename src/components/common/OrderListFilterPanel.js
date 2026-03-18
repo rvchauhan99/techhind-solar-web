@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,9 @@ import {
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import companyService from "@/services/companyService";
-import mastersService from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 
 const FILTER_KEYS = [
   "q",
@@ -32,6 +33,8 @@ const FILTER_KEYS = [
   "order_date_from",
   "order_date_to",
   "current_stage_key",
+  "cancelled_stage",
+  "cancelled_at_stage_key",
 ];
 
 export const ORDER_STAGE_OPTIONS = [
@@ -50,6 +53,11 @@ export const ORDER_STAGE_OPTIONS = [
   { value: "payment_outstanding", label: "Order Completed but payment pending" },
 ];
 
+const CANCELLED_STAGE_OPTIONS = [
+  { value: "before_confirmation", label: "Before Confirmation" },
+  { value: "after_confirmation", label: "After Confirmation" },
+];
+
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
 
 export default function OrderListFilterPanel({
@@ -60,6 +68,7 @@ export default function OrderListFilterPanel({
   onClear,
   defaultOpen = false,
   variant = "dashboard", // "dashboard" | "confirm" | "closed"
+  excludeKeys = [],
 }) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -68,9 +77,16 @@ export default function OrderListFilterPanel({
     [controlledOpen, onToggle]
   );
 
+  const effectiveExcludeKeys = useMemo(() => {
+    const base = Array.isArray(excludeKeys) ? excludeKeys : [];
+    if (variant === "cancelled") {
+      return [...base, "status", "current_stage_key"];
+    }
+    return base;
+  }, [excludeKeys, variant]);
+
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
-  const [userOptions, setUserOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [localValues, setLocalValues] = useState(() => ({ ...EMPTY_VALUES, ...values }));
 
@@ -91,9 +107,8 @@ export default function OrderListFilterPanel({
     Promise.all([
       companyService.listBranches().then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
       mastersService.getReferenceOptions("inquiry_source.model").then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
-      mastersService.getReferenceOptions("user.model", { status_in: "active,inactive" }).then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
-    ]).then(([branches, sources, users]) => {
-      setBranchOptions(branches); setSourceOptions(sources); setUserOptions(users);
+    ]).then(([branches, sources]) => {
+      setBranchOptions(branches); setSourceOptions(sources);
     }).catch(() => { }).finally(() => setLoadingOptions(false));
   }, []);
 
@@ -108,10 +123,11 @@ export default function OrderListFilterPanel({
 
   const isKeyVisible = useCallback(
     (key) => {
+      if (effectiveExcludeKeys.includes(key)) return false;
       if (key === "status" && !showStatus) return false;
       return true;
     },
-    [showStatus]
+    [effectiveExcludeKeys, showStatus]
   );
 
   const activeCount = Object.entries(values || {}).filter(
@@ -160,6 +176,8 @@ export default function OrderListFilterPanel({
       order_number: "Order No",
       order_date_from: "Date From",
       order_date_to: "Date To",
+      cancelled_stage: "Cancelled Stage",
+      cancelled_at_stage_key: "Cancelled At",
     };
 
     return Object.entries(values || {})
@@ -270,14 +288,55 @@ export default function OrderListFilterPanel({
             <MenuItem value="">All Sources</MenuItem>
             {sourceOptions.map((s) => <MenuItem key={s.id} value={String(s.id)}>{s.source_name ?? s.label ?? s.name ?? s.id}</MenuItem>)}
           </Select>
-          <Select name="handled_by" label="Handled By" value={localValues.handled_by} onChange={(e) => handleChange("handled_by", e.target.value)} disabled={loadingOptions}>
-            <MenuItem value="">All Users</MenuItem>
-            {userOptions.map((u) => <MenuItem key={u.id} value={String(u.id)}>{u.name ?? u.label ?? `User #${u.id}`}</MenuItem>)}
-          </Select>
-          <Select name="current_stage_key" label="Order Stage" value={localValues.current_stage_key} onChange={(e) => handleChange("current_stage_key", e.target.value)}>
-            <MenuItem value="">All Stages</MenuItem>
-            {ORDER_STAGE_OPTIONS.map((opt) => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
-          </Select>
+          <AutocompleteField
+            name="handled_by"
+            label="Handled By"
+            asyncLoadOptions={(q) =>
+              getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })
+            }
+            referenceModel="user.model"
+            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            value={localValues.handled_by ? { id: localValues.handled_by } : null}
+            onChange={(e, v) => handleChange("handled_by", v?.id ? String(v.id) : "")}
+            placeholder="Search user…"
+          />
+          {variant !== "cancelled" && (
+            <Select name="current_stage_key" label="Order Stage" value={localValues.current_stage_key} onChange={(e) => handleChange("current_stage_key", e.target.value)}>
+              <MenuItem value="">All Stages</MenuItem>
+              {ORDER_STAGE_OPTIONS.map((opt) => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
+            </Select>
+          )}
+          {variant === "cancelled" && (
+            <>
+              <Select
+                name="cancelled_stage"
+                label="Cancelled Stage"
+                value={localValues.cancelled_stage}
+                onChange={(e) => handleChange("cancelled_stage", e.target.value)}
+              >
+                <MenuItem value="">All</MenuItem>
+                {CANCELLED_STAGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              <Select
+                name="cancelled_at_stage_key"
+                label="Cancelled At Stage"
+                value={localValues.cancelled_at_stage_key}
+                onChange={(e) => handleChange("cancelled_at_stage_key", e.target.value)}
+              >
+                <MenuItem value="">All Stages</MenuItem>
+                <MenuItem value="__none__">None</MenuItem>
+                {ORDER_STAGE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </>
+          )}
           <Input name="order_number" label="Order Number" placeholder="Search..." value={localValues.order_number} onChange={(e) => handleChange("order_number", e.target.value)} />
           <DateField name="order_date_from" label="Order Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
           <DateField name="order_date_to" label="Order Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
