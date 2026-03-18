@@ -4,6 +4,7 @@ const paymentOutstandingService = {
   list: (params) => apiClient.get("/payment-outstanding", { params }).then((r) => r.data),
   kpis: (params) => apiClient.get("/payment-outstanding/kpis", { params }).then((r) => r.data?.data ?? r.data),
   trend: (params) => apiClient.get("/payment-outstanding/trend", { params }).then((r) => r.data?.data ?? r.data),
+  analysis: (params) => apiClient.get("/payment-outstanding/analysis", { params }).then((r) => r.data?.data ?? r.data),
   exportCsv: (params) =>
     apiClient
       .get("/payment-outstanding/export", { params, responseType: "blob" })
