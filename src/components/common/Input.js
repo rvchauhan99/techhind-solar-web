@@ -44,9 +44,15 @@ const Input = forwardRef(function Input(
     type === "number"
       ? (value == null || value === "" ? "" : String(value))
       : (value == null ? "" : value);
+  // Prevent scroll-wheel from changing number values (browser natively increments/decrements on wheel when focused)
   const numberInputProps =
     type === "number"
-      ? { inputMode: "decimal", step: mergedInputProps.step ?? "0.01", ...mergedInputProps }
+      ? {
+          inputMode: "decimal",
+          step: mergedInputProps.step ?? "0.01",
+          ...mergedInputProps,
+          onWheel: (e) => e.currentTarget.blur(), // blur so scroll scrolls page, not value; prevents 100 -> 99.99
+        }
       : mergedInputProps;
 
   if (multiline) {
