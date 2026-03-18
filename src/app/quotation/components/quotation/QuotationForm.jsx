@@ -505,7 +505,7 @@ export default function QuotationForm({
                         <Input fullWidth type="number" label="Stamp Charges" name="stamp_charges" value={formData.stamp_charges} onChange={handleChange} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="State Government Amount" name="state_government_amount" value={formData.state_government_amount} onChange={handleChange} />
+                        <Input fullWidth type="number" label="GEDA Application Amount" name="state_government_amount" value={formData.state_government_amount} onChange={handleChange} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <AutocompleteField
@@ -586,7 +586,7 @@ export default function QuotationForm({
                         <Input fullWidth label="Stamp Charges (+)" value={formData.stamp_charges || 0} InputProps={{ readOnly: true }} sx={{ bgcolor: "action.hover" }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="State Government Amt (+)" value={formData.state_government_amount || 0} InputProps={{ readOnly: true }} sx={{ bgcolor: "action.hover" }} />
+                        <Input fullWidth label="GEDA Application Amount (+)" value={formData.state_government_amount || 0} InputProps={{ readOnly: true }} sx={{ bgcolor: "action.hover" }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Structure (+)" value={formData.structure_amount || 0} InputProps={{ readOnly: true }} sx={{ bgcolor: "action.hover" }} />
