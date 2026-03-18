@@ -27,6 +27,12 @@ const INR = (v) =>
 
 const TT_STYLE = { borderRadius: 6, border: "none", boxShadow: "0 4px 12px rgb(0 0 0/0.12)", fontSize: 11 };
 
+const PAY_TYPE_COLOR = {
+  Direct: "#0ea5e9",
+  Loan: "#6366f1",
+  PDC: "#ec4899",
+  Unknown: "#94a3b8",
+};
 const PIE_COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#6366f1", "#ec4899", "#8b5cf6", "#14b8a6"];
 
 function PanelHeader({ icon: Icon, title, subtitle, right }) {
@@ -123,6 +129,7 @@ export default function PaymentOutstandingAnalysis({ filters }) {
   const direct = Number(data?.direct_outstanding || 0);
   const loan = Number(data?.loan_outstanding || 0);
   const pdc = Number(data?.pdc_outstanding || 0);
+  const unknown = Number(data?.unknown_outstanding || 0);
   const orderCount = Number(data?.order_count || 0);
 
   const periodData = Array.isArray(data?.by_period)
@@ -170,7 +177,7 @@ export default function PaymentOutstandingAnalysis({ filters }) {
   return (
     <div className="space-y-2">
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         <Card className={loading && !data ? "animate-pulse" : ""}>
           <CardContent className="p-2 flex items-center justify-between">
             <div>
@@ -209,6 +216,16 @@ export default function PaymentOutstandingAnalysis({ filters }) {
               <div className="text-[10px] text-slate-400">{pct(pdc, total)}%</div>
             </div>
             <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] h-5 px-1.5" variant="secondary">PDC</Badge>
+          </CardContent>
+        </Card>
+        <Card className={loading && !data ? "animate-pulse" : ""}>
+          <CardContent className="p-2 flex items-center justify-between">
+            <div>
+              <div className="text-[10px] text-slate-500">Unknown</div>
+              <div className="text-lg font-bold leading-tight">₹{INR(unknown)}</div>
+              <div className="text-[10px] text-slate-400">{pct(unknown, total)}%</div>
+            </div>
+            <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] h-5 px-1.5" variant="secondary">Unknown</Badge>
           </CardContent>
         </Card>
       </div>
@@ -275,7 +292,10 @@ export default function PaymentOutstandingAnalysis({ filters }) {
                 <PieChart>
                   <Pie data={payTypePie} cx="50%" cy="48%" innerRadius={45} outerRadius={70} paddingAngle={4} dataKey="amount" nameKey="name">
                     {payTypePie.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell
+                        key={i}
+                        fill={PAY_TYPE_COLOR[payTypePie[i]?.name] || PIE_COLORS[i % PIE_COLORS.length]}
+                      />
                     ))}
                   </Pie>
                   <Legend iconType="circle" wrapperStyle={{ fontSize: "11px", color: "#64748b" }} />

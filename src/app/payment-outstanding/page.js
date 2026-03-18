@@ -37,6 +37,12 @@ const DATE_PRESETS = [
   { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
 ];
 
+const STATUS_TABS = [
+  { value: "", label: "All" },
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+];
+
 const PAYMENT_TYPE_TABS = [
   { value: "", label: "All", cls: "text-slate-600 border-slate-200 hover:border-slate-400", activeCls: "bg-slate-100 border-slate-400 text-slate-700" },
   { value: "Direct Payment", label: "Direct", cls: "text-sky-600 border-sky-200 hover:border-sky-400", activeCls: "bg-sky-50 border-sky-400 text-sky-700" },
@@ -45,6 +51,7 @@ const PAYMENT_TYPE_TABS = [
 ];
 
 const FILTER_LABELS = {
+  status: "Status",
   order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
   branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
   order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
@@ -59,6 +66,8 @@ function getChips(filters) {
       label: FILTER_LABELS[key] || key,
       value: key === "payment_type"
         ? (PAYMENT_TYPE_TABS.find((o) => o.value === value)?.label || value)
+        : key === "status"
+          ? (value === "active" ? "Active" : value === "completed" ? "Completed" : String(value))
         : key === "current_stage_key"
           ? (ORDER_STAGE_OPTIONS.find((o) => o.value === value)?.label || value)
           : String(value),
@@ -100,6 +109,10 @@ export default function PaymentOutstandingPage() {
     setActivePreset(preset.label);
   };
 
+  const handleStatusTab = (value) => {
+    setFilters((prev) => ({ ...prev, status: value || "" }));
+  };
+
   const handlePaymentTypeTab = (value) => {
     setActivePaymentTypeTab(value);
     setFilters((prev) => ({ ...prev, payment_type: value || "" }));
@@ -126,11 +139,14 @@ export default function PaymentOutstandingPage() {
   }, [filters]);
 
   const fetcher = useCallback(async (params) => {
-    const resp = await paymentOutstandingService.list({ ...filters, ...params });
+    // NOTE: PaginatedTable merges `filterParams` into `params` internally.
+    // Keep this fetcher independent of local `filters` so the table reloads
+    // when `filterParams` changes.
+    const resp = await paymentOutstandingService.list(params);
     const rows = resp?.data || resp?.rows || [];
     const total = resp?.total || resp?.count || rows.length;
     return { data: rows, meta: { total } };
-  }, [filters]);
+  }, []);
 
   const columns = useMemo(() => ([
     {
@@ -274,6 +290,21 @@ export default function PaymentOutstandingPage() {
                   {p.label}
                 </button>
               ))}
+              <div className="h-4 w-px bg-slate-200 mx-0.5" />
+              {STATUS_TABS.map((t) => (
+                <button
+                  key={t.value || "all-status"}
+                  onClick={() => handleStatusTab(t.value)}
+                  className={[
+                    "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                    (filters.status || "") === (t.value || "")
+                      ? "bg-slate-100 text-slate-800 border-slate-400"
+                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-400 hover:text-slate-700",
+                  ].join(" ")}
+                >
+                  {t.label}
+                </button>
+              ))}
               {activeCount > 0 && (
                 <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{activeCount} active</Badge>
               )}
@@ -344,12 +375,13 @@ export default function PaymentOutstandingPage() {
               onApply={(next) => { handleApplyFilters(next); setFilterPanelOpen(false); }}
               onClear={handleClearFilters}
               defaultOpen
+              excludeKeys={["status"]}
             />
           )}
 
           <TabsContent value="report" className="mt-2 space-y-2">
             {/* Report KPI Strip (same style as Analysis) */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <Card>
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
@@ -393,11 +425,23 @@ export default function PaymentOutstandingPage() {
                   <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] h-5 px-1.5" variant="secondary">PDC</Badge>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardContent className="p-2 flex items-center justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-500">Unknown</div>
+                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.unknown_outstanding || 0)}</div>
+                    <div className="text-[10px] text-slate-400">{pct(summary?.unknown_outstanding, total)}%</div>
+                  </div>
+                  <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] h-5 px-1.5" variant="secondary">Unknown</Badge>
+                </CardContent>
+              </Card>
             </div>
 
             <PaginatedTable
               columns={columns}
               fetcher={fetcher}
+              filterParams={filters}
               initialPage={1}
               initialLimit={25}
               showSearch={false}
