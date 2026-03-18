@@ -16,6 +16,10 @@ import {
     Button,
     MenuItem,
     Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
 import PrintIcon from "@mui/icons-material/Print";
@@ -965,6 +969,9 @@ function OrderViewPageContent() {
     const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
     const [orderDocumentTypes, setOrderDocumentTypes] = useState([]);
     const [loadingOrderDocumentTypes, setLoadingOrderDocumentTypes] = useState(false);
+    const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState("");
+    const [cancelling, setCancelling] = useState(false);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -1142,29 +1149,65 @@ function OrderViewPageContent() {
         return `calc(100vh - 85px)`;
     };
 
-    if (loading) {
-        return (
-            <ProtectedRoute>
-                <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
-                    <CircularProgress />
-                </Box>
-            </ProtectedRoute>
-        );
-    }
+    const canCancelOrder = () => {
+        if (!orderData) return false;
+        const status = String(orderData.status || "").toLowerCase();
+        const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
+        if (status !== "pending" && status !== "confirmed") return false;
+        if (status === "cancelled" || status === "completed") return false;
+        if (deliveryStatus === "partial" || deliveryStatus === "complete") return false;
+        return true;
+    };
 
-    if (error) {
-        return (
-            <ProtectedRoute>
-                <Box p={3}>
-                    <Alert severity="error">{error}</Alert>
-                </Box>
-            </ProtectedRoute>
-        );
-    }
+    const handleOpenCancelDialog = () => {
+        setCancelReason("");
+        setCancelDialogOpen(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!orderId) return;
+        try {
+            setCancelling(true);
+            await orderService.cancelOrder(orderId, {
+                cancellation_reason: cancelReason?.trim() || undefined,
+            });
+            toastSuccess("Order cancelled successfully");
+            setCancelDialogOpen(false);
+            router.push("/order");
+        } catch (err) {
+            console.error("Failed to cancel order:", err);
+            const msg = err?.response?.data?.message || err?.message || "Failed to cancel order";
+            toastError(msg);
+        } finally {
+            setCancelling(false);
+        }
+    };
 
     return (
         <ProtectedRoute>
-            <Box >
+            <Box>
+                {error && (
+                    <Box p={2}>
+                        <Alert severity="error">{error}</Alert>
+                    </Box>
+                )}
+                <Box px={1.5} py={1} display="flex" justifyContent="space-between" alignItems="center">
+                    <Typography variant="h6">
+                        Pending Order - {orderData?.order_number || "N/A"}
+                    </Typography>
+                    <Box display="flex" gap={1}>
+                        {canCancelOrder() && (
+                            <Button
+                                variant="outlined"
+                                color="error"
+                                size="small"
+                                onClick={handleOpenCancelDialog}
+                            >
+                                Cancel Order
+                            </Button>
+                        )}
+                    </Box>
+                </Box>
                 <Grid container spacing={2} >
                     {/* Left Sidebar - 20% */}
                     <Grid size={3} >
@@ -1385,6 +1428,38 @@ function OrderViewPageContent() {
                         </Paper>
                     </Grid>
                 </Grid>
+
+                <Dialog open={cancelDialogOpen} onClose={() => !cancelling && setCancelDialogOpen(false)} maxWidth="xs" fullWidth>
+                    <DialogTitle>Cancel Order</DialogTitle>
+                    <DialogContent dividers>
+                        <Typography variant="body2" mb={1}>
+                            Are you sure you want to cancel this order? This action cannot be undone.
+                        </Typography>
+                        <Input
+                            fullWidth
+                            label="Reason (optional)"
+                            name="cancellation_reason"
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            multiline
+                            rows={3}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setCancelDialogOpen(false)} disabled={cancelling} size="small">
+                            Close
+                        </Button>
+                        <Button
+                            onClick={handleConfirmCancel}
+                            color="error"
+                            variant="contained"
+                            size="small"
+                            disabled={cancelling}
+                        >
+                            {cancelling ? "Cancelling..." : "Confirm Cancel"}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Box>
         </ProtectedRoute >
     );

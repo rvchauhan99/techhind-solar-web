@@ -33,7 +33,7 @@ const PLANNER_EDITABLE_DAYS = 100;
 
 export default function Planner({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     // All material checkboxes (planned_has_*) default to true; sync from orderData uses ?? true.
     const [formData, setFormData] = useState({
         planned_delivery_date: "",

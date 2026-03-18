@@ -24,7 +24,7 @@ import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstant
 
 export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnlyRoute = pathname?.startsWith("/closed-orders");
+    const isReadOnlyRoute = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const estimateAmountRef = useRef(null);
     const [formData, setFormData] = useState({
         estimate_quotation_serial_no: "",

@@ -15,7 +15,7 @@ import moment from "moment";
 
 export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
         subsidy_claim: true,
         claim_date: "",

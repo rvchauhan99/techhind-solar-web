@@ -17,7 +17,7 @@ export default function ChallanTabs({ orderId, orderData, NewChallanComponent, P
     const [activeTab, setActiveTab] = useState(0);
     const [refreshKey, setRefreshKey] = useState(0);
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
 
     const handleTabChange = (event, newValue) => {
         setActiveTab(newValue);

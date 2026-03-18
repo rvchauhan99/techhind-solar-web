@@ -60,6 +60,9 @@ export const downloadOrderPDF = (id) =>
 export const forceCompleteDelivery = (id, payload = {}) =>
     apiClient.post(`/order/${id}/force-complete-delivery`, payload).then((r) => r.data);
 
+export const cancelOrder = (id, payload = {}) =>
+    apiClient.post(`/order/${id}/cancel`, payload).then((r) => r.data);
+
 export default {
     getOrders,
     exportOrders,
@@ -78,4 +81,5 @@ export default {
     saveInstallation,
     downloadOrderPDF,
     forceCompleteDelivery,
+    cancelOrder,
 };

@@ -15,7 +15,7 @@ import moment from "moment";
 
 export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
-    const isReadOnly = pathname?.startsWith("/closed-orders");
+    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
         subsidy_disbursed: true,
         disbursed_date: "",
