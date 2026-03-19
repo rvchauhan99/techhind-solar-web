@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { toastSuccess, toastError } from "@/utils/toast";
-import { IconPhoneCall, IconFileDescription } from "@tabler/icons-react";
+import { IconPhoneCall, IconFileDescription, IconCalendar, IconRefresh } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,10 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import FollowupListFilterPanel, {
+  EMPTY_VALUES as FOLLOWUP_FILTER_EMPTY_VALUES,
+  getDefaultTodayFilter,
+} from "@/components/common/FollowupListFilterPanel";
 import followupService from "@/services/followupService";
 import FollowupForm from "./components/FollowupForm";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,12 +37,20 @@ const COLUMN_FILTER_KEYS = [
   "followup_next_reminder_from",
   "followup_next_reminder_to",
   "followup_next_reminder_op",
+  "reminder_view",
   "capacity",
   "capacity_op",
   "capacity_to",
   "followup_created_at_from",
   "followup_created_at_to",
   "followup_created_at_op",
+];
+
+const DATE_PRESETS = [
+  { label: "Today", value: "today", fn: () => { const d = new Date().toISOString().slice(0, 10); return { followup_next_reminder_from: d, followup_next_reminder_to: d, reminder_view: "" }; } },
+  { label: "Overdue", value: "overdue", fn: () => ({ reminder_view: "overdue", followup_next_reminder_from: "", followup_next_reminder_to: "" }) },
+  { label: "Tomorrow", value: "tomorrow", fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); const s = d.toISOString().slice(0, 10); return { followup_next_reminder_from: s, followup_next_reminder_to: s, reminder_view: "" }; } },
+  { label: "Custom", value: "custom", fn: () => ({ reminder_view: "custom", followup_next_reminder_from: "", followup_next_reminder_to: "" }) },
 ];
 
 const STATUS_OPTIONS = [
@@ -62,7 +74,68 @@ export default function FollowupPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setFilter, setSort } = listingState;
+
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [activePreset, setActivePreset] = useState(null);
+  const hasSetDefaultRef = useRef(false);
+
+  const effectiveActivePreset = useMemo(() => {
+    if (activePreset) return activePreset;
+    if (filters.reminder_view === "overdue") return "Overdue";
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (filters.followup_next_reminder_from === todayStr && filters.followup_next_reminder_to === todayStr) return "Today";
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    if (filters.followup_next_reminder_from === tomorrowStr && filters.followup_next_reminder_to === tomorrowStr) return "Tomorrow";
+    if (filters.reminder_view === "custom" || filters.followup_next_reminder_from || filters.followup_next_reminder_to) return "Custom";
+    return "Today";
+  }, [activePreset, filters]);
+
+  const applyDefaultToday = useCallback(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setFilters({
+      followup_next_reminder_from: todayStr,
+      followup_next_reminder_to: todayStr,
+      reminder_view: "",
+    });
+    setActivePreset("Today");
+  }, [setFilters]);
+
+  useEffect(() => {
+    if (hasSetDefaultRef.current) return;
+    const hasReminder = filters.followup_next_reminder_from || filters.followup_next_reminder_to;
+    const hasReminderView = filters.reminder_view;
+    if (!hasReminder && !hasReminderView) {
+      hasSetDefaultRef.current = true;
+      applyDefaultToday();
+    }
+  }, [filters.followup_next_reminder_from, filters.followup_next_reminder_to, filters.reminder_view, applyDefaultToday]);
+
+  const handlePreset = useCallback(
+    (preset) => {
+      const presetValues = preset.fn();
+      setFilters(presetValues);
+      setActivePreset(preset.label);
+      if (preset.value === "custom") setFilterPanelOpen(true);
+    },
+    [setFilters]
+  );
+
+  const handleApplyFilters = useCallback(
+    (next) => {
+      setFilters({ ...filters, ...next });
+      setFilterPanelOpen(false);
+      setActivePreset(null);
+    },
+    [filters, setFilters]
+  );
+
+  const handleClearFilters = useCallback(() => {
+    applyDefaultToday();
+    setFilterPanelOpen(false);
+  }, [applyDefaultToday]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -416,6 +489,44 @@ export default function FollowupPage() {
         exportDisabled={exporting}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap px-1 py-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="flex items-center gap-1 text-[10px] text-slate-400">
+                <IconCalendar size={11} /> Quick:
+              </span>
+              {DATE_PRESETS.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => handlePreset(p)}
+                  className={[
+                    "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                    effectiveActivePreset === p.label
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
+                  ].join(" ")}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <div className="h-4 w-px bg-slate-200 mx-0.5" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleClearFilters}
+                className="h-7 text-xs gap-1 px-2"
+              >
+                <IconRefresh size={11} /> Reset
+              </Button>
+            </div>
+          </div>
+          <FollowupListFilterPanel
+            open={filterPanelOpen}
+            onToggle={setFilterPanelOpen}
+            values={filters}
+            onApply={handleApplyFilters}
+            onClear={handleClearFilters}
+            defaultOpen={false}
+          />
           <PaginatedTable
             key={reloadTrigger}
             columns={columns}
