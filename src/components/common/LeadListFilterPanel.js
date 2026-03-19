@@ -75,6 +75,15 @@ export default function LeadListFilterPanel({
   onApply,
   onClear,
   defaultOpen = false,
+  /**
+   * extraFields - optional React node(s) rendered inside the filter grid after all built-in fields.
+   * Use this to inject page-specific fields (e.g. followup outcome, last_called date range).
+   */
+  extraFields = null,
+  /**
+   * hideFields - array of field names to hide from the panel (e.g. ["created_from","created_to"]).
+   */
+  hideFields = [],
 }) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -265,36 +274,44 @@ export default function LeadListFilterPanel({
 
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 bg-slate-50/30">
-          <Input
-            name="lead_number"
-            label="Lead #"
-            placeholder="Search..."
-            value={localValues.lead_number}
-            onChange={(e) => handleChange("lead_number", e.target.value)}
-          />
-          <Input
-            name="customer_name"
-            label="Name"
-            placeholder="Lead name"
-            value={localValues.customer_name}
-            onChange={(e) => handleChange("customer_name", e.target.value)}
-          />
+          {!hideFields.includes("lead_number") && (
+            <Input
+              name="lead_number"
+              label="Lead #"
+              placeholder="Search..."
+              value={localValues.lead_number}
+              onChange={(e) => handleChange("lead_number", e.target.value)}
+            />
+          )}
+          {!hideFields.includes("customer_name") && (
+            <Input
+              name="customer_name"
+              label="Name"
+              placeholder="Lead name"
+              value={localValues.customer_name}
+              onChange={(e) => handleChange("customer_name", e.target.value)}
+            />
+          )}
 
-          <Input
-            name="mobile_number"
-            label="Mobile"
-            placeholder="Mobile number"
-            value={localValues.mobile_number}
-            onChange={(e) => handleChange("mobile_number", e.target.value)}
-          />
+          {!hideFields.includes("mobile_number") && (
+            <Input
+              name="mobile_number"
+              label="Mobile"
+              placeholder="Mobile number"
+              value={localValues.mobile_number}
+              onChange={(e) => handleChange("mobile_number", e.target.value)}
+            />
+          )}
 
-          <Input
-            name="campaign_name"
-            label="Campaign"
-            placeholder="Campaign"
-            value={localValues.campaign_name}
-            onChange={(e) => handleChange("campaign_name", e.target.value)}
-          />
+          {!hideFields.includes("campaign_name") && (
+            <Input
+              name="campaign_name"
+              label="Campaign"
+              placeholder="Campaign"
+              value={localValues.campaign_name}
+              onChange={(e) => handleChange("campaign_name", e.target.value)}
+            />
+          )}
 
           <MultiSelect
             name="status"
@@ -425,19 +442,26 @@ export default function LeadListFilterPanel({
             onChange={(e) => handleChange("created_to", e.target.value)}
           />
 
-          <DateField
-            name="next_follow_up_from"
-            label="Next Follow-Up From"
-            value={localValues.next_follow_up_from}
-            onChange={(e) => handleChange("next_follow_up_from", e.target.value)}
-          />
+          {!hideFields.includes("next_follow_up_from") && (
+            <DateField
+              name="next_follow_up_from"
+              label="Next Follow-Up From"
+              value={localValues.next_follow_up_from}
+              onChange={(e) => handleChange("next_follow_up_from", e.target.value)}
+            />
+          )}
 
-          <DateField
-            name="next_follow_up_to"
-            label="Next Follow-Up To"
-            value={localValues.next_follow_up_to}
-            onChange={(e) => handleChange("next_follow_up_to", e.target.value)}
-          />
+          {!hideFields.includes("next_follow_up_to") && (
+            <DateField
+              name="next_follow_up_to"
+              label="Next Follow-Up To"
+              value={localValues.next_follow_up_to}
+              onChange={(e) => handleChange("next_follow_up_to", e.target.value)}
+            />
+          )}
+
+          {/* Extra fields injected by the parent page (e.g. followup-specific filters) */}
+          {extraFields}
 
           <div className="col-span-1 sm:col-span-2 lg:col-span-6 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={handleClear} className="h-8 px-3 text-xs w-20">
