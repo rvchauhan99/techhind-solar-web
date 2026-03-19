@@ -83,12 +83,48 @@ export default function ChallanDetailsDrawer({
         const order = challan.order || {};
         const customer = order.customer || {};
         const warehouse = challan.warehouse || {};
+        const handledBy = order.handledBy || {};
+        const projectScheme = order.projectScheme || {};
+        const discom = order.discom || {};
+
+        /** Reusable detail row */
+        const DetailRow = ({ label, value }) =>
+            value ? (
+                <div className="flex justify-between gap-3 py-0.5">
+                    <span className="text-muted-foreground shrink-0">{label}</span>
+                    <span className="text-right font-medium break-all">{value}</span>
+                </div>
+            ) : null;
+
+        /** Section heading */
+        const SectionHeading = ({ children }) => (
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">{children}</p>
+        );
+
+        /** Delivery status badge */
+        const statusColor = (s) => {
+            if (s === "complete") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            if (s === "partial") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+            return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+        };
+
+        /** Order status badge */
+        const orderStatusColor = (s) => {
+            const key = String(s || "").toLowerCase();
+            if (key === "confirmed") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            if (key === "cancelled") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+            return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
+        };
+
+        const fmtCurrency = (n) =>
+            n != null ? `₹ ${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : null;
 
         return (
-            <div className="pr-1 space-y-3 text-sm">
+            <div className="pr-1 space-y-4 text-sm">
+                {/* ─── Challan Header ─── */}
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
                     <div>
-                        <p className="font-semibold">{challan.challan_no || challan.id}</p>
+                        <p className="text-base font-semibold">{challan.challan_no || challan.id}</p>
                         <p className="text-xs text-muted-foreground">
                             {formatDate(challan.challan_date) || "-"}
                         </p>
@@ -106,35 +142,75 @@ export default function ChallanDetailsDrawer({
                     </div>
                 </Box>
 
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Order</p>
-                    <p>{order.order_number || "-"}</p>
-                    <p className="text-xs text-muted-foreground">
-                        Consumer No: {order.consumer_no || "-"} {order.capacity != null ? `• ${order.capacity} kW` : ""}
-                    </p>
+                {/* ─── Order Info ─── */}
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                    <SectionHeading>Order Information</SectionHeading>
+                    <DetailRow label="Order No" value={order.order_number} />
+                    <DetailRow label="Order Date" value={formatDate(order.order_date)} />
+                    {order.status && (
+                        <div className="flex justify-between gap-3 py-0.5">
+                            <span className="text-muted-foreground shrink-0">Status</span>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${orderStatusColor(order.status)}`}>
+                                {order.status}
+                            </span>
+                        </div>
+                    )}
+                    <DetailRow label="Consumer No" value={order.consumer_no} />
+                    <DetailRow label="Capacity" value={order.capacity != null ? `${order.capacity} kW` : null} />
+                    <DetailRow label="Demand Load" value={order.demand_load != null ? `${order.demand_load} kW` : null} />
+                    <DetailRow label="Project Cost" value={fmtCurrency(order.project_cost)} />
+                    {order.discount > 0 && <DetailRow label="Discount" value={fmtCurrency(order.discount)} />}
+                    <DetailRow label="Payment Type" value={order.payment_type} />
+                    <DetailRow label="Project Scheme" value={projectScheme.name} />
+                    <DetailRow label="Discom" value={discom.name} />
+                    {order.delivery_status && (
+                        <div className="flex justify-between gap-3 py-0.5">
+                            <span className="text-muted-foreground shrink-0">Delivery Status</span>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(order.delivery_status)}`}>
+                                {order.delivery_status}
+                            </span>
+                        </div>
+                    )}
+                    <DetailRow label="Handled By" value={handledBy.name} />
                 </div>
 
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Customer Delivery</p>
-                    <p>{customer.customer_name || "-"}</p>
-                    <p className="text-xs text-muted-foreground">{customer.mobile_number || customer.phone_no || "-"}</p>
-                    <p className="text-xs text-muted-foreground">{customer.address || "-"}</p>
+                {/* ─── Customer Details ─── */}
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                    <SectionHeading>Customer Details</SectionHeading>
+                    <DetailRow label="Name" value={customer.customer_name} />
+                    <DetailRow label="Mobile" value={customer.mobile_number} />
+                    <DetailRow label="Phone" value={customer.phone_no} />
+                    <DetailRow label="Email" value={customer.email_id} />
+                    <DetailRow label="Company" value={customer.company_name} />
+                    <DetailRow label="Address" value={customer.address} />
+                    <DetailRow label="Landmark / Area" value={customer.landmark_area} />
+                    <DetailRow label="Taluka" value={customer.taluka} />
+                    <DetailRow label="District" value={customer.district} />
+                    <DetailRow label="Pin Code" value={customer.pin_code} />
                 </div>
 
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
-                    <p>{warehouse.name || "-"}</p>
-                    <p className="text-xs text-muted-foreground">{warehouse.address || "-"}</p>
-                    <p className="text-xs text-muted-foreground">{warehouse.mobile || warehouse.phone_no || "-"}</p>
+                {/* ─── Warehouse ─── */}
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                    <SectionHeading>Warehouse</SectionHeading>
+                    <DetailRow label="Name" value={warehouse.name} />
+                    <DetailRow label="Contact Person" value={warehouse.contact_person} />
+                    <DetailRow label="Mobile" value={warehouse.mobile} />
+                    <DetailRow label="Phone" value={warehouse.phone_no} />
+                    <DetailRow label="Email" value={warehouse.email} />
+                    <DetailRow label="Address" value={warehouse.address} />
                 </div>
 
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Transporter</p>
-                    <p>{challan.transporter || "-"}</p>
-                </div>
+                {/* ─── Transporter ─── */}
+                {challan.transporter && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                        <SectionHeading>Transporter</SectionHeading>
+                        <p className="font-medium">{challan.transporter}</p>
+                    </div>
+                )}
 
+                {/* ─── Items ─── */}
                 <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Items</p>
+                    <SectionHeading>Items ({items.length})</SectionHeading>
                     {items.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No items</p>
                     ) : (
@@ -223,11 +299,20 @@ export default function ChallanDetailsDrawer({
                     )}
                 </div>
 
-                <div>
-                    <p className="text-xs font-semibold text-muted-foreground">Audit</p>
-                    <p>Created By: {challan.created_by_name || challan.created_by || "-"}</p>
-                    <p>Created On: {formatDate(challan.created_at) || "-"}</p>
-                    <p>Updated On: {formatDate(challan.updated_at) || "-"}</p>
+                {/* ─── Remarks ─── */}
+                {challan.remarks && (
+                    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                        <SectionHeading>Remarks</SectionHeading>
+                        <p className="whitespace-pre-wrap text-sm">{challan.remarks}</p>
+                    </div>
+                )}
+
+                {/* ─── Audit ─── */}
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+                    <SectionHeading>Audit</SectionHeading>
+                    <DetailRow label="Created By" value={challan.created_by_name || challan.created_by} />
+                    <DetailRow label="Created On" value={formatDate(challan.created_at)} />
+                    <DetailRow label="Updated On" value={formatDate(challan.updated_at)} />
                 </div>
             </div>
         );
