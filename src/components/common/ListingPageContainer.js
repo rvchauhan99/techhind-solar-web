@@ -25,10 +25,12 @@ import FilterBar from "@/components/common/FilterBar";
  * @param {Object} [filterValues] - Values for FilterBar (keyed by filter key)
  * @param {function(string, string): void} [onFilterChange] - (key, value) for FilterBar
  * @param {function(): void} [onClearFilters] - Optional clear filters callback
+ * @param {boolean} [fullWidth] - When true, remove max-width constraint so content uses full screen width
  * @param {React.ReactNode} children - Main content (e.g. PaginatedTable or table + pagination)
  */
 export default function ListingPageContainer({
   title,
+  fullWidth = false,
   addButtonLabel,
   onAddClick,
   exportButtonLabel,
@@ -48,7 +50,7 @@ export default function ListingPageContainer({
   children,
 }) {
   return (
-    <Container className="flex flex-col gap-1 py-1 h-full min-h-0 max-w-[1536px] mx-auto">
+    <Container className={`flex flex-col gap-1 py-1 h-full min-h-0 ${fullWidth ? "w-full max-w-none" : "max-w-[1536px] mx-auto"}`}>
       <div className="flex flex-shrink-0 justify-between items-center gap-2 border-b border-border pb-1.5">
         <h1 className="text-lg font-semibold text-[#1b365d] tracking-tight">{title}</h1>
         <div className="flex items-center gap-1.5">
