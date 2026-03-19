@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { IconFilter, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { IconFilter, IconChevronDown, IconChevronUp, IconSearch, IconX } from "@tabler/icons-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import DateField from "@/components/common/DateField";
 import Select, { MenuItem } from "@/components/common/Select";
 
 const FILTER_KEYS = [
+  "q",
   "followup_next_reminder_from",
   "followup_next_reminder_to",
   "date_of_inquiry_from",
@@ -20,6 +21,9 @@ const FILTER_KEYS = [
   "capacity",
   "capacity_to",
   "capacity_op",
+  "customer_name",
+  "mobile_number",
+  "inquiry_number",
 ];
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
@@ -43,6 +47,7 @@ export default function FollowupListFilterPanel({
   onToggle,
   values = {},
   onApply,
+  onQuickSearch,
   onClear,
   defaultOpen = false,
 }) {
@@ -57,17 +62,52 @@ export default function FollowupListFilterPanel({
   );
 
   const [localValues, setLocalValues] = useState(() => ({ ...EMPTY_VALUES, ...values }));
+  const [quickSearch, setQuickSearch] = useState(values?.q ?? "");
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceTimerRef = useRef(null);
+
+  const valuesKey = useMemo(() => JSON.stringify(values ?? {}), [values]);
+  useEffect(() => {
+    setLocalValues({ ...EMPTY_VALUES, ...values });
+  }, [valuesKey]);
 
   useEffect(() => {
-    setLocalValues((prev) => ({ ...EMPTY_VALUES, ...values }));
-  }, [values]);
+    setQuickSearch(values?.q ?? "");
+  }, [values?.q]);
+
+  const handleQuickSearchChange = useCallback(
+    (val) => {
+      setQuickSearch(val);
+      if (!val) {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+        setIsSearching(false);
+        onQuickSearch?.(val ?? "");
+      } else {
+        setIsSearching(true);
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+          onQuickSearch?.(val);
+          setIsSearching(false);
+          debounceTimerRef.current = null;
+        }, 500);
+      }
+    },
+    [onQuickSearch]
+  );
+
+  useEffect(() => () => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+  }, []);
 
   const handleChange = useCallback((key, value) => {
     setLocalValues((prev) => ({ ...prev, [key]: value ?? "" }));
   }, []);
 
   const handleApply = useCallback(() => {
-    const applied = { ...EMPTY_VALUES, ...localValues };
+    const { q: _q, ...rest } = localValues;
+    const applied = { ...EMPTY_VALUES, ...rest };
+    delete applied.q;
     onApply?.(applied);
     setOpen(false);
   }, [localValues, onApply, setOpen]);
@@ -87,6 +127,10 @@ export default function FollowupListFilterPanel({
 
   const getAppliedFiltersSummary = () => {
     const labels = {
+      q: "Search",
+      customer_name: "Name",
+      mobile_number: "Mobile",
+      inquiry_number: "Inq #",
       followup_next_reminder_from: "Reminder From",
       followup_next_reminder_to: "Reminder To",
       date_of_inquiry_from: "Inq From",
@@ -139,10 +183,65 @@ export default function FollowupListFilterPanel({
             </span>
           ))}
         </div>
+
+        <div className="w-full sm:w-72 relative shrink-0">
+          <div
+            className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${isSearching ? "text-green-500 animate-pulse" : "text-slate-400"}`}
+          >
+            {isSearching ? (
+              <div className="size-3.5 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+            ) : (
+              <IconSearch size={14} />
+            )}
+          </div>
+          <input
+            type="text"
+            placeholder="Quick Search (Name/Mobile/Inquiry #)"
+            className="w-full h-8 pl-8 pr-7 bg-white border-2 border-green-200/60 rounded-lg text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 placeholder:text-slate-400"
+            value={quickSearch}
+            onChange={(e) => handleQuickSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                handleQuickSearchChange(quickSearch);
+              }
+            }}
+          />
+          {quickSearch && (
+            <button
+              type="button"
+              onClick={() => handleQuickSearchChange("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500"
+            >
+              <IconX size={12} />
+            </button>
+          )}
+        </div>
       </div>
 
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 bg-slate-50/30">
+          <Input
+            name="inquiry_number"
+            label="Inquiry #"
+            placeholder="Search..."
+            value={localValues.inquiry_number}
+            onChange={(e) => handleChange("inquiry_number", e.target.value)}
+          />
+          <Input
+            name="customer_name"
+            label="Customer Name"
+            placeholder="Search..."
+            value={localValues.customer_name}
+            onChange={(e) => handleChange("customer_name", e.target.value)}
+          />
+          <Input
+            name="mobile_number"
+            label="Mobile"
+            placeholder="Search..."
+            value={localValues.mobile_number}
+            onChange={(e) => handleChange("mobile_number", e.target.value)}
+          />
           <DateField
             name="followup_next_reminder_from"
             label="Next Reminder From"

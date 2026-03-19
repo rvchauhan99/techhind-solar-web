@@ -25,8 +25,14 @@ import { useAuth } from "@/hooks/useAuth";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
+import { cn } from "@/lib/utils";
+import { Tooltip } from "@mui/material";
 
 const COLUMN_FILTER_KEYS = [
+  "q",
+  "customer_name",
+  "mobile_number",
+  "inquiry_number",
   "date_of_inquiry_from",
   "date_of_inquiry_to",
   "date_of_inquiry_op",
@@ -132,23 +138,33 @@ export default function FollowupPage() {
     [filters, setFilters]
   );
 
+  const handleQuickSearch = useCallback(
+    (val) => setFilter("q", val),
+    [setFilter]
+  );
+
   const handleClearFilters = useCallback(() => {
-    applyDefaultToday();
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const allEmpty = Object.fromEntries(COLUMN_FILTER_KEYS.map((k) => [k, ""]));
+    setFilters({
+      ...allEmpty,
+      followup_next_reminder_from: todayStr,
+      followup_next_reminder_to: todayStr,
+    });
+    setActivePreset("Today");
     setFilterPanelOpen(false);
-  }, [applyDefaultToday]);
+  }, [setFilters]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [selectedInquiryId, setSelectedInquiryId] = useState(null);
+  const [selectedModalRow, setSelectedModalRow] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
-
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
-  const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -178,8 +194,10 @@ export default function FollowupPage() {
     }
   }, [filters]);
 
-  const handleOpenModal = (inquiryId) => {
-    setSelectedInquiryId(inquiryId);
+  const handleOpenModal = (row) => {
+    const inquiryId = row?.id ?? row;
+    setSelectedInquiryId(inquiryId || null);
+    setSelectedModalRow(row && typeof row === "object" ? row : null);
     setModalOpen(true);
     setServerError(null);
   };
@@ -187,6 +205,7 @@ export default function FollowupPage() {
   const handleCloseModal = () => {
     setModalOpen(false);
     setSelectedInquiryId(null);
+    setSelectedModalRow(null);
     setServerError(null);
   };
 
@@ -218,7 +237,9 @@ export default function FollowupPage() {
   };
 
   const filterParams = useMemo(() => {
-    const entries = Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "");
+    const entries = Object.entries(filters || {}).filter(
+      ([key, v]) => key !== "q" && v != null && String(v).trim() !== ""
+    );
     const obj = Object.fromEntries(entries);
     if (obj.followup_status) {
       obj.inquiry_status = obj.followup_status;
@@ -229,7 +250,7 @@ export default function FollowupPage() {
       delete obj.id;
       delete obj.id_op;
     }
-    return { q: undefined, ...obj };
+    return obj;
   }, [filters]);
 
   const fetcher = useMemo(
@@ -252,93 +273,112 @@ export default function FollowupPage() {
     () => [
       {
         field: "actions",
-        label: "Actions",
+        label: "",
         sortable: false,
         isActionColumn: true,
+        maxWidth: 72,
         render: (row) => (
           <div className="flex items-center gap-0.5">
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-7"
               onClick={() => handleOpenSidebar(row)}
               title="View details"
               aria-label="View details"
             >
-              <IconFileDescription className="size-4" />
+              <IconFileDescription className="size-3.5" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
-              onClick={() => handleOpenModal(row.id)}
+              className="size-7"
+              onClick={() => handleOpenModal(row)}
               title="Create Followup"
               aria-label="Create Followup"
             >
-              <IconPhoneCall className="size-4" />
+              <IconPhoneCall className="size-3.5" />
             </Button>
           </div>
         ),
       },
       {
         field: "inquiry_info",
-        label: "Inquiry",
+        label: "Inq #",
         sortable: false,
-        render: (row) => row.inquiry_number || "-",
+        maxWidth: 90,
+        render: (row) => <span className="text-xs">{row.inquiry_number || "-"}</span>,
+      },
+      {
+        field: "customer",
+        label: "Customer",
+        sortable: false,
+        maxWidth: 140,
+        render: (row) => {
+          const name = row.customer_name || "N/A";
+          const mobile = row.mobile_number || "-";
+          const full = `${name} • ${mobile}`;
+          return <span className="text-xs truncate block" title={full}>{full}</span>;
+        },
       },
       {
         field: "date_of_inquiry",
-        label: "Inquiry Date",
+        label: "Inq Date",
         sortable: true,
         filterType: "date",
         filterKey: "date_of_inquiry_from",
         filterKeyTo: "date_of_inquiry_to",
         operatorKey: "date_of_inquiry_op",
         defaultFilterOperator: "inRange",
-        render: (row) => formatDate(row.date_of_inquiry) || "-",
-      },
-      {
-        field: "inquiry_details",
-        label: "Inquiry Details",
-        sortable: false,
-        render: (row) => (
-          <div className="space-y-0.5">
-            <p className="text-sm">
-              <strong>Status:</strong> {row.status || "N/A"}
-            </p>
-            <p className="text-sm">
-              <strong>Capacity:</strong> {row.capacity != null ? `${row.capacity} kW` : "N/A"}
-            </p>
-            {row.estimated_cost && (
-              <p className="text-sm">
-                <strong>Est. Cost:</strong> ₹{row.estimated_cost}
-              </p>
-            )}
-          </div>
-        ),
+        maxWidth: 90,
+        render: (row) => <span className="text-xs">{formatDate(row.date_of_inquiry) || "-"}</span>,
       },
       {
         field: "status",
-        label: "Inquiry Status",
+        label: "Inq Status",
         sortable: true,
         filterType: "select",
         filterKey: "status",
         filterOptions: STATUS_OPTIONS,
-        render: (row) => row.status || "-",
+        maxWidth: 100,
+        render: (row) => <span className="text-xs">{row.status || "-"}</span>,
       },
       {
         field: "followup_status",
-        label: "Followup Status",
+        label: "FU Status",
         sortable: true,
         filterType: "select",
         filterKey: "followup_status",
         filterOptions: STATUS_OPTIONS,
-        render: (row) =>
-          row.followup_id ? (
-            row.followup_status || "N/A"
-          ) : (
-            <span className="text-muted-foreground text-sm">No Followup</span>
-          ),
+        maxWidth: 100,
+        render: (row) => (
+          <span className={cn("text-xs", !row.followup_id && "text-muted-foreground")}>
+            {row.followup_id ? (row.followup_status || "-") : "No FU"}
+          </span>
+        ),
+      },
+      {
+        field: "capacity",
+        label: "Cap",
+        sortable: true,
+        filterType: "number",
+        filterKey: "capacity",
+        filterKeyTo: "capacity_to",
+        operatorKey: "capacity_op",
+        defaultFilterOperator: "equals",
+        maxWidth: 70,
+        render: (row) => <span className="text-xs">{row.capacity != null ? `${row.capacity} kW` : "-"}</span>,
+      },
+      {
+        field: "estimated_cost",
+        label: "Est ₹",
+        sortable: false,
+        maxWidth: 90,
+        render: (row) => (
+          <span className="text-xs">
+            {row.estimated_cost != null ? `₹${Number(row.estimated_cost).toLocaleString("en-IN")}` : "-"}
+          </span>
+        ),
       },
       {
         field: "followup_remarks",
@@ -346,40 +386,28 @@ export default function FollowupPage() {
         filterType: "text",
         filterKey: "followup_remarks",
         defaultFilterOperator: "contains",
+        maxWidth: 180,
         render: (row) => {
-          if (!row.followup_id) return <span className="text-muted-foreground text-sm">-</span>;
-          return row.followup_remarks
-            ? row.followup_remarks.length > 50
-              ? `${row.followup_remarks.substring(0, 50)}...`
-              : row.followup_remarks
-            : "N/A";
+          if (!row.followup_id) return <span className="text-xs text-muted-foreground">-</span>;
+          const r = row.followup_remarks || "N/A";
+          const trunc = r.length > 40 ? `${r.substring(0, 40)}...` : r;
+          return <span className="text-xs truncate block" title={r}>{trunc}</span>;
         },
       },
       {
-        field: "capacity",
-        label: "Capacity",
-        sortable: true,
-        filterType: "number",
-        filterKey: "capacity",
-        filterKeyTo: "capacity_to",
-        operatorKey: "capacity_op",
-        defaultFilterOperator: "equals",
-        render: (row) => (row.capacity != null ? `${row.capacity} kW` : "-"),
-      },
-      {
         field: "followup_next_reminder",
-        label: "Next Reminder",
+        label: "Next Rem",
         filterType: "date",
         filterKey: "followup_next_reminder_from",
         filterKeyTo: "followup_next_reminder_to",
         operatorKey: "followup_next_reminder_op",
         defaultFilterOperator: "inRange",
-        render: (row) =>
-          row.followup_id ? (
-            formatDate(row.followup_next_reminder) || "-"
-          ) : (
-            <span className="text-muted-foreground text-sm">-</span>
-          ),
+        maxWidth: 90,
+        render: (row) => (
+          <span className={cn("text-xs", !row.followup_id && "text-muted-foreground")}>
+            {row.followup_id ? (formatDate(row.followup_next_reminder) || "-") : "-"}
+          </span>
+        ),
       },
       {
         field: "followup_created_at",
@@ -390,44 +418,32 @@ export default function FollowupPage() {
         filterKeyTo: "followup_created_at_to",
         operatorKey: "followup_created_at_op",
         defaultFilterOperator: "inRange",
-        render: (row) =>
-          row.followup_id ? (
-            formatDate(row.followup_created_at) || "-"
-          ) : (
-            <span className="text-muted-foreground text-sm">-</span>
-          ),
+        maxWidth: 90,
+        render: (row) => (
+          <span className={cn("text-xs", !row.followup_id && "text-muted-foreground")}>
+            {row.followup_id ? (formatDate(row.followup_created_at) || "-") : "-"}
+          </span>
+        ),
       },
       {
         field: "call_by",
         label: "Call By",
+        maxWidth: 100,
         render: (row) => {
-          if (!row.followup_id) return <span className="text-muted-foreground text-sm">-</span>;
+          if (!row.followup_id) return <span className="text-xs text-muted-foreground">-</span>;
           const user = row.followup_call_by_user;
-          return user ? `${user.name} (${user.email})` : "N/A";
+          return <span className="text-xs">{user?.name || user?.email || "N/A"}</span>;
         },
       },
       {
-        field: "is_schedule_site_visit",
-        label: "Site Visit",
+        field: "flags",
+        label: "Flags",
+        maxWidth: 80,
         render: (row) => {
-          if (!row.followup_id) return <span className="text-muted-foreground text-sm">-</span>;
-          return (
-            <Badge variant={row.followup_is_schedule_site_visit ? "default" : "secondary"} className="text-xs">
-              {row.followup_is_schedule_site_visit ? "Yes" : "No"}
-            </Badge>
-          );
-        },
-      },
-      {
-        field: "is_msg_send_to_customer",
-        label: "Msg Sent",
-        render: (row) => {
-          if (!row.followup_id) return <span className="text-muted-foreground text-sm">-</span>;
-          return (
-            <Badge variant={row.followup_is_msg_send_to_customer ? "default" : "secondary"} className="text-xs">
-              {row.followup_is_msg_send_to_customer ? "Yes" : "No"}
-            </Badge>
-          );
+          if (!row.followup_id) return <span className="text-xs text-muted-foreground">-</span>;
+          const sv = row.followup_is_schedule_site_visit ? "Y" : "N";
+          const msg = row.followup_is_msg_send_to_customer ? "Y" : "N";
+          return <span className="text-xs whitespace-nowrap">SV:{sv} Msg:{msg}</span>;
         },
       },
     ],
@@ -463,7 +479,7 @@ export default function FollowupPage() {
         {r.followup_call_by_user && (
           <>
             <p className="text-xs font-semibold text-muted-foreground">Call By</p>
-            <p className="text-sm">{`${r.followup_call_by_user.name} (${r.followup_call_by_user.email})`}</p>
+            <p className="text-sm">{r.followup_call_by_user?.name ?? "-"}</p>
           </>
         )}
         {r.followup_remarks && (
@@ -482,6 +498,7 @@ export default function FollowupPage() {
     <ProtectedRoute>
       <ListingPageContainer
         title="Followups"
+        fullWidth
         addButtonLabel={currentPerm.can_create ? "Add Followup" : undefined}
         onAddClick={currentPerm.can_create ? () => handleOpenModal(null) : undefined}
         exportButtonLabel="Export"
@@ -524,6 +541,7 @@ export default function FollowupPage() {
             onToggle={setFilterPanelOpen}
             values={filters}
             onApply={handleApplyFilters}
+            onQuickSearch={handleQuickSearch}
             onClear={handleClearFilters}
             defaultOpen={false}
           />
@@ -536,8 +554,6 @@ export default function FollowupPage() {
             showPagination={false}
             height={calculatePaginatedTableHeight()}
             onTotalChange={setTotalCount}
-            columnFilterValues={columnFilterValues}
-            onColumnFilterChange={handleColumnFilterChange}
             filterParams={filterParams}
             page={page}
             limit={limit}
@@ -569,7 +585,18 @@ export default function FollowupPage() {
               <DialogTitle>Create Followup</DialogTitle>
             </div>
             <FollowupForm
-              defaultValues={{ inquiry_id: selectedInquiryId || "" }}
+              defaultValues={{
+                inquiry_id: selectedInquiryId || "",
+                customerDetails: selectedModalRow
+                  ? {
+                      customer_name: selectedModalRow.customer_name,
+                      mobile_number: selectedModalRow.mobile_number,
+                      phone_no: selectedModalRow.phone_no,
+                      email_id: selectedModalRow.email_id,
+                      address: selectedModalRow.address,
+                    }
+                  : null,
+              }}
               onSubmit={handleSubmit}
               loading={loading}
               serverError={serverError}

@@ -215,6 +215,8 @@ export default function FollowupForm({
     );
   }
 
+  const customerDetails = defaultValues?.customerDetails;
+
   return (
     <FormContainer>
       <form
@@ -223,6 +225,20 @@ export default function FollowupForm({
         noValidate
         className={cn("grid gap-4 max-w-[700px]")}
       >
+        {customerDetails && (
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight col-span-full mb-0.5">Customer Details</p>
+            <div><span className="text-muted-foreground text-xs">Name:</span> <span className="font-medium">{customerDetails.customer_name || "N/A"}</span></div>
+            <div><span className="text-muted-foreground text-xs">Mobile:</span> <span className="font-medium">{customerDetails.mobile_number || "N/A"}</span></div>
+            {(customerDetails.phone_no || customerDetails.email_id) && (
+              <>
+                {customerDetails.phone_no && <div><span className="text-muted-foreground text-xs">Phone:</span> <span className="font-medium">{customerDetails.phone_no}</span></div>}
+                {customerDetails.email_id && <div><span className="text-muted-foreground text-xs">Email:</span> <span className="font-medium truncate">{customerDetails.email_id}</span></div>}
+              </>
+            )}
+            {customerDetails.address && <div className="col-span-full"><span className="text-muted-foreground text-xs">Address:</span> <span className="font-medium text-xs">{customerDetails.address}</span></div>}
+          </div>
+        )}
         <AutocompleteField
           name="inquiry_id"
           label="Inquiry"

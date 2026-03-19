@@ -827,7 +827,7 @@ function InquiryDetailsContent() {
                                                     render: (row) => {
                                                         if (!row.followup_id) return <Typography variant="body2" color="text.secondary">-</Typography>;
                                                         const user = row.followup_call_by_user;
-                                                        return user ? `${user.name} (${user.email})` : "N/A";
+                                                        return user?.name || user?.email || "N/A";
                                                     },
                                                 },
                                                 {
