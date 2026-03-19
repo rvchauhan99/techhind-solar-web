@@ -5,6 +5,7 @@ import Input from "@/components/common/Input";
 import Textarea from "@/components/common/Textarea";
 import DateTimeField from "@/components/common/DateTimeField";
 import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import marketingLeadsService from "@/services/marketingLeadsService";
-import mastersService from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastError, toastSuccess } from "@/utils/toast";
 
 const INITIAL_FORM = {
@@ -70,6 +71,7 @@ export default function AddCallDetailsForm({
   const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
   const [selectedPaymentType, setSelectedPaymentType] = useState("");
   const [paymentTypeError, setPaymentTypeError] = useState("");
+  const [selectedHandledBy, setSelectedHandledBy] = useState(null);
 
   useEffect(() => {
     setFormData((prev) => ({
@@ -80,7 +82,16 @@ export default function AddCallDetailsForm({
     setConfirmOpen(false);
     setSelectedPaymentType("");
     setPaymentTypeError("");
+    setSelectedHandledBy(null);
   }, [initialState, leadId, forcedStatus, forcedOutcome]);
+
+  useEffect(() => {
+    if (confirmOpen && lead) {
+      setSelectedHandledBy(lead.assigned_to ?? null);
+    } else if (!confirmOpen) {
+      setSelectedHandledBy(null);
+    }
+  }, [confirmOpen, lead?.assigned_to]);
 
   useEffect(() => {
     const loadPaymentTypes = async () => {
@@ -187,12 +198,10 @@ export default function AddCallDetailsForm({
         )
       );
       // 2) Convert lead to inquiry (idempotent on backend)
-      await marketingLeadsService.convertToInquiry(
-        leadId,
-        selectedPaymentType
-          ? { payment_type: selectedPaymentType }
-          : {}
-      );
+      const convertPayload = {};
+      if (selectedPaymentType) convertPayload.payment_type = selectedPaymentType;
+      if (selectedHandledBy) convertPayload.handled_by = selectedHandledBy;
+      await marketingLeadsService.convertToInquiry(leadId, convertPayload);
       toastSuccess("Lead converted to inquiry successfully");
       setConfirmOpen(false);
       setFormData((prev) => ({
@@ -203,6 +212,7 @@ export default function AddCallDetailsForm({
       }));
       setSelectedPaymentType("");
       setPaymentTypeError("");
+      setSelectedHandledBy(null);
       onSaved?.();
       onConverted?.();
     } catch (err) {
@@ -214,7 +224,7 @@ export default function AddCallDetailsForm({
     } finally {
       setSaving(false);
     }
-  }, [leadId, onSaved, onConverted, buildPayload]);
+  }, [leadId, onSaved, onConverted, buildPayload, selectedPaymentType, selectedHandledBy]);
 
   return (
     <>
@@ -389,7 +399,25 @@ export default function AddCallDetailsForm({
                 </div>
               </div>
             )}
-            <div className="pt-1">
+            <div className="space-y-3 pt-1">
+              <AutocompleteField
+                name="handled_by"
+                label="Handled By"
+                asyncLoadOptions={(q) =>
+                  getReferenceOptionsSearch("user.model", {
+                    q,
+                    limit: 20,
+                    status_in: "active,inactive",
+                  })
+                }
+                referenceModel="user.model"
+                getOptionLabel={(opt) =>
+                  opt?.name ?? opt?.label ?? (opt?.id != null ? String(opt.id) : "")
+                }
+                value={selectedHandledBy ? { id: selectedHandledBy } : null}
+                onChange={(e, v) => setSelectedHandledBy(v?.id ?? null)}
+                placeholder="Select user..."
+              />
               <Select
                 name="payment_type"
                 label="Payment Type"
