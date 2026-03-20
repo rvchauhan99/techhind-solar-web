@@ -411,6 +411,12 @@ function FabricationInstallationPageContent() {
                                                     {o.consumer_no ? ` • Consumer: ${o.consumer_no}` : ""}
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                                                    Fabricator: {o.fabricator_name || "-"}
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                                                    Installer: {o.installer_name || "-"}
+                                                </Typography>
+                                                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                                                     Capacity: {safeValue(o.capacity)} kW
                                                 </Typography>
                                                 <Typography variant="caption" color="text.secondary">
