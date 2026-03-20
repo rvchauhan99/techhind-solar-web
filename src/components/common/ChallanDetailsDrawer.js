@@ -128,6 +128,12 @@ export default function ChallanDetailsDrawer({
                         <p className="text-xs text-muted-foreground">
                             {formatDate(challan.challan_date) || "-"}
                         </p>
+                        {challan.is_reversed && (
+                            <p className="text-xs mt-1 font-semibold text-red-800 dark:text-red-300">
+                                Reversed: {formatDate(challan.reversed_at) || "-"}
+                                {challan.reversedByUser?.name ? ` by ${challan.reversedByUser.name}` : ""}
+                            </p>
+                        )}
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
