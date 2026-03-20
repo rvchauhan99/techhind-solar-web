@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Box, Typography } from "@mui/material";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import {
+    IconCircleCheck,
+    IconFileDescription,
+    IconRefresh,
+    IconTrash,
+} from "@tabler/icons-react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -16,6 +21,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import ChallanDetailsDrawer from "@/components/common/ChallanDetailsDrawer";
+import ListingPageContainer from "@/components/common/ListingPageContainer";
+import DeliveryChallanFilterPanel from "@/components/common/DeliveryChallanFilterPanel";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
 import challanService from "@/services/challanService";
@@ -25,19 +32,15 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function DeliveryChallanListPage() {
-    const searchParams = useSearchParams();
     const router = useRouter();
     const { user } = useAuth();
 
-    const rawScope = searchParams.get("scope");
-    // Scope is now controlled purely by the URL / module; default to
-    // my_warehouse when not specified.
-    const scope = rawScope || "my_warehouse";
-
     const [filters, setFilters] = useState({});
+    const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [selectedChallanId, setSelectedChallanId] = useState(null);
     const [selectedOrderStageKey, setSelectedOrderStageKey] = useState(null);
+    const [selectedIsReversed, setSelectedIsReversed] = useState(false);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     const [reversing, setReversing] = useState(false);
     const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
@@ -47,10 +50,7 @@ export default function DeliveryChallanListPage() {
     const [reverseReasonError, setReverseReasonError] = useState(false);
 
     const fetchChallans = async (params) => {
-        const response = await challanService.getChallans({
-            ...params,
-            scope,
-        });
+        const response = await challanService.getChallans({ ...params });
         const result = response?.result ?? response;
         const data = result?.data ?? [];
         const meta = result?.meta ?? {
@@ -62,122 +62,207 @@ export default function DeliveryChallanListPage() {
         return { data, meta };
     };
 
+    const deliveryStatusBadge = (status) => {
+        const key = String(status || "").toLowerCase();
+        const label =
+            key === "complete" ? "Complete" : key === "partial" ? "Partial" : key === "pending" ? "Pending" : "-";
+
+        const className = (() => {
+            if (key === "complete") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400";
+            if (key === "partial") return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+            return "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+        })();
+
+        return (
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}>
+                {label}
+            </span>
+        );
+    };
+
+    const reversedStatusBadge = (reversedAt) => (
+        <div className="flex flex-col">
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                Reversed
+            </span>
+            {reversedAt ? (
+                <span className="text-[10px] text-red-700/80 dark:text-red-300/80">
+                    {formatDate(reversedAt)}
+                </span>
+            ) : null}
+        </div>
+    );
+
     const columns = [
         {
+            field: "actions",
+            label: "",
+            sortable: false,
+            isActionColumn: true,
+            maxWidth: 80,
+            render: (row) => {
+                const stageKey = String(row?.order?.current_stage_key || "").toLowerCase();
+                const isDraftRow = stageKey === "delivery";
+
+                const isSuperAdminLocal = String(user?.role?.name || "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, "") === "superadmin";
+
+                const allowedStageKeysLocal = new Set([
+                    "assign_fabricator_and_installer",
+                    "fabrication",
+                    "installation",
+                    "netmeter_apply",
+                ]);
+
+                const canReverseRow =
+                    isSuperAdminLocal && allowedStageKeysLocal.has(stageKey) && !row?.is_reversed;
+
+                return (
+                    <div className="flex items-center gap-0.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                openDetailsForRow(row);
+                            }}
+                            title="View details"
+                            aria-label="View details"
+                        >
+                            <IconFileDescription className="size-3.5" />
+                        </Button>
+
+                        {canReverseRow && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    openReverseDialogForRow(row);
+                                }}
+                                title="Reverse"
+                                aria-label="Reverse"
+                            >
+                                <IconRefresh className="size-3.5" />
+                            </Button>
+                        )}
+
+                        {isDraftRow && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleConfirmForRow(row);
+                                }}
+                                title="Confirm"
+                                aria-label="Confirm"
+                            >
+                                <IconCircleCheck className="size-3.5" />
+                            </Button>
+                        )}
+
+                        {isDraftRow && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteForRow(row);
+                                }}
+                                title="Delete"
+                                aria-label="Delete"
+                            >
+                                <IconTrash className="size-3.5" />
+                            </Button>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
             field: "challan_no",
-            label: "Challan No",
+            label: "Challan",
             sortable: true,
-            filterType: "text",
-            filterKey: "challan_no",
-            defaultFilterOperator: "contains",
+            maxWidth: 180,
             render: (row) => (
-                <span className="font-medium text-sm">
-                    {row.challan_no || row.id}
-                </span>
+                <div className="flex flex-col">
+                    <span className="font-semibold text-sm text-[#1b365d]">
+                        {row.challan_no || row.id}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                        {formatDate(row.challan_date) || "-"}
+                    </span>
+                </div>
             ),
         },
         {
-            field: "challan_date",
-            label: "Date",
-            sortable: true,
-            filterType: "date",
-            filterKey: "challan_date_from",
-            filterKeyTo: "challan_date_to",
-            operatorKey: "challan_date_op",
-            defaultFilterOperator: "equals",
-            render: (row) => formatDate(row.challan_date) || "-",
-        },
-        {
             field: "order",
-            label: "Order",
-            filterType: "text",
-            filterKey: "order_number",
-            defaultFilterOperator: "contains",
-            render: (row) => row.order?.order_number || "-",
+            label: "Order & Customer",
+            render: (row) => {
+                const order = row.order || {};
+                const customer = row.customer || {};
+                return (
+                    <div className="flex flex-col">
+                        <span className="font-semibold text-sm">{order.order_number || "-"}</span>
+                        <span className="text-xs text-muted-foreground">{customer.customer_name || "-"}</span>
+                        <span className="text-xs text-muted-foreground">
+                            {customer.mobile_number || "-"}
+                        </span>
+                    </div>
+                );
+            },
         },
         {
             field: "delivery_status",
             label: "Status",
-            filterType: "select",
-            filterKey: "delivery_status",
-            filterOptions: [
-                { value: "pending", label: "Pending" },
-                { value: "partial", label: "Partial" },
-                { value: "complete", label: "Complete" },
-            ],
-            render: (row) => row.delivery_status || "-",
-        },
-        {
-            field: "customer_name",
-            label: "Customer",
-            filterType: "text",
-            filterKey: "customer_name",
-            defaultFilterOperator: "contains",
-            render: (row) => row.customer?.customer_name || "-",
-        },
-        {
-            field: "customer_mobile",
-            label: "Mobile",
-            filterType: "text",
-            filterKey: "customer_mobile",
-            defaultFilterOperator: "contains",
-            render: (row) => row.customer?.mobile_number || "-",
+            maxWidth: 140,
+            render: (row) => (row?.is_reversed ? reversedStatusBadge(row.reversed_at) : deliveryStatusBadge(row.delivery_status)),
         },
         {
             field: "warehouse",
-            label: "Warehouse",
-            filterType: "text",
-            filterKey: "warehouse_name",
-            defaultFilterOperator: "contains",
-            render: (row) => row.warehouse?.name || "-",
-        },
-        {
-            field: "capacity",
-            label: "Capacity",
-            render: (row) => row.order?.capacity != null ? `${row.order.capacity} kW` : "-",
-        },
-        {
-            field: "handled_by_name",
-            label: "Handled By",
-            render: (row) => row.handled_by_name || "-",
-        },
-        {
-            field: "transporter",
-            label: "Transporter",
-            filterType: "text",
-            filterKey: "transporter",
-            defaultFilterOperator: "contains",
-            render: (row) => row.transporter || "-",
+            label: "Warehouse / Transport",
+            render: (row) => (
+                <div className="flex flex-col">
+                    <span className="font-semibold text-sm">{row.warehouse?.name || "-"}</span>
+                    <span className="text-xs text-muted-foreground">{row.transporter || "-"}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {row.handled_by_name ? `Handled: ${row.handled_by_name}` : "-"}
+                    </span>
+                </div>
+            ),
         },
         {
             field: "items_count",
             label: "Items",
-            sortable: true,
-            filterType: "number",
-            filterKey: "items_count",
-            filterKeyTo: "items_count_to",
-            operatorKey: "items_count_op",
-            defaultFilterOperator: "equals",
-            render: (row) => row.items?.length || 0,
-        },
-        {
-            field: "created_by_name",
-            label: "Created By",
-            filterType: "text",
-            filterKey: "created_by_name",
-            defaultFilterOperator: "contains",
-            render: (row) => row.created_by_name || "-",
+            maxWidth: 140,
+            render: (row) => (
+                <div className="flex flex-col">
+                    <span className="font-semibold text-sm">{row.items?.length || 0}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {row.order?.capacity != null ? `${row.order.capacity} kW` : "-"}
+                    </span>
+                </div>
+            ),
         },
         {
             field: "created_at",
             label: "Created On",
             sortable: true,
-            filterType: "date",
-            filterKey: "created_at_from",
-            filterKeyTo: "created_at_to",
-            operatorKey: "created_at_op",
-            defaultFilterOperator: "equals",
-            render: (row) => formatDate(row.created_at) || "-",
+            maxWidth: 220,
+            render: (row) => (
+                <div className="flex flex-col">
+                    <span className="font-semibold text-sm">{row.created_by_name || "-"}</span>
+                    <span className="text-xs text-muted-foreground">
+                        {formatDate(row.created_at) || "-"}
+                    </span>
+                </div>
+            ),
         },
     ];
 
@@ -191,16 +276,23 @@ export default function DeliveryChallanListPage() {
         [filters]
     );
 
-    const handleRowClick = async (row) => {
+    const filtersKey = useMemo(
+        () => JSON.stringify(effectiveFilterParams || {}),
+        [effectiveFilterParams]
+    );
+
+    const openDetailsForRow = async (row) => {
         setSidebarOpen(true);
         setSelectedChallanId(row.id);
         setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
+        setSelectedIsReversed(!!row?.is_reversed);
     };
 
     const handleCloseSidebar = () => {
         setSidebarOpen(false);
         setSelectedChallanId(null);
         setSelectedOrderStageKey(null);
+        setSelectedIsReversed(false);
     };
 
     const normalizeRoleName = (s) => String(s || "")
@@ -220,7 +312,7 @@ export default function DeliveryChallanListPage() {
         String(selectedOrderStageKey || "").toLowerCase()
     );
 
-    const isReverseAllowed = !!selectedChallanId && isSuperAdmin && isStageAllowed;
+    const isReverseAllowed = !!selectedChallanId && isSuperAdmin && isStageAllowed && !selectedIsReversed;
 
     const openReverseDialog = () => {
         if (!isReverseAllowed) return;
@@ -229,6 +321,59 @@ export default function DeliveryChallanListPage() {
         setReverseRemarks("");
         setReverseReasonError(false);
         setReverseDialogOpen(true);
+    };
+
+    // Row-aware reverse (used by Actions column buttons)
+    const openReverseDialogForRow = (row) => {
+        const challanId = row?.id;
+        if (!challanId) return;
+
+        const rowStageKey = String(row?.order?.current_stage_key || "").toLowerCase();
+        const canReverseRow = isSuperAdmin && allowedStageKeys.has(rowStageKey) && !row?.is_reversed;
+        if (!canReverseRow) return;
+
+        setSelectedChallanId(challanId);
+        setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
+        setSelectedIsReversed(!!row?.is_reversed);
+
+        setReverseReasonId("");
+        setReverseReasonText("");
+        setReverseRemarks("");
+        setReverseReasonError(false);
+        setReverseDialogOpen(true);
+    };
+
+    // Draft confirm (draft challan corresponds to order current_stage_key === "delivery")
+    const handleConfirmForRow = (row) => {
+        const orderId = row?.order?.id;
+        if (!orderId) return;
+        router.push(`/confirm-orders/view?id=${orderId}`);
+    };
+
+    const handleDeleteForRow = async (row) => {
+        const challanId = row?.id;
+        if (!challanId) return;
+
+        const rowStageKey = String(row?.order?.current_stage_key || "").toLowerCase();
+        const isDraftRow = rowStageKey === "delivery";
+        if (!isDraftRow) return;
+
+        if (!window.confirm("Are you sure you want to delete this challan?")) return;
+
+        try {
+            await challanService.deleteChallan(challanId);
+            toastSuccess("Challan deleted successfully");
+            setReloadTrigger((prev) => prev + 1);
+
+            if (selectedChallanId === challanId) {
+                handleCloseSidebar();
+            }
+
+            if (reverseDialogOpen) setReverseDialogOpen(false);
+        } catch (err) {
+            console.error("Failed to delete challan:", err);
+            toastError(err?.response?.data?.message || "Failed to delete challan");
+        }
     };
 
     const handleReverseConfirm = async () => {
@@ -257,35 +402,41 @@ export default function DeliveryChallanListPage() {
     };
 
     return (
-        <Box sx={{ p: 2, height: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Typography variant="h6">Delivery Challans</Typography>
-                <Button
-                    size="sm"
-                    onClick={() => router.push("/delivery-challans/new")}
-                >
-                    New Delivery Challan
-                </Button>
-            </Box>
+        <ListingPageContainer
+            title="Delivery Challans"
+            addButtonLabel="New Delivery Challan"
+            onAddClick={() => router.push("/delivery-challans/new")}
+        >
 
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-                <PaginatedTable
-                    key={reloadTrigger}
-                    columns={columns}
-                    fetcher={fetchChallans}
-                    initialPage={1}
-                    initialLimit={20}
-                    initialSortBy="id"
-                    initialSortOrder="desc"
-                    height="calc(100vh - 210px)"
-                    columnFilterValues={filters}
-                    onColumnFilterChange={(key, value) =>
-                        setFilters((prev) => ({ ...prev, [key]: value }))
-                    }
-                    filterParams={effectiveFilterParams}
-                    onRowClick={handleRowClick}
+            <div className="flex flex-col flex-1 min-h-0 gap-2">
+                <DeliveryChallanFilterPanel
+                    open={filterPanelOpen}
+                    onToggle={setFilterPanelOpen}
+                    values={filters}
+                    onApply={(next) => setFilters(next)}
+                    onClear={() => {
+                        setFilters({});
+                        setFilterPanelOpen(false);
+                    }}
+                    defaultOpen={false}
                 />
-            </Box>
+
+                <div className="flex-1 min-h-0">
+                    <PaginatedTable
+                        key={`${reloadTrigger}-${filtersKey}`}
+                        columns={columns}
+                        fetcher={fetchChallans}
+                        initialPage={1}
+                        initialLimit={20}
+                        initialSortBy="id"
+                        initialSortOrder="desc"
+                        height="100%"
+                        showSearch={false}
+                        filterParams={effectiveFilterParams}
+                        onRowClick={openDetailsForRow}
+                    />
+                </div>
+            </div>
 
             <ChallanDetailsDrawer
                 open={sidebarOpen}
@@ -380,7 +531,7 @@ export default function DeliveryChallanListPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </Box>
+        </ListingPageContainer>
     );
 }
 
