@@ -21,12 +21,16 @@ function NewDeliveryChallanContent() {
         setServerError(null);
 
         try {
-            await challanService.createChallan(payload);
+            const apiResponse = await challanService.createChallan(payload);
+            const created = apiResponse?.result ?? apiResponse;
+            const createdId = created?.id ?? created?.challan_id ?? null;
             toast.success("Delivery challan created successfully");
-            // Navigate to delivery challans list after creation
+            // Navigate to delivery challans list after creation and refresh it
+            // so the new row becomes visible immediately.
+            router.push(createdId ? `/delivery-challans?created_id=${createdId}` : "/delivery-challans");
             setTimeout(() => {
-                router.push("/delivery-challans");
-            }, 1000);
+                router.refresh();
+            }, 300);
         } catch (err) {
             const errorMessage =
                 err.response?.data?.message ||
