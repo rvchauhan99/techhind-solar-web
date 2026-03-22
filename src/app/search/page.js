@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import moment from "moment";
-import { Button as MuiButton } from "@mui/material";
+import { Button as MuiButton, Tooltip } from "@mui/material";
 import { IconExternalLink, IconSearch, IconX } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -216,14 +216,18 @@ export default function GlobalSearchPage() {
         field: "pui",
         label: "PUI",
         sortable: true,
+        stickyLeft: 0,
+        minWidth: 105,
+        maxWidth: 105,
         render: (row) => (
           <button
             type="button"
-            className="text-primary hover:underline text-left font-medium"
+            className="text-primary w-full truncate hover:underline text-left font-medium"
             onClick={(e) => {
               e.stopPropagation();
               openDetails(row);
             }}
+            title={row.pui}
           >
             {row.pui}
           </button>
@@ -233,11 +237,15 @@ export default function GlobalSearchPage() {
         field: "entity_label",
         label: "Source",
         sortable: true,
+        stickyLeft: 105,
+        minWidth: 115,
+        maxWidth: 115,
+        stickyShadow: true,
         render: (row) => (
           <Badge
             variant="secondary"
             className={cn(
-              "font-normal",
+              "font-normal w-full justify-center",
               SOURCE_BADGE[row.entityType] || "bg-slate-100 text-slate-700"
             )}
           >
@@ -267,11 +275,16 @@ export default function GlobalSearchPage() {
         field: "address",
         label: "Address",
         sortable: false,
-        render: (row) => (
-          <span className="line-clamp-2 max-w-[220px]" title={row.address}>
-            {row.address || "-"}
-          </span>
-        ),
+        render: (row) => {
+          if (!row.address) return <div className="max-w-[250px]">-</div>;
+          return (
+            <Tooltip title={row.address} placement="top" arrow>
+              <div className="max-w-[250px] truncate cursor-help">
+                {row.address}
+              </div>
+            </Tooltip>
+          );
+        },
       },
       {
         field: "consumer_no",
@@ -298,29 +311,27 @@ export default function GlobalSearchPage() {
         render: (row) => row.scheme || "-",
       },
       {
-        field: "inquiry_or_lead_date",
-        label: "Inquiry / Lead date",
-        sortable: true,
-        render: (row) =>
-          row.inquiry_or_lead_date
-            ? moment(row.inquiry_or_lead_date).format("DD-MM-YYYY")
-            : "-",
-      },
-      {
-        field: "order_date",
-        label: "Order date",
-        sortable: true,
-        render: (row) =>
-          row.order_date ? moment(row.order_date).format("DD-MM-YYYY") : "-",
-      },
-      {
-        field: "netmeter_installed_on",
-        label: "Netmeter install",
-        sortable: true,
-        render: (row) =>
-          row.netmeter_installed_on
-            ? moment(row.netmeter_installed_on).format("DD-MM-YYYY")
-            : "-",
+        field: "timeline",
+        label: "Timeline / Dates",
+        sortable: false,
+        render: (row) => {
+          const dates = [];
+          if (row.inquiry_or_lead_date) dates.push({ label: "Inq/Lead", val: row.inquiry_or_lead_date });
+          if (row.order_date) dates.push({ label: "Order", val: row.order_date });
+          if (row.netmeter_installed_on) dates.push({ label: "Netmeter", val: row.netmeter_installed_on });
+          
+          if (dates.length === 0) return "-";
+
+          return (
+            <div className="flex flex-col gap-1 text-xs whitespace-nowrap min-w-[100px]">
+              {dates.map((d, idx) => (
+                 <div key={idx} className="flex items-center">
+                   <span className="font-medium tracking-tight whitespace-nowrap">{moment(d.val).format("DD-MM-YYYY")}</span>
+                 </div>
+              ))}
+            </div>
+          );
+        },
       },
     ],
     [openDetails]
@@ -353,6 +364,8 @@ export default function GlobalSearchPage() {
     } catch (_) {
       /* ignore */
     }
+    setDraft("");
+    setSubmittedQ("");
     router.replace(pathname);
   }, [pathname, router]);
 
@@ -374,50 +387,66 @@ export default function GlobalSearchPage() {
     ) : null;
 
   return (
-    <div className="flex w-full min-h-0 flex-1 flex-col gap-2 py-1">
-      <h1 className="text-center text-lg font-semibold text-foreground md:text-xl">
-        Search
-      </h1>
-      <div className="mx-auto flex w-full max-w-3xl gap-1.5 px-1">
-        <div className="relative flex-1">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") runSearch();
-            }}
-            placeholder="Search across leads, inquiries, orders, quotations…"
-            className="h-10 pr-20"
-            aria-label="Global search"
-          />
-          {draft ? (
-            <button
+    <div className="flex w-full min-h-0 flex-1 flex-col p-2">
+      {/* Premium Stylish Search Card */}
+      <div className="mx-auto w-full max-w-4xl bg-card border border-border shadow-sm rounded-xl p-3 sm:px-4 sm:py-3 mb-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <IconSearch className="h-4 w-4 text-muted-foreground/60" />
+            </div>
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") runSearch();
+              }}
+              placeholder="Start typing to search globally..."
+              className="h-9 sm:h-10 pl-9 pr-4 text-[13px] sm:text-sm bg-background/50 border-input shadow-inner focus-visible:ring-1 focus-visible:ring-primary/40 rounded-lg"
+              aria-label="Global search"
+            />
+            {draft && (
+              <button
+                type="button"
+                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+                onClick={() => setDraft("")}
+                aria-label="Clear Input"
+              >
+                <IconX className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 sm:shrink-0">
+            <Button
               type="button"
-              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-10 z-10 -translate-y-1/2 p-1"
+              variant="outline"
+              size="sm"
+              className="h-9 sm:h-10 px-3 sm:px-4 flex-1 sm:flex-none gap-1.5 text-muted-foreground hover:text-foreground"
               onClick={clearSearch}
-              aria-label="Clear"
             >
-              <IconX className="h-4 w-4" />
-            </button>
-          ) : null}
-          <Button
-            type="button"
-            size="icon"
-            variant="secondary"
-            className="absolute top-1/2 right-1 h-8 w-8 -translate-y-1/2"
-            onClick={runSearch}
-            aria-label="Search"
-          >
-            <IconSearch className="h-4 w-4" />
-          </Button>
+              <IconX className="h-3.5 w-3.5" />
+              <span>Reset</span>
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="h-9 sm:h-10 px-4 sm:px-6 flex-1 sm:flex-none gap-2 shadow-sm font-medium"
+              onClick={runSearch}
+            >
+              <IconSearch className="h-4 w-4" />
+              <span>Search</span>
+            </Button>
+          </div>
         </div>
+        <p className="mt-2 text-[10.5px] sm:text-[11px] text-muted-foreground text-center sm:text-left leading-snug">
+          <span className="font-semibold text-foreground/70 mr-1">Searchable fields:</span>
+          Customer Name, Mobile, Address, Lead / Inquiry / Order / Quotation Number, Consumer No., Application No., GUVNL No.
+        </p>
       </div>
-      <p className="text-muted-foreground mx-auto max-w-3xl px-2 text-center text-xs leading-snug">
-        Search by customer name, mobile, address, lead number, inquiry number,
-        order number, quotation number, consumer no., application no., GUVNL no.
-      </p>
 
-      <div className="min-h-0 flex-1 flex flex-col px-0.5">
+      {/* Maximized Table Area */}
+      <div className="min-h-0 flex-1 flex flex-col mt-0.5">
         <PaginatedTable
           key={submittedQ || "__empty__"}
           columns={columns}
@@ -427,7 +456,7 @@ export default function GlobalSearchPage() {
           showPagination={false}
           initialLimit={100}
           moduleKey="global_search"
-          height="min(70vh, calc(100dvh - 200px))"
+          height="calc(100dvh - 160px)"
           getRowKey={(row) => `${row.entityType}-${row.id}`}
           onRowClick={(row) => openDetails(row)}
         />
