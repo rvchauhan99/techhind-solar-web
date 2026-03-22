@@ -13,6 +13,7 @@ import {
   IconSearch,
   IconCircle,
   IconBell,
+  IconMaximize,
 } from "@tabler/icons-react";
 import {
   DropdownMenu,
@@ -187,6 +188,7 @@ export default function Sidebar({
   setSidebarOpen,
   collapsed = false,
   onToggleCollapse = () => { },
+  onEnterFocusFullscreen = () => { },
 }) {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
@@ -262,6 +264,32 @@ export default function Sidebar({
     </Button>
   );
 
+  const fullscreenEnterButton = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="text-blue-200 hover:bg-[#142847] hover:text-white hidden shrink-0 lg:flex"
+      onClick={onEnterFocusFullscreen}
+      aria-label="Full screen"
+      title="Full screen (Ctrl+Shift+F)"
+    >
+      <IconMaximize className="h-5 w-5" />
+    </Button>
+  );
+
+  const fullscreenEnterButtonCollapsed = (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="text-blue-200 hover:bg-[#142847] hover:text-white hidden h-9 w-9 shrink-0 lg:flex"
+      onClick={onEnterFocusFullscreen}
+      aria-label="Full screen"
+      title="Full screen (Ctrl+Shift+F)"
+    >
+      <IconMaximize className="h-5 w-5" />
+    </Button>
+  );
+
   if (showCollapsed) {
     return (
       <aside className="border-[#0f1f3a] bg-[#1b365d] flex h-dvh w-full flex-col transition-all duration-300 ease-in-out border-r">
@@ -302,7 +330,19 @@ export default function Sidebar({
 
           {/* Nav: icon only, top-level */}
           <nav className="mb-4 flex flex-1 flex-col items-center gap-1">
-            {/* Notifications */}
+            <Link
+              href="/search"
+              onClick={() => setSidebarOpen?.(false)}
+              title="Global search"
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors border-l-2",
+                pathname === "/search"
+                  ? "bg-[#142847] text-white border-[#00823b]"
+                  : "border-transparent text-blue-100 hover:bg-[#142847] hover:text-white"
+              )}
+            >
+              <IconSearch className="h-5 w-5" />
+            </Link>
             <button
               type="button"
               onClick={() => setNotificationPanelOpen(true)}
@@ -339,7 +379,10 @@ export default function Sidebar({
             })}
           </nav>
 
-          {sidebarToggleButton}
+          <div className="mt-auto flex flex-col items-center gap-1 pt-2">
+            {fullscreenEnterButtonCollapsed}
+            {sidebarToggleButton}
+          </div>
 
           <AlertDialog
             open={showLogoutDialog}
@@ -482,6 +525,20 @@ export default function Sidebar({
           )}
         </div>
 
+        <Link
+          href="/search"
+          onClick={() => setSidebarOpen?.(false)}
+          className={cn(
+            "mb-3 flex w-full items-center gap-2 rounded-md border-l-4 px-3 py-1.5 text-left text-sm font-medium transition-colors",
+            pathname === "/search"
+              ? "border-[#00823b] bg-[#142847] text-white"
+              : "border-transparent text-blue-100 hover:bg-[#142847] hover:text-white"
+          )}
+        >
+          <IconSearch className="h-5 w-5 shrink-0" />
+          <span className="flex-1 truncate">Global search</span>
+        </Link>
+
         {/* Notifications */}
         <button
           type="button"
@@ -511,8 +568,9 @@ export default function Sidebar({
           ))}
         </nav>
 
-        {/* Collapse button: desktop only */}
-        <div className="mt-auto flex justify-end pt-2">
+        {/* Full screen + collapse: desktop only */}
+        <div className="mt-auto flex justify-end gap-1 pt-2">
+          {fullscreenEnterButton}
           {sidebarToggleButton}
         </div>
       </div>
