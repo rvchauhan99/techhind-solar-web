@@ -40,6 +40,7 @@ import mastersService from "@/services/mastersService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import InquiryDetailsContent from "@/components/common/InquiryDetailsContent";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { PAGE_PADDING, FORM_PADDING } from "@/utils/formConstants";
 import { toastSuccess, toastError } from "@/utils/toast";
@@ -680,40 +681,6 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     [showAssignment, isAllSelected, isIndeterminate, isRowSelected, handleOpenModal, handleOpenSidebar]
   );
 
-  const sidebarContent = useMemo(() => {
-    if (loadingRecord) {
-      return (
-        <div className="flex min-h-[200px] items-center justify-center">
-          <span className="text-muted-foreground">Loading...</span>
-        </div>
-      );
-    }
-    if (!selectedInquiry) return null;
-    const i = selectedInquiry;
-    return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">{i.inquiry_number || i.id}</p>
-        <p className="text-sm">{i.customer_name || "-"}</p>
-        <p className="text-xs text-muted-foreground">{i.mobile_number || "-"}</p>
-        <hr className="border-border" />
-        <p className="text-xs font-semibold text-muted-foreground">Status</p>
-        <p className="text-sm">{i.status || "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Project Scheme</p>
-        <p className="text-sm">{i.project_scheme || "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Capacity</p>
-        <p className="text-sm">{i.capacity ? `${i.capacity} KW` : "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Address</p>
-        <p className="text-sm">{[i.address, i.landmark_area, i.city_name, i.state_name].filter(Boolean).join(", ") || "-"}</p>
-        {i.remarks && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground">Remarks</p>
-            <p className="text-sm">{i.remarks}</p>
-          </>
-        )}
-      </div>
-    );
-  }, [loadingRecord, selectedInquiry]);
-
   const calculatePaginatedTableHeight = () => `calc(100vh - 125px)`;
 
   return (
@@ -920,7 +887,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         </Modal>
 
         <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Inquiry Details">
-          {sidebarContent}
+          <InquiryDetailsContent inquiry={selectedInquiry} loading={loadingRecord} />
         </DetailsSidebar>
 
         <Snackbar

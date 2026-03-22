@@ -83,22 +83,20 @@ export default function QuotationDetailsContent({ quotation, loading }) {
           </div>
           <div className="flex items-center gap-1">
             <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                r.status === "Converted"
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${r.status === "Converted"
                   ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
                   : r.status === "Sent"
-                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
-                  : r.status === "Draft"
-                  ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-              }`}
+                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                    : r.status === "Draft"
+                      ? "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                      : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                }`}
             >
               {r.status || "Draft"}
             </span>
             <span
-              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                r.is_approved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
-              }`}
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${r.is_approved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
+                }`}
             >
               {r.is_approved ? "Approved" : "Not Approved"}
             </span>
@@ -248,16 +246,16 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         r.graph_per_day_generation != null ||
         r.graph_yearly_increment_price != null ||
         r.graph_yearly_decrement_generation != null) && (
-        <>
-          <SectionTitle>Graph Generation</SectionTitle>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
-            <DetailRow label="Price Per Unit (₹/kWh)" value={r.graph_price_per_unit} />
-            <DetailRow label="Per Day Generation (kWh)" value={r.graph_per_day_generation} />
-            <DetailRow label="Yearly Increment in Price (%)" value={r.graph_yearly_increment_price} />
-            <DetailRow label="Yearly Decrement in Generation (%)" value={r.graph_yearly_decrement_generation} />
-          </div>
-        </>
-      )}
+          <>
+            <SectionTitle>Graph Generation</SectionTitle>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
+              <DetailRow label="Price Per Unit (₹/kWh)" value={r.graph_price_per_unit} />
+              <DetailRow label="Per Day Generation (kWh)" value={r.graph_per_day_generation} />
+              <DetailRow label="Yearly Increment in Price (%)" value={r.graph_yearly_increment_price} />
+              <DetailRow label="Yearly Decrement in Generation (%)" value={r.graph_yearly_decrement_generation} />
+            </div>
+          </>
+        )}
     </div>
   );
 }
