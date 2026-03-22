@@ -488,6 +488,8 @@ export default function PaginatedTable({
                   const value = localFilterValues[filterKey] ?? "";
                   const filterType = c.filterType;
                   const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
+                  const isFirstColumn = colIndex === 0;
+                  const isLastColumn = colIndex === columns.length - 1;
                   if (isActionColumn || !filterType) {
                     const stickyClass =
                       isFirstColumn && isActionColumn
