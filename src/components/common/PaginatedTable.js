@@ -445,15 +445,9 @@ export default function PaginatedTable({
                       isActionColumn && "min-w-[120px] whitespace-normal",
                       !isActionColumn && "min-w-[70px] overflow-hidden text-ellipsis",
                       isFirstColumn && isActionColumn && "sticky left-0 z-20 bg-[#1b365d] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
-                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-[#1b365d] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]",
-                      c.stickyLeft !== undefined && "sticky z-20 bg-[#1b365d]",
-                      c.stickyRight !== undefined && "sticky z-20 bg-[#1b365d]",
-                      c.stickyShadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                      isLastColumn && isActionColumn && "sticky right-0 z-20 bg-[#1b365d] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                     )}
                     style={{
-                      left: c.stickyLeft !== undefined ? c.stickyLeft : undefined,
-                      right: c.stickyRight !== undefined ? c.stickyRight : undefined,
-                      minWidth: c.minWidth ? c.minWidth : undefined,
                       maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
                     }}
                   >
@@ -489,17 +483,15 @@ export default function PaginatedTable({
                   const filterType = c.filterType;
                   const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
                   if (isActionColumn || !filterType) {
+                    const isFirstColumn = colIndex === 0;
+                    const isLastColumn = colIndex === columns.length - 1;
                     const stickyClass =
                       isFirstColumn && isActionColumn
                         ? "sticky left-0 z-20 bg-[#f8fafc] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] "
                         : isLastColumn && isActionColumn
                           ? "sticky right-0 z-20 bg-[#f8fafc] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] "
-                          : c.stickyLeft !== undefined
-                            ? "sticky z-20 bg-[#f8fafc] " + (c.stickyShadow ? "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)] " : "")
-                            : c.stickyRight !== undefined
-                              ? "sticky z-20 bg-[#f8fafc] " + (c.stickyShadow ? "shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)] " : "")
-                              : "";
-                    return <td key={(c.field || c.label) + "-filter"} className={cn(stickyClass, c.field === "actions" ? "min-w-[120px]" : "")} style={{ left: c.stickyLeft, right: c.stickyRight, minWidth: c.minWidth }} />;
+                          : "";
+                    return <td key={(c.field || c.label) + "-filter"} className={cn(stickyClass, c.field === "actions" ? "min-w-[120px]" : "")} />;
                   }
                   const opKey = operatorKey;
                   const operatorValue =
@@ -703,17 +695,9 @@ export default function PaginatedTable({
                           !isActionColumn && !c.wrap && "whitespace-nowrap",
                           !isActionColumn && c.wrap && "break-words",
                           isFirstColumn && isActionColumn && "sticky left-0 z-10 bg-card shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]",
-                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-card shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.06)]",
-                          c.stickyLeft !== undefined && "sticky z-10 bg-card",
-                          c.stickyRight !== undefined && "sticky z-10 bg-card",
-                          c.stickyShadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]"
+                          isLastColumn && isActionColumn && "sticky right-0 z-10 bg-card shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.06)]"
                         )}
-                        style={{ 
-                          left: c.stickyLeft !== undefined ? c.stickyLeft : undefined,
-                          right: c.stickyRight !== undefined ? c.stickyRight : undefined,
-                          minWidth: c.minWidth ? c.minWidth : undefined,
-                          maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined 
-                        }}
+                        style={{ maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined }}
                       >
                         {c.render
                           ? c.render(
