@@ -36,6 +36,7 @@ import companyService from "@/services/companyService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -972,6 +973,7 @@ function OrderViewPageContent() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelling, setCancelling] = useState(false);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -1196,6 +1198,13 @@ function OrderViewPageContent() {
                         Pending Order - {orderData?.order_number || "N/A"}
                     </Typography>
                     <Box display="flex" gap={1}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setQuotationDrawerOpen(true)}
+                        >
+                            Quotation
+                        </Button>
                         {canCancelOrder() && (
                             <Button
                                 variant="outlined"
@@ -1460,6 +1469,12 @@ function OrderViewPageContent() {
                         </Button>
                     </DialogActions>
                 </Dialog>
+                <QuotationDetailsDrawer
+                    open={quotationDrawerOpen}
+                    onClose={() => setQuotationDrawerOpen(false)}
+                    orderId={orderId}
+                    quotationId={orderData?.quotation_id}
+                />
             </Box>
         </ProtectedRoute >
     );

@@ -49,6 +49,8 @@ import userMasterService from "@/services/userMasterService";
 import { useAuth } from "@/hooks/useAuth";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import DescriptionIcon from "@mui/icons-material/Description";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -93,6 +95,8 @@ export default function ListView() {
     const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
     const [reassignReason, setReassignReason] = useState("");
     const [reassignReloadFn, setReassignReloadFn] = useState(null);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+    const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
     const normalizeRoleName = (s) =>
         String(s || "")
@@ -236,6 +240,12 @@ export default function ListView() {
         }
     }, []);
 
+    const handleOpenQuotationDrawer = useCallback((row) => {
+        if (!row?.id) return;
+        setSelectedQuotationOrder(row);
+        setQuotationDrawerOpen(true);
+    }, []);
+
     const getStageIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
         if (status === "pending") return <EventIcon color="primary" sx={{ fontSize: 18 }} />;
@@ -319,6 +329,13 @@ export default function ListView() {
                         </IconButton>
                         <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
                             <CommentIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <IconButton
+                            size="small"
+                            title="Quotation Details"
+                            onClick={() => handleOpenQuotationDrawer(row)}
+                        >
+                            <DescriptionIcon sx={{ fontSize: 16 }} />
                         </IconButton>
                         {isSuperAdmin && (
                             <IconButton
@@ -536,6 +553,15 @@ export default function ListView() {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <QuotationDetailsDrawer
+                open={quotationDrawerOpen}
+                onClose={() => {
+                    setQuotationDrawerOpen(false);
+                    setSelectedQuotationOrder(null);
+                }}
+                orderId={selectedQuotationOrder?.id}
+                quotationId={selectedQuotationOrder?.quotation_id}
+            />
         </Box>
     );
 }
