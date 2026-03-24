@@ -1143,6 +1143,33 @@ function OrderViewPageContent() {
                     >
                         View Document
                     </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={async () => {
+                            try {
+                                const { blob, filename } = await orderDocumentsService.downloadOrderDocument(row.id);
+                                if (!blob) throw new Error("Download payload missing");
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download =
+                                    filename ||
+                                    row?.document_name ||
+                                    resolveOrderDocTypeLabel(row.doc_type, orderDocumentTypes) ||
+                                    `order-document-${row.id}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(url);
+                            } catch (e) {
+                                console.error("Failed to download document", e);
+                                toastError("Failed to download document");
+                            }
+                        }}
+                    >
+                        Download
+                    </Button>
                 </Box>
             ),
         },
