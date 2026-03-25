@@ -32,6 +32,8 @@ const FILTER_KEYS = [
   "order_number",
   "order_date_from",
   "order_date_to",
+  "delivery_date_from",
+  "delivery_date_to",
   "current_stage_key",
   "cancelled_stage",
   "cancelled_at_stage_key",
@@ -69,6 +71,7 @@ export default function OrderListFilterPanel({
   defaultOpen = false,
   variant = "dashboard", // "dashboard" | "confirm" | "closed"
   excludeKeys = [],
+  showDeliveryDateRange = false,
 }) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -176,6 +179,8 @@ export default function OrderListFilterPanel({
       order_number: "Order No",
       order_date_from: "Date From",
       order_date_to: "Date To",
+      delivery_date_from: "Delivery Date From",
+      delivery_date_to: "Delivery Date To",
       cancelled_stage: "Cancelled Stage",
       cancelled_at_stage_key: "Cancelled At",
     };
@@ -340,6 +345,12 @@ export default function OrderListFilterPanel({
           <Input name="order_number" label="Order Number" placeholder="Search..." value={localValues.order_number} onChange={(e) => handleChange("order_number", e.target.value)} />
           <DateField name="order_date_from" label="Order Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
           <DateField name="order_date_to" label="Order Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
+          {showDeliveryDateRange && (
+            <>
+              <DateField name="delivery_date_from" label="Delivery Date From" value={localValues.delivery_date_from} onChange={(e) => handleChange("delivery_date_from", e.target.value)} />
+              <DateField name="delivery_date_to" label="Delivery Date To" value={localValues.delivery_date_to} onChange={(e) => handleChange("delivery_date_to", e.target.value)} />
+            </>
+          )}
 
           <div className="col-span-1 sm:col-span-2 lg:col-span-6 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={handleClear} className="h-8 px-3 text-xs w-20">Clear</Button>

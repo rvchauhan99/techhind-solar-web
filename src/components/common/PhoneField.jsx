@@ -45,14 +45,18 @@ export default function PhoneField({
     }
   };
 
+  const getMaxLocalDigits = (code) => (code === "+91" ? 10 : 15);
+
   const handleCountryChange = (e) => {
     const code = e.target.value || "+91";
     setCountryCode(code);
-    emitChange(code, localNumber);
+    const nextLocal = String(localNumber || "").slice(0, getMaxLocalDigits(code));
+    setLocalNumber(nextLocal);
+    emitChange(code, nextLocal);
   };
 
   const handleNumberChange = (e) => {
-    const raw = e.target.value.replace(/\D/g, "");
+    const raw = e.target.value.replace(/\D/g, "").slice(0, getMaxLocalDigits(countryCode));
     setLocalNumber(raw);
     emitChange(countryCode, raw);
   };
@@ -108,7 +112,7 @@ export default function PhoneField({
           disabled={disabled}
           error={false}
           className="min-w-0 flex-1 rounded-none border-0 border-l-0 bg-transparent px-3 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          inputProps={{ maxLength: 15 }}
+          inputProps={{ maxLength: getMaxLocalDigits(countryCode) }}
           aria-describedby={error && helperText ? errorId : undefined}
         />
       </div>

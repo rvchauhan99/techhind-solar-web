@@ -304,6 +304,9 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         if (!formData.state_id) {
             newErrors.state_id = "State is required";
         }
+        if (!formData.pin_code || String(formData.pin_code).trim() === "") {
+            newErrors.pin_code = "Pin Code is required";
+        }
         if (!formData.city_id) {
             newErrors.city_id = "City is required";
         }
@@ -510,6 +513,9 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             label="Pin Code"
                             value={formData.pin_code || ""}
                             onChange={handleChange}
+                            error={!!errors.pin_code}
+                            helperText={errors.pin_code}
+                            required
                         />
                         <AutocompleteField
                             name="state_id"

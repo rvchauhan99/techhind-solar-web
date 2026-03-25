@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentOutstandingAnalysis from "./components/PaymentOutstandingAnalysis";
 
 const INR = (v) => Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const fmtINDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
 const pct = (part, total) => {
   const p = Number(part || 0);
   const t = Number(total || 0);
@@ -53,9 +54,10 @@ const PAYMENT_TYPE_TABS = [
 const FILTER_LABELS = {
   status: "Status",
   order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
+  delivery_date_from: "Delivery Date From", delivery_date_to: "Delivery Date To",
   branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
   order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
-  reference_from: "Reference", current_stage_key: "Stage", inquiry_source_id: "Source", q: "Search",
+  reference_from: "Reference", current_stage_key: "Order Stage", inquiry_source_id: "Source", q: "Search",
 };
 
 function getChips(filters) {
@@ -150,7 +152,7 @@ export default function PaymentOutstandingPage() {
 
   const columns = useMemo(() => ([
     {
-      field: "actions", label: "Actions", isActionColumn: true,
+      field: "actions", label: "Actions", isActionColumn: true, stickyLeft: true, stickyWidth: 128,
       render: (row) => (
         <div className="flex items-center gap-1">
           {/* Icon tooltips: custom hover tooltip (reliable vs native title) */}
@@ -202,12 +204,12 @@ export default function PaymentOutstandingPage() {
       ),
     },
     {
-      field: "order_number", label: "Order #", sortable: true,
+      field: "order_number", label: "Order #", sortable: true, stickyLeft: true, stickyWidth: 100,
       render: (row) => <Link href={`/order/view?id=${row.id}`} className="text-primary hover:underline text-[11px] font-medium">{row.order_number || row.id}</Link>,
     },
-    { field: "capacity", label: "Cap.", sortable: true },
+    { field: "capacity", label: "Cap.", sortable: true, stickyLeft: true, stickyWidth: 72 },
     {
-      field: "customer", label: "Customer",
+      field: "customer", label: "Customer", stickyLeft: true, stickyWidth: 180,
       render: (row) => <span className="text-[11px]">{row.customer?.name}</span>,
     },
     {
@@ -228,12 +230,28 @@ export default function PaymentOutstandingPage() {
     },
     { field: "payment_type", label: "Payment Type" },
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
-    { field: "order_date", label: "Order Date", render: (row) => row.order_date ? new Date(row.order_date).toLocaleDateString("en-IN") : "-" },
-    { field: "current_stage_key", label: "Stage", render: (row) => {
-      const key = row.current_stage_key;
-      const label = ORDER_STAGE_OPTIONS.find((o) => o.value === key)?.label;
-      return <span className="text-[11px]">{label || key || "-"}</span>;
-    } },
+    { field: "disbursed_date", label: "Subsidy Disb.", render: (row) => <span className="text-[11px]">{fmtINDate(row.disbursed_date)}</span> },
+    { field: "netmeter_applied_on", label: "Netm. Apply", render: (row) => <span className="text-[11px]">{fmtINDate(row.netmeter_applied_on)}</span> },
+    { field: "planned_delivery_date", label: "Deliv. Date", render: (row) => <span className="text-[11px]">{fmtINDate(row.planned_delivery_date)}</span> },
+    { field: "order_date", label: "Order Date", render: (row) => fmtINDate(row.order_date) },
+    {
+      field: "current_stage_key",
+      label: "Order Stage",
+      wrap: true,
+      render: (row) => {
+        const key =
+          row.current_stage_key ??
+          row.currentStageKey ??
+          row.dataValues?.current_stage_key;
+        const label = ORDER_STAGE_OPTIONS.find((o) => o.value === key)?.label ?? (key ? String(key) : null);
+        const text = label || "-";
+        return (
+          <span className="text-[11px]" title={text}>
+            {text}
+          </span>
+        );
+      },
+    },
     { field: "branch.name", label: "Branch", render: (row) => <span className="text-[11px] text-slate-500">{row.branch?.name || "-"}</span> },
     { field: "handledBy.name", label: "Handled By", render: (row) => <span className="text-[11px] text-slate-500">{row.handledBy?.name || "-"}</span> },
   ]), []);
@@ -376,6 +394,7 @@ export default function PaymentOutstandingPage() {
               onClear={handleClearFilters}
               defaultOpen
               excludeKeys={["status"]}
+              showDeliveryDateRange
             />
           )}
 
