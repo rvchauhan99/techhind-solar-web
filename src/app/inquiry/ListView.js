@@ -525,6 +525,11 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         filterType: "text",
         filterKey: "mobile_number",
         defaultFilterOperator: "contains",
+        render: (row) => (
+          <Typography variant="body2" sx={{ userSelect: "text", cursor: "text" }}>
+            {row.mobile_number || "-"}
+          </Typography>
+        ),
       },
       {
         field: "address",
@@ -621,7 +626,6 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         filterKey: "company_name",
         defaultFilterOperator: "contains",
       },
-      { field: "phone_no", label: "Phone No" },
       {
         field: "remarks",
         label: "Inquiry Remarks",

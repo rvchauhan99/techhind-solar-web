@@ -6,6 +6,9 @@ export const getConfirmedOrders = (params = {}) =>
 export const getOrderById = (id) =>
     apiClient.get(`/confirm-orders/${id}`).then((r) => r.data);
 
+export const changeHandledBy = (orderId, payload) =>
+    apiClient.post(`/confirm-orders/${orderId}/change-handled-by`, payload).then((r) => r.data);
+
 /**
  * Get Model Agreement PDF as blob (view or download).
  * @param {string|number} orderId
@@ -25,4 +28,4 @@ export const getModelAgreementPdf = (orderId, options = {}) => {
         .then((r) => r.data);
 };
 
-export default { getConfirmedOrders, getOrderById, getModelAgreementPdf };
+export default { getConfirmedOrders, getOrderById, changeHandledBy, getModelAgreementPdf };

@@ -36,6 +36,7 @@ import companyService from "@/services/companyService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -972,6 +973,7 @@ function OrderViewPageContent() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelling, setCancelling] = useState(false);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -1141,6 +1143,33 @@ function OrderViewPageContent() {
                     >
                         View Document
                     </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={async () => {
+                            try {
+                                const { blob, filename } = await orderDocumentsService.downloadOrderDocument(row.id);
+                                if (!blob) throw new Error("Download payload missing");
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download =
+                                    filename ||
+                                    row?.document_name ||
+                                    resolveOrderDocTypeLabel(row.doc_type, orderDocumentTypes) ||
+                                    `order-document-${row.id}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(url);
+                            } catch (e) {
+                                console.error("Failed to download document", e);
+                                toastError("Failed to download document");
+                            }
+                        }}
+                    >
+                        Download
+                    </Button>
                 </Box>
             ),
         },
@@ -1196,6 +1225,13 @@ function OrderViewPageContent() {
                         Pending Order - {orderData?.order_number || "N/A"}
                     </Typography>
                     <Box display="flex" gap={1}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setQuotationDrawerOpen(true)}
+                        >
+                            Quotation
+                        </Button>
                         {canCancelOrder() && (
                             <Button
                                 variant="outlined"
@@ -1460,6 +1496,12 @@ function OrderViewPageContent() {
                         </Button>
                     </DialogActions>
                 </Dialog>
+                <QuotationDetailsDrawer
+                    open={quotationDrawerOpen}
+                    onClose={() => setQuotationDrawerOpen(false)}
+                    orderId={orderId}
+                    quotationId={orderData?.quotation_id}
+                />
             </Box>
         </ProtectedRoute >
     );
