@@ -40,7 +40,8 @@ function statusBadgeClass(status) {
 function stageBadgeClass(status) {
     if (status === "completed") return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-200";
     if (status === "in_progress") return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200";
-    return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200";
+    // Pending / locked / any unknown => red (per pipeline color rules)
+    return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200";
 }
 
 export default function OrderDetailsDrawer({
@@ -281,9 +282,7 @@ export default function OrderDetailsDrawer({
                             <span
                                 key={stage.key}
                                 className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${
-                                    stage.isCurrent 
-                                    ? stageBadgeClass(stage.status) 
-                                    : "bg-transparent text-slate-500 border-slate-200 dark:border-slate-800 dark:text-slate-400"
+                                    stageBadgeClass(stage.isCurrent ? "in_progress" : stage.status)
                                 }`}
                             >
                                 {stage.label}: {stage.isCurrent ? "Current" : stage.status}

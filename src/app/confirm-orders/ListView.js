@@ -248,7 +248,7 @@ export default function ListView() {
 
     const getStageIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
-        if (status === "pending") return <EventIcon color="primary" sx={{ fontSize: 18 }} />;
+        if (status === "pending") return <EventIcon color="error" sx={{ fontSize: 18 }} />;
         if (status === "locked") return <CancelIcon color="error" sx={{ fontSize: 18 }} />;
         return <HelpIcon color="disabled" sx={{ fontSize: 18 }} />;
     };
@@ -425,7 +425,7 @@ export default function ListView() {
                                                 getStageIcon("completed")
                                             )
                                         ) : isActive ? (
-                                            <Chip label="Current" size="small" color="primary" sx={{ height: 14, fontSize: "0.5rem", px: 0, borderRadius: '2px' }} />
+                                            <Chip label="Current" size="small" color="warning" sx={{ height: 14, fontSize: "0.5rem", px: 0, borderRadius: '2px' }} />
                                         ) : (
                                             getStageIcon(status)
                                         )}

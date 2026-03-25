@@ -28,6 +28,7 @@ const FILTER_KEYS = [
   "mobile_number",
   "branch_id",
   "inquiry_source_id",
+  "project_scheme_id",
   "handled_by",
   "order_number",
   "order_date_from",
@@ -47,7 +48,7 @@ export const ORDER_STAGE_OPTIONS = [
   { value: "assign_fabricator_and_installer", label: "Assign Fabricator & Installer" },
   { value: "fabrication", label: "Fabrication" },
   { value: "installation", label: "Installation" },
-  { value: "netmeter_apply", label: "Netmeter Apply" },
+{ value: "netmeter_apply", label: "Netmeter Apply" },
   { value: "netmeter_installed", label: "Netmeter Installed" },
   { value: "subsidy_claim", label: "Subsidy Claim" },
   { value: "subsidy_disbursed", label: "Subsidy Disbursed" },
@@ -174,6 +175,7 @@ export default function OrderListFilterPanel({
       reference_from: "Ref",
       branch_id: "Branch",
       inquiry_source_id: "Source",
+      project_scheme_id: "Project Scheme",
       handled_by: "User",
       current_stage_key: "Stage",
       order_number: "Order No",
@@ -293,6 +295,16 @@ export default function OrderListFilterPanel({
             <MenuItem value="">All Sources</MenuItem>
             {sourceOptions.map((s) => <MenuItem key={s.id} value={String(s.id)}>{s.source_name ?? s.label ?? s.name ?? s.id}</MenuItem>)}
           </Select>
+          <AutocompleteField
+            name="project_scheme_id"
+            label="Project Scheme"
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+            referenceModel="project_scheme.model"
+            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+            value={localValues.project_scheme_id ? { id: localValues.project_scheme_id } : null}
+            onChange={(e, newValue) => handleChange("project_scheme_id", newValue?.id ? String(newValue.id) : "")}
+            placeholder="Select Scheme..."
+          />
           <AutocompleteField
             name="handled_by"
             label="Handled By"

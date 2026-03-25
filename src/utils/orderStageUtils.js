@@ -31,7 +31,7 @@ export const buildOrderedStages = (stages = {}, currentStageKey = null) => {
         const status = isOrderCompleted
             ? "completed"
             : current
-                ? normalizeStageStatus(rawStatus || "in_progress")
+                ? "in_progress"
                 : normalizeStageStatus(rawStatus);
         return {
             ...stage,

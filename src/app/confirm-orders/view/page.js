@@ -109,7 +109,7 @@ const PipelineStages = ({ currentStageKey, stagesStatus = {}, onStageClick }) =>
 
     const getIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" />;
-        if (status === "pending") return <EventIcon color="primary" />;
+        if (status === "pending") return <EventIcon color="error" />;
         if (status === "locked") return <CancelIcon color="error" />;
         return <HelpIcon color="disabled" />;
     };
@@ -145,7 +145,7 @@ const PipelineStages = ({ currentStageKey, stagesStatus = {}, onStageClick }) =>
                             </Typography>
                             <Box sx={{ mt: 0.5 }}>
                                 {isActive ? (
-                                    <Chip label="Current" size="small" color="primary" sx={{ height: "20px", fontSize: "10px" }} />
+                                    <Chip label="Current" size="small" color="warning" sx={{ height: "20px", fontSize: "10px" }} />
                                 ) : (
                                     getIcon(status)
                                 )}
