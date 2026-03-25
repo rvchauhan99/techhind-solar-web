@@ -1122,7 +1122,7 @@ function OrderViewPageContent() {
         {
             id: "uploaded_by",
             label: "Uploaded By",
-            render: (row) => orderData?.handled_by_name || "System",
+            render: (row) => row?.updated_by_name || "System",
         },
         {
             id: "actions",
