@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -28,6 +28,7 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
@@ -50,6 +51,7 @@ const COLUMN_FILTER_KEYS = [
   "order_date_op",
   "customer_name",
   "customer_name_op",
+  "project_scheme_id",
   "capacity",
   "capacity_op",
   "capacity_to",
@@ -88,6 +90,8 @@ export default function ListView({
   const [exporting, setExporting] = useState(false);
   const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+  const [projectSchemeOptions, setProjectSchemeOptions] = useState([]);
+  const [loadingProjectSchemes, setLoadingProjectSchemes] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters, status: filters.status || defaultStatus }), [filters, defaultStatus]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -100,6 +104,33 @@ export default function ListView({
     if (!obj.status) obj.status = defaultStatus;
     return { q: undefined, ...obj };
   }, [filters, defaultStatus]);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoadingProjectSchemes(true);
+    getReferenceOptionsSearch("project_scheme.model", { q: "", limit: 1000 })
+      .then((rows) => {
+        if (!mounted) return;
+        const list = Array.isArray(rows) ? rows : [];
+        setProjectSchemeOptions(
+          list
+            .map((o) => ({
+              value: o?.id != null ? String(o.id) : (o?.value != null ? String(o.value) : ""),
+              label: o?.name ?? o?.label ?? o?.value ?? (o?.id != null ? String(o.id) : ""),
+            }))
+            .filter((o) => o.value !== "")
+        );
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setProjectSchemeOptions([]);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoadingProjectSchemes(false);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -232,6 +263,9 @@ export default function ListView({
       {
         field: "project_scheme_name",
         label: "Project Scheme",
+        filterType: "select",
+        filterKey: "project_scheme_id",
+        filterOptions: projectSchemeOptions,
         render: (row) => row.project_scheme_name || "-",
       },
       {

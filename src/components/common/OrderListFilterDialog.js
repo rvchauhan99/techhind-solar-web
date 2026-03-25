@@ -25,6 +25,7 @@ const FILTER_KEYS = [
   "mobile_number",
   "branch_id",
   "inquiry_source_id",
+  "project_scheme_id",
   "handled_by",
   "order_number",
   "order_date_from",

@@ -139,7 +139,7 @@ export default function ListView() {
     if (status === "completed")
       return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
     if (status === "pending")
-      return <EventIcon color="primary" sx={{ fontSize: 18 }} />;
+      return <EventIcon color="error" sx={{ fontSize: 18 }} />;
     if (status === "locked")
       return <CancelIcon color="error" sx={{ fontSize: 18 }} />;
     return <HelpIcon color="disabled" sx={{ fontSize: 18 }} />;
@@ -385,7 +385,7 @@ export default function ListView() {
                       <Chip
                         label="Current"
                         size="small"
-                        color="primary"
+                        color="warning"
                         sx={{ height: 14, fontSize: "0.5rem", px: 0, borderRadius: "2px" }}
                       />
                     ) : (
