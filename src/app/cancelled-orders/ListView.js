@@ -5,6 +5,7 @@ import { Paper, Typography, Box, Grid, Chip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PhoneIcon from "@mui/icons-material/Phone";
+import DescriptionIcon from "@mui/icons-material/Description";
 import moment from "moment";
 import { useRouter } from "next/navigation";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -14,11 +15,14 @@ import cancelledOrdersService from "@/services/cancelledOrdersService";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 import { useState } from "react";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 export default function ListView({ filters }) {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
   const fetchData = useCallback(
     async (params) => {
@@ -56,6 +60,12 @@ export default function ListView({ filters }) {
       const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
       toastError(msg);
     }
+  }, []);
+
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
   }, []);
 
   const renderOrderDetail = (label, value, isBold = true, color = "text.primary") => (
@@ -155,6 +165,9 @@ export default function ListView({ filters }) {
             }}
           />
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.2 }}>
+            <IconButton size="small" title="Quotation Details" onClick={() => handleOpenQuotationDrawer(row)}>
+              <DescriptionIcon sx={{ fontSize: 16 }} />
+            </IconButton>
             <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
               <VisibilityIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -248,6 +261,15 @@ export default function ListView({ filters }) {
         onPrint={handlePrintOrder}
         showPrint
         showDeliverySnapshot
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </>
   );

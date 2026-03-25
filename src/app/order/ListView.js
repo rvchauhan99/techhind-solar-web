@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
@@ -85,6 +86,8 @@ export default function ListView({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
   const columnFilterValues = useMemo(() => ({ ...filters, status: filters.status || defaultStatus }), [filters, defaultStatus]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -163,6 +166,12 @@ export default function ListView({
       const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
       toastError(msg);
     }
+  }, []);
+
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
   }, []);
 
   const columns = useMemo(
@@ -297,6 +306,15 @@ export default function ListView({
             >
               <IconCurrencyRupee className="size-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Quotation Details"
+              onClick={() => handleOpenQuotationDrawer(row)}
+            >
+              <IconDownload className="size-4" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-8 w-8 shrink-0">
                 <IconDotsVertical className="size-4" />
@@ -320,7 +338,7 @@ export default function ListView({
         ),
       },
     ],
-    [handleOpenSidebar, router, getStatusVariant]
+    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant]
   );
 
   const tableHeight = "calc(100vh - 150px)";
@@ -390,6 +408,15 @@ export default function ListView({
         onPrint={handlePrintOrder}
         showPrint
         showDeliverySnapshot
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </Container>
   );

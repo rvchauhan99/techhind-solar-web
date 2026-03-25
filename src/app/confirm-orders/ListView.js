@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
     Paper,
+    Button,
     IconButton,
     Menu,
     MenuItem,
@@ -14,6 +15,10 @@ import {
     Grid,
     Stack,
     Tooltip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
@@ -27,6 +32,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import PhoneIcon from "@mui/icons-material/Phone";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -38,6 +44,13 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
+import { toastSuccess } from "@/utils/toast";
+import userMasterService from "@/services/userMasterService";
+import { useAuth } from "@/hooks/useAuth";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import Input from "@/components/common/Input";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import DescriptionIcon from "@mui/icons-material/Description";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -61,6 +74,7 @@ const isOrderFullyCompleted = (row) => {
 
 export default function ListView() {
     const router = useRouter();
+    const { user } = useAuth();
     const listingState = useListingQueryState({
         defaultLimit: 25,
         filterKeys: ORDER_LIST_FILTER_KEYS,
@@ -73,6 +87,62 @@ export default function ListView() {
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
     const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
+    const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
+    const [reassigning, setReassigning] = useState(false);
+    const [selectedOrderForReassign, setSelectedOrderForReassign] = useState(null);
+    const [handledByUsers, setHandledByUsers] = useState([]);
+    const [handledByLoading, setHandledByLoading] = useState(false);
+    const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
+    const [reassignReason, setReassignReason] = useState("");
+    const [reassignReloadFn, setReassignReloadFn] = useState(null);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+    const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+
+    const normalizeRoleName = (s) =>
+        String(s || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
+
+    const userOptionById = useMemo(() => {
+        const map = new Map();
+        for (const item of handledByUsers) map.set(Number(item.id), item);
+        return map;
+    }, [handledByUsers]);
+
+    useEffect(() => {
+        if (!isSuperAdmin) return;
+        let mounted = true;
+        const loadUsers = async () => {
+            try {
+                setHandledByLoading(true);
+                const response = await userMasterService.listUserMasters({
+                    page: 1,
+                    limit: 1000,
+                    status: "active",
+                    sortBy: "name",
+                    sortOrder: "ASC",
+                });
+                const rows = response?.result?.data || [];
+                if (!mounted) return;
+                setHandledByUsers(
+                    rows.map((u) => ({
+                        id: Number(u.id),
+                        name: u.name || `User ${u.id}`,
+                    }))
+                );
+            } catch (err) {
+                if (!mounted) return;
+                toastError(err?.response?.data?.message || "Failed to load users");
+            } finally {
+                if (mounted) setHandledByLoading(false);
+            }
+        };
+        loadUsers();
+        return () => {
+            mounted = false;
+        };
+    }, [isSuperAdmin]);
 
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
@@ -83,6 +153,25 @@ export default function ListView() {
         setMenuAnchor(null);
         setMenuOrderId(null);
     };
+
+    const openChangeHandledByDialog = useCallback((order, reloadFn = null) => {
+        if (!order?.id) return;
+        setSelectedOrderForReassign(order);
+        setReassignReloadFn(() => (typeof reloadFn === "function" ? reloadFn : null));
+        const preselected = userOptionById.get(Number(order.handled_by)) || null;
+        setSelectedHandledByUser(preselected);
+        setReassignReason("");
+        setChangeHandledByOpen(true);
+    }, [userOptionById]);
+
+    const closeChangeHandledByDialog = useCallback(() => {
+        if (reassigning) return;
+        setChangeHandledByOpen(false);
+        setSelectedOrderForReassign(null);
+        setReassignReloadFn(null);
+        setSelectedHandledByUser(null);
+        setReassignReason("");
+    }, [reassigning]);
 
     const handleEdit = () => {
         router.push(`/order/edit?id=${menuOrderId}`);
@@ -97,6 +186,29 @@ export default function ListView() {
     const fetchData = useCallback(async (params) => {
         return await confirmOrdersService.getConfirmedOrders(params);
     }, []);
+
+    const submitChangeHandledBy = useCallback(async (reload) => {
+        if (!selectedOrderForReassign?.id || !selectedHandledByUser?.id) return;
+        if (Number(selectedHandledByUser.id) === Number(selectedOrderForReassign.handled_by)) {
+            toastError("Please select a different user");
+            return;
+        }
+        try {
+            setReassigning(true);
+            await confirmOrdersService.changeHandledBy(selectedOrderForReassign.id, {
+                handled_by: selectedHandledByUser.id,
+                reason: reassignReason?.trim() || undefined,
+            });
+            toastSuccess("Handled By updated successfully");
+            closeChangeHandledByDialog();
+            const effectiveReload = typeof reload === "function" ? reload : reassignReloadFn;
+            if (typeof effectiveReload === "function") effectiveReload();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Failed to update Handled By");
+        } finally {
+            setReassigning(false);
+        }
+    }, [selectedOrderForReassign, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, reassignReloadFn]);
 
     const handleOpenDetails = useCallback((row) => {
         setSelectedOrder(row);
@@ -126,6 +238,12 @@ export default function ListView() {
             const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
             toastError(msg);
         }
+    }, []);
+
+    const handleOpenQuotationDrawer = useCallback((row) => {
+        if (!row?.id) return;
+        setSelectedQuotationOrder(row);
+        setQuotationDrawerOpen(true);
     }, []);
 
     const getStageIcon = (status) => {
@@ -212,6 +330,22 @@ export default function ListView() {
                         <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
                             <CommentIcon sx={{ fontSize: 16 }} />
                         </IconButton>
+                        <IconButton
+                            size="small"
+                            title="Quotation Details"
+                            onClick={() => handleOpenQuotationDrawer(row)}
+                        >
+                            <DescriptionIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        {isSuperAdmin && (
+                            <IconButton
+                                size="small"
+                                title="Change Handled By"
+                                onClick={() => openChangeHandledByDialog(row, reload)}
+                            >
+                                <ManageAccountsIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        )}
                         <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
                             <MoreVertIcon sx={{ fontSize: 16 }} />
                         </IconButton>
@@ -374,6 +508,59 @@ export default function ListView() {
                 }}
                 orderNumber={serialsDialogOrder?.order_number}
                 customerName={serialsDialogOrder?.customer_name}
+            />
+            <Dialog open={changeHandledByOpen} onClose={closeChangeHandledByDialog} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ py: 1 }}>Change Handled By</DialogTitle>
+                <DialogContent sx={{ pt: "8px !important", pb: "8px !important" }}>
+                    <AutocompleteField
+                        name="handled_by"
+                        label="Handled By"
+                        required
+                        options={handledByUsers}
+                        loading={handledByLoading}
+                        value={selectedHandledByUser}
+                        onChange={(_, next) => setSelectedHandledByUser(next)}
+                        getOptionLabel={(option) => option?.name || option?.label || ""}
+                        placeholder="Select handled by"
+                        size="small"
+                    />
+                    <Input
+                        name="reassign_reason"
+                        className="mt-2"
+                        size="small"
+                        label="Reason (optional)"
+                        multiline
+                        rows={2}
+                        value={reassignReason}
+                        onChange={(e) => setReassignReason(e.target.value)}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 1 }}>
+                    <Button size="small" onClick={closeChangeHandledByDialog} disabled={reassigning}>
+                        Close
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="contained"
+                        disabled={
+                            reassigning ||
+                            !selectedHandledByUser?.id ||
+                            Number(selectedHandledByUser?.id) === Number(selectedOrderForReassign?.handled_by)
+                        }
+                        onClick={() => submitChangeHandledBy()}
+                    >
+                        {reassigning ? "Updating..." : "Update"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <QuotationDetailsDrawer
+                open={quotationDrawerOpen}
+                onClose={() => {
+                    setQuotationDrawerOpen(false);
+                    setSelectedQuotationOrder(null);
+                }}
+                orderId={selectedQuotationOrder?.id}
+                quotationId={selectedQuotationOrder?.quotation_id}
             />
         </Box>
     );

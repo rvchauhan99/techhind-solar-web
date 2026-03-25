@@ -24,6 +24,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import CloseIcon from "@mui/icons-material/Close";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FollowupForm from "@/app/followup/components/FollowupForm";
 import SiteVisitForm from "@/app/site-visit/components/SiteVisitForm";
 import DocumentUploadForm from "../inquiry/components/DocumentUploadForm";
@@ -927,12 +928,34 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                                         </Typography>
                                       )}
                                       {item.mobile && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                        >
-                                          <b>{item.mobile}</b> || <b>{item.projectScheme}</b>
-                                        </Typography>
+                                        <Stack direction="row" spacing={0.5} alignItems="center">
+                                          <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                            sx={{ userSelect: "text", cursor: "text" }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            onTouchStart={(e) => e.stopPropagation()}
+                                          >
+                                            <b>{item.mobile}</b>
+                                          </Typography>
+                                          <Tooltip title="Copy mobile number">
+                                            <IconButton
+                                              size="small"
+                                              sx={{ p: 0.25 }}
+                                              onMouseDown={(e) => e.stopPropagation()}
+                                              onTouchStart={(e) => e.stopPropagation()}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigator.clipboard
+                                                  .writeText(String(item.mobile || ""))
+                                                  .then(() => toastSuccess("Mobile number copied"))
+                                                  .catch(() => toastError("Failed to copy mobile number"));
+                                              }}
+                                            >
+                                              <ContentCopyIcon sx={{ fontSize: 12 }} />
+                                            </IconButton>
+                                          </Tooltip>
+                                        </Stack>
                                       )}
                                       {/* {item.projectScheme && (
                                       <Typography

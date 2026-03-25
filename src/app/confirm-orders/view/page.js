@@ -33,6 +33,7 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import moment from "moment";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import EstimateGenerated from "../components/EstimateGenerated";
 import EstimatePaid from "../components/EstimatePaid";
 import Planner from "../components/Planner";
@@ -50,6 +51,9 @@ import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
 import { toastError, toastSuccess } from "@/utils/toast";
 import CustomerProjectDetails from "./components/CustomerProjectDetails";
 import orderService from "@/services/orderService";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import userMasterService from "@/services/userMasterService";
+import { useAuth } from "@/hooks/useAuth";
 
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
@@ -170,6 +174,7 @@ function ConfirmedOrderViewPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -181,6 +186,19 @@ function ConfirmedOrderViewPageContent() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelling, setCancelling] = useState(false);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+    const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
+    const [handledByUsers, setHandledByUsers] = useState([]);
+    const [handledByLoading, setHandledByLoading] = useState(false);
+    const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
+    const [reassignReason, setReassignReason] = useState("");
+    const [reassigning, setReassigning] = useState(false);
+
+    const normalizeRoleName = (s) =>
+        String(s || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -256,6 +274,40 @@ function ConfirmedOrderViewPageContent() {
         }
     }, [orderData?.current_stage_key]);
 
+    useEffect(() => {
+        if (!isSuperAdmin) return;
+        let mounted = true;
+        const loadUsers = async () => {
+            try {
+                setHandledByLoading(true);
+                const response = await userMasterService.listUserMasters({
+                    page: 1,
+                    limit: 1000,
+                    status: "active",
+                    sortBy: "name",
+                    sortOrder: "ASC",
+                });
+                const rows = response?.result?.data || [];
+                if (!mounted) return;
+                setHandledByUsers(
+                    rows.map((u) => ({
+                        id: Number(u.id),
+                        name: u.name || `User ${u.id}`,
+                    }))
+                );
+            } catch (err) {
+                if (!mounted) return;
+                toastError(err?.response?.data?.message || "Failed to load users");
+            } finally {
+                if (mounted) setHandledByLoading(false);
+            }
+        };
+        loadUsers();
+        return () => {
+            mounted = false;
+        };
+    }, [isSuperAdmin]);
+
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
     };
@@ -298,6 +350,43 @@ function ConfirmedOrderViewPageContent() {
             setCancelling(false);
         }
     };
+
+    const openChangeHandledByDialog = useCallback(() => {
+        if (!orderData?.id) return;
+        const preselected = handledByUsers.find((u) => Number(u.id) === Number(orderData.handled_by)) || null;
+        setSelectedHandledByUser(preselected);
+        setReassignReason("");
+        setChangeHandledByOpen(true);
+    }, [orderData, handledByUsers]);
+
+    const closeChangeHandledByDialog = useCallback(() => {
+        if (reassigning) return;
+        setChangeHandledByOpen(false);
+        setSelectedHandledByUser(null);
+        setReassignReason("");
+    }, [reassigning]);
+
+    const submitChangeHandledBy = useCallback(async () => {
+        if (!orderData?.id || !selectedHandledByUser?.id) return;
+        if (Number(selectedHandledByUser.id) === Number(orderData.handled_by)) {
+            toastError("Please select a different user");
+            return;
+        }
+        try {
+            setReassigning(true);
+            await confirmOrdersService.changeHandledBy(orderData.id, {
+                handled_by: selectedHandledByUser.id,
+                reason: reassignReason?.trim() || undefined,
+            });
+            toastSuccess("Handled By updated successfully");
+            closeChangeHandledByDialog();
+            await fetchOrderData();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Failed to update Handled By");
+        } finally {
+            setReassigning(false);
+        }
+    }, [orderData, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, fetchOrderData]);
 
     if (loading) {
         return (
@@ -343,16 +432,34 @@ function ConfirmedOrderViewPageContent() {
                         Confirmed Order - {orderData?.order_number || "N/A"}
                     </Typography>
                 </Stack>
-                {canCancelOrder() && (
+                <Stack direction="row" spacing={1}>
                     <Button
                         variant="outlined"
-                        color="error"
                         size="small"
-                        onClick={handleOpenCancelDialog}
+                        onClick={() => setQuotationDrawerOpen(true)}
                     >
-                        Cancel Order
+                        Quotation
                     </Button>
-                )}
+                    {isSuperAdmin && (
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={openChangeHandledByDialog}
+                        >
+                            Change Handled By
+                        </Button>
+                    )}
+                    {canCancelOrder() && (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={handleOpenCancelDialog}
+                        >
+                            Cancel Order
+                        </Button>
+                    )}
+                </Stack>
             </Box>
             {/* Pipeline Top Bar */}
             <PipelineStages
@@ -583,6 +690,51 @@ function ConfirmedOrderViewPageContent() {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <Dialog open={changeHandledByOpen} onClose={closeChangeHandledByDialog} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ py: 1 }}>Change Handled By</DialogTitle>
+                <DialogContent sx={{ pt: "8px !important" }}>
+                    <AutocompleteField
+                        options={handledByUsers}
+                        loading={handledByLoading}
+                        value={selectedHandledByUser}
+                        onChange={(e, v) => setSelectedHandledByUser(v || null)}
+                        getOptionLabel={(o) => o?.name || ""}
+                        placeholder="Select active user"
+                        label="Handled By"
+                        name="handled_by"
+                        required
+                    />
+                    <Box mt={1}>
+                        <Input
+                            name="reassign_reason"
+                            label="Reason (optional)"
+                            value={reassignReason}
+                            onChange={(e) => setReassignReason(e.target.value)}
+                            multiline
+                            rows={3}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 1 }}>
+                    <Button size="small" onClick={closeChangeHandledByDialog} disabled={reassigning}>
+                        Close
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="contained"
+                        onClick={submitChangeHandledBy}
+                        disabled={reassigning || !selectedHandledByUser?.id}
+                    >
+                        {reassigning ? "Updating..." : "Update"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <QuotationDetailsDrawer
+                open={quotationDrawerOpen}
+                onClose={() => setQuotationDrawerOpen(false)}
+                orderId={orderId}
+                quotationId={orderData?.quotation_id}
+            />
         </Box>
     );
 }

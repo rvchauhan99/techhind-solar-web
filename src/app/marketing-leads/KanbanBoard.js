@@ -151,6 +151,12 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
   const pendingStatusTitle =
     STATUS_COLUMNS.find((c) => c.key === pendingToStatus)?.title || pendingToStatus || "";
 
+  /** Stable reference so AddCallDetailsForm reset effect does not run on every parent re-render. */
+  const followUpDefaultValues = useMemo(
+    () => ({ outcome: outcomeForStatus(pendingToStatus) }),
+    [pendingToStatus]
+  );
+
   const onDragEnd = async (result) => {
     const { destination, source } = result;
     if (!destination) return;
@@ -500,9 +506,11 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               Add Call Details {pendingStatusTitle ? `→ ${pendingStatusTitle}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            Follow-up is mandatory when changing lead stage.
-          </div>
+          {pendingToStatus && pendingToStatus !== "converted" && (
+            <div className="text-sm text-muted-foreground">
+              Follow-up is mandatory when changing lead stage.
+            </div>
+          )}
           <div className="pt-2">
             <AddCallDetailsForm
               leadId={pendingLeadId}
@@ -510,9 +518,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               forcedStatus={pendingToStatus}
               forcedOutcome={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).forcedOutcome : null}
               allowedOutcomes={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).allowedOutcomes : null}
-              defaultValues={{
-                outcome: outcomeForStatus(pendingToStatus),
-              }}
+              defaultValues={followUpDefaultValues}
               onSaved={async () => {
                 closeFollowUpDialog();
                 setUpdatingStatus(true);

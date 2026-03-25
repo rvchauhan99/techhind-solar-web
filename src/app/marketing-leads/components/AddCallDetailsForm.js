@@ -10,13 +10,6 @@ import FormContainer from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import LoadingButton from "@/components/common/LoadingButton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -67,7 +60,8 @@ export default function AddCallDetailsForm({
   const [formData, setFormData] = useState(initialState);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  /** Inline step inside parent dialog (nested Radix Dialog broke stacking/focus). */
+  const [convertConfirmStep, setConvertConfirmStep] = useState(false);
   const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
   const [selectedPaymentType, setSelectedPaymentType] = useState("");
   const [paymentTypeError, setPaymentTypeError] = useState("");
@@ -79,19 +73,19 @@ export default function AddCallDetailsForm({
       outcome: forcedOutcome ?? (prev.outcome || initialState.outcome),
     }));
     setErrors({});
-    setConfirmOpen(false);
+    setConvertConfirmStep(false);
     setSelectedPaymentType("");
     setPaymentTypeError("");
     setSelectedHandledBy(null);
   }, [initialState, leadId, forcedStatus, forcedOutcome]);
 
   useEffect(() => {
-    if (confirmOpen && lead) {
+    if (convertConfirmStep && lead) {
       setSelectedHandledBy(lead.assigned_to ?? null);
-    } else if (!confirmOpen) {
+    } else if (!convertConfirmStep) {
       setSelectedHandledBy(null);
     }
-  }, [confirmOpen, lead?.assigned_to]);
+  }, [convertConfirmStep, lead?.assigned_to]);
 
   useEffect(() => {
     const loadPaymentTypes = async () => {
@@ -150,16 +144,16 @@ export default function AddCallDetailsForm({
       if (!outcomeToValidate) {
         newErrors.outcome = "Please select outcome";
       }
-      if (outcomeToValidate === "converted" && isAlreadyConverted) {
-        newErrors.outcome = "This lead is already converted to an inquiry";
-      }
+
       if (Object.keys(newErrors).length) {
+        const firstMsg = Object.values(newErrors).find((m) => typeof m === "string" && m);
+        if (firstMsg) toastError(firstMsg);
         setErrors(newErrors);
         return;
       }
       setErrors({});
       if (outcomeToValidate === "converted" && lead) {
-        setConfirmOpen(true);
+        setConvertConfirmStep(true);
         return;
       }
       try {
@@ -181,7 +175,7 @@ export default function AddCallDetailsForm({
         setSaving(false);
       }
     },
-    [leadId, formData, forcedOutcome, onSaved, lead, isAlreadyConverted, buildPayload]
+    [leadId, formData, forcedOutcome, onSaved, lead, buildPayload]
   );
 
   const handleConfirmConvert = useCallback(async () => {
@@ -203,7 +197,7 @@ export default function AddCallDetailsForm({
       if (selectedHandledBy) convertPayload.handled_by = selectedHandledBy;
       await marketingLeadsService.convertToInquiry(leadId, convertPayload);
       toastSuccess("Lead converted to inquiry successfully");
-      setConfirmOpen(false);
+      setConvertConfirmStep(false);
       setFormData((prev) => ({
         ...prev,
         ...INITIAL_FORM,
@@ -227,8 +221,8 @@ export default function AddCallDetailsForm({
   }, [leadId, onSaved, onConverted, buildPayload, selectedPaymentType, selectedHandledBy]);
 
   return (
-    <>
-      <FormContainer className="mx-auto ml-2 pr-1 max-w-full">
+    <FormContainer className="mx-auto ml-2 pr-1 max-w-full">
+      {!convertConfirmStep ? (
         <form
           id="add-call-details-form"
           onSubmit={handleSubmit}
@@ -257,9 +251,16 @@ export default function AddCallDetailsForm({
               {forcedOutcome ? (
                 <div className="space-y-1">
                   <label className="text-xs font-medium text-muted-foreground">Outcome</label>
-                  <div className="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm">
+                  <div
+                    className={`rounded-md border bg-muted/50 px-3 py-2 text-sm ${
+                      errors.outcome ? "border-destructive" : "border-input"
+                    }`}
+                  >
                     {ALL_OUTCOME_OPTIONS.find((o) => o.value === forcedOutcome)?.label ?? forcedOutcome}
                   </div>
+                  {errors.outcome ? (
+                    <p className="text-xs text-destructive">{errors.outcome}</p>
+                  ) : null}
                 </div>
               ) : (
                 <Select
@@ -319,6 +320,8 @@ export default function AddCallDetailsForm({
                 label="Next Follow-Up"
                 value={formData.next_follow_up_at}
                 onChange={handleChange}
+                error={!!errors.next_follow_up_at}
+                helperText={errors.next_follow_up_at}
               />
               <Input
                 name="promised_action"
@@ -347,13 +350,8 @@ export default function AddCallDetailsForm({
             </FormGrid>
           </FormSection>
         </form>
-      </FormContainer>
-
-      <Dialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
-        <DialogContent className="sm:max-w-lg" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>Convert lead to inquiry?</DialogTitle>
-          </DialogHeader>
+      ) : (
+        <FormSection title="Convert lead to inquiry?">
           <div className="space-y-3 py-1 text-sm">
             <p className="text-muted-foreground">
               This will log the call outcome and create an inquiry based on this lead&apos;s
@@ -399,68 +397,46 @@ export default function AddCallDetailsForm({
                 </div>
               </div>
             )}
-            <div className="space-y-3 pt-1">
-              <AutocompleteField
-                name="handled_by"
-                label="Handled By"
-                asyncLoadOptions={(q) =>
-                  getReferenceOptionsSearch("user.model", {
-                    q,
-                    limit: 20,
-                    status_in: "active,inactive",
-                  })
-                }
-                referenceModel="user.model"
-                getOptionLabel={(opt) =>
-                  opt?.name ?? opt?.label ?? (opt?.id != null ? String(opt.id) : "")
-                }
-                value={selectedHandledBy ? { id: selectedHandledBy } : null}
-                onChange={(e, v) => setSelectedHandledBy(v?.id ?? null)}
-                placeholder="Select user..."
-              />
-              <Select
-                name="payment_type"
-                label="Payment Type"
-                value={selectedPaymentType}
-                onChange={(e) => {
-                  setSelectedPaymentType(e.target.value ?? "");
-                  if (paymentTypeError) {
-                    setPaymentTypeError("");
-                  }
-                }}
-                error={!!paymentTypeError}
-                helperText={paymentTypeError}
-              >
-                <MenuItem value="">Select...</MenuItem>
-                {paymentTypeOptions.map((pt) => (
-                  <MenuItem key={pt} value={pt}>
-                    {pt}
-                  </MenuItem>
-                ))}
-              </Select>
-            </div>
+            <AutocompleteField
+              name="handled_by"
+              label="Handled By"
+              asyncLoadOptions={(q) =>
+                getReferenceOptionsSearch("user.model", {
+                  q,
+                  limit: 20,
+                  status_in: "active,inactive",
+                })
+              }
+              referenceModel="user.model"
+              getOptionLabel={(opt) =>
+                opt?.name ?? opt?.label ?? (opt?.id != null ? String(opt.id) : "")
+              }
+              value={selectedHandledBy ? { id: selectedHandledBy } : null}
+              onChange={(e, v) => setSelectedHandledBy(v?.id ?? null)}
+              placeholder="Select user..."
+            />
           </div>
-          <DialogFooter>
+          <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
               size="sm"
               type="button"
-              onClick={() => setConfirmOpen(false)}
+              onClick={() => setConvertConfirmStep(false)}
               disabled={saving}
             >
-              Cancel
+              Back
             </Button>
-            <Button
+            <LoadingButton
               size="sm"
               type="button"
               onClick={handleConfirmConvert}
-              disabled={saving}
+              loading={saving}
             >
               Convert to Inquiry
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            </LoadingButton>
+          </div>
+        </FormSection>
+      )}
+    </FormContainer>
   );
 }

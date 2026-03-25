@@ -25,6 +25,7 @@ import UploadFileIcon from "@mui/icons-material/UploadFile";
 import CommentIcon from "@mui/icons-material/Comment";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
+import DescriptionIcon from "@mui/icons-material/Description";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -37,6 +38,7 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 const DEFAULT_CLOSED_FILTERS = { ...ORDER_FILTER_EMPTY, current_stage_key: "order_completed" };
 
@@ -74,6 +76,8 @@ export default function ListView() {
   const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuOrderId, setMenuOrderId] = useState(null);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
   const fetchData = useCallback(async (params) => {
     const merged = { ...params, current_stage_key: params.current_stage_key || "order_completed" };
@@ -123,6 +127,12 @@ export default function ListView() {
       const msg = err?.response?.data?.message || err?.message || "Failed to download order PDF";
       toastError(msg);
     }
+  }, []);
+
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
   }, []);
 
   const getStageIcon = (status) => {
@@ -265,6 +275,9 @@ export default function ListView() {
             </IconButton>
             <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
               <CommentIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+            <IconButton size="small" title="Quotation Details" onClick={() => handleOpenQuotationDrawer(row)}>
+              <DescriptionIcon sx={{ fontSize: 16 }} />
             </IconButton>
             <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
               <MoreVertIcon sx={{ fontSize: 16 }} />
@@ -486,6 +499,15 @@ export default function ListView() {
         }}
         orderNumber={serialsDialogOrder?.order_number}
         customerName={serialsDialogOrder?.customer_name}
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </Box>
   );
