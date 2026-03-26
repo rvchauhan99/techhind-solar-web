@@ -10,6 +10,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import LoadingButton from "@/components/common/LoadingButton";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const OUTCOME_OPTIONS = [
   { key: "follow_up", value: "follow_up", label: "Follow Up" },
@@ -133,7 +134,7 @@ export default function LeadFollowupForm({
         </div>
       )}
 
-      <form id="lead-followup-form" onSubmit={handleSubmit} noValidate className="grid gap-4 max-w-[700px]">
+      <form id="lead-followup-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate className="grid gap-4 max-w-[700px]">
         {serverError && (
           <div className="rounded-md bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
             {serverError}

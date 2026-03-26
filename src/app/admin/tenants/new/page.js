@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function AdminTenantNewPage() {
   const router = useRouter();
@@ -97,7 +98,7 @@ export default function AdminTenantNewPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Basic info</CardTitle>

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Loader from "@/components/common/Loader";
 import { COMPACT_FORM_SPACING, FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 /**
  * Build product name for Panel type: Make PanelType Technology Capacity WP
@@ -493,7 +494,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
 
     return (
         <FormContainer>
-            <Box component="form" id="product-form" onSubmit={handleSubmit} sx={{ p: FORM_PADDING }}>
+            <Box component="form" id="product-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ p: FORM_PADDING }}>
                 {serverError && (
                     <div className="mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between gap-2">
                         <span>{serverError}</span>

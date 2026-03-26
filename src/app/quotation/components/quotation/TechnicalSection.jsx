@@ -266,8 +266,7 @@ export default function TechnicalSection({
                             name="panel_size"
                             value={formData.panel_size}
                             onChange={handleChange}
-                            disabled={disabled}
-                            sx={disabledSx}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -307,8 +306,7 @@ export default function TechnicalSection({
                             name="panel_type"
                             value={formData.panel_type}
                             onChange={handleChange}
-                            disabled={disabled}
-                            sx={disabledSx}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -368,8 +366,7 @@ export default function TechnicalSection({
                             name="inverter_size"
                             value={formData.inverter_size}
                             onChange={handleChange}
-                            disabled={disabled}
-                            sx={disabledSx}
+                            disabled
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>

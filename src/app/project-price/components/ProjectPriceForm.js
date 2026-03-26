@@ -18,6 +18,7 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function ProjectPriceForm({
   defaultValues = {},
@@ -242,7 +243,7 @@ export default function ProjectPriceForm({
 
   return (
     <FormContainer>
-      <Box component="form" id="project-price-form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+      <Box component="form" id="project-price-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate sx={{ mt: 1 }}>
         {serverError && (
           <Box mb={1}>
             <Alert severity="error">{serverError}</Alert>

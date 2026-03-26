@@ -9,6 +9,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import { getAvailableIcons, getIcon, isValidIcon } from "@/utils/iconMapper";
 import { COMPACT_FORM_SPACING, FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function ModuleForm({
   defaultValues = {},
@@ -186,7 +187,7 @@ export default function ModuleForm({
 
   return (
     <FormContainer>
-      <Box component="form" id="module-form" onSubmit={handleSubmit} sx={{ p: FORM_PADDING }}>
+      <Box component="form" id="module-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ p: FORM_PADDING }}>
         {serverError && (
           <div className="mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between gap-2">
             <span>{serverError}</span>

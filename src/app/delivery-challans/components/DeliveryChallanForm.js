@@ -38,6 +38,7 @@ import LoadingButton from "@/components/common/LoadingButton";
 import { toastError } from "@/utils/toast";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
 import productService from "@/services/productService";
@@ -1023,7 +1024,7 @@ export default function DeliveryChallanForm({
 
     // ── Render ─────────────────────────────────────────────────────────
     return (
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
             <FormContainer>
                 <Box sx={{ p: { xs: 1.5, sm: 1 } }}>
                     {serverError && (

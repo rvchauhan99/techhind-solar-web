@@ -16,6 +16,7 @@ import {
   formatToUpperCase,
   derivePanFromGstin,
 } from "@/utils/validators";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function B2bClientForm({
   defaultValues = {},
@@ -255,7 +256,7 @@ export default function B2bClientForm({
 
   return (
     <FormContainer>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="space-y-4">
         {serverError && (
           <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
             {serverError}

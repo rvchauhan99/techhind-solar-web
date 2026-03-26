@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
@@ -114,7 +115,7 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess }) {
     const isCompleted = orderData?.stages?.subsidy_claim === "completed";
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-2 sm:p-3 overflow-y-auto max-w-3xl">
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-2 sm:p-3 overflow-y-auto max-w-3xl">
             <FormSection title="Subsidy claim details">
                 <div className="mb-2">
                     <Checkbox

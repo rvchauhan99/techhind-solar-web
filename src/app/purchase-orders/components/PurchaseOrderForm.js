@@ -26,6 +26,7 @@ import supplierService from "@/services/supplierService";
 import companyService from "@/services/companyService";
 import purchaseOrderService from "@/services/purchaseOrderService";
 import { toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
@@ -574,7 +575,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     return (
         <Box>
             <FormContainer>
-                <form id="purchase-order-form" onSubmit={handleSubmit} className="mx-auto ml-2 pr-1 max-w-full" noValidate>
+                <form id="purchase-order-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="mx-auto ml-2 pr-1 max-w-full" noValidate>
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {serverError}

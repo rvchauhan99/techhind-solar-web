@@ -43,6 +43,7 @@ import BarcodeScanner from "@/components/common/BarcodeScanner";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { toastError } from "@/utils/toast";
 import { FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const ADJUSTMENT_TYPE_OPTIONS = [
     { value: "FOUND", label: "Found" },
@@ -490,7 +491,7 @@ export default function StockAdjustmentForm({
 
     return (
         <FormContainer className="flex-1 min-h-0 flex flex-col">
-            <form id="stock-adjustment-form" onSubmit={handleSubmit} className="mx-auto w-full max-w-[1100px] flex flex-col flex-1 min-h-0" noValidate>
+            <form id="stock-adjustment-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="mx-auto w-full max-w-[1100px] flex flex-col flex-1 min-h-0" noValidate>
                 <Box sx={{ p: FORM_PADDING }}>
                 {serverError && (
                     <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>

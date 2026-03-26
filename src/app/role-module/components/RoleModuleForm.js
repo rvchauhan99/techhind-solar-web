@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function RoleModuleForm({ defaultValues = null, onSubmit, loading, roles = [], modules = [], serverError = null, onClearServerError = () => {} }) {
   const base = {
@@ -62,7 +63,7 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
   if (loading) return <p>Loading...</p>;
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ display: "grid", gap: 2, maxWidth: 700 }}>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ display: "grid", gap: 2, maxWidth: 700 }}>
       <Typography variant="h5">{defaultValues?.id ? 'Update Role-Module' : 'Add Role-Module'}</Typography>
       {serverError ? <Alert severity="error">{serverError}</Alert> : null}
 

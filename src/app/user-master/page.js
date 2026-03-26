@@ -32,6 +32,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import UserForm from "./components/UserForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const COLUMN_FILTER_KEYS = ["name", "name_op", "email", "email_op", "role_name", "role_name_op", "first_login", "status"];
 
@@ -631,7 +632,7 @@ export default function UserListPage() {
           <p className="text-sm text-muted-foreground mb-4">
             Set a new password for this user. They will use this password to sign in. They will be prompted to change it on first login.
           </p>
-          <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+          <form onSubmit={handleResetPasswordSubmit} onKeyDown={preventEnterSubmit} className="space-y-4">
             <Input
               name="new_password"
               label="New password"

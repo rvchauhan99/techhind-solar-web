@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
@@ -177,6 +178,7 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
         <Box
             component="form"
             onSubmit={handleSubmit}
+            onKeyDown={preventEnterSubmit}
             className="p-4"
             sx={showZeroAmountHighlight ? {
                 borderRadius: 1.5,

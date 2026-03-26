@@ -51,6 +51,7 @@ import FormGrid from "@/components/common/FormGrid";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 
 // ---------------------------------------------------------------------------
@@ -804,7 +805,7 @@ export default function POInwardForm({
     const activeSerialInitial = activeSerialItem?.serials || [];
 
     return (
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
             <FormContainer>
                 <Box sx={{ p: 1 }}>
                     {serverError && (

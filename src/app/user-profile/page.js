@@ -7,6 +7,7 @@ import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { toastError } from '@/utils/toast';
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function UserProfilePage() {
   const [tab, setTab] = useState(0);
@@ -367,7 +368,7 @@ function ChangePasswordForm() {
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {error && <Alert severity="error">{error}</Alert>}
       {success && <Alert severity="success">{success}</Alert>}
 
