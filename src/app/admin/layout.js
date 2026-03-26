@@ -33,6 +33,9 @@ export default function AdminLayout({ children }) {
           <Button asChild variant={pathname?.startsWith("/admin/tenants") ? "secondary" : "ghost"} size="sm">
             <Link href="/admin/tenants">Tenants</Link>
           </Button>
+          <Button asChild variant={pathname?.startsWith("/admin/meta") ? "secondary" : "ghost"} size="sm">
+            <Link href="/admin/meta">Meta Lead Ads</Link>
+          </Button>
           <Button asChild variant="ghost" size="sm">
             <Link href="/home">Back to app</Link>
           </Button>
