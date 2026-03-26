@@ -41,6 +41,7 @@ import purchaseReturnService from "@/services/purchaseReturnService";
 import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const isSerialItem = (item) => {
   if (!item) return false;
@@ -955,7 +956,7 @@ export default function PurchaseReturnForm({
   const activeSerialInitial = activeSerialItem?.serials || [];
 
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
       <FormContainer>
         <Box sx={{ p: 1 }}>
           {serverError && (

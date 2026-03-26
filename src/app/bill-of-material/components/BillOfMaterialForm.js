@@ -11,6 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import Loader from "@/components/common/Loader";
 import { Button } from "@/components/ui/button";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function BillOfMaterialForm({
   defaultValues = {},
@@ -333,7 +334,7 @@ export default function BillOfMaterialForm({
 
   return (
     <FormContainer>
-      <form id="bom-form" onSubmit={handleSubmit} noValidate className="p-3 space-y-4">
+      <form id="bom-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate className="p-3 space-y-4">
         {serverError && (
           <div
             role="alert"

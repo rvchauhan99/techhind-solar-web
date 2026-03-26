@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import ModeBadge from "../../components/ModeBadge";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function AdminTenantEditPage() {
   const params = useParams();
@@ -154,7 +155,7 @@ export default function AdminTenantEditPage() {
         </div>
       )}
 
-      <form onSubmit={(e) => { e.preventDefault(); doSubmit(); }} className="space-y-6">
+      <form onSubmit={(e) => { e.preventDefault(); doSubmit(); }} onKeyDown={preventEnterSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Status</CardTitle>

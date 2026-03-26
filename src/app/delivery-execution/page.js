@@ -517,6 +517,16 @@ export default function DeliveryExecutionPage() {
                         >
                           Outstanding: {formatCurrency(o.outstanding_balance)}
                         </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block" }}
+                          title={
+                            [o.solar_panel_name, o.inverter_name].filter(Boolean).join(" · ") || undefined
+                          }
+                        >
+                          Panel: {o.solar_panel_name || "—"} · Inverter: {o.inverter_name || "—"}
+                        </Typography>
                       </Box>
 
                       <Box>

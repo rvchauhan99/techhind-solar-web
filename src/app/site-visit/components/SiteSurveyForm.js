@@ -40,6 +40,7 @@ import billOfMaterialService from "@/services/billOfMaterialService";
 import productService from "@/services/productService";
 import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function SiteSurveyForm({
     siteVisitId = null,
@@ -391,7 +392,7 @@ export default function SiteSurveyForm({
     };
 
     return (
-        <Box component="form" onSubmit={handleSubmit} noValidate sx={{ p: 2 }}>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate sx={{ p: 2 }}>
             {serverError && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={onClearServerError}>
                     {serverError}

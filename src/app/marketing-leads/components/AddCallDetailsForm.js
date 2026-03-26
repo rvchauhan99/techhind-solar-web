@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastError, toastSuccess } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const INITIAL_FORM = {
   contacted_at: new Date().toISOString(),
@@ -226,6 +227,7 @@ export default function AddCallDetailsForm({
         <form
           id="add-call-details-form"
           onSubmit={handleSubmit}
+          onKeyDown={preventEnterSubmit}
           noValidate
         >
           <FormSection title="Add Call Details">

@@ -11,6 +11,7 @@ import {
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import mastersService from "@/services/mastersService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function DocumentUploadForm({
   defaultValues = {},
@@ -150,7 +151,7 @@ export default function DocumentUploadForm({
   }, [loading, serverError]);
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ width: "100%" }}>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ width: "100%" }}>
       <AutocompleteField
         name="doc_type"
         label="Document Type *"

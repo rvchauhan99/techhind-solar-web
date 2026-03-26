@@ -24,6 +24,7 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { Button } from "@/components/ui/button";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 // ─── Configuration Maps ──────────────────────────────────────────────────────
 
@@ -532,7 +533,7 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
         <>
             {serverError ? <Alert severity="error" sx={{ mb: 2 }}>{serverError}</Alert> : null}
 
-            <Box component="form" ref={formRef} onSubmit={handleSubmit} sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
+            <Box component="form" ref={formRef} onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
                 <Box sx={{ display: "flex", gap: 2, mb: 2, pt: 1 }}>
                     <Box sx={{ flex: 1 }}>
                         <Input
