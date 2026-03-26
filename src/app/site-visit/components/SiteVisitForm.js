@@ -25,6 +25,7 @@ import { Button as ActionButton } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import siteVisitService from "@/services/siteVisitService";
 import userService from "@/services/userMasterService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function SiteVisitForm({
   defaultValues = null,
@@ -309,7 +310,7 @@ export default function SiteVisitForm({
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate sx={{ p: 2 }}>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate sx={{ p: 2 }}>
       {serverError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={onClearServerError}>
           {serverError}

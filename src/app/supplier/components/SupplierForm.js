@@ -20,6 +20,7 @@ import {
   derivePanFromGstin,
 } from "@/utils/validators";
 import { cn } from "@/lib/utils";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const COMPACT_FORM_SPACING = 2;
 const FORM_PADDING = 3;
@@ -261,7 +262,7 @@ export default function SupplierForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+    <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="flex flex-col h-full">
       <FormContainer>
         <div className={cn("p-4 space-y-4")}>
           {serverError && (

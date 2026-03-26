@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Alert from "@mui/material/Alert";
 import { toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
@@ -317,7 +318,7 @@ export default function QuotationForm({
 
     return (
         <FormContainer>
-            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 0.5, pr: 1 }}>
+            <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate sx={{ mt: 0.5, pr: 1 }}>
                 {serverError && (
                     <Box mb={1}>
                         <Alert severity="error">{serverError}</Alert>

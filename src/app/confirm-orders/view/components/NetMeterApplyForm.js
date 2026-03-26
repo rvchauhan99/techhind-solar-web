@@ -15,6 +15,7 @@ import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, onSuccess, readOnly = false }) {
     const [formData, setFormData] = useState({
@@ -152,7 +153,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const isReadOnly = readOnly;
 
     return (
-        <Box component="form" onSubmit={handleSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
             <Grid container spacing={3}>
                 {/* Netmeter Applied On */}
                 <Grid item size={6}>

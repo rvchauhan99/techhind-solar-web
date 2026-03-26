@@ -10,6 +10,7 @@ import Checkbox from "@/components/common/Checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toastError, toastSuccess } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const REASON_TYPE_OPTIONS = [
   { value: "payment_rejection", label: "Payment Rejection" },
@@ -470,7 +471,7 @@ export default function MasterForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 pt-1">
+    <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="flex flex-col gap-2 pt-1">
       {serverError ? (
         <div
           role="alert"

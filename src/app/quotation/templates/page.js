@@ -28,6 +28,7 @@ import Checkbox from "@/components/common/Checkbox";
 import quotationTemplateService from "@/services/quotationTemplateService";
 import { Button as ThemeButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function QuotationTemplatesPage() {
   const router = useRouter();
@@ -221,7 +222,7 @@ export default function QuotationTemplatesPage() {
             <DialogHeader>
               <DialogTitle>{editingTemplate ? "Edit Template" : "New Template"}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSave}>
+            <form onSubmit={handleSave} onKeyDown={preventEnterSubmit}>
               <div className="space-y-3 py-2">
                 <Input
                   name="name"

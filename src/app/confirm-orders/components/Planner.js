@@ -27,6 +27,7 @@ import quotationService from "@/services/quotationService";
 import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 /** Number of days after planner completion during which the planner remains editable. */
 const PLANNER_EDITABLE_DAYS = 100;
@@ -519,7 +520,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 <Tab label="Activity" value="activity" />
             </Tabs>
             {activeTab === "add_planner" ? (
-                <Box component="form" onSubmit={handleSubmit}>
+                <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit}>
                     <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: "#fcfcfc" }} className="rounded-lg">
                         <Stack direction="row" divider={<Box sx={{ borderRight: 1, borderColor: "divider", mx: 1 }} />} spacing={1}>
                             <StatusItem label="Structure" isDone={barState.planned_has_structure} />

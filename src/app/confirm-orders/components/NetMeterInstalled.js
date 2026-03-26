@@ -16,6 +16,7 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function NetMeterInstalledForm({ orderId, orderData, orderDocuments, onSuccess }) {
     const pathname = usePathname();
@@ -177,7 +178,7 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
     const isCompleted = orderData?.stages?.netmeter_installed === "completed";
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-4 overflow-y-auto">
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-4 overflow-y-auto">
             <FormSection title="Net meter installed details">
                 <FormGrid cols={2}>
                     <Input

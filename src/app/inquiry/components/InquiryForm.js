@@ -16,6 +16,7 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const router = useRouter();
@@ -328,6 +329,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
             <form
                 id="inquiry-form"
                 onSubmit={handleSubmit}
+                onKeyDown={preventEnterSubmit}
                 className="mx-auto ml-2 pr-1 max-w-full"
                 noValidate
             >

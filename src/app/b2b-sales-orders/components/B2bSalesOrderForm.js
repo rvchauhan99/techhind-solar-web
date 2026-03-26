@@ -30,6 +30,7 @@ import companyService from "@/services/companyService";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const emptyCurrentItem = () => ({
   product_id: "",
@@ -373,7 +374,7 @@ export default function B2bSalesOrderForm({
   if (fromQuoteId) {
     return (
       <FormContainer>
-        <form onSubmit={handleQuoteSubmit} className="space-y-4">
+        <form onSubmit={handleQuoteSubmit} onKeyDown={preventEnterSubmit} className="space-y-4">
           {serverError && (
             <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">{serverError}</div>
           )}
@@ -422,7 +423,7 @@ export default function B2bSalesOrderForm({
   return (
     <Box>
       <FormContainer>
-        <form id="b2b-sales-order-form" onSubmit={handleDirectOrderSubmit} className="mx-auto ml-2 pr-1 max-w-full pb-20" noValidate>
+        <form id="b2b-sales-order-form" onSubmit={handleDirectOrderSubmit} onKeyDown={preventEnterSubmit} className="mx-auto ml-2 pr-1 max-w-full pb-20" noValidate>
           {serverError && (
             <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
               {serverError}

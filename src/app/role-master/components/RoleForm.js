@@ -23,6 +23,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const RoleForm = forwardRef(function RoleForm({
   defaultValues = {},
@@ -356,6 +357,7 @@ const RoleForm = forwardRef(function RoleForm({
         component="form"
         ref={formRef}
         onSubmit={handleSubmit}
+        onKeyDown={preventEnterSubmit}
         sx={{ display: "flex", flexDirection: "column", height: "100%" }}
       >
         <Box sx={{ display: "grid", gap: 2, flex: 1, overflowY: "auto", pr: 1, pt: 2 }}>

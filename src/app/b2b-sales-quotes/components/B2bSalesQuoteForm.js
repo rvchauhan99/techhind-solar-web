@@ -31,6 +31,7 @@ import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const emptyCurrentItem = () => ({
     product_id: "",
@@ -385,7 +386,7 @@ export default function B2bSalesQuoteForm({
     return (
         <Box>
             <FormContainer>
-                <form id="b2b-sales-quote-form" onSubmit={handleSubmit} className="mx-auto ml-2 pr-1 max-w-full pb-20" noValidate>
+                <form id="b2b-sales-quote-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="mx-auto ml-2 pr-1 max-w-full pb-20" noValidate>
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {serverError}

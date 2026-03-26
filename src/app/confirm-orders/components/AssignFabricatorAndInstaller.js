@@ -15,6 +15,7 @@ import { getReferenceOptionsSearch, getReferenceOptionById } from "@/services/ma
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function AssignFabricatorAndInstaller({
     orderId,
@@ -321,7 +322,7 @@ export default function AssignFabricatorAndInstaller({
     }
 
     return (
-        <Box component="form" onSubmit={handleSubmit} className="p-4">
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-4">
             <FormSection title="Assign Fabricator & Installer">
                 <div className="mb-3">
                     <FormControlLabel

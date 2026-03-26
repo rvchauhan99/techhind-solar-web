@@ -13,6 +13,7 @@ import mastersService, { getDefaultState, getReferenceOptionsSearch } from "@/se
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function OrderForm({
     defaultValues = {},
@@ -277,6 +278,7 @@ export default function OrderForm({
             <form
                 id="order-form"
                 onSubmit={handleSubmit}
+                onKeyDown={preventEnterSubmit}
                 className="mx-auto ml-2 pr-1 max-w-full"
                 noValidate
             >
