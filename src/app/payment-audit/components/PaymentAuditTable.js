@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Chip } from "@mui/material";
+import { Box, Chip, Tooltip } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
 import { IconCheck, IconX, IconPrinter, IconLoader2, IconPhoto, IconEye } from "@tabler/icons-react";
@@ -195,12 +195,16 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       label: "Payment Date",
       field: "date_of_payment",
       sortable: true,
+      stickyLeft: true,
+      stickyWidth: 110,
       render: (row) => moment(row.date_of_payment).format("DD-MM-YYYY"),
     },
     {
       id: "order_number",
       label: "Order #",
       field: "order_number",
+      stickyLeft: true,
+      stickyWidth: 100,
       render: (row) =>
         row.order_id ? (
           <Link href={`/order/view?id=${row.order_id}`} style={{ color: "inherit" }}>
@@ -214,6 +218,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       id: "customer_name",
       label: "Customer",
       field: "customer_name",
+      stickyLeft: true,
+      stickyWidth: 150,
+      stickyShadow: true,
       render: (row) => row.customer_name || "-",
     },
     {
@@ -322,77 +329,84 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         const isApproved = row.status === "approved";
         const hasPaymentProof = !!row.receipt_cheque_file;
         return (
-          <Box display="flex" gap={1} flexWrap="wrap">
+          <Box display="flex" gap={0.5} flexWrap="nowrap">
             {canUpdate && isPending && (
               <>
-                <UiButton
-                  variant="success"
-                  size="sm"
-                  startIcon={<IconCheck className="size-4" />}
-                  onClick={() =>
-                    setApproveDialog({
-                      open: true,
-                      paymentId: row.id,
-                      orderId: row.order_id || null,
-                      approvalRemarks: "",
-                      proofFile: null,
-                      reload,
-                    })
-                  }
-                >
-                  Approve
-                </UiButton>
-                <UiButton
-                  variant="outline"
-                  size="sm"
-                  startIcon={<IconX className="size-4" />}
-                  className="text-destructive border-destructive/40 hover:bg-destructive/5"
-                  onClick={() =>
-                    setRejectDialog({
-                      open: true,
-                      paymentId: row.id,
-                      orderId: row.order_id || null,
-                      reasonId: null,
-                      reasonLabel: "",
-                      remarks: "",
-                      proofFile: null,
-                      reload,
-                    })
-                  }
-                >
-                  Reject
-                </UiButton>
+                <Tooltip title="Approve" arrow placement="top">
+                  <UiButton
+                    variant="success"
+                    size="icon-sm"
+                    className="shrink-0"
+                    onClick={() =>
+                      setApproveDialog({
+                        open: true,
+                        paymentId: row.id,
+                        orderId: row.order_id || null,
+                        approvalRemarks: "",
+                        proofFile: null,
+                        reload,
+                      })
+                    }
+                  >
+                    <IconCheck className="size-4" />
+                  </UiButton>
+                </Tooltip>
+                <Tooltip title="Reject" arrow placement="top">
+                  <UiButton
+                    variant="outline"
+                    size="icon-sm"
+                    className="text-destructive border-destructive/40 hover:bg-destructive/5 shrink-0"
+                    onClick={() =>
+                      setRejectDialog({
+                        open: true,
+                        paymentId: row.id,
+                        orderId: row.order_id || null,
+                        reasonId: null,
+                        reasonLabel: "",
+                        remarks: "",
+                        proofFile: null,
+                        reload,
+                      })
+                    }
+                  >
+                    <IconX className="size-4" />
+                  </UiButton>
+                </Tooltip>
               </>
             )}
             {hasPaymentProof && (canRead || canUpdate) && (
-              <UiButton
-                variant="outline"
-                size="sm"
-                disabled={loadingProof.has(row.id)}
-                startIcon={
-                  loadingProof.has(row.id)
-                    ? <IconLoader2 className="size-4 animate-spin" />
-                    : <IconEye className="size-4" />
-                }
-                onClick={() => handleViewPaymentProof(row.id)}
-              >
-                {loadingProof.has(row.id) ? "Loading…" : "View Proof"}
-              </UiButton>
+              <Tooltip title="View Proof" arrow placement="top">
+                <UiButton
+                  variant="outline"
+                  size="icon-sm"
+                  className="shrink-0"
+                  disabled={loadingProof.has(row.id)}
+                  onClick={() => handleViewPaymentProof(row.id)}
+                >
+                  {loadingProof.has(row.id) ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : (
+                    <IconEye className="size-4" />
+                  )}
+                </UiButton>
+              </Tooltip>
             )}
             {isApproved && (canRead || canUpdate) && (
-              <UiButton
-                variant="outline"
-                size="sm"
-                disabled={loadingReceipt.has(row.id)}
-                startIcon={
-                  loadingReceipt.has(row.id)
-                    ? <IconLoader2 className="size-4 animate-spin" />
-                    : <IconPrinter className="size-4" />
-                }
-                onClick={() => handlePrintReceipt(row.id)}
-              >
-                {loadingReceipt.has(row.id) ? "Downloading…" : "Print Receipt"}
-              </UiButton>
+              <Tooltip title="Print Receipt" arrow placement="top">
+                <UiButton
+                  variant="outline"
+                  size="icon-sm"
+                  className="shrink-0"
+                  disabled={loadingReceipt.has(row.id)}
+                  onClick={() => handlePrintReceipt(row.id)}
+                >
+                  {loadingReceipt.has(row.id) ? (
+                    <IconLoader2 className="size-4 animate-spin" />
+                  ) : (
+                    <IconPrinter className="size-4" />
+                  )}
+                </UiButton>
+              </Tooltip>
             )}
           </Box>
         );
