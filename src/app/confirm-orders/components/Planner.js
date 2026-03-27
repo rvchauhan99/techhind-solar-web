@@ -926,12 +926,17 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const StatusItem = ({ label, isDone }) => (
-        <Stack alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 80 }}>
-            <Typography variant="caption" sx={{ fontWeight: "bold", textAlign: "center" }}>{label}</Typography>
+        <Stack alignItems="center" spacing={0.5} sx={{ flex: 1, minWidth: { xs: 68, md: 72, lg: 76 } }}>
+            <Typography
+                variant="caption"
+                sx={{ fontWeight: "bold", textAlign: "center", lineHeight: 1.1, fontSize: { xs: "10px", md: "11px" } }}
+            >
+                {label}
+            </Typography>
             {isDone ? (
-                <CheckCircleIcon color="success" sx={{ fontSize: 24 }} />
+                <CheckCircleIcon color="success" sx={{ fontSize: { xs: 20, md: 22 } }} />
             ) : (
-                <CancelIcon color="error" sx={{ fontSize: 24 }} />
+                <CancelIcon color="error" sx={{ fontSize: { xs: 20, md: 22 } }} />
             )}
         </Stack>
     );
@@ -939,15 +944,15 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     if (loading) return <Loader />;
 
     return (
-        <Box className="p-4">
-            <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
+        <Box className="p-3 md:p-2 xl:p-1.5">
+            <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: { xs: 1.5, md: 1 }, borderBottom: 1, borderColor: "divider", minHeight: 36 }}>
                 <Tab label="Planner" value="add_planner" />
                 <Tab label="Activity" value="activity" />
             </Tabs>
             {activeTab === "add_planner" ? (
                 <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit}>
-                    <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: "#fcfcfc" }} className="rounded-lg">
-                        <Stack direction="row" divider={<Box sx={{ borderRight: 1, borderColor: "divider", mx: 1 }} />} spacing={1}>
+                    <Paper variant="outlined" sx={{ p: { xs: 1.25, md: 1, lg: 0.75 }, mb: { xs: 2, md: 1.25, lg: 1 }, bgcolor: "#fcfcfc" }} className="rounded-lg">
+                        <Stack direction="row" divider={<Box sx={{ borderRight: 1, borderColor: "divider", mx: { xs: 0.5, md: 0.75 } }} />} spacing={0.5}>
                             <StatusItem label="Structure" isDone={barState.planned_has_structure} />
                             <StatusItem label="Solar Panel" isDone={barState.planned_has_solar_panel} />
                             <StatusItem label="Inverter" isDone={barState.planned_has_inverter} />
@@ -1043,24 +1048,24 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     )}
 
                     <FormSection title="Materials for planning / delivery">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
-                            <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-1.5 md:gap-1 mb-1.5 md:mb-1">
+                            <div className="rounded border border-slate-200 bg-slate-50 p-1.5 md:p-1.5 text-xs">
                                 <div className="text-muted-foreground">Current Project Cost</div>
                                 <div className="font-semibold text-slate-700">{costPreview.baseProjectCost.toFixed(2)}</div>
                             </div>
-                            <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs">
+                            <div className="rounded border border-blue-200 bg-blue-50 p-1.5 md:p-1.5 text-xs">
                                 <div className="text-muted-foreground">Auto Calculated Cost</div>
                                 <div className={`font-semibold ${getMoneyToneClass(costPreview.autoProjectCost - costPreview.baseProjectCost)}`}>
                                     {costPreview.autoProjectCost.toFixed(2)}
                                 </div>
                             </div>
-                            <div className="rounded border border-indigo-200 bg-indigo-50 p-2 text-xs">
+                            <div className="rounded border border-indigo-200 bg-indigo-50 p-1.5 md:p-1.5 text-xs">
                                 <div className="text-muted-foreground">Final Project Cost</div>
                                 <div className={`font-semibold ${getMoneyToneClass(costPreview.finalProjectCost - costPreview.baseProjectCost)}`}>
                                     {costPreview.finalProjectCost.toFixed(2)}
                                 </div>
                             </div>
-                            <div className={`rounded border p-2 text-xs ${isManualOverride ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                            <div className={`rounded border p-1.5 md:p-1.5 text-xs ${isManualOverride ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                                 <label className="text-muted-foreground block mb-1">Final Payable Override</label>
                                 <div className="flex items-center gap-1">
                                     <input
@@ -1091,9 +1096,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                             </div>
                         </div>
                         {costUpdateSummary && (
-                            <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-xs mb-2">
+                            <div className="rounded border border-emerald-200 bg-emerald-50 p-1.5 text-xs mb-1.5 md:mb-1">
                                 <div className="font-semibold mb-1">Update Summary</div>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5">
                                     <div>
                                         <div className="text-muted-foreground">Before</div>
                                         <div className="font-medium text-slate-700">{Number(costUpdateSummary.previous_project_cost || 0).toFixed(2)}</div>
