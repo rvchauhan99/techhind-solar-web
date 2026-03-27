@@ -1361,17 +1361,9 @@ function OrderViewPageContent() {
                                 <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
                                 <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
 
-                                <Typography variant="body2" color="text.secondary" mt={2}>Project Cost:</Typography>
+                                <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
                                 <Typography variant="body1" fontWeight="bold">
                                     Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Discount:</Typography>
-                                <Typography variant="body1">Rs. {orderData?.discount || "0"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Payable Cost:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - (Number(orderData.discount) || 0)).toLocaleString() : "0"}
                                 </Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
@@ -1390,7 +1382,7 @@ function OrderViewPageContent() {
                                     borderRadius={0.5}
                                     mt={1}
                                 >
-                                    Rs. {orderData?.project_cost ? ((Number(orderData.project_cost) - (Number(orderData.discount) || 0)) - totalReceivedAmount).toLocaleString() : "0"}
+                                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
                                 </Typography>
                             </Box>
                         </Paper>

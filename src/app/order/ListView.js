@@ -292,7 +292,7 @@ export default function ListView({
       { field: "inquiry_by_name", label: "Inquiry By", render: (row) => row.inquiry_by_name || "-" },
       {
         field: "project_cost",
-        label: "Project Cost",
+        label: "Total Payable",
         sortable: true,
         filterType: "number",
         filterKey: "project_cost",

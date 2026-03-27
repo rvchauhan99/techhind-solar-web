@@ -91,7 +91,7 @@ export default function ListView({ filters }) {
 
   const renderOrderItem = (row) => {
     const outstanding =
-      Number(row.project_cost || 0) - Number(row.discount || 0) - Number(row.total_paid || 0);
+      Number(row.project_cost || 0) - Number(row.total_paid || 0);
 
     return (
       <Paper
@@ -224,7 +224,7 @@ export default function ListView({ filters }) {
             </Grid>
             <Grid item size={3}>
               {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
-              {renderOrderDetail("Project Cost", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
+              {renderOrderDetail("Total Payable", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
               {renderOrderDetail("Payment Received", `Rs. ${Number(row.total_paid || 0).toLocaleString()}`)}
               {renderOrderDetail(
                 "Outstanding",

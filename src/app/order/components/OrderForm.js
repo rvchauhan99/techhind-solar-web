@@ -423,23 +423,14 @@ export default function OrderForm({
                         <Input
                             type="number"
                             name="project_cost"
-                            label="Order Amount (Total Payable)"
+                            label="Total Payable"
                             value={formData.project_cost ?? ""}
-                            onChange={handleChangeEvent}
+                            onChange={handleChange}
+                            placeholder="Enter Total Payable"
                             error={!!errors.project_cost}
                             helperText={errors.project_cost}
-                            disabled={!!formData.inquiry_id}
                             required
-                            inputProps={{ min: 0, step: 0.01 }}
-                        />
-                        <Input
-                            type="number"
-                            name="discount"
-                            label="Discount"
-                            value={formData.discount ?? ""}
-                            onChange={handleChangeEvent}
                             disabled={!!formData.inquiry_id}
-                            inputProps={{ min: 0, step: 0.01 }}
                         />
                         <AutocompleteField
                             name="order_type_id"

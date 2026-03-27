@@ -170,7 +170,7 @@ export default function ListView() {
     const stages = row.stages || {};
     const fullyCompleted = isOrderFullyCompleted(row);
     const outstanding =
-      Number(row.project_cost || 0) - Number(row.discount || 0) - Number(row.total_paid || 0);
+      Number(row.project_cost || 0) - Number(row.total_paid || 0);
 
     return (
       <Paper
@@ -327,7 +327,7 @@ export default function ListView() {
             <Grid item size={3}>
               {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
               {renderOrderDetail(
-                "Project Cost",
+                "Total Payable",
                 `Rs. ${Number(row.project_cost || 0).toLocaleString()}`
               )}
               {renderOrderDetail(
