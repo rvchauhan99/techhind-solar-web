@@ -15,7 +15,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentOutstandingAnalysis from "./components/PaymentOutstandingAnalysis";
 
-const INR = (v) => Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const INR = (v, fractionDigits = 2) =>
+  Number(v || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: Number(fractionDigits || 0),
+    maximumFractionDigits: Number(fractionDigits || 0),
+  });
 const fmtINDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
 const pct = (part, total) => {
   const p = Number(part || 0);
@@ -140,6 +144,13 @@ export default function PaymentOutstandingPage() {
     return () => { mounted = false; };
   }, [filters]);
 
+  const total = Number(summary?.total_outstanding || 0);
+  const currencyFractionDigits = Number(summary?.config?.currency_fraction_digits ?? 2);
+  const fmtMoney = React.useCallback(
+    (amount) => INR(amount, currencyFractionDigits),
+    [currencyFractionDigits]
+  );
+
   const fetcher = useCallback(async (params) => {
     // NOTE: PaginatedTable merges `filterParams` into `params` internally.
     // Keep this fetcher independent of local `filters` so the table reloads
@@ -218,15 +229,15 @@ export default function PaymentOutstandingPage() {
     },
     {
       field: "project_cost", label: "Project Cost", sortable: true,
-      render: (row) => <span className="text-[11px] font-semibold text-slate-800">₹{INR(row.project_cost)}</span>,
+      render: (row) => <span className="text-[11px] font-semibold text-slate-800">₹{fmtMoney(row.project_cost)}</span>,
     },
     {
       field: "total_paid", label: "Paid", sortable: true,
-      render: (row) => <span className="text-[11px] text-emerald-700 font-semibold">₹{INR(row.dataValues?.total_paid ?? row.total_paid)}</span>,
+      render: (row) => <span className="text-[11px] text-emerald-700 font-semibold">₹{fmtMoney(row.dataValues?.total_paid ?? row.total_paid)}</span>,
     },
     {
       field: "outstanding", label: "Outstanding", sortable: true,
-      render: (row) => <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{INR(row.dataValues?.outstanding ?? row.outstanding)}</span>,
+      render: (row) => <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{fmtMoney(row.dataValues?.outstanding ?? row.outstanding)}</span>,
     },
     { field: "payment_type", label: "Payment Type" },
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
@@ -254,9 +265,8 @@ export default function PaymentOutstandingPage() {
     },
     { field: "branch.name", label: "Branch", render: (row) => <span className="text-[11px] text-slate-500">{row.branch?.name || "-"}</span> },
     { field: "handledBy.name", label: "Handled By", render: (row) => <span className="text-[11px] text-slate-500">{row.handledBy?.name || "-"}</span> },
-  ]), []);
+  ]), [fmtMoney]);
 
-  const total = Number(summary?.total_outstanding || 0);
   const tableHeight = filterPanelOpen ? "calc(100vh - 520px)" : "calc(100vh - 300px)";
 
   const exportCsv = async () => {
@@ -405,7 +415,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Total Outstanding</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(total)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(total)}</div>
                     <div className="text-[10px] text-slate-400">Filtered view</div>
                   </div>
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">All</Badge>
@@ -416,7 +426,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Direct</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.direct_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.direct_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.direct_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-sky-50 text-sky-700 border border-sky-200 text-[10px] h-5 px-1.5" variant="secondary">Direct</Badge>
@@ -427,7 +437,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Loan</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.loan_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.loan_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.loan_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] h-5 px-1.5" variant="secondary">Loan</Badge>
@@ -438,7 +448,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">PDC</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.pdc_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.pdc_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.pdc_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] h-5 px-1.5" variant="secondary">PDC</Badge>
@@ -449,7 +459,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Unknown</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.unknown_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.unknown_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.unknown_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] h-5 px-1.5" variant="secondary">Unknown</Badge>
