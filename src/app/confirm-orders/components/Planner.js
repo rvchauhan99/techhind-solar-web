@@ -140,6 +140,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 nextAdjustmentByRow[line.__rowKey] = {
                     gst_mode: "INCLUDING_GST",
                     note: "",
+                    manual_unit_price_excluding_gst: "",
+                    manual_unit_price_including_gst: "",
                 };
             });
             setAdjustmentByRow(nextAdjustmentByRow);
@@ -274,10 +276,21 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     qty_delta: line.qtyDelta,
                     gst_mode: line.gstMode,
                     note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
+                    manual_unit_price_excluding_gst:
+                        line.priceSource === "MANUAL_FALLBACK" ? line.unitExcl : undefined,
+                    manual_unit_price_including_gst:
+                        line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
+                    price_source: line.priceSource || "LATEST_PURCHASE",
                 }));
-            const hasMissingPrice = costAdjustments.some((line) => !purchasePriceByProductId[line.product_id]);
-            if (hasMissingPrice) {
-                setError("Latest purchase price is missing for one or more adjusted products.");
+            const hasMissingManualPrice = costAdjustments.some((line) =>
+                line.price_source === "MANUAL_FALLBACK" &&
+                (!Number.isFinite(Number(line.manual_unit_price_excluding_gst)) ||
+                    Number(line.manual_unit_price_excluding_gst) <= 0 ||
+                    !Number.isFinite(Number(line.manual_unit_price_including_gst)) ||
+                    Number(line.manual_unit_price_including_gst) <= 0)
+            );
+            if (hasMissingManualPrice) {
+                setError("Enter manual unit price (Excl/Incl GST) for rows where latest purchase price is not available.");
                 setSubmitting(false);
                 return;
             }
@@ -328,10 +341,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         product_name: productName,
                         qty_delta: line.qtyDelta,
                         gst_mode: line.gstMode,
-                        unit_excl: Number(line.price?.unit_price_excluding_gst) || 0,
-                        unit_incl: Number(line.price?.unit_price_including_gst) || 0,
+                        unit_excl: Number(line.unitExcl) || 0,
+                        unit_incl: Number(line.unitIncl) || 0,
                         amount_excl: Number(line.amountExcl) || 0,
                         amount_incl: Number(line.amountIncl) || 0,
+                        price_source: line.priceSource || "LATEST_PURCHASE",
                     };
                 });
 
@@ -601,7 +615,12 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         setBomPlan((prev) => [...prev, newLine]);
         setAdjustmentByRow((prev) => ({
             ...prev,
-            [newLine.__rowKey]: { gst_mode: "INCLUDING_GST", note: "" },
+            [newLine.__rowKey]: {
+                gst_mode: "INCLUDING_GST",
+                note: "",
+                manual_unit_price_excluding_gst: "",
+                manual_unit_price_including_gst: "",
+            },
         }));
         if (fieldErrors.bomPlan) {
             setFieldErrors((prev) => {
@@ -630,6 +649,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         product_name: removedLine?.product_snapshot?.product_name || removedLine?.product_name || null,
                         qtyDelta: -baselineQty,
                         gstMode: adjustmentByRow[rowKey]?.gst_mode || "INCLUDING_GST",
+                        manual_unit_price_excluding_gst: adjustmentByRow[rowKey]?.manual_unit_price_excluding_gst ?? "",
+                        manual_unit_price_including_gst: adjustmentByRow[rowKey]?.manual_unit_price_including_gst ?? "",
                     },
                 ]));
             } else {
@@ -658,10 +679,47 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             [rowKey]: {
                 gst_mode: "INCLUDING_GST",
                 note: "",
+                manual_unit_price_excluding_gst: "",
+                manual_unit_price_including_gst: "",
                 ...(prev[rowKey] || {}),
                 ...patch,
             },
         }));
+    };
+
+    const handleManualRateInput = (rowKey, changedField, rawValue, gstRateValue) => {
+        const parsed = Number(rawValue);
+        if (rawValue === "" || !Number.isFinite(parsed) || parsed < 0) {
+            if (changedField === "manual_unit_price_excluding_gst") {
+                updateLineAdjustment(rowKey, {
+                    manual_unit_price_excluding_gst: rawValue,
+                    manual_unit_price_including_gst: "",
+                });
+            } else {
+                updateLineAdjustment(rowKey, {
+                    manual_unit_price_including_gst: rawValue,
+                    manual_unit_price_excluding_gst: "",
+                });
+            }
+            return;
+        }
+        const gstRate = Number.isFinite(Number(gstRateValue)) ? Number(gstRateValue) : 0;
+        if (changedField === "manual_unit_price_excluding_gst") {
+            const excl = parsed;
+            const incl = excl * (1 + gstRate / 100);
+            updateLineAdjustment(rowKey, {
+                // Keep typing natural; do not force-decimal format while user inputs.
+                manual_unit_price_excluding_gst: rawValue,
+                manual_unit_price_including_gst: String(Math.round((incl + Number.EPSILON) * 100) / 100),
+            });
+        } else {
+            const incl = parsed;
+            const excl = incl / (1 + gstRate / 100);
+            updateLineAdjustment(rowKey, {
+                manual_unit_price_including_gst: rawValue,
+                manual_unit_price_excluding_gst: String(Math.round((excl + Number.EPSILON) * 100) / 100),
+            });
+        }
     };
 
     /** Normalize product type name for mapping (lowercase, spaces to underscore). */
@@ -736,8 +794,33 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             const qtyDelta = editedPlannedQty - baselinePlannedQty;
             const gstMode = adjustment.gst_mode || "INCLUDING_GST";
             const price = purchasePriceByProductId[line.product_id] || null;
-            const unitExcl = Number(price?.unit_price_excluding_gst) || 0;
-            const unitIncl = Number(price?.unit_price_including_gst) || 0;
+            const gstRate = Number(price?.gst_rate) || 0;
+            const hasPriceFromPo = !price?.missing_price &&
+                Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
+                Number(price?.unit_price_excluding_gst) > 0;
+            const manualExclRaw = Number(adjustment?.manual_unit_price_excluding_gst);
+            const manualInclRaw = Number(adjustment?.manual_unit_price_including_gst);
+            const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
+            const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
+            let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+            let unitIncl = Number(price?.unit_price_including_gst) || 0;
+            let priceSource = "LATEST_PURCHASE";
+            if (!hasPriceFromPo) {
+                priceSource = "MANUAL_FALLBACK";
+                if (hasManualExcl && hasManualIncl) {
+                    unitExcl = manualExclRaw;
+                    unitIncl = manualInclRaw;
+                } else if (hasManualExcl) {
+                    unitExcl = manualExclRaw;
+                    unitIncl = unitExcl * (1 + gstRate / 100);
+                } else if (hasManualIncl) {
+                    unitIncl = manualInclRaw;
+                    unitExcl = unitIncl / (1 + gstRate / 100);
+                } else {
+                    unitExcl = 0;
+                    unitIncl = 0;
+                }
+            }
             const amountExcl = qtyDelta * unitExcl;
             const amountIncl = qtyDelta * unitIncl;
             const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
@@ -747,6 +830,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 gstMode,
                 product_id: line.product_id,
                 price,
+                gstRate,
+                unitExcl,
+                unitIncl,
+                priceSource,
                 amountExcl,
                 amountIncl,
                 deltaCost,
@@ -756,8 +843,33 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             const qtyDelta = qtyNum(line.qtyDelta);
             const gstMode = line.gstMode || "INCLUDING_GST";
             const price = purchasePriceByProductId[line.product_id] || null;
-            const unitExcl = Number(price?.unit_price_excluding_gst) || 0;
-            const unitIncl = Number(price?.unit_price_including_gst) || 0;
+            const gstRate = Number(price?.gst_rate) || 0;
+            const hasPriceFromPo = !price?.missing_price &&
+                Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
+                Number(price?.unit_price_excluding_gst) > 0;
+            const manualExclRaw = Number(line?.manual_unit_price_excluding_gst);
+            const manualInclRaw = Number(line?.manual_unit_price_including_gst);
+            const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
+            const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
+            let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+            let unitIncl = Number(price?.unit_price_including_gst) || 0;
+            let priceSource = "LATEST_PURCHASE";
+            if (!hasPriceFromPo) {
+                priceSource = "MANUAL_FALLBACK";
+                if (hasManualExcl && hasManualIncl) {
+                    unitExcl = manualExclRaw;
+                    unitIncl = manualInclRaw;
+                } else if (hasManualExcl) {
+                    unitExcl = manualExclRaw;
+                    unitIncl = unitExcl * (1 + gstRate / 100);
+                } else if (hasManualIncl) {
+                    unitIncl = manualInclRaw;
+                    unitExcl = unitIncl / (1 + gstRate / 100);
+                } else {
+                    unitExcl = 0;
+                    unitIncl = 0;
+                }
+            }
             const amountExcl = qtyDelta * unitExcl;
             const amountIncl = qtyDelta * unitIncl;
             const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
@@ -767,6 +879,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 gstMode,
                 product_id: line.product_id,
                 price,
+                gstRate,
+                unitExcl,
+                unitIncl,
+                priceSource,
                 amountExcl,
                 amountIncl,
                 deltaCost,
@@ -1054,8 +1170,18 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 const canRemove = !isPlannerLocked && !isReadOnly && shippedQty === 0;
                                                 const adjustment = adjustmentByRow[line.__rowKey] || { gst_mode: "INCLUDING_GST" };
                                                 const latestPrice = purchasePriceByProductId[line.product_id];
-                                                const unitExcl = Number(latestPrice?.unit_price_excluding_gst) || 0;
-                                                const unitIncl = Number(latestPrice?.unit_price_including_gst) || 0;
+                                                const gstRate = Number(latestPrice?.gst_rate) || 0;
+                                                const isMissingLatestPrice = !!latestPrice?.missing_price;
+                                                const manualExcl = Number(adjustment?.manual_unit_price_excluding_gst);
+                                                const manualIncl = Number(adjustment?.manual_unit_price_including_gst);
+                                                const hasManualExcl = Number.isFinite(manualExcl) && manualExcl > 0;
+                                                const hasManualIncl = Number.isFinite(manualIncl) && manualIncl > 0;
+                                                const unitExcl = isMissingLatestPrice
+                                                    ? (hasManualExcl ? manualExcl : (hasManualIncl ? (manualIncl / (1 + gstRate / 100)) : 0))
+                                                    : (Number(latestPrice?.unit_price_excluding_gst) || 0);
+                                                const unitIncl = isMissingLatestPrice
+                                                    ? (hasManualIncl ? manualIncl : (hasManualExcl ? (manualExcl * (1 + gstRate / 100)) : 0))
+                                                    : (Number(latestPrice?.unit_price_including_gst) || 0);
                                                 const baselineQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
                                                 const adjQty = plannedQty - baselineQty;
                                                 const amountExcl = adjQty * unitExcl;
@@ -1123,8 +1249,50 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                 <option value="EXCLUDING_GST">Excluding GST</option>
                                                             </select>
                                                         </td>
-                                                        <td className="p-2 text-right align-middle">{unitExcl.toFixed(2)}</td>
-                                                        <td className="p-2 text-right align-middle">{unitIncl.toFixed(2)}</td>
+                                                        <td className="p-2 text-right align-middle">
+                                                            {isMissingLatestPrice ? (
+                                                                <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step="0.01"
+                                                                    value={adjustment?.manual_unit_price_excluding_gst ?? ""}
+                                                                    onChange={(e) =>
+                                                                        handleManualRateInput(
+                                                                            line.__rowKey,
+                                                                            "manual_unit_price_excluding_gst",
+                                                                            e.target.value,
+                                                                            gstRate
+                                                                        )
+                                                                    }
+                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
+                                                                />
+                                                            ) : (
+                                                                unitExcl.toFixed(2)
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2 text-right align-middle">
+                                                            {isMissingLatestPrice ? (
+                                                                <input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step="0.01"
+                                                                    value={adjustment?.manual_unit_price_including_gst ?? ""}
+                                                                    onChange={(e) =>
+                                                                        handleManualRateInput(
+                                                                            line.__rowKey,
+                                                                            "manual_unit_price_including_gst",
+                                                                            e.target.value,
+                                                                            gstRate
+                                                                        )
+                                                                    }
+                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
+                                                                />
+                                                            ) : (
+                                                                unitIncl.toFixed(2)
+                                                            )}
+                                                        </td>
                                                         <td className="p-2 text-right align-middle">{amountExcl.toFixed(2)}</td>
                                                         <td className="p-2 text-right align-middle">{amountIncl.toFixed(2)}</td>
                                                         {!isReadOnly && !isPlannerLocked && (
