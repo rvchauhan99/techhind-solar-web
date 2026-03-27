@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Box, Typography, Alert, Paper, Stack, Tabs, Tab } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -76,6 +76,17 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [loadingProjectPrices, setLoadingProjectPrices] = useState(false);
     const [selectedProjectForImport, setSelectedProjectForImport] = useState(null);
     const [importingFromProject, setImportingFromProject] = useState(false);
+    const [purchasePriceByProductId, setPurchasePriceByProductId] = useState({});
+    const [adjustmentByRow, setAdjustmentByRow] = useState({});
+    const [manualFinalPayable, setManualFinalPayable] = useState("");
+    const [isManualOverride, setIsManualOverride] = useState(false);
+    const [loadingPrices, setLoadingPrices] = useState(false);
+    const [costAmendments, setCostAmendments] = useState([]);
+    const [costUpdateSummary, setCostUpdateSummary] = useState(null);
+    const [removedLineAdjustments, setRemovedLineAdjustments] = useState([]);
+    const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
+    const [saveConfirmPayload, setSaveConfirmPayload] = useState(null);
+    const [saveConfirmSummary, setSaveConfirmSummary] = useState(null);
 
     useEffect(() => {
         fetchWarehouses();
@@ -106,8 +117,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         // local UI state; we will persist only planned quantities back to the API.
         if (Array.isArray(orderData.bom_snapshot)) {
             const qty = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
-            setBomPlan(
-                orderData.bom_snapshot.map((line, index) => ({
+            const nextPlan = orderData.bom_snapshot.map((line, index) => ({
                     // retain the original line for reference
                     ...line,
                     // stable key for React rendering
@@ -119,11 +129,31 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         line.planned_qty != null && line.planned_qty !== ""
                             ? qty(line.planned_qty)
                             : qty(line.quantity),
-                }))
-            );
+                    baseline_planned_qty:
+                        line.planned_qty != null && line.planned_qty !== ""
+                            ? qty(line.planned_qty)
+                            : qty(line.quantity),
+                }));
+            setBomPlan(nextPlan);
+            const nextAdjustmentByRow = {};
+            nextPlan.forEach((line) => {
+                nextAdjustmentByRow[line.__rowKey] = {
+                    gst_mode: "INCLUDING_GST",
+                    note: "",
+                };
+            });
+            setAdjustmentByRow(nextAdjustmentByRow);
         } else {
             setBomPlan([]);
+            setAdjustmentByRow({});
         }
+        setRemovedLineAdjustments([]);
+        setManualFinalPayable("");
+        setIsManualOverride(false);
+        setCostUpdateSummary(null);
+        setSaveConfirmOpen(false);
+        setSaveConfirmPayload(null);
+        setSaveConfirmSummary(null);
     }, [orderData]);
 
     const fetchWarehouses = async () => {
@@ -154,7 +184,16 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
     const savePlanner = async (payload) => {
         try {
-            await orderService.updateOrder(orderId, payload);
+            const response = await orderService.updateOrder(orderId, payload);
+            const updatedOrder = response?.result ?? response?.data ?? response ?? {};
+            setCostUpdateSummary(updatedOrder?.cost_update_summary || null);
+            try {
+                const amendmentRes = await orderService.getOrderCostAmendments(orderId);
+                const amendmentRows = amendmentRes?.result ?? amendmentRes?.data ?? amendmentRes ?? [];
+                setCostAmendments(Array.isArray(amendmentRows) ? amendmentRows : []);
+            } catch (amendmentErr) {
+                console.error("Failed to refresh amendment history after save:", amendmentErr);
+            }
 
             const msg = "Planner details saved successfully!";
             setSuccessMsg(msg);
@@ -228,6 +267,20 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             };
 
             const payloadBarState = deriveBarStateFromBomPlan(bomPlan);
+            const costAdjustments = costPreview.lines
+                .filter((line) => line.qtyDelta !== 0)
+                .map((line) => ({
+                    product_id: line.product_id,
+                    qty_delta: line.qtyDelta,
+                    gst_mode: line.gstMode,
+                    note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
+                }));
+            const hasMissingPrice = costAdjustments.some((line) => !purchasePriceByProductId[line.product_id]);
+            if (hasMissingPrice) {
+                setError("Latest purchase price is missing for one or more adjusted products.");
+                setSubmitting(false);
+                return;
+            }
             const payload = {
                 ...formData,
                 ...payloadBarState,
@@ -235,41 +288,114 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 stages: updatedStages,
                 planner_completed_at: new Date().toISOString(),
                 current_stage_key: "delivery",
+                cost_adjustments: costAdjustments,
             };
+            const parsedManualOverride = Number(manualFinalPayable);
+            const hasManualOverrideValue =
+                isManualOverride &&
+                manualFinalPayable !== "" &&
+                Number.isFinite(parsedManualOverride) &&
+                Math.abs(parsedManualOverride - costPreview.autoProjectCost) > 0.009;
+            if (hasManualOverrideValue) {
+                payload.manual_project_cost_override = parsedManualOverride;
+            }
 
             if (orderData?.stages?.["planner"] === "completed") {
                 delete payload.stages;
                 delete payload.current_stage_key;
             }
 
-            const projectCost = Number(orderData?.project_cost) || 0;
+            const finalProjectCost = Number(costPreview.finalProjectCost) || 0;
+            const autoProjectCost = Number(costPreview.autoProjectCost) || 0;
+            const previousProjectCost = Number(costPreview.baseProjectCost) || 0;
             const discount = Number(orderData?.discount) || 0;
-            const payableAmount = Math.max(projectCost - discount, 0);
             const totalPaid = Number(orderData?.total_paid) || 0;
-            const fallbackOutstanding = Math.max(payableAmount - totalPaid, 0);
-            const outstandingAmount = Math.max(
-                Number(orderData?.outstanding_balance ?? fallbackOutstanding) || 0,
-                0
-            );
-            const outstandingPercent =
-                payableAmount > 0 ? (outstandingAmount / payableAmount) * 100 : 0;
-
-            if (outstandingPercent > 50) {
-                setPendingPayload(payload);
-                setOutstandingInfo({
-                    percent: outstandingPercent.toFixed(2),
-                    amountFormatted: outstandingAmount.toLocaleString("en-IN"),
+            const payableAmount = Math.max(finalProjectCost - discount, 0);
+            const outstandingAmount = Math.max(payableAmount - totalPaid, 0);
+            const amendmentItems = costPreview.lines
+                .filter((line) => line.qtyDelta !== 0)
+                .map((line) => {
+                    const rowInPlan = (bomPlan || []).find((bomLine) => bomLine.__rowKey === line.rowKey);
+                    const fallbackRemoved = (removedLineAdjustments || []).find((removed) => removed.rowKey === line.rowKey);
+                    const productName =
+                        rowInPlan?.product_snapshot?.product_name ||
+                        rowInPlan?.product_name ||
+                        fallbackRemoved?.product_name ||
+                        `Product #${line.product_id}`;
+                    return {
+                        rowKey: line.rowKey,
+                        product_id: line.product_id,
+                        product_name: productName,
+                        qty_delta: line.qtyDelta,
+                        gst_mode: line.gstMode,
+                        unit_excl: Number(line.price?.unit_price_excluding_gst) || 0,
+                        unit_incl: Number(line.price?.unit_price_including_gst) || 0,
+                        amount_excl: Number(line.amountExcl) || 0,
+                        amount_incl: Number(line.amountIncl) || 0,
+                    };
                 });
-                setOutstandingConfirmOpen(true);
-                return;
-            }
 
-            await savePlanner(payload);
+            setSaveConfirmSummary({
+                previousProjectCost,
+                autoProjectCost,
+                finalProjectCost,
+                totalDelta: finalProjectCost - previousProjectCost,
+                discount,
+                payableAmount,
+                totalPaid,
+                outstandingAmount,
+                adjustmentCount: amendmentItems.length,
+                amendmentItems,
+            });
+            setSaveConfirmPayload(payload);
+            setSaveConfirmOpen(true);
         } catch (err) {
             console.error("Failed to prepare planner details:", err);
             const errMsg = err?.message || "Failed to save data";
             setError(errMsg);
             toastError(errMsg);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const runSaveWithOutstandingCheck = async (payload) => {
+        const projectCost = Number(costPreview.finalProjectCost) || 0;
+        const discount = Number(orderData?.discount) || 0;
+        const payableAmount = Math.max(projectCost - discount, 0);
+        const totalPaid = Number(orderData?.total_paid) || 0;
+        const outstandingAmount = Math.max(payableAmount - totalPaid, 0);
+        const outstandingPercent = payableAmount > 0 ? (outstandingAmount / payableAmount) * 100 : 0;
+
+        if (outstandingPercent > 50) {
+            setPendingPayload(payload);
+            setOutstandingInfo({
+                percent: outstandingPercent.toFixed(2),
+                amountFormatted: outstandingAmount.toLocaleString("en-IN"),
+            });
+            setOutstandingConfirmOpen(true);
+            return;
+        }
+        await savePlanner(payload);
+    };
+
+    const handleCancelSaveConfirm = () => {
+        setSaveConfirmOpen(false);
+        setSaveConfirmPayload(null);
+        setSaveConfirmSummary(null);
+    };
+
+    const handleConfirmSaveProceed = async () => {
+        if (!saveConfirmPayload) {
+            handleCancelSaveConfirm();
+            return;
+        }
+        setSaveConfirmOpen(false);
+        setSubmitting(true);
+        try {
+            await runSaveWithOutstandingCheck(saveConfirmPayload);
+            setSaveConfirmPayload(null);
+            setSaveConfirmSummary(null);
         } finally {
             setSubmitting(false);
         }
@@ -338,6 +464,63 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         }
     };
 
+    useEffect(() => {
+        const plannedProductIds = (bomPlan || []).map((line) => Number(line.product_id));
+        const removedProductIds = (removedLineAdjustments || []).map((line) => Number(line.product_id));
+        const uniqueProductIds = [...new Set([...plannedProductIds, ...removedProductIds].filter((id) => Number.isFinite(id) && id > 0))];
+        if (uniqueProductIds.length === 0) {
+            setPurchasePriceByProductId({});
+            return;
+        }
+        let cancelled = false;
+        const run = async () => {
+            setLoadingPrices(true);
+            try {
+                const res = await orderService.getLatestPurchasePrices(uniqueProductIds);
+                const data = res?.result ?? res?.data ?? res ?? [];
+                if (cancelled) return;
+                const next = {};
+                (Array.isArray(data) ? data : []).forEach((row) => {
+                    next[row.product_id] = row;
+                });
+                setPurchasePriceByProductId(next);
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("Failed to fetch latest purchase prices:", err);
+                    setPurchasePriceByProductId({});
+                }
+            } finally {
+                if (!cancelled) setLoadingPrices(false);
+            }
+        };
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [bomPlan, removedLineAdjustments]);
+
+    useEffect(() => {
+        if (activeTab !== "activity" || !orderId) return;
+        let cancelled = false;
+        const run = async () => {
+            try {
+                const res = await orderService.getOrderCostAmendments(orderId);
+                if (cancelled) return;
+                const data = res?.result ?? res?.data ?? res ?? [];
+                setCostAmendments(Array.isArray(data) ? data : []);
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("Failed to fetch cost amendments:", err);
+                    setCostAmendments([]);
+                }
+            }
+        };
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, orderId]);
+
     // Toggle handler for BOM planning checkbox. This only updates local UI
     // state and does not affect the persisted order yet.
     const handleBomToggle = (rowKey, checked) => {
@@ -397,6 +580,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             product_id: p.id,
             quantity: qty,
             planned_qty: qty,
+            baseline_planned_qty: 0,
             planned: true,
             shipped_qty: 0,
             returned_qty: 0,
@@ -415,6 +599,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             serial_required: serialRequired,
         };
         setBomPlan((prev) => [...prev, newLine]);
+        setAdjustmentByRow((prev) => ({
+            ...prev,
+            [newLine.__rowKey]: { gst_mode: "INCLUDING_GST", note: "" },
+        }));
         if (fieldErrors.bomPlan) {
             setFieldErrors((prev) => {
                 const next = { ...prev };
@@ -428,7 +616,33 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const handleBomRemove = (rowKey) => {
+        const removedLine = (bomPlan || []).find((line) => line.__rowKey === rowKey);
+        if (removedLine) {
+            const baselineQtyRaw = Number(removedLine.baseline_planned_qty ?? removedLine.quantity ?? 0);
+            const baselineQty = Number.isFinite(baselineQtyRaw) ? baselineQtyRaw : 0;
+            if (baselineQty > 0) {
+                setRemovedLineAdjustments((prev) => ([
+                    ...prev.filter((line) => line.originalRowKey !== rowKey),
+                    {
+                        originalRowKey: rowKey,
+                        rowKey: `removed-${rowKey}`,
+                        product_id: removedLine.product_id,
+                        product_name: removedLine?.product_snapshot?.product_name || removedLine?.product_name || null,
+                        qtyDelta: -baselineQty,
+                        gstMode: adjustmentByRow[rowKey]?.gst_mode || "INCLUDING_GST",
+                    },
+                ]));
+            } else {
+                // Added-then-removed rows (baseline 0) should not create a net adjustment.
+                setRemovedLineAdjustments((prev) => prev.filter((line) => line.originalRowKey !== rowKey));
+            }
+        }
         setBomPlan((prev) => prev.filter((line) => line.__rowKey !== rowKey));
+        setAdjustmentByRow((prev) => {
+            const next = { ...prev };
+            delete next[rowKey];
+            return next;
+        });
         if (fieldErrors.bomPlan) {
             setFieldErrors((prev) => {
                 const next = { ...prev };
@@ -436,6 +650,18 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 return next;
             });
         }
+    };
+
+    const updateLineAdjustment = (rowKey, patch) => {
+        setAdjustmentByRow((prev) => ({
+            ...prev,
+            [rowKey]: {
+                gst_mode: "INCLUDING_GST",
+                note: "",
+                ...(prev[rowKey] || {}),
+                ...patch,
+            },
+        }));
     };
 
     /** Normalize product type name for mapping (lowercase, spaces to underscore). */
@@ -499,6 +725,89 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const barState = deriveBarStateFromBomPlan(bomPlan);
+
+    const costPreview = useMemo(() => {
+        const baseProjectCost = Number(orderData?.project_cost) || 0;
+        const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+        const activeLines = (bomPlan || []).map((line) => {
+            const adjustment = adjustmentByRow[line.__rowKey] || {};
+            const editedPlannedQty = qtyNum(line.planned_qty ?? line.quantity);
+            const baselinePlannedQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
+            const qtyDelta = editedPlannedQty - baselinePlannedQty;
+            const gstMode = adjustment.gst_mode || "INCLUDING_GST";
+            const price = purchasePriceByProductId[line.product_id] || null;
+            const unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+            const unitIncl = Number(price?.unit_price_including_gst) || 0;
+            const amountExcl = qtyDelta * unitExcl;
+            const amountIncl = qtyDelta * unitIncl;
+            const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
+            return {
+                rowKey: line.__rowKey,
+                qtyDelta,
+                gstMode,
+                product_id: line.product_id,
+                price,
+                amountExcl,
+                amountIncl,
+                deltaCost,
+            };
+        });
+        const removedLines = (removedLineAdjustments || []).map((line) => {
+            const qtyDelta = qtyNum(line.qtyDelta);
+            const gstMode = line.gstMode || "INCLUDING_GST";
+            const price = purchasePriceByProductId[line.product_id] || null;
+            const unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+            const unitIncl = Number(price?.unit_price_including_gst) || 0;
+            const amountExcl = qtyDelta * unitExcl;
+            const amountIncl = qtyDelta * unitIncl;
+            const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
+            return {
+                rowKey: line.rowKey,
+                qtyDelta,
+                gstMode,
+                product_id: line.product_id,
+                price,
+                amountExcl,
+                amountIncl,
+                deltaCost,
+            };
+        });
+        const lines = [...activeLines, ...removedLines];
+        const autoProjectCost = baseProjectCost + lines.reduce((sum, line) => sum + line.deltaCost, 0);
+        const manual = manualFinalPayable === "" ? null : Number(manualFinalPayable);
+        const finalProjectCost = isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
+        return {
+            baseProjectCost,
+            autoProjectCost,
+            finalProjectCost,
+            lines,
+        };
+    }, [orderData?.project_cost, orderData?.discount, bomPlan, removedLineAdjustments, adjustmentByRow, purchasePriceByProductId, manualFinalPayable, isManualOverride]);
+
+    useEffect(() => {
+        if (!isManualOverride) {
+            setManualFinalPayable(costPreview.autoProjectCost.toFixed(2));
+        }
+    }, [costPreview.autoProjectCost, isManualOverride]);
+
+    const formatMoneyOrDash = (value) => {
+        const num = Number(value);
+        return Number.isFinite(num) ? num.toFixed(2) : "—";
+    };
+
+    const getChangeTypeMeta = (changeType) => {
+        if (changeType === "ADD_QTY") return { label: "Add Qty", tone: "text-emerald-700" };
+        if (changeType === "DEDUCT_QTY") return { label: "Deduct Qty", tone: "text-rose-700" };
+        if (changeType === "FINAL_OVERRIDE") return { label: "Final Override", tone: "text-amber-700" };
+        return { label: changeType || "Amendment", tone: "text-foreground" };
+    };
+
+    const getMoneyToneClass = (value) => {
+        const n = Number(value) || 0;
+        if (n > 0) return "text-emerald-700";
+        if (n < 0) return "text-rose-700";
+        return "text-slate-700";
+    };
 
     const StatusItem = ({ label, isDone }) => (
         <Stack alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 80 }}>
@@ -618,6 +927,84 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     )}
 
                     <FormSection title="Materials for planning / delivery">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+                            <div className="rounded border border-slate-200 bg-slate-50 p-2 text-xs">
+                                <div className="text-muted-foreground">Current Project Cost</div>
+                                <div className="font-semibold text-slate-700">{costPreview.baseProjectCost.toFixed(2)}</div>
+                            </div>
+                            <div className="rounded border border-blue-200 bg-blue-50 p-2 text-xs">
+                                <div className="text-muted-foreground">Auto Calculated Cost</div>
+                                <div className={`font-semibold ${getMoneyToneClass(costPreview.autoProjectCost - costPreview.baseProjectCost)}`}>
+                                    {costPreview.autoProjectCost.toFixed(2)}
+                                </div>
+                            </div>
+                            <div className="rounded border border-indigo-200 bg-indigo-50 p-2 text-xs">
+                                <div className="text-muted-foreground">Final Project Cost</div>
+                                <div className={`font-semibold ${getMoneyToneClass(costPreview.finalProjectCost - costPreview.baseProjectCost)}`}>
+                                    {costPreview.finalProjectCost.toFixed(2)}
+                                </div>
+                            </div>
+                            <div className={`rounded border p-2 text-xs ${isManualOverride ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                                <label className="text-muted-foreground block mb-1">Final Payable Override</label>
+                                <div className="flex items-center gap-1">
+                                    <input
+                                        type="number"
+                                        value={manualFinalPayable}
+                                        onChange={(e) => {
+                                            setManualFinalPayable(e.target.value);
+                                            setIsManualOverride(true);
+                                        }}
+                                        disabled={isPlannerLocked || isReadOnly}
+                                        className="w-full border border-input rounded px-1 py-0.5 bg-background"
+                                    />
+                                    {isManualOverride && !isPlannerLocked && !isReadOnly && (
+                                        <button
+                                            type="button"
+                                            className="px-2 py-0.5 text-[11px] border rounded hover:bg-muted"
+                                            onClick={() => {
+                                                setIsManualOverride(false);
+                                            }}
+                                        >
+                                            Auto
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground mt-1">
+                                    {isManualOverride ? "Manual override active" : "Auto-calculated"}
+                                </div>
+                            </div>
+                        </div>
+                        {costUpdateSummary && (
+                            <div className="rounded border border-emerald-200 bg-emerald-50 p-2 text-xs mb-2">
+                                <div className="font-semibold mb-1">Update Summary</div>
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                    <div>
+                                        <div className="text-muted-foreground">Before</div>
+                                        <div className="font-medium text-slate-700">{Number(costUpdateSummary.previous_project_cost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Auto</div>
+                                        <div className="font-medium text-blue-700">{Number(costUpdateSummary.auto_calculated_project_cost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Final</div>
+                                        <div className="font-medium text-indigo-700">{Number(costUpdateSummary.final_saved_project_cost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Delta</div>
+                                        <div className={`font-semibold ${getMoneyToneClass(costUpdateSummary.total_delta)}`}>
+                                            {Number(costUpdateSummary.total_delta || 0).toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Override</div>
+                                        <div className={`font-semibold ${costUpdateSummary.override_applied ? "text-amber-700" : "text-emerald-700"}`}>
+                                            {costUpdateSummary.override_applied ? "Yes" : "No"}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div className="flex items-center justify-end gap-2 mb-2">
                             {!isReadOnly && !isPlannerLocked && (
                                 <Button
@@ -643,6 +1030,12 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 <th className="text-right font-semibold p-2 w-24">Planned Qty</th>
                                                 <th className="text-right font-semibold p-2 w-20">Shipped</th>
                                                 <th className="text-right font-semibold p-2 w-20">Pending</th>
+                                                <th className="text-right font-semibold p-2 w-24">Adj Qty</th>
+                                                <th className="text-left font-semibold p-2 w-28">GST Mode</th>
+                                                <th className="text-right font-semibold p-2 w-24">Rate Excl</th>
+                                                <th className="text-right font-semibold p-2 w-24">Rate Incl</th>
+                                                <th className="text-right font-semibold p-2 w-24">Amt Excl</th>
+                                                <th className="text-right font-semibold p-2 w-24">Amt Incl</th>
                                                 {!isReadOnly && !isPlannerLocked && <th className="text-center font-semibold p-2 w-12"></th>}
                                             </tr>
                                         </thead>
@@ -659,6 +1052,14 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 const pendingQty = plannedQty - shippedQty + returnedQty;
                                                 const isFullyShipped = Number(pendingQty) <= 0;
                                                 const canRemove = !isPlannerLocked && !isReadOnly && shippedQty === 0;
+                                                const adjustment = adjustmentByRow[line.__rowKey] || { gst_mode: "INCLUDING_GST" };
+                                                const latestPrice = purchasePriceByProductId[line.product_id];
+                                                const unitExcl = Number(latestPrice?.unit_price_excluding_gst) || 0;
+                                                const unitIncl = Number(latestPrice?.unit_price_including_gst) || 0;
+                                                const baselineQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
+                                                const adjQty = plannedQty - baselineQty;
+                                                const amountExcl = adjQty * unitExcl;
+                                                const amountIncl = adjQty * unitIncl;
 
                                                 return (
                                                     <tr
@@ -706,6 +1107,26 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                         </td>
                                                         <td className="p-2 text-right align-middle">{shippedQty}</td>
                                                         <td className="p-2 text-right align-middle">{pendingQty}</td>
+                                                        <td className="p-2 text-right align-middle">
+                                                            <span className={`${adjQty > 0 ? "text-emerald-700" : adjQty < 0 ? "text-rose-700" : "text-muted-foreground"} font-medium`}>
+                                                                {adjQty > 0 ? `+${adjQty}` : `${adjQty}`}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2 align-middle">
+                                                            <select
+                                                                value={adjustment.gst_mode || "INCLUDING_GST"}
+                                                                onChange={(e) => updateLineAdjustment(line.__rowKey, { gst_mode: e.target.value })}
+                                                                disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                className="w-28 border border-input rounded px-1 py-0.5 bg-background text-xs"
+                                                            >
+                                                                <option value="INCLUDING_GST">Including GST</option>
+                                                                <option value="EXCLUDING_GST">Excluding GST</option>
+                                                            </select>
+                                                        </td>
+                                                        <td className="p-2 text-right align-middle">{unitExcl.toFixed(2)}</td>
+                                                        <td className="p-2 text-right align-middle">{unitIncl.toFixed(2)}</td>
+                                                        <td className="p-2 text-right align-middle">{amountExcl.toFixed(2)}</td>
+                                                        <td className="p-2 text-right align-middle">{amountIncl.toFixed(2)}</td>
                                                         {!isReadOnly && !isPlannerLocked && (
                                                             <td className="p-2 text-center align-middle">
                                                                 {canRemove ? (
@@ -731,6 +1152,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 {fieldErrors.bomPlan && (
                                     <p className="mt-1 text-xs text-destructive">{fieldErrors.bomPlan}</p>
                                 )}
+                                {loadingPrices && <p className="mt-1 text-xs text-muted-foreground">Loading latest purchase prices...</p>}
                             </>
                         ) : (
                             <Alert severity="info" sx={{ mt: 1 }}>
@@ -749,6 +1171,108 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     </div>
 
                     <Dialog
+                        open={saveConfirmOpen}
+                        onOpenChange={(open) => !open && handleCancelSaveConfirm()}
+                    >
+                        <DialogContent className="sm:max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Confirm planner update</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-2 text-xs">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <div className="rounded border border-slate-200 bg-slate-50 p-2">
+                                        <div className="text-muted-foreground">Current Cost</div>
+                                        <div className="font-semibold text-slate-700">{Number(saveConfirmSummary?.previousProjectCost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-blue-200 bg-blue-50 p-2">
+                                        <div className="text-muted-foreground">Auto Cost</div>
+                                        <div className="font-semibold text-blue-700">{Number(saveConfirmSummary?.autoProjectCost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-indigo-200 bg-indigo-50 p-2">
+                                        <div className="text-muted-foreground">Final Cost</div>
+                                        <div className="font-semibold text-indigo-700">{Number(saveConfirmSummary?.finalProjectCost || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-violet-200 bg-violet-50 p-2">
+                                        <div className="text-muted-foreground">Delta</div>
+                                        <div className={`font-semibold ${Number(saveConfirmSummary?.totalDelta || 0) < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                            {Number(saveConfirmSummary?.totalDelta || 0).toFixed(2)}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <div className="rounded border border-cyan-200 bg-cyan-50 p-2">
+                                        <div className="text-muted-foreground">Payable</div>
+                                        <div className="font-semibold text-cyan-700">{Number(saveConfirmSummary?.payableAmount || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-emerald-200 bg-emerald-50 p-2">
+                                        <div className="text-muted-foreground">Paid</div>
+                                        <div className="font-semibold text-emerald-700">{Number(saveConfirmSummary?.totalPaid || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-rose-300 bg-rose-100 p-2 md:col-span-2">
+                                        <div className="text-muted-foreground">Outstanding</div>
+                                        <div className="font-semibold text-rose-800">{Number(saveConfirmSummary?.outstandingAmount || 0).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <details open className="rounded border p-2 bg-slate-50/60">
+                                    <summary className="cursor-pointer font-medium">
+                                        View item-wise amendments ({Number(saveConfirmSummary?.adjustmentCount || 0)})
+                                    </summary>
+                                    <div className="mt-2 space-y-1 max-h-60 overflow-auto">
+                                        {(saveConfirmSummary?.amendmentItems || []).length === 0 ? (
+                                            <div className="text-muted-foreground">No quantity/cost amendment rows in this save.</div>
+                                        ) : (
+                                            (saveConfirmSummary?.amendmentItems || []).map((item) => (
+                                                <div key={item.rowKey} className="rounded border bg-background p-2">
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <div className="flex items-center gap-2 text-[11px]">
+                                                            <span className={`font-semibold ${Number(item.qty_delta) < 0 ? "text-rose-700" : "text-emerald-700"}`}>
+                                                                {Number(item.qty_delta) < 0 ? "DEDUCT_QTY" : "ADD_QTY"}
+                                                            </span>
+                                                            <span className="text-muted-foreground">|</span>
+                                                            <span className="font-medium">{item.product_name}</span>
+                                                            <span className="text-muted-foreground">|</span>
+                                                            <span className={Number(item.qty_delta) < 0 ? "text-rose-700 font-semibold" : "text-emerald-700 font-semibold"}>
+                                                                Qty {Number(item.qty_delta) > 0 ? `+${item.qty_delta}` : item.qty_delta}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[11px] text-muted-foreground">Preview</span>
+                                                    </div>
+                                                    <div className="mt-1 grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px]">
+                                                        <div><span className="text-muted-foreground">Unit Excl</span><br />{Number(item.unit_excl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">Unit Incl</span><br />{Number(item.unit_incl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">GST Mode</span><br />{item.gst_mode || "—"}</div>
+                                                        <div><span className="text-muted-foreground">Amt Excl</span><br />{Number(item.amount_excl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">Amt Incl</span><br />{Number(item.amount_incl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">Cost Basis</span><br />{item.gst_mode === "EXCLUDING_GST" ? "Excl GST" : "Incl GST"}</div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </details>
+                            </div>
+                            <DialogFooter className="pt-4">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleCancelSaveConfirm}
+                                    disabled={submitting}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    onClick={handleConfirmSaveProceed}
+                                    loading={submitting}
+                                    disabled={submitting}
+                                >
+                                    Confirm and continue
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    <Dialog
                         open={outstandingConfirmOpen}
                         onOpenChange={(open) => !open && handleCancelOutstandingConfirm()}
                     >
@@ -756,10 +1280,12 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                             <DialogHeader>
                                 <DialogTitle>Outstanding payment warning</DialogTitle>
                             </DialogHeader>
-                            <p className="text-sm text-muted-foreground mb-2">
-                                {`Outstanding payment is ${outstandingInfo?.percent ?? ""}% (Rs. ${outstandingInfo?.amountFormatted ?? ""
-                                    }) of payable amount. Do you want to continue saving planner details?`}
-                            </p>
+                            <div className="rounded border border-rose-300 bg-rose-100 p-2 mb-2">
+                                <p className="text-sm text-rose-800 font-medium">
+                                    {`Outstanding payment is ${outstandingInfo?.percent ?? ""}% (Rs. ${outstandingInfo?.amountFormatted ?? ""
+                                        }) of payable amount. Do you want to continue saving planner details?`}
+                                </p>
+                            </div>
                             <DialogFooter className="pt-4">
                                 <Button
                                     variant="outline"
@@ -824,51 +1350,53 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 </Box>
             ) : (
                 <Box className="p-4">
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>Activity log</Typography>
-                    {Array.isArray(orderData?.planner_activity_log) && orderData.planner_activity_log.length > 0 ? (
-                        <Stack spacing={1.5}>
-                            {[...orderData.planner_activity_log]
-                                .sort((a, b) => new Date(b?.at || 0) - new Date(a?.at || 0))
-                                .map((entry, idx) => {
-                                    const actionLabel =
-                                        entry.action === "bom_line_added"
-                                            ? "Added line"
-                                            : entry.action === "bom_line_removed"
-                                                ? "Removed line"
-                                                : entry.action === "bom_qty_changed"
-                                                    ? "Changed qty"
-                                                    : entry.action === "bom_imported_from_project"
-                                                        ? "Imported BOM from project"
-                                                        : entry.action === "planner_saved"
-                                                            ? "Saved planner"
-                                                            : entry.action || "—";
-                                    const when = entry.at ? moment(entry.at).format("DD MMM YYYY, HH:mm") : "—";
-                                    const who = entry.user_name || (entry.user_id != null ? `User #${entry.user_id}` : "—");
-                                    const product = entry.product_name ? `: ${entry.product_name}` : "";
-                                    const qtyDetail =
-                                        entry.action === "bom_qty_changed" && entry.old_qty != null && entry.new_qty != null
-                                            ? ` (${entry.old_qty} → ${entry.new_qty})`
-                                            : entry.action === "bom_line_added" && entry.new_qty != null
-                                                ? ` (qty ${entry.new_qty})`
-                                                : entry.action === "bom_line_removed" && entry.old_qty != null
-                                                    ? ` (was qty ${entry.old_qty})`
-                                                    : "";
-                                    return (
-                                        <Paper key={idx} variant="outlined" sx={{ p: 1.5 }}>
-                                            <Typography variant="body2">
-                                                <strong>{actionLabel}</strong>
-                                                {product}
-                                                {qtyDetail}
-                                            </Typography>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {when} · {who}
-                                            </Typography>
-                                        </Paper>
-                                    );
-                                })}
-                        </Stack>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>Amendment Activity</Typography>
+                    {costAmendments.length === 0 ? (
+                        <Typography color="text.secondary">No amendment activity yet.</Typography>
                     ) : (
-                        <Typography color="text.secondary">No activity yet.</Typography>
+                        <Stack spacing={1}>
+                            {costAmendments.map((entry) => {
+                                const meta = getChangeTypeMeta(entry.change_type);
+                                const qtyDelta = Number(entry.qty_delta);
+                                const qtyLabel = Number.isFinite(qtyDelta)
+                                    ? (qtyDelta > 0 ? `+${qtyDelta}` : `${qtyDelta}`)
+                                    : "—";
+                                const actorName = entry.actor_user_name || "—";
+                                const when = entry.created_at ? moment(entry.created_at).format("DD MMM YYYY, HH:mm") : "—";
+                                const productName = entry.product_name || (entry.change_type === "FINAL_OVERRIDE" ? "Final Override" : "—");
+                                return (
+                                    <Paper key={`cost-${entry.id}`} variant="outlined" sx={{ p: 1.25 }}>
+                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                            <div className="flex items-center gap-2 text-xs">
+                                                <span className={`font-semibold ${meta.tone}`}>{meta.label}</span>
+                                                <span className="text-muted-foreground">|</span>
+                                                <span className="font-medium">{productName}</span>
+                                                <span className="text-muted-foreground">|</span>
+                                                <span className={Number.isFinite(qtyDelta) && qtyDelta < 0 ? "text-rose-700 font-semibold" : "text-emerald-700 font-semibold"}>
+                                                    Qty {qtyLabel}
+                                                </span>
+                                            </div>
+                                            <Typography variant="caption" color="text.secondary">
+                                                {when} · {actorName}
+                                            </Typography>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-1 text-[11px]">
+                                            <div><span className="text-muted-foreground">Unit Excl</span><br />{formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "EXCLUDING_GST" ? entry.unit_price_base : entry.line_amount_excluding_gst && qtyDelta ? Number(entry.line_amount_excluding_gst) / qtyDelta : null)}</div>
+                                            <div><span className="text-muted-foreground">Unit Incl</span><br />{formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "INCLUDING_GST" ? entry.unit_price_base : entry.line_amount_including_gst && qtyDelta ? Number(entry.line_amount_including_gst) / qtyDelta : null)}</div>
+                                            <div><span className="text-muted-foreground">GST Mode</span><br />{entry.gst_mode || "—"}</div>
+                                            <div><span className="text-muted-foreground">Amt Excl</span><br />{formatMoneyOrDash(entry.line_amount_excluding_gst)}</div>
+                                            <div><span className="text-muted-foreground">Amt Incl</span><br />{formatMoneyOrDash(entry.line_amount_including_gst)}</div>
+                                            <div><span className="text-muted-foreground">Project Cost</span><br />{formatMoneyOrDash(entry.project_cost_before)} → {formatMoneyOrDash(entry.project_cost_after)}</div>
+                                        </div>
+                                        <div className="mt-1 text-[11px]">
+                                            <span className="text-muted-foreground">Final Payable:</span>{" "}
+                                            <span>{formatMoneyOrDash(entry.final_payable_before)} → {formatMoneyOrDash(entry.final_payable_after)}</span>
+                                        </div>
+                                    </Paper>
+                                );
+                            })}
+                        </Stack>
                     )}
                 </Box>
             )}
