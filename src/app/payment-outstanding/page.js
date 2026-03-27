@@ -228,7 +228,7 @@ export default function PaymentOutstandingPage() {
       render: (row) => <span className="text-[11px] text-slate-500">{row.customer?.mobile_number || "-"}</span>,
     },
     {
-      field: "project_cost", label: "Project Cost", sortable: true,
+      field: "project_cost", label: "Total Payable", sortable: true,
       render: (row) => <span className="text-[11px] font-semibold text-slate-800">₹{fmtMoney(row.project_cost)}</span>,
     },
     {
