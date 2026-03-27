@@ -237,7 +237,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     },
     {
       id: "order_project_cost",
-      label: "Project Cost",
+      label: "Total Payable",
       field: "order_project_cost",
       render: (row) =>
         row.order_project_cost != null
