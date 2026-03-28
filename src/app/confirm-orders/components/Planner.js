@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Box, Typography, Alert, Paper, Stack, Tabs, Tab } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
@@ -87,6 +87,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
     const [saveConfirmPayload, setSaveConfirmPayload] = useState(null);
     const [saveConfirmSummary, setSaveConfirmSummary] = useState(null);
+    /** After BOM import from project, skip one planner save of cost amendments / override so project_cost stays as on order. */
+    const skipNextPlannerCostEffectsRef = useRef(false);
 
     useEffect(() => {
         fetchWarehouses();
@@ -158,6 +160,14 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         setSaveConfirmSummary(null);
     }, [orderData]);
 
+    const plannerOrderIdRef = useRef(undefined);
+    useEffect(() => {
+        if (plannerOrderIdRef.current !== undefined && plannerOrderIdRef.current !== orderId) {
+            skipNextPlannerCostEffectsRef.current = false;
+        }
+        plannerOrderIdRef.current = orderId;
+    }, [orderId]);
+
     const fetchWarehouses = async () => {
         try {
             const res = await companyService.listWarehouses();
@@ -196,6 +206,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             } catch (amendmentErr) {
                 console.error("Failed to refresh amendment history after save:", amendmentErr);
             }
+
+            skipNextPlannerCostEffectsRef.current = false;
 
             const msg = "Planner details saved successfully!";
             setSuccessMsg(msg);
@@ -269,19 +281,22 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             };
 
             const payloadBarState = deriveBarStateFromBomPlan(bomPlan);
-            const costAdjustments = costPreview.lines
-                .filter((line) => line.qtyDelta !== 0)
-                .map((line) => ({
-                    product_id: line.product_id,
-                    qty_delta: line.qtyDelta,
-                    gst_mode: line.gstMode,
-                    note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
-                    manual_unit_price_excluding_gst:
-                        line.priceSource === "MANUAL_FALLBACK" ? line.unitExcl : undefined,
-                    manual_unit_price_including_gst:
-                        line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
-                    price_source: line.priceSource || "LATEST_PURCHASE",
-                }));
+            const skipCostEffectsOnce = skipNextPlannerCostEffectsRef.current;
+            const costAdjustments = skipCostEffectsOnce
+                ? []
+                : costPreview.lines
+                    .filter((line) => line.qtyDelta !== 0)
+                    .map((line) => ({
+                        product_id: line.product_id,
+                        qty_delta: line.qtyDelta,
+                        gst_mode: line.gstMode,
+                        note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
+                        manual_unit_price_excluding_gst:
+                            line.priceSource === "MANUAL_FALLBACK" ? line.unitExcl : undefined,
+                        manual_unit_price_including_gst:
+                            line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
+                        price_source: line.priceSource || "LATEST_PURCHASE",
+                    }));
             const hasMissingManualPrice = costAdjustments.some((line) =>
                 line.price_source === "MANUAL_FALLBACK" &&
                 (!Number.isFinite(Number(line.manual_unit_price_excluding_gst)) ||
@@ -305,6 +320,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             };
             const parsedManualOverride = Number(manualFinalPayable);
             const hasManualOverrideValue =
+                !skipCostEffectsOnce &&
                 isManualOverride &&
                 manualFinalPayable !== "" &&
                 Number.isFinite(parsedManualOverride) &&
@@ -318,14 +334,20 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 delete payload.current_stage_key;
             }
 
-            const finalProjectCost = Number(costPreview.finalProjectCost) || 0;
-            const autoProjectCost = Number(costPreview.autoProjectCost) || 0;
             const previousProjectCost = Number(costPreview.baseProjectCost) || 0;
+            const finalProjectCost = skipCostEffectsOnce
+                ? previousProjectCost
+                : (Number(costPreview.finalProjectCost) || 0);
+            const autoProjectCost = skipCostEffectsOnce
+                ? previousProjectCost
+                : (Number(costPreview.autoProjectCost) || 0);
             const discount = Number(orderData?.discount) || 0;
             const totalPaid = Number(orderData?.total_paid) || 0;
             const payableAmount = Math.max(finalProjectCost - discount, 0);
             const outstandingAmount = Math.max(payableAmount - totalPaid, 0);
-            const amendmentItems = costPreview.lines
+            const amendmentItems = skipCostEffectsOnce
+                ? []
+                : costPreview.lines
                 .filter((line) => line.qtyDelta !== 0)
                 .map((line) => {
                     const rowInPlan = (bomPlan || []).find((bomLine) => bomLine.__rowKey === line.rowKey);
@@ -353,7 +375,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 previousProjectCost,
                 autoProjectCost,
                 finalProjectCost,
-                totalDelta: finalProjectCost - previousProjectCost,
+                totalDelta: skipCostEffectsOnce ? 0 : (finalProjectCost - previousProjectCost),
                 discount,
                 payableAmount,
                 totalPaid,
@@ -374,7 +396,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const runSaveWithOutstandingCheck = async (payload) => {
-        const projectCost = Number(costPreview.finalProjectCost) || 0;
+        const projectCost = skipNextPlannerCostEffectsRef.current
+            ? (Number(orderData?.project_cost) || 0)
+            : (Number(costPreview.finalProjectCost) || 0);
         const discount = Number(orderData?.discount) || 0;
         const payableAmount = Math.max(projectCost - discount, 0);
         const totalPaid = Number(orderData?.total_paid) || 0;
@@ -467,6 +491,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         setImportingFromProject(true);
         try {
             await orderService.updateOrder(orderId, { project_price_id: newValue.id });
+            skipNextPlannerCostEffectsRef.current = true;
             toastSuccess("BOM imported from project. Refreshing…");
             setSelectedProjectForImport(newValue);
             if (onSuccess) onSuccess();
