@@ -21,6 +21,7 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    Drawer,
 } from "@mui/material";
 import HomeIcon from "@mui/icons-material/Home";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -54,6 +55,7 @@ import orderService from "@/services/orderService";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import userMasterService from "@/services/userMasterService";
 import { useAuth } from "@/hooks/useAuth";
+import CloseIcon from "@mui/icons-material/Close";
 
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
@@ -193,6 +195,7 @@ function ConfirmedOrderViewPageContent() {
     const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
     const [reassignReason, setReassignReason] = useState("");
     const [reassigning, setReassigning] = useState(false);
+    const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
 
     const normalizeRoleName = (s) =>
         String(s || "")
@@ -418,6 +421,83 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const currentStageKey = orderData?.current_stage_key;
+    const renderOrderDetailsSidebar = () => (
+        <Paper sx={{ p: 1.5, height: "100%", overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
+            <CustomerProjectDetails orderData={orderData} />
+
+            {orderData?.bom_snapshot?.length > 0 && (
+                <>
+                    <div className={COMPACT_SECTION_HEADER_CLASS}>Scope (BOM)</div>
+                    <Box mt={2} mb={2} sx={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
+                            <thead>
+                                <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {orderData.bom_snapshot.map((line, idx) => {
+                                    const p = line.product_snapshot || line;
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                            <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </Box>
+                </>
+            )}
+
+            <div className={COMPACT_SECTION_HEADER_CLASS}>Payment Details</div>
+            <Box mt={2} mb={2}>
+                <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
+                <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
+
+                {orderData?.estimate_paid_by && (
+                    <>
+                        <Typography variant="body2" color="text.secondary" mt={2}>Paid By:</Typography>
+                        <Typography variant="body1" fontWeight="bold">
+                            {orderData.estimate_paid_by === "customer" ? "Customer" : orderData.estimate_paid_by === "company" ? "Company" : orderData.estimate_paid_by}
+                        </Typography>
+                    </>
+                )}
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    Rs. {totalReceivedAmount.toLocaleString()}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
+                <Typography
+                    variant="h6"
+                    fontWeight="bold"
+                    color="white"
+                    bgcolor="error.main"
+                    px={1}
+                    py={0.5}
+                    borderRadius={0.5}
+                    mt={1}
+                >
+                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
+                </Typography>
+            </Box>
+        </Paper>
+    );
 
     return (
         <Box>
@@ -439,6 +519,13 @@ function ConfirmedOrderViewPageContent() {
                         onClick={() => setQuotationDrawerOpen(true)}
                     >
                         Quotation
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setDetailsDrawerOpen(true)}
+                    >
+                        Order Details
                     </Button>
                     {isSuperAdmin && (
                         <Button
@@ -469,87 +556,8 @@ function ConfirmedOrderViewPageContent() {
             />
 
             <Grid container spacing={1}>
-                {/* Left Sidebar - Details */}
-                <Grid size={2.5}>
-                    <Paper sx={{ p: 1.5, height: calculateOrderDetailHeight(), overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
-                        <CustomerProjectDetails orderData={orderData} />
-
-                        {orderData?.bom_snapshot?.length > 0 && (
-                            <>
-                                <div className={COMPACT_SECTION_HEADER_CLASS}>Scope (BOM)</div>
-                                <Box mt={2} mb={2} sx={{ overflowX: "auto" }}>
-                                    <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {orderData.bom_snapshot.map((line, idx) => {
-                                                const p = line.product_snapshot || line;
-                                                return (
-                                                    <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                                                        <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </Box>
-                            </>
-                        )}
-
-                        <div className={COMPACT_SECTION_HEADER_CLASS}>Payment Details</div>
-                        <Box mt={2} mb={2}>
-                            <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
-
-                            {orderData?.estimate_paid_by && (
-                                <>
-                                    <Typography variant="body2" color="text.secondary" mt={2}>Paid By:</Typography>
-                                    <Typography variant="body1" fontWeight="bold">
-                                        {orderData.estimate_paid_by === "customer" ? "Customer" : orderData.estimate_paid_by === "company" ? "Company" : orderData.estimate_paid_by}
-                                    </Typography>
-                                </>
-                            )}
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                Rs. {totalReceivedAmount.toLocaleString()}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
-                            <Typography
-                                variant="h6"
-                                fontWeight="bold"
-                                color="white"
-                                bgcolor="error.main"
-                                px={1}
-                                py={0.5}
-                                borderRadius={0.5}
-                                mt={1}
-                            >
-                                Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
-                            </Typography>
-                        </Box>
-                    </Paper>
-                </Grid>
-
                 {/* Right Panel - Stage Tabs */}
-                <Grid size={9.5}>
+                <Grid size={12}>
                     <Paper elevation={0} sx={{ height: calculateOrderDetailHeight(), display: "flex", flexDirection: "column", overflow: "hidden" }} className="border border-border rounded-lg">
                         <Tabs
                             value={tabValue}
@@ -645,6 +653,25 @@ function ConfirmedOrderViewPageContent() {
                     </Paper>
                 </Grid>
             </Grid>
+            <Drawer
+                anchor="left"
+                open={detailsDrawerOpen}
+                onClose={() => setDetailsDrawerOpen(false)}
+            >
+                <Box sx={{ width: { xs: 320, sm: 380 }, p: 1, height: "100vh" }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                            Order Details
+                        </Typography>
+                        <IconButton size="small" onClick={() => setDetailsDrawerOpen(false)}>
+                            <CloseIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ height: "calc(100% - 34px)" }}>
+                        {renderOrderDetailsSidebar()}
+                    </Box>
+                </Box>
+            </Drawer>
 
             <Dialog
                 open={cancelDialogOpen}
