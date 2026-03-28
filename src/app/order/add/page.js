@@ -26,6 +26,18 @@ import {
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { calculateTotals } from "@/app/quotation/components/quotation/quotationCalculations";
 
+/** Match QuotationDetailsContent: use persisted total_payable when set; else same calculateTotals as /quotation/[id]. */
+function resolveQuotationTotalPayable(q) {
+    if (!q) return null;
+    const raw = q.total_payable;
+    if (raw != null && raw !== "") {
+        const n = Number(raw);
+        if (Number.isFinite(n)) return n;
+    }
+    const computed = calculateTotals(q);
+    return Number.isFinite(computed.totalPayable) ? computed.totalPayable : null;
+}
+
 export default function AddOrder() {
     return (
         <ProtectedRoute>
@@ -51,6 +63,11 @@ function AddOrderContent() {
     const [fullQuotationDetails, setFullQuotationDetails] = useState(null);
     const [fullQuotationDetailsLoading, setFullQuotationDetailsLoading] = useState(false);
     const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
+
+    const dialogTotalPayable = useMemo(
+        () => (fullQuotationDetails ? resolveQuotationTotalPayable(fullQuotationDetails) : null),
+        [fullQuotationDetails]
+    );
 
     // Get inquiry ID from URL params
     // Fetch inquiry and quotation data
@@ -143,11 +160,6 @@ function AddOrderContent() {
         return () => { cancelled = true; };
     }, [confirmNoApprovedOpen, quotationData?.id]);
 
-    const dialogTotals = useMemo(
-        () => (fullQuotationDetails ? calculateTotals(fullQuotationDetails) : null),
-        [fullQuotationDetails]
-    );
-
     const handleSubmit = async (data) => {
         setLoading(true);
         setServerError(null);
@@ -228,11 +240,6 @@ function AddOrderContent() {
         }
     };
 
-    const quotationTotals = useMemo(
-        () => (selectedQuotationDetails ? calculateTotals(selectedQuotationDetails) : null),
-        [selectedQuotationDetails]
-    );
-
     // Prepare default values from inquiry and quotation data
     const defaultValues = useMemo(() => {
         const defaults = {};
@@ -283,17 +290,12 @@ function AddOrderContent() {
         if (quotationData) {
             defaults.quotation_id = quotationData.id;
 
-            // Prefer Total Payable from full quotation details; fall back to legacy project values
-            if (quotationTotals && typeof quotationTotals.totalPayable === "number") {
-                defaults.project_cost = Math.round(quotationTotals.totalPayable);
-            } else {
-                const baseAmount =
-                    quotationData.total_payable ??
-                    quotationData.total_project_value ??
-                    quotationData.project_cost ??
-                    0;
-                defaults.project_cost = Number(baseAmount) || 0;
-            }
+            // Same Total Payable as quotation detail + modal: stored total_payable or calculateTotals (not list API total_payable)
+            const payable =
+                resolveQuotationTotalPayable(selectedQuotationDetails) ??
+                resolveQuotationTotalPayable(quotationData) ??
+                Number(quotationData.total_project_value ?? quotationData.project_cost ?? 0);
+            defaults.project_cost = Number.isFinite(payable) ? payable : 0;
 
             defaults.discount = quotationData.discount || 0;
 
@@ -350,7 +352,7 @@ function AddOrderContent() {
         }
 
         return defaults;
-    }, [inquiryData, quotationData, user?.id]);
+    }, [inquiryData, quotationData, selectedQuotationDetails, user?.id]);
 
     const title = inquiryId ? `Create Order from Inquiry #${inquiryNumber}` : "Add New Order";
 
@@ -449,10 +451,10 @@ function AddOrderContent() {
                                         <span>{fullQuotationDetails.project_capacity != null ? `${fullQuotationDetails.project_capacity} KW` : "-"}</span>
                                         <span>Project Cost</span>
                                         <span>{fullQuotationDetails.total_project_value != null ? formatCurrency(fullQuotationDetails.total_project_value) : "-"}</span>
-                                        {dialogTotals && (
+                                        {dialogTotalPayable != null && (
                                             <>
                                                 <span>Total Payable</span>
-                                                <span>{formatCurrency(dialogTotals.totalPayable)}</span>
+                                                <span>{formatCurrency(dialogTotalPayable)}</span>
                                             </>
                                         )}
                                         {fullQuotationDetails.discount != null && Number(fullQuotationDetails.discount) !== 0 && (
