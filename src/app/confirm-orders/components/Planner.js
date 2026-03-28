@@ -28,13 +28,21 @@ import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { useAuth } from "@/hooks/useAuth";
 
 /** Number of days after planner completion during which the planner remains editable. */
 const PLANNER_EDITABLE_DAYS = 100;
 
+const normalizeRoleName = (s) =>
+    String(s || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+
 export default function Planner({ orderId, orderData, onSuccess }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
+    const { user } = useAuth();
+    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
     // All material checkboxes (planned_has_*) default to true; sync from orderData uses ?? true.
     const [formData, setFormData] = useState({
         planned_delivery_date: "",
@@ -93,6 +101,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     useEffect(() => {
         fetchWarehouses();
     }, []);
+
+    useEffect(() => {
+        if (!isSuperAdmin) setIsManualOverride(false);
+    }, [isSuperAdmin]);
 
     // Sync formData from orderData only when the order changes (or first load). Avoid overwriting
     // user input when the parent re-renders and passes a new orderData reference.
@@ -321,6 +333,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             const parsedManualOverride = Number(manualFinalPayable);
             const hasManualOverrideValue =
                 !skipCostEffectsOnce &&
+                isSuperAdmin &&
                 isManualOverride &&
                 manualFinalPayable !== "" &&
                 Number.isFinite(parsedManualOverride) &&
@@ -916,14 +929,25 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         const lines = [...activeLines, ...removedLines];
         const autoProjectCost = baseProjectCost + lines.reduce((sum, line) => sum + line.deltaCost, 0);
         const manual = manualFinalPayable === "" ? null : Number(manualFinalPayable);
-        const finalProjectCost = isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
+        const finalProjectCost =
+            isSuperAdmin && isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
         return {
             baseProjectCost,
             autoProjectCost,
             finalProjectCost,
             lines,
         };
-    }, [orderData?.project_cost, orderData?.discount, bomPlan, removedLineAdjustments, adjustmentByRow, purchasePriceByProductId, manualFinalPayable, isManualOverride]);
+    }, [
+        orderData?.project_cost,
+        orderData?.discount,
+        bomPlan,
+        removedLineAdjustments,
+        adjustmentByRow,
+        purchasePriceByProductId,
+        manualFinalPayable,
+        isManualOverride,
+        isSuperAdmin,
+    ]);
 
     useEffect(() => {
         if (!isManualOverride) {
@@ -1090,7 +1114,13 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                     {costPreview.finalProjectCost.toFixed(2)}
                                 </div>
                             </div>
-                            <div className={`rounded border p-1.5 md:p-1.5 text-xs ${isManualOverride ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                            <div
+                                className={`rounded border p-1.5 md:p-1.5 text-xs ${
+                                    isSuperAdmin && isManualOverride
+                                        ? "border-amber-300 bg-amber-50"
+                                        : "border-emerald-200 bg-emerald-50"
+                                }`}
+                            >
                                 <label className="text-muted-foreground block mb-1">Final Payable Override</label>
                                 <div className="flex items-center gap-1">
                                     <input
@@ -1100,10 +1130,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                             setManualFinalPayable(e.target.value);
                                             setIsManualOverride(true);
                                         }}
-                                        disabled={isPlannerLocked || isReadOnly}
-                                        className="w-full border border-input rounded px-1 py-0.5 bg-background"
+                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin}
+                                        className="w-full border border-input rounded px-1 py-0.5 bg-background disabled:opacity-60"
                                     />
-                                    {isManualOverride && !isPlannerLocked && !isReadOnly && (
+                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && (
                                         <button
                                             type="button"
                                             className="px-2 py-0.5 text-[11px] border rounded hover:bg-muted"
@@ -1116,7 +1146,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                     )}
                                 </div>
                                 <div className="text-[11px] text-muted-foreground mt-1">
-                                    {isManualOverride ? "Manual override active" : "Auto-calculated"}
+                                    {!isSuperAdmin
+                                        ? "Only superadmin can set manual override."
+                                        : isManualOverride
+                                          ? "Manual override active"
+                                          : "Auto-calculated"}
                                 </div>
                             </div>
                         </div>
