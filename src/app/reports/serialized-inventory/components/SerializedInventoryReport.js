@@ -31,6 +31,7 @@ function buildParams(filters, page, limit, sortBy, sortOrder) {
     product_id: filters?.product_id || undefined,
     warehouse_id: filters?.warehouse_id || undefined,
     product_type_id: filters?.product_type_id || undefined,
+    product_make_id: filters?.product_make_id || undefined,
     status: status ?? undefined,
     serial_number: filters?.serial_number || undefined,
     issued_against: filters?.issued_against || undefined,
@@ -96,6 +97,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
       product_id: filters?.product_id || undefined,
       warehouse_id: filters?.warehouse_id || undefined,
       product_type_id: filters?.product_type_id || undefined,
+      product_make_id: filters?.product_make_id || undefined,
       serial_number: filters?.serial_number || undefined,
       issued_against: filters?.issued_against || undefined,
       reference_number: filters?.reference_number || undefined,
@@ -144,6 +146,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
         product_id: filters?.product_id || undefined,
         warehouse_id: filters?.warehouse_id || undefined,
         product_type_id: filters?.product_type_id || undefined,
+        product_make_id: filters?.product_make_id || undefined,
         status: status ?? undefined,
         serial_number: filters?.serial_number || undefined,
         issued_against: filters?.issued_against || undefined,
@@ -191,6 +194,13 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
         <span className="text-[10px] text-slate-500">
           {row.product_type ?? row.product_type_name ?? row.product?.productType?.name ?? "—"}
         </span>
+      ),
+    },
+    {
+      field: "product_make",
+      label: "Make",
+      render: (row) => (
+        <span className="text-[10px] text-slate-500">{row.product_make ?? row.product?.productMake?.name ?? "—"}</span>
       ),
     },
     {

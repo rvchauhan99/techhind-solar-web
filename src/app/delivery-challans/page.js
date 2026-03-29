@@ -475,6 +475,7 @@ export default function DeliveryChallanListPage() {
 
                     <div className="space-y-4">
                         <AutocompleteField
+                            usePortal
                             name="reason_id"
                             label="Reason"
                             required

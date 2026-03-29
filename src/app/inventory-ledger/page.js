@@ -21,6 +21,7 @@ const COLUMN_FILTER_KEYS = [
   "product_name",
   "product_name_op",
   "product_type_id",
+  "product_make_id",
   "warehouse_name",
   "warehouse_name_op",
   "transaction_type",
@@ -67,6 +68,7 @@ export default function InventoryLedgerPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [productTypeOptions, setProductTypeOptions] = useState([]);
+  const [productMakeOptions, setProductMakeOptions] = useState([]);
 
   useEffect(() => {
     mastersService
@@ -77,6 +79,17 @@ export default function InventoryLedgerPage() {
         setProductTypeOptions(options);
       })
       .catch(() => setProductTypeOptions([]));
+  }, []);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_make.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
+        setProductMakeOptions(options);
+      })
+      .catch(() => setProductMakeOptions([]));
   }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
@@ -177,6 +190,15 @@ export default function InventoryLedgerPage() {
         render: (row) => row.product_type_name || row.product?.productType?.name || "-",
       },
       {
+        field: "product_make_name",
+        label: "Product Make",
+        sortable: false,
+        filterType: "select",
+        filterKey: "product_make_id",
+        filterOptions: productMakeOptions,
+        render: (row) => row.product_make_name || row.product?.productMake?.name || "-",
+      },
+      {
         field: "warehouse",
         label: "Warehouse",
         sortable: false,
@@ -269,7 +291,7 @@ export default function InventoryLedgerPage() {
         render: (row) => row.performedBy?.name || "-",
       },
     ],
-    [handleOpenSidebar, productTypeOptions]
+    [handleOpenSidebar, productTypeOptions, productMakeOptions]
   );
 
   const fetcher = useMemo(
@@ -281,6 +303,7 @@ export default function InventoryLedgerPage() {
         product_id: p.product_id || undefined,
         warehouse_id: p.warehouse_id || undefined,
         product_type_id: p.product_type_id || undefined,
+        product_make_id: p.product_make_id || undefined,
         product_name: p.product_name || undefined,
         warehouse_name: p.warehouse_name || undefined,
         transaction_type: p.transaction_type || undefined,
@@ -318,6 +341,8 @@ export default function InventoryLedgerPage() {
         <p className="font-semibold">{r.product?.product_name ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Product Type</p>
         <p className="text-sm">{r.product_type_name ?? r.product?.productType?.name ?? "-"}</p>
+        <p className="text-xs font-semibold text-muted-foreground">Product Make</p>
+        <p className="text-sm">{r.product_make_name ?? r.product?.productMake?.name ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Date</p>
         <p className="text-sm">{r.performed_at ? formatDate(r.performed_at) : "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
