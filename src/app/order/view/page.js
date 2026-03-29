@@ -299,7 +299,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     );
 }
 
-function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [] }) {
+function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [], maxPaymentAmount = 0 }) {
     const [formData, setFormData] = useState({
         order_id: orderId,
         date_of_payment: "",
@@ -370,7 +370,12 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
             // Validate required fields
             const newErrors = {};
             if (!formData.date_of_payment) newErrors.date_of_payment = "Date of Payment is required";
-            if (!formData.payment_amount || formData.payment_amount <= 0) newErrors.payment_amount = "Payment Amount is required and must be greater than 0";
+            const payAmount = parseFloat(String(formData.payment_amount || "").replace(/,/g, ""));
+            if (!formData.payment_amount || !Number.isFinite(payAmount) || payAmount <= 0) {
+                newErrors.payment_amount = "Payment Amount is required and must be greater than 0";
+            } else if (maxPaymentAmount > 0 && payAmount > maxPaymentAmount + 1e-6) {
+                newErrors.payment_amount = `Cannot exceed outstanding Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`;
+            }
             if (!formData.payment_mode_id) newErrors.payment_mode_id = "Payment Mode is required";
             if (!formData.company_bank_account_id) newErrors.company_bank_account_id = "Company Bank Account is required";
 
@@ -468,7 +473,17 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         value={formData.payment_amount}
                         onChange={(e) => handleChange('payment_amount', e.target.value)}
                         error={!!errors.payment_amount}
-                        helperText={errors.payment_amount}
+                        helperText={
+                            errors.payment_amount
+                            || (maxPaymentAmount > 0
+                                ? `Max Rs. ${maxPaymentAmount.toLocaleString("en-IN")} (outstanding)`
+                                : "No outstanding balance")
+                        }
+                        inputProps={
+                            maxPaymentAmount > 0
+                                ? { max: maxPaymentAmount, min: 0, step: "any" }
+                                : { min: 0, step: "any" }
+                        }
                     />
                 </Grid>
 
@@ -565,7 +580,7 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         variant="contained"
                         color="success"
                         onClick={handleSave}
-                        disabled={loading}
+                        disabled={loading || maxPaymentAmount <= 0}
                         startIcon={loading ? <CircularProgress size={20} /> : null}
                     >
                         Save
@@ -993,6 +1008,7 @@ function OrderViewPageContent() {
         }
     };
     const visibleTabs = getVisibleTabs();
+    const maxPaymentAmount = Math.max(0, Number(orderData?.project_cost ?? 0) - totalReceivedAmount);
     console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {
@@ -1432,6 +1448,7 @@ function OrderViewPageContent() {
                                         orderId={orderId}
                                         onPaymentSaved={handlePaymentSaved}
                                         orderDocumentTypes={orderDocumentTypes}
+                                        maxPaymentAmount={maxPaymentAmount}
                                     />
                                 )}
                             </TabPanel>
