@@ -541,6 +541,7 @@ export default function MarketingLeadFollowupPage() {
     <>
       {/* Followup Outcome filter */}
       <AutocompleteField
+        usePortal
         name="followup_outcome"
         label="Last Outcome"
         options={[{ value: "", label: "All outcomes" }, ...FOLLOWUP_OUTCOME_OPTIONS]}

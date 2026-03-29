@@ -203,6 +203,7 @@ export default function InquiryFilterPanel({
                     <Input name="mobile_number" label="Mobile Number" placeholder="Search..." value={localValues.mobile_number} onChange={(e) => handleChange("mobile_number", e.target.value)} />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="inquiry_source"
                         label="Inquiry Source"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("inquiry_source.model", { q, limit: 20 })}
@@ -216,6 +217,7 @@ export default function InquiryFilterPanel({
                     <Input name="reference_from" label="Reference" placeholder="Search..." value={localValues.reference_from} onChange={(e) => handleChange("reference_from", e.target.value)} />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="branch_name"
                         label="Branch"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
@@ -227,6 +229,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="handled_by"
                         label="Handled By"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
@@ -238,6 +241,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="inquiry_by"
                         label="Inquiry By"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
@@ -249,6 +253,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="channel_partner"
                         label="Channel Partner"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
@@ -260,6 +265,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="project_scheme"
                         label="Project Scheme"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
@@ -272,6 +278,7 @@ export default function InquiryFilterPanel({
                     <Input name="capacity" label="Capacity (kW)" placeholder="e.g. 3" value={localValues.capacity} onChange={(e) => handleChange("capacity", e.target.value)} />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="city_name"
                         label="City"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("city.model", { q, limit: 20 })}
@@ -283,6 +290,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="state_name"
                         label="State"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
@@ -294,6 +302,7 @@ export default function InquiryFilterPanel({
                     />
 
                     <AutocompleteField
+                        usePortal={true}
                         name="discom_name"
                         label="Discom"
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("discom.model", { q, limit: 20 })}
