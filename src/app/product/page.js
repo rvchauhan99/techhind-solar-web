@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { IconTrash, IconEye, IconPencil } from "@tabler/icons-react";
@@ -25,6 +25,7 @@ import {
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Loader from "@/components/common/Loader";
 import productService from "@/services/productService";
+import mastersService from "@/services/mastersService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
@@ -39,7 +40,7 @@ const COLUMN_FILTER_KEYS = [
   "product_name",
   "product_name_op",
   "product_type_name",
-  "product_make_name",
+  "product_make_id",
   "hsn_ssn_code",
   "measurement_unit_name",
   "capacity",
@@ -108,6 +109,18 @@ export default function ProductPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const importFileRef = useRef(null);
+  const [productMakeOptions, setProductMakeOptions] = useState([]);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_make.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
+        setProductMakeOptions(options);
+      })
+      .catch(() => setProductMakeOptions([]));
+  }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -262,9 +275,9 @@ export default function ProductPage() {
         field: "product_make_name",
         label: "Product Make",
         sortable: false,
-        filterType: "text",
-        filterKey: "product_make_name",
-        defaultFilterOperator: "contains",
+        filterType: "select",
+        filterKey: "product_make_id",
+        filterOptions: productMakeOptions,
       },
       {
         field: "product_name",
@@ -429,7 +442,7 @@ export default function ProductPage() {
         ),
       },
     ],
-    [handleOpenEditModal, handleOpenSidebar]
+    [handleOpenEditModal, handleOpenSidebar, productMakeOptions]
   );
 
   const fetcher = useMemo(
@@ -444,7 +457,7 @@ export default function ProductPage() {
         product_name: p.product_name || undefined,
         product_name_op: p.product_name_op || undefined,
         product_type_name: p.product_type_name || undefined,
-        product_make_name: p.product_make_name || undefined,
+        product_make_id: p.product_make_id || undefined,
         hsn_ssn_code: p.hsn_ssn_code || undefined,
         measurement_unit_name: p.measurement_unit_name || undefined,
         capacity: p.capacity || undefined,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
+import mastersService from "@/services/mastersService";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import {
   IconPackage,
@@ -32,6 +33,7 @@ const INITIAL_FILTERS = {
   product_id: "",
   warehouse_id: "",
   product_type_id: "",
+  product_make_id: "",
   status: null,
   serial_number: "",
   issued_against: "",
@@ -116,13 +118,14 @@ const FILTER_LABELS = {
   product_id: "Product",
   warehouse_id: "Warehouse",
   product_type_id: "Product Type",
+  product_make_id: "Product Make",
   status: "Status",
   serial_number: "Serial #",
   issued_against: "Issued Against",
   reference_number: "Reference #",
 };
 
-function getChips(filters) {
+function getChips(filters, productMakeById = null) {
   return Object.entries(filters)
     .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
     .map(([key, value]) => ({
@@ -133,7 +136,9 @@ function getChips(filters) {
           ? (Array.isArray(value) ? value : [value])
               .map((s) => SERIAL_STATUSES.find((o) => o.value === s)?.label || s)
               .join(", ")
-          : String(value),
+          : key === "product_make_id" && productMakeById?.get
+            ? productMakeById.get(String(value)) || String(value)
+            : String(value),
     }));
 }
 
@@ -151,9 +156,27 @@ export default function SerializedInventoryReportPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
   const [activeStatusTab, setActiveStatusTab] = useState(null);
+  const [productMakeOptions, setProductMakeOptions] = useState([]);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_make.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const opts = Array.isArray(data) ? data.map((m) => ({ id: m.id, name: m.name || String(m.id) })) : [];
+        setProductMakeOptions(opts);
+      })
+      .catch(() => setProductMakeOptions([]));
+  }, []);
+
+  const productMakeById = useMemo(() => {
+    const map = new Map();
+    productMakeOptions.forEach((m) => map.set(String(m.id), m.name));
+    return map;
+  }, [productMakeOptions]);
 
   const activeCount = countActive(appliedFilters);
-  const chips = getChips(appliedFilters);
+  const chips = getChips(appliedFilters, productMakeById);
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
 
   const handleApply = () => {
@@ -280,7 +303,7 @@ export default function SerializedInventoryReportPage() {
           </div>
 
           {/* Collapsible Advanced Filters */}
-          <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+          <Card className="rounded-xl shadow-sm border-slate-200 bg-white overflow-visible">
             <button
               onClick={() => setFiltersOpen((o) => !o)}
               className="w-full flex items-center justify-between px-2 py-1 hover:bg-slate-50 transition-colors rounded-xl"

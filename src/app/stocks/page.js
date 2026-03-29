@@ -47,6 +47,7 @@ import { formatCurrency } from "@/utils/dataTableUtils";
 const COLUMN_FILTER_KEYS = [
   "product_id",
   "product_type_id",
+  "product_make_id",
   "warehouse_id",
   "quantity_reserved",
   "quantity_reserved_op",
@@ -92,6 +93,7 @@ const EMPTY_SUMMARY = {
 const FILTER_LABELS = {
   product_id: "Product",
   product_type_id: "Product Type",
+  product_make_id: "Product Make",
   warehouse_id: "Warehouse",
   tracking_type: "Tracking",
   low_stock: "Status",
@@ -121,6 +123,7 @@ export default function StockPage() {
   const [summaryExpanded, setSummaryExpanded] = useState(true);
   const [selectedProductName, setSelectedProductName] = useState("");
   const [selectedWarehouseName, setSelectedWarehouseName] = useState("");
+  const [productMakeOptions, setProductMakeOptions] = useState([]);
 
   useEffect(() => {
     mastersService
@@ -131,6 +134,17 @@ export default function StockPage() {
         setProductTypeOptions(options);
       })
       .catch(() => setProductTypeOptions([]));
+  }, []);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("product_make.model")
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
+        setProductMakeOptions(options);
+      })
+      .catch(() => setProductMakeOptions([]));
   }, []);
 
   const filterParams = useMemo(() => {
@@ -204,6 +218,14 @@ export default function StockPage() {
     return map;
   }, [productTypeOptions]);
 
+  const productMakeById = useMemo(() => {
+    const map = new Map();
+    productMakeOptions.forEach((item) => {
+      map.set(String(item.value), item.label);
+    });
+    return map;
+  }, [productMakeOptions]);
+
   const selectedProductTypeName = useMemo(
     () => productTypeById.get(String(filters.product_type_id || "")) || "",
     [productTypeById, filters.product_type_id]
@@ -271,6 +293,7 @@ export default function StockPage() {
         .map(([key, value]) => {
           let displayValue = String(value);
           if (key === "product_type_id") displayValue = productTypeById.get(String(value)) || String(value);
+          if (key === "product_make_id") displayValue = productMakeById.get(String(value)) || String(value);
           if (key === "product_id") displayValue = selectedProductName || `Product #${value}`;
           if (key === "warehouse_id") displayValue = selectedWarehouseName || `Warehouse #${value}`;
           if (key === "tracking_type") displayValue = TRACKING_OPTIONS.find((o) => o.value === value)?.label || String(value);
@@ -281,7 +304,7 @@ export default function StockPage() {
             value: displayValue,
           };
         }),
-    [filters, productTypeById, selectedProductName, selectedWarehouseName]
+    [filters, productTypeById, productMakeById, selectedProductName, selectedWarehouseName]
   );
 
   const resetAllFilters = useCallback(() => {
@@ -347,6 +370,12 @@ export default function StockPage() {
         label: "Product Type",
         sortable: false,
         render: (row) => row.product_type_name || row.product?.productType?.name || "-",
+      },
+      {
+        field: "product_make_name",
+        label: "Make",
+        sortable: false,
+        render: (row) => row.product_make_name || row.product?.productMake?.name || "-",
       },
       {
         field: "warehouse",
@@ -439,7 +468,7 @@ export default function StockPage() {
         },
       },
     ],
-    [productTypeOptions]
+    []
   );
 
   const fetcher = useMemo(
@@ -451,6 +480,7 @@ export default function StockPage() {
         warehouse_id: p.warehouse_id || undefined,
         product_id: p.product_id || undefined,
         product_type_id: p.product_type_id || undefined,
+        product_make_id: p.product_make_id || undefined,
         quantity_reserved: p.quantity_reserved || undefined,
         quantity_reserved_op: p.quantity_reserved_op || undefined,
         quantity_reserved_to: p.quantity_reserved_to || undefined,
@@ -572,7 +602,7 @@ export default function StockPage() {
             })}
           </div>
 
-          <Card className="rounded-xl border border-border bg-card">
+          <Card className="rounded-xl border border-border bg-card overflow-visible">
             <button
               onClick={() => setFiltersOpen((open) => !open)}
               className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl hover:bg-muted/30 transition-colors"
@@ -586,6 +616,7 @@ export default function StockPage() {
             {filtersOpen && (
               <div className="border-t border-border/50 p-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
                 <AutocompleteField
+                  usePortal
                   name="product_type_id"
                   label="Product Type"
                   size="small"
@@ -604,6 +635,29 @@ export default function StockPage() {
                   placeholder="All Product Types"
                 />
                 <AutocompleteField
+                  usePortal
+                  name="product_make_id"
+                  label="Product Make"
+                  size="small"
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20 })}
+                  referenceModel="product_make.model"
+                  getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                  value={
+                    filters.product_make_id
+                      ? {
+                          id: filters.product_make_id,
+                          name: productMakeById.get(String(filters.product_make_id)) || String(filters.product_make_id),
+                        }
+                      : null
+                  }
+                  onChange={(e, v) => {
+                    const id = v?.id ?? v?.value;
+                    setFilter("product_make_id", id != null && id !== "" ? String(id) : "");
+                  }}
+                  placeholder="All Makes"
+                />
+                <AutocompleteField
+                  usePortal
                   name="product_id"
                   label="Product"
                   size="small"
@@ -625,6 +679,7 @@ export default function StockPage() {
                   placeholder={selectedProductTypeName ? `Search ${selectedProductTypeName} products...` : "Search product..."}
                 />
                 <AutocompleteField
+                  usePortal
                   name="warehouse_id"
                   label="Warehouse"
                   size="small"
@@ -861,7 +916,7 @@ export default function StockPage() {
             </ChartCard>
           </div>
 
-          <Card className="rounded-xl border border-border bg-card">
+          <Card className="rounded-xl border border-border bg-card overflow-visible">
             <button
               onClick={() => setSummaryExpanded((prev) => !prev)}
               className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl hover:bg-muted/30 transition-colors"

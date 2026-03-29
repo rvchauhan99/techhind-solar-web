@@ -65,6 +65,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         size="small"
       />
       <AutocompleteField
+        usePortal
         name="product_id"
         label="Product"
         asyncLoadOptions={loadProductOptions}
@@ -75,6 +76,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         size="small"
       />
       <AutocompleteField
+        usePortal
         name="warehouse_id"
         label="Warehouse"
         asyncLoadOptions={loadWarehouseOptions}
@@ -85,6 +87,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         size="small"
       />
       <AutocompleteField
+        usePortal
         name="product_type_id"
         label="Product Type"
         asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
@@ -96,6 +99,19 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         size="small"
       />
       <AutocompleteField
+        usePortal
+        name="product_make_id"
+        label="Product Make"
+        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20 })}
+        referenceModel="product_make.model"
+        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        value={filters.product_make_id ? { id: filters.product_make_id } : null}
+        onChange={(e, v) => fc("product_make_id", v?.id ?? "")}
+        placeholder="All Makes"
+        size="small"
+      />
+      <AutocompleteField
+        usePortal
         name="status"
         label="Status"
         multiple
@@ -117,6 +133,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         size="small"
       />
       <AutocompleteField
+        usePortal
         name="issued_against"
         label="Issued Against"
         options={ISSUED_AGAINST_OPTIONS}

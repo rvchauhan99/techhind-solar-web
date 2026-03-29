@@ -296,6 +296,7 @@ export default function OrderListFilterPanel({
             {sourceOptions.map((s) => <MenuItem key={s.id} value={String(s.id)}>{s.source_name ?? s.label ?? s.name ?? s.id}</MenuItem>)}
           </Select>
           <AutocompleteField
+            usePortal={true}
             name="project_scheme_id"
             label="Project Scheme"
             asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
@@ -306,6 +307,7 @@ export default function OrderListFilterPanel({
             placeholder="Select Scheme..."
           />
           <AutocompleteField
+            usePortal={true}
             name="handled_by"
             label="Handled By"
             asyncLoadOptions={(q) =>

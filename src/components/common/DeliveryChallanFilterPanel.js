@@ -330,6 +330,7 @@ export default function DeliveryChallanFilterPanel({
           />
 
           <AutocompleteField
+            usePortal={true}
             name="handled_by"
             label="Handled By"
             asyncLoadOptions={(q) =>
@@ -347,6 +348,7 @@ export default function DeliveryChallanFilterPanel({
           />
 
           <AutocompleteField
+            usePortal={true}
             name="created_by"
             label="Created By"
             asyncLoadOptions={(q) =>
