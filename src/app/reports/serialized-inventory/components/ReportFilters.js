@@ -27,10 +27,15 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
   };
 
   const loadProductOptions = async (q) => {
-    const res = await productService.getProducts({ limit: 50, q: q || undefined });
+    const res = await productService.getProducts({
+      limit: 50,
+      q: q || undefined,
+      product_type_id: filters.product_type_id || undefined,
+      product_make_id: filters.product_make_id || undefined,
+    });
     const data = res?.result?.data || res?.data || [];
     const list = Array.isArray(data) ? data : [];
-    return list.map((p) => ({ id: p.id, product_name: p.product_name ?? p.name }));
+    return list.map((p) => ({ ...p, id: p.id, product_name: p.product_name ?? p.name }));
   };
 
   const loadWarehouseOptions = async (q) => {
@@ -71,7 +76,14 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         asyncLoadOptions={loadProductOptions}
         getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
         value={filters.product_id ? { id: filters.product_id } : null}
-        onChange={(e, v) => fc("product_id", v?.id ?? "")}
+        onChange={(e, v) => {
+          const updates = { product_id: v?.id ?? "" };
+          if (v?.id) {
+            if (v.product_type_id) updates.product_type_id = String(v.product_type_id);
+            if (v.product_make_id) updates.product_make_id = String(v.product_make_id);
+          }
+          onFiltersChange?.({ ...filters, ...updates });
+        }}
         placeholder="Search product…"
         size="small"
       />
@@ -92,9 +104,16 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         label="Product Type"
         asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
         referenceModel="product_type.model"
-        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
         value={filters.product_type_id ? { id: filters.product_type_id } : null}
-        onChange={(e, v) => fc("product_type_id", v?.id ?? "")}
+        onChange={(e, v) => {
+            const newTypeId = v?.id ?? "";
+            if (filters.product_type_id !== newTypeId) {
+                onFiltersChange?.({ ...filters, product_type_id: newTypeId, product_make_id: "", product_id: "" });
+            } else {
+                fc("product_type_id", newTypeId);
+            }
+        }}
         placeholder="All Product Types"
         size="small"
       />
@@ -102,11 +121,21 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         usePortal
         name="product_make_id"
         label="Product Make"
-        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20 })}
+        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
         referenceModel="product_make.model"
-        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
         value={filters.product_make_id ? { id: filters.product_make_id } : null}
-        onChange={(e, v) => fc("product_make_id", v?.id ?? "")}
+        onChange={(e, v) => {
+            const newMakeId = v?.id ?? "";
+            const updates = { product_make_id: newMakeId };
+            if (filters.product_make_id !== newMakeId) {
+                updates.product_id = "";
+            }
+            if (newMakeId && v?.product_type_id) {
+                updates.product_type_id = String(v.product_type_id);
+            }
+            onFiltersChange?.({ ...filters, ...updates });
+        }}
         placeholder="All Makes"
         size="small"
       />

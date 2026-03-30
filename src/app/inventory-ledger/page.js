@@ -75,27 +75,42 @@ export default function InventoryLedgerPage() {
       .getReferenceOptions("product_type.model")
       .then((res) => {
         const data = res?.result || res?.data || res || [];
-        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
+        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.label || t.name || String(t.id) })) : [];
         setProductTypeOptions(options);
       })
       .catch(() => setProductTypeOptions([]));
   }, []);
 
   useEffect(() => {
+    const params = {};
+    if (filters.product_type_id) {
+      params.product_type_id = filters.product_type_id;
+    }
     mastersService
-      .getReferenceOptions("product_make.model")
+      .getReferenceOptions("product_make.model", params)
       .then((res) => {
         const data = res?.result || res?.data || res || [];
-        const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
+        const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.label || m.name || String(m.id), product_type_id: m.product_type_id })) : [];
         setProductMakeOptions(options);
       })
       .catch(() => setProductMakeOptions([]));
-  }, []);
+  }, [filters.product_type_id]);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
-    (key, value) => setFilter(key, value),
-    [setFilter]
+    (key, value) => {
+      setFilter(key, value);
+      if (key === "product_type_id") {
+        setFilter("product_make_id", "");
+      }
+      if (key === "product_make_id" && value) {
+        const make = productMakeOptions.find((m) => m.value === String(value));
+        if (make?.product_type_id) {
+          setFilter("product_type_id", String(make.product_type_id));
+        }
+      }
+    },
+    [setFilter, productMakeOptions]
   );
 
   const filterParams = useMemo(

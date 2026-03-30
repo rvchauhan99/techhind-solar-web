@@ -233,14 +233,15 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             }
 
             try {
-                const response = await mastersService.getReferenceOptions("product_make.model");
-                const raw = response?.result ?? response?.data ?? response;
-                const allProductMakes = Array.isArray(raw) ? raw : [];
                 const productTypeIdStr = String(productTypeId);
-                const filteredMakes = allProductMakes.filter(
-                    (make) => make != null && String(make.product_type_id) === productTypeIdStr
-                );
-                setOptions((prev) => ({ ...prev, productMakes: filteredMakes }));
+                const response = await mastersService.getReferenceOptions("product_make.model", { product_type_id: productTypeIdStr });
+                const raw = response?.result ?? response?.data ?? response;
+                const filteredMakes = Array.isArray(raw) ? raw : [];
+                const mappedMakes = filteredMakes.map(m => ({
+                    ...m,
+                    label: m.label || m.name || String(m.id)
+                }));
+                setOptions((prev) => ({ ...prev, productMakes: mappedMakes }));
             } catch (err) {
                 console.error("Failed to load product makes", err);
                 setOptions((prev) => ({ ...prev, productMakes: [] }));
@@ -525,7 +526,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             name="product_make_id"
                             label="Product Make"
                             options={options.productMakes}
-                            getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+                            getOptionLabel={(m) => m?.label ?? m?.name ?? ""}
                             value={options.productMakes.find((m) => m.id === formData.product_make_id) || (formData.product_make_id ? { id: formData.product_make_id } : null)}
                             onChange={(e, newValue) => handleChange({ target: { name: "product_make_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."

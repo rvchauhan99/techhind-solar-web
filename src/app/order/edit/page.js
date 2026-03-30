@@ -59,6 +59,12 @@ function EditOrderPageContent() {
                     }
                 });
 
+                if (order?.current_stage_key === "order_completed") {
+                    setError("This order is closed and cannot be edited.");
+                    setLoading(false);
+                    return;
+                }
+
                 setOrderData({ ...order, ...documentMap, documentIds });
                 setError(null);
             } catch (err) {
