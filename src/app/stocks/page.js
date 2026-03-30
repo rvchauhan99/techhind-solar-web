@@ -236,6 +236,7 @@ export default function StockPage() {
       const normalized = nextTypeId ? String(nextTypeId) : "";
       const current = String(filters.product_type_id || "");
       if (current !== normalized) {
+        setFilter("product_make_id", "");
         setFilter("product_id", "");
         setSelectedProductName("");
       }
@@ -249,16 +250,18 @@ export default function StockPage() {
       const res = await productService.getProducts({
         q: q || undefined,
         limit: 50,
-        product_type_name: selectedProductTypeName || undefined,
+        product_type_id: filters.product_type_id || undefined,
+        product_make_id: filters.product_make_id || undefined,
       });
       const data = res?.result?.data || res?.data || [];
       const list = Array.isArray(data) ? data : [];
       return list.map((item) => ({
+        ...item,
         id: item.id,
         product_name: item.product_name || item.name || String(item.id),
       }));
     },
-    [selectedProductTypeName]
+    [filters.product_type_id, filters.product_make_id]
   );
 
   const loadWarehouseOptions = useCallback(async (q) => {
@@ -323,6 +326,11 @@ export default function StockPage() {
     (key) => {
       setFilter(key, "");
       if (key === "product_type_id") {
+        setFilter("product_make_id", "");
+        setFilter("product_id", "");
+        setSelectedProductName("");
+      }
+      if (key === "product_make_id") {
         setFilter("product_id", "");
         setSelectedProductName("");
       }
@@ -639,7 +647,7 @@ export default function StockPage() {
                   name="product_make_id"
                   label="Product Make"
                   size="small"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
                   referenceModel="product_make.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={
@@ -652,7 +660,15 @@ export default function StockPage() {
                   }
                   onChange={(e, v) => {
                     const id = v?.id ?? v?.value;
-                    setFilter("product_make_id", id != null && id !== "" ? String(id) : "");
+                    const typeId = v?.product_type_id;
+                    if (id != null && id !== "") {
+                      setFilter("product_make_id", String(id));
+                      if (typeId) setFilter("product_type_id", String(typeId));
+                    } else {
+                      setFilter("product_make_id", "");
+                      setFilter("product_id", "");
+                      setSelectedProductName("");
+                    }
                   }}
                   placeholder="All Makes"
                 />
@@ -673,8 +689,15 @@ export default function StockPage() {
                   }
                   onChange={(e, v) => {
                     const nextId = v?.id ?? "";
-                    setFilter("product_id", nextId ? String(nextId) : "");
-                    setSelectedProductName(v?.product_name ?? v?.name ?? "");
+                    if (nextId) {
+                      setFilter("product_id", String(nextId));
+                      setSelectedProductName(v?.product_name ?? v?.name ?? "");
+                      if (v?.product_type_id) setFilter("product_type_id", String(v.product_type_id));
+                      if (v?.product_make_id) setFilter("product_make_id", String(v.product_make_id));
+                    } else {
+                      setFilter("product_id", "");
+                      setSelectedProductName("");
+                    }
                   }}
                   placeholder={selectedProductTypeName ? `Search ${selectedProductTypeName} products...` : "Search product..."}
                 />
