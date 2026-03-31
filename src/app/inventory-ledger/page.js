@@ -59,7 +59,7 @@ export default function InventoryLedgerPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setFilters, setSort } =
     listingState;
 
   const [tableKey, setTableKey] = useState(0);
@@ -99,18 +99,19 @@ export default function InventoryLedgerPage() {
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
     (key, value) => {
-      setFilter(key, value);
+      const next = { ...filters, [key]: value };
       if (key === "product_type_id") {
-        setFilter("product_make_id", "");
+        next.product_make_id = "";
       }
       if (key === "product_make_id" && value) {
         const make = productMakeOptions.find((m) => m.value === String(value));
         if (make?.product_type_id) {
-          setFilter("product_type_id", String(make.product_type_id));
+          next.product_type_id = String(make.product_type_id);
         }
       }
+      setFilters(next, true, false);
     },
-    [setFilter, productMakeOptions]
+    [filters, setFilters, productMakeOptions]
   );
 
   const filterParams = useMemo(
