@@ -52,6 +52,14 @@ const ADJUSTMENT_TYPE_OPTIONS = [
     { value: "AUDIT", label: "Audit" },
 ];
 
+// Auto-direction: for non-AUDIT types the direction is fixed by the type
+const ADJUSTMENT_TYPE_DIRECTION = {
+    FOUND: "IN",
+    DAMAGE: "OUT",
+    LOSS: "OUT",
+    // AUDIT: not set — user selects per item
+};
+
 export default function StockAdjustmentForm({
     defaultValues = {},
     onSubmit,
@@ -192,6 +200,13 @@ export default function StockAdjustmentForm({
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+        // Auto-set direction when adjustment type changes
+        if (name === "adjustment_type") {
+            const autoDir = ADJUSTMENT_TYPE_DIRECTION[value];
+            if (autoDir) {
+                setCurrentItem((prev) => ({ ...prev, adjustment_direction: autoDir, serials: [] }));
+            }
+        }
         if (formErrors[name]) {
             setFormErrors((prev) => {
                 const next = { ...prev };
@@ -629,12 +644,18 @@ export default function StockAdjustmentForm({
                             />
                             <Select
                                 name="adjustment_direction"
-                                label="Direction *"
+                                label="Direction **"
                                 value={currentItem.adjustment_direction}
                                 onChange={handleItemChange}
                                 required
+                                disabled={!!ADJUSTMENT_TYPE_DIRECTION[formData.adjustment_type]}
                                 error={!!itemErrors.adjustment_direction}
-                                helperText={itemErrors.adjustment_direction}
+                                helperText={
+                                    itemErrors.adjustment_direction ||
+                                    (ADJUSTMENT_TYPE_DIRECTION[formData.adjustment_type]
+                                        ? `Fixed by "${formData.adjustment_type}" type`
+                                        : "")
+                                }
                             >
                                 <MenuItem value="OUT">OUT (Lost/Damaged)</MenuItem>
                                 <MenuItem value="IN">IN (Found)</MenuItem>
