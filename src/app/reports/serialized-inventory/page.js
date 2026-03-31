@@ -206,6 +206,13 @@ export default function SerializedInventoryReportPage() {
 
   const removeChip = (key) => {
     const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
+    if (key === "product_type_id") {
+      next.product_make_id = "";
+      next.product_id = "";
+    }
+    if (key === "product_make_id") {
+      next.product_id = "";
+    }
     setFilters(next);
     setAppliedFilters(next);
     if (key === "status") setActiveStatusTab(null);
