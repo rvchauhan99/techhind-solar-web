@@ -71,35 +71,6 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
       />
       <AutocompleteField
         usePortal
-        name="product_id"
-        label="Product"
-        asyncLoadOptions={loadProductOptions}
-        getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
-        value={filters.product_id ? { id: filters.product_id } : null}
-        onChange={(e, v) => {
-          const updates = { product_id: v?.id ?? "" };
-          if (v?.id) {
-            if (v.product_type_id) updates.product_type_id = String(v.product_type_id);
-            if (v.product_make_id) updates.product_make_id = String(v.product_make_id);
-          }
-          onFiltersChange?.({ ...filters, ...updates });
-        }}
-        placeholder="Search product…"
-        size="small"
-      />
-      <AutocompleteField
-        usePortal
-        name="warehouse_id"
-        label="Warehouse"
-        asyncLoadOptions={loadWarehouseOptions}
-        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-        value={filters.warehouse_id ? { id: filters.warehouse_id } : null}
-        onChange={(e, v) => fc("warehouse_id", v?.id ?? "")}
-        placeholder="Search warehouse…"
-        size="small"
-      />
-      <AutocompleteField
-        usePortal
         name="product_type_id"
         label="Product Type"
         asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
@@ -137,6 +108,35 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
             onFiltersChange?.({ ...filters, ...updates });
         }}
         placeholder="All Makes"
+        size="small"
+      />
+      <AutocompleteField
+        usePortal
+        name="product_id"
+        label="Product"
+        asyncLoadOptions={loadProductOptions}
+        getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+        value={filters.product_id ? { id: filters.product_id } : null}
+        onChange={(e, v) => {
+          const updates = { product_id: v?.id ?? "" };
+          if (v?.id) {
+            if (v.product_type_id) updates.product_type_id = String(v.product_type_id);
+            if (v.product_make_id) updates.product_make_id = String(v.product_make_id);
+          }
+          onFiltersChange?.({ ...filters, ...updates });
+        }}
+        placeholder="Search product…"
+        size="small"
+      />
+      <AutocompleteField
+        usePortal
+        name="warehouse_id"
+        label="Warehouse"
+        asyncLoadOptions={loadWarehouseOptions}
+        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        value={filters.warehouse_id ? { id: filters.warehouse_id } : null}
+        onChange={(e, v) => fc("warehouse_id", v?.id ?? "")}
+        placeholder="Search warehouse…"
         size="small"
       />
       <AutocompleteField

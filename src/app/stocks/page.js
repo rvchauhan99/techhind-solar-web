@@ -236,13 +236,22 @@ export default function StockPage() {
       const normalized = nextTypeId ? String(nextTypeId) : "";
       const current = String(filters.product_type_id || "");
       if (current !== normalized) {
-        setFilter("product_make_id", "");
-        setFilter("product_id", "");
+        setFilters(
+          {
+            ...filters,
+            product_type_id: normalized,
+            product_make_id: "",
+            product_id: "",
+          },
+          true,
+          false
+        );
         setSelectedProductName("");
+      } else {
+        setFilter("product_type_id", normalized);
       }
-      setFilter("product_type_id", normalized);
     },
-    [filters.product_type_id, setFilter]
+    [filters, setFilter, setFilters]
   );
 
   const loadProductOptions = useCallback(
@@ -324,45 +333,48 @@ export default function StockPage() {
 
   const removeFilterChip = useCallback(
     (key) => {
-      setFilter(key, "");
+      const nextFilters = { ...filters, [key]: "" };
       if (key === "product_type_id") {
-        setFilter("product_make_id", "");
-        setFilter("product_id", "");
+        nextFilters.product_make_id = "";
+        nextFilters.product_id = "";
         setSelectedProductName("");
       }
       if (key === "product_make_id") {
-        setFilter("product_id", "");
+        nextFilters.product_id = "";
         setSelectedProductName("");
       }
       if (key === "product_id") setSelectedProductName("");
       if (key === "warehouse_id") setSelectedWarehouseName("");
       const operatorKey = `${key}_op`;
       const toKey = `${key}_to`;
-      if (COLUMN_FILTER_KEYS.includes(operatorKey)) setFilter(operatorKey, "");
-      if (COLUMN_FILTER_KEYS.includes(toKey)) setFilter(toKey, "");
+      if (COLUMN_FILTER_KEYS.includes(operatorKey)) nextFilters[operatorKey] = "";
+      if (COLUMN_FILTER_KEYS.includes(toKey)) nextFilters[toKey] = "";
+      
+      setFilters(nextFilters, true, false);
     },
-    [setFilter]
+    [filters, setFilters]
   );
 
   const setRangeFilter = useCallback(
     (field, from, to) => {
       const fromValue = from == null || from === "" ? "" : String(from);
       const toValue = to == null || to === "" ? "" : String(to);
-      setFilter(field, fromValue);
-      setFilter(`${field}_to`, toValue);
+      const nextFilters = { ...filters, [field]: fromValue, [`${field}_to`]: toValue };
+
       if (fromValue && toValue) {
-        setFilter(`${field}_op`, "between");
+        nextFilters[`${field}_op`] = "between";
       } else if (fromValue) {
-        setFilter(`${field}_op`, "gte");
+        nextFilters[`${field}_op`] = "gte";
       } else if (toValue) {
-        setFilter(field, toValue);
-        setFilter(`${field}_to`, "");
-        setFilter(`${field}_op`, "lte");
+        nextFilters[field] = toValue;
+        nextFilters[`${field}_to`] = "";
+        nextFilters[`${field}_op`] = "lte";
       } else {
-        setFilter(`${field}_op`, "");
+        nextFilters[`${field}_op`] = "";
       }
+      setFilters(nextFilters, true, false);
     },
-    [setFilter]
+    [filters, setFilters]
   );
 
   const columns = useMemo(
@@ -662,11 +674,11 @@ export default function StockPage() {
                     const id = v?.id ?? v?.value;
                     const typeId = v?.product_type_id;
                     if (id != null && id !== "") {
-                      setFilter("product_make_id", String(id));
-                      if (typeId) setFilter("product_type_id", String(typeId));
+                      const next = { ...filters, product_make_id: String(id) };
+                      if (typeId) next.product_type_id = String(typeId);
+                      setFilters(next, true, false);
                     } else {
-                      setFilter("product_make_id", "");
-                      setFilter("product_id", "");
+                      setFilters({ ...filters, product_make_id: "", product_id: "" }, true, false);
                       setSelectedProductName("");
                     }
                   }}
@@ -690,12 +702,13 @@ export default function StockPage() {
                   onChange={(e, v) => {
                     const nextId = v?.id ?? "";
                     if (nextId) {
-                      setFilter("product_id", String(nextId));
+                      const next = { ...filters, product_id: String(nextId) };
+                      if (v?.product_type_id) next.product_type_id = String(v.product_type_id);
+                      if (v?.product_make_id) next.product_make_id = String(v.product_make_id);
+                      setFilters(next, true, false);
                       setSelectedProductName(v?.product_name ?? v?.name ?? "");
-                      if (v?.product_type_id) setFilter("product_type_id", String(v.product_type_id));
-                      if (v?.product_make_id) setFilter("product_make_id", String(v.product_make_id));
                     } else {
-                      setFilter("product_id", "");
+                      setFilters({ ...filters, product_id: "" }, true, false);
                       setSelectedProductName("");
                     }
                   }}
