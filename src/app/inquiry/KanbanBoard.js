@@ -38,7 +38,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import { toastSuccess, toastError } from "@/utils/toast";
 
 const COLUMN_WIDTH = 330;
-const COLUMN_HEIGHT = "calc(100vh - 150px)"; // Optimized: Navbar(56px) + Toolbar(40px) + Page header(54px) = 150px
+const COLUMN_HEIGHT = "100%"; // Let the parent container control the height
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -643,8 +643,9 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
       sx={{
         display: "flex",
         flexDirection: "column",
-        height: calculateKanbanBoardHeight(),
+        height: "100%",
         padding: 0.5,
+        backgroundColor: "transparent",
       }}
     >
 
@@ -682,23 +683,21 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                 >
                   <Paper
                     elevation={0}
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 1,
-                      border: 1,
-                      borderColor: "divider",
-                      // 🔒 fixed size box (the one you highlighted)
-                      width: COLUMN_WIDTH,
-                      minWidth: COLUMN_WIDTH,
-                      maxWidth: COLUMN_WIDTH,
-                      height: COLUMN_HEIGHT,
-                      minHeight: COLUMN_HEIGHT,
-                      maxHeight: COLUMN_HEIGHT,
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 1,
+                        border: 1,
+                        borderColor: "divider",
+                        // 🔒 fixed size box (the one you highlighted)
+                        width: COLUMN_WIDTH,
+                        minWidth: COLUMN_WIDTH,
+                        maxWidth: COLUMN_WIDTH,
+                        height: "100%",
 
-                      display: "flex",
-                      flexDirection: "column",
-                      overflowX: "auto",
-                    }}
+                        display: "flex",
+                        flexDirection: "column",
+                        overflowX: "auto",
+                      }}
                   >
                     {/* Each column's list is a Droppable and scrolls independently */}
                     <Droppable droppableId={col.id}>
@@ -719,6 +718,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                               height: "100%",
                               overflowY: "auto", // 👈 only this area scrolls
                               pr: 0.5,
+                              pb: 4, // Add padding at bottom to prevent cutting off
                               boxSizing: "border-box",
                               outline: isInvalidTarget
                                 ? "3px solid red"
