@@ -123,21 +123,33 @@ const MultiSelect = forwardRef(function MultiSelect(
     }, [asyncLoadOptions, asyncDebounceMs, isOpen, searchable, searchTerm]);
 
     // When we already have selected values but no async options yet (e.g. page reload),
-    // pre-load a base option set so we can show labels instead of raw ids.
+    // pre-load the specific option labels so we can show labels instead of raw ids.
     useEffect(() => {
         if (!asyncLoadOptions) return;
         if (!safeValue || safeValue.length === 0) return;
-        if (asyncOptions && asyncOptions.length > 0) return;
+        
+        // Check if all selected values already have labels in current asyncOptions
+        const allFound = safeValue.every(v => asyncOptions.some(o => String(o.value) === String(v)));
+        if (allFound) return;
 
         let cancelled = false;
         (async () => {
             try {
                 setAsyncLoading(true);
-                const loaded = await asyncLoadOptions("");
+                // Fetch labels for all selected IDs
+                // We pass the ID to asyncLoadOptions to get the specific record
+                const promises = safeValue.map(v => asyncLoadOptions("", v));
+                const results = await Promise.all(promises);
                 if (cancelled) return;
-                setAsyncOptions(Array.isArray(loaded) ? loaded : []);
-            } catch {
-                if (!cancelled) setAsyncOptions([]);
+                
+                const newOptions = results.flat().filter(Boolean);
+                setAsyncOptions(prev => {
+                    const existingIds = new Set(prev.map(o => String(o.value)));
+                    const uniqueNew = newOptions.filter(o => !existingIds.has(String(o.value)));
+                    return [...prev, ...uniqueNew];
+                });
+            } catch (err) {
+                console.error("[MultiSelect] failed to resolve labels:", err);
             } finally {
                 if (!cancelled) setAsyncLoading(false);
             }
@@ -146,12 +158,12 @@ const MultiSelect = forwardRef(function MultiSelect(
         return () => {
             cancelled = true;
         };
-    }, [asyncLoadOptions, safeValue, asyncOptions]);
+    }, [asyncLoadOptions, safeValue]); // Removed asyncOptions from deps to avoid loop
 
     const baseOptions = asyncLoadOptions ? asyncOptions : options;
 
     const selectedOptions = safeValue.map((v) => {
-        const found = baseOptions.find((o) => o.value === v);
+        const found = baseOptions.find((o) => String(o.value) === String(v));
         return found || { value: v, label: String(v) };
     });
 
