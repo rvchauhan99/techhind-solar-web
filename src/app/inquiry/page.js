@@ -237,7 +237,7 @@ export default function InquiryPage() {
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden pb-10">
           {view === "kanban" ? (
             <KanbanBoard
               inquiries={inquiries}
