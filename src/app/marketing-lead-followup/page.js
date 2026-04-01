@@ -48,7 +48,7 @@ const ALL_FILTER_KEYS = [
   "lead_number",
   "customer_name",
   "mobile_number",
-  "campaign_name",
+  "campaign_id",
   "status",
   "priority",
   "branch_id",
