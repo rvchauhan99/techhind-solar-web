@@ -321,9 +321,9 @@ export default function LeadListFilterPanel({
             disabled={loadingOptions}
             searchable
             searchPlaceholder="Search campaigns..."
-            asyncLoadOptions={(q) =>
+            asyncLoadOptions={(q, id) =>
               mastersService
-                .getReferenceOptionsSearch("campaign.model", { q, limit: 20 })
+                .getReferenceOptionsSearch("campaign.model", { q, id, limit: id ? 1 : 20 })
                 .then((res) => {
                   const data = res?.result ?? res?.data ?? res;
                   return Array.isArray(data)
@@ -432,11 +432,12 @@ export default function LeadListFilterPanel({
             disabled={loadingOptions}
             searchable
             searchPlaceholder="Search users..."
-            asyncLoadOptions={(q) =>
+            asyncLoadOptions={(q, id) =>
               mastersService
                 .getReferenceOptionsSearch("user.model", {
                   q,
-                  limit: 20,
+                  id,
+                  limit: id ? 1 : 20,
                   status_in: "active,inactive",
                 })
                 .then((res) => {

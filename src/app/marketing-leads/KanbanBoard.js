@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import AddCallDetailsForm from "./components/AddCallDetailsForm";
 
 const COLUMN_WIDTH = 320;
-const COLUMN_HEIGHT = "calc(100vh - 150px)";
+const COLUMN_HEIGHT = "100%";
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
@@ -283,11 +283,12 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                         <Box
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          sx={{
-                            flex: 1,
-                            overflowY: "auto",
-                            pr: 0.5,
-                            scrollbarWidth: "thin",
+                            sx={{
+                              flex: 1,
+                              overflowY: "auto",
+                              pr: 0.5,
+                              pb: 4,
+                              scrollbarWidth: "thin",
                             "&::-webkit-scrollbar": { width: 4 },
                             "&::-webkit-scrollbar-thumb": {
                               bgcolor: "rgba(0,0,0,0.2)",
