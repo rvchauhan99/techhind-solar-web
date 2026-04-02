@@ -58,6 +58,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         selling_price: "",
         mrp: "",
         gst_percent: "",
+        profit_margin_percent: "",
         min_stock_quantity: "",
         tracking_type: "LOT",
         serial_required: false,
@@ -165,6 +166,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 selling_price: defaultValues.selling_price ?? "",
                 mrp: defaultValues.mrp ?? "",
                 gst_percent: defaultValues.gst_percent ?? "",
+                profit_margin_percent: defaultValues.profit_margin_percent ?? "",
                 min_stock_quantity: defaultValues.min_stock_quantity ?? "",
                 tracking_type: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() : "LOT",
                 serial_required: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() === "SERIAL" : false,
@@ -766,6 +768,20 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             required
                             error={!!errors.gst_percent}
                             helperText={errors.gst_percent}
+                        />
+                    </Grid>
+
+                    {/* Profit Margin Percent */}
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="profit_margin_percent"
+                            label="Profit Margin %"
+                            type="number"
+                            value={formData.profit_margin_percent}
+                            onChange={handleChange}
+                            inputProps={{ min: 0, step: 0.01 }}
+                            error={!!errors.profit_margin_percent}
+                            helperText={errors.profit_margin_percent || "Markup on pre-GST purchase price"}
                         />
                     </Grid>
 
