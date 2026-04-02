@@ -45,6 +45,9 @@ export const getInstallationByOrderId = (orderId) =>
 export const saveInstallation = (orderId, payload) =>
     apiClient.put(`/order/${orderId}/installation`, payload).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
+export const getDeliveredSerials = (orderId) =>
+    apiClient.get(`/order/${orderId}/delivered-serials`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
 export const downloadOrderPDF = (id) =>
     apiClient
         .get(`/order/${id}/pdf`, { responseType: "blob" })
@@ -89,6 +92,7 @@ export default {
     saveFabrication,
     getInstallationByOrderId,
     saveInstallation,
+    getDeliveredSerials,
     downloadOrderPDF,
     forceCompleteDelivery,
     cancelOrder,

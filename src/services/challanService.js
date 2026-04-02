@@ -27,6 +27,9 @@ export const getQuotationProducts = (orderId) =>
 export const getDeliveryStatus = (orderId) =>
     apiClient.get("/challan/delivery-status", { params: { order_id: orderId } }).then((r) => r.data);
 
+export const getSerialScanRequired = () =>
+    apiClient.get("/challan/serial-scan-required").then((r) => r.data);
+
 export const downloadChallanPDF = (id) =>
     apiClient
         .get(`/challan/${id}/pdf`, { responseType: "blob" })
@@ -49,5 +52,6 @@ export default {
     getNextChallanNumber,
     getQuotationProducts,
     getDeliveryStatus,
+    getSerialScanRequired,
     downloadChallanPDF,
 };

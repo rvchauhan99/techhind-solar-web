@@ -11,11 +11,14 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import BucketImage from "@/components/common/BucketImage";
+import BarcodeScanner from "@/components/common/BarcodeScanner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import companyService from "@/services/companyService";
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import moment from "moment";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import {
@@ -74,12 +77,28 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
 
+    // -- Serial Scanning Reconciliation State --
+    const [deliveredSerialsMap, setDeliveredSerialsMap] = useState({}); // { product_id: [{serial_number, stock_serial_id}] }
+    const [installationScans, setInstallationScans] = useState({}); // { product_id: [serial1, serial2] }
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [scanTarget, setScanTarget] = useState(null); // { product_id, index }
+    const [mismatchData, setMismatchData] = useState(null); // { mismatches, can_force_adjust }
+    const [forceAdjustDialogOpen, setForceAdjustDialogOpen] = useState(false);
+    const [forceAdjustReason, setForceAdjustReason] = useState("");
+
     const loadInstallation = useCallback(async () => {
         if (!orderId) return;
         setLoading(true);
         try {
-            const data = await orderService.getInstallationByOrderId(orderId);
+            const [data, deliveredSerials] = await Promise.all([
+                orderService.getInstallationByOrderId(orderId),
+                orderService.getDeliveredSerials(orderId)
+            ]);
+
+            setDeliveredSerialsMap(deliveredSerials || {});
+
             if (data) {
+                // ... existing load logic ...
                 const panelSerials = data.panel_serial_numbers;
                 const panelText = Array.isArray(panelSerials)
                     ? panelSerials.join("\n")
@@ -224,18 +243,46 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         });
     };
 
+    const handleSerialScanChange = (productId, index, value) => {
+        setInstallationScans(prev => {
+            const current = [...(prev[productId] || [])];
+            current[index] = value;
+            return { ...prev, [productId]: current };
+        });
+    };
+
+    const handleScanResult = (value) => {
+        if (!scanTarget) return;
+        const { product_id, index } = scanTarget;
+        const tokens = splitSerialInput(value);
+        if (tokens.length > 0) {
+            handleSerialScanChange(product_id, index, tokens[0]);
+            setScannerOpen(false);
+            setScanTarget(null);
+        }
+    };
+
     const validate = () => {
         const errs = {};
         const requiredImages = INSTALLATION_IMAGE_KEYS.filter((k) => k.required).map((k) => k.key);
         for (const key of requiredImages) {
             if (!images[key] && !pendingImages[key]) errs[`image_${key}`] = "Required";
         }
+
+        // Validate serial scans if completing
+        Object.entries(deliveredSerialsMap).forEach(([pid, serials]) => {
+            const scans = installationScans[pid] || [];
+            if (scans.filter(Boolean).length < serials.length) {
+                errs[`scans_${pid}`] = `All ${serials.length} serials must be scanned`;
+            }
+        });
+
         setFieldErrors(errs);
         return Object.keys(errs).length === 0;
     };
 
-    const handleSubmit = async (e, complete = false) => {
-        e.preventDefault();
+    const handleSubmit = async (e, complete = false, forceAdjust = false) => {
+        if (e) e.preventDefault();
         if (isReadOnly) return;
         if (!canPerform) {
             toastError(
@@ -250,7 +297,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         setError(null);
         setFieldErrors((prev) => {
             const next = { ...prev };
-            Object.keys(next).forEach((k) => k.startsWith("image_") && delete next[k]);
+            Object.keys(next).forEach((k) => (k.startsWith("image_") || k.startsWith("scans_")) && delete next[k]);
             return next;
         });
         setSuccessMsg(null);
@@ -300,16 +347,28 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 checklist,
                 images: finalImages,
                 complete,
+                installation_scans: installationScans,
+                force_adjust: forceAdjust,
+                force_adjust_reason: forceAdjustReason,
             };
             await orderService.saveInstallation(orderId, payload);
             setImages(finalImages);
             setSuccessMsg(complete ? "Installation stage completed successfully!" : "Installation saved.");
             toastSuccess(complete ? "Installation stage completed successfully!" : "Saved.");
+            setMismatchData(null);
+            setForceAdjustDialogOpen(false);
+            setForceAdjustReason("");
             if (onSuccess) onSuccess();
         } catch (err) {
-            const errMsg = err?.response?.data?.message || err?.message || "Failed to save";
-            setError(errMsg);
-            toastError(errMsg);
+            const data = err?.response?.data;
+            if (data?.code === "SERIAL_MISMATCH") {
+                setMismatchData(data);
+                toastError("Serial mismatch detected. Please review and adjust if necessary.");
+            } else {
+                const errMsg = data?.message || err?.message || "Failed to save";
+                setError(errMsg);
+                toastError(errMsg);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -356,6 +415,54 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             ) : null}
 
             <FormSection title="Installation execution">
+                {Object.entries(deliveredSerialsMap).length > 0 && (
+                    <Box sx={{ mb: 3, p: 2, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                            Delivered Serial Scanning (Mandatory)
+                        </Typography>
+                        {Object.entries(deliveredSerialsMap).map(([pid, serials]) => (
+                            <Box key={pid} sx={{ mb: 2 }}>
+                                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                                    Product ID: {pid} ({serials.length} items delivered)
+                                </Typography>
+                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                                    {serials.map((_, idx) => {
+                                        const value = installationScans[pid]?.[idx] || "";
+                                        return (
+                                            <TextField
+                                                key={idx}
+                                                size="small"
+                                                label={`Serial ${idx + 1}`}
+                                                value={value}
+                                                onChange={(e) => handleSerialScanChange(pid, idx, e.target.value)}
+                                                sx={{ minWidth: 180 }}
+                                                InputProps={{
+                                                    endAdornment: (
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => {
+                                                                setScanTarget({ product_id: pid, index: idx });
+                                                                setScannerOpen(true);
+                                                            }}
+                                                        >
+                                                            <QrCodeScannerIcon fontSize="small" />
+                                                        </IconButton>
+                                                    ),
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </Box>
+                                {fieldErrors[`scans_${pid}`] && (
+                                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
+                                        {fieldErrors[`scans_${pid}`]}
+                                    </Typography>
+                                )}
+                            </Box>
+                        ))}
+                    </Box>
+                )}
+
                 <FormGrid cols={2}>
                     <DateField
                         name="installation_start_date"
@@ -593,6 +700,32 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
             <div className="mt-4 flex flex-col gap-2">
                 {error && <Alert severity="error">{error}</Alert>}
+                {mismatchData && (
+                    <Alert
+                        severity="warning"
+                        action={
+                            mismatchData.can_force_adjust && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    color="inherit"
+                                    onClick={() => setForceAdjustDialogOpen(true)}
+                                >
+                                    Force Adjust
+                                </Button>
+                            )
+                        }
+                    >
+                        <Typography variant="body2" fontWeight={600}>
+                            Serial Mismatch Detected
+                        </Typography>
+                        {mismatchData.mismatches.map((m, i) => (
+                            <div key={i}>
+                                Product #{m.product_id}: Scanned {m.missing_serials.join(", ")} but expected {m.expected_serials.join(", ")}
+                            </div>
+                        ))}
+                    </Alert>
+                )}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
                 <div className="flex gap-2 flex-wrap">
                     <Button
@@ -623,6 +756,50 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     </Typography>
                 )}
             </div>
+            {/* ─── Barcode / QR Scanner modal ─────────────────────── */}
+            <BarcodeScanner
+                open={scannerOpen}
+                onScan={handleScanResult}
+                onClose={() => { setScannerOpen(false); setScanTarget(null); }}
+                hint={scanTarget ? `Scanning serial ${scanTarget.index + 1} for product #${scanTarget.product_id}` : ""}
+            />
+
+            {/* ─── Force Adjust Dialog ─────────────────────── */}
+            <Dialog open={forceAdjustDialogOpen} onOpenChange={setForceAdjustDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Force Adjust Serials</DialogTitle>
+                    </DialogHeader>
+                    <Box sx={{ py: 2 }}>
+                        <Typography variant="body2" sx={{ mb: 2 }}>
+                            You are about to force adjust the serial numbers for this installation. 
+                            This will mark the scanned serials as ISSUED and return the originally delivered (but missing) serials to AVAILABLE stock.
+                        </Typography>
+                        <TextField
+                            fullWidth
+                            label="Reason for Force Adjust"
+                            multiline
+                            rows={3}
+                            value={forceAdjustReason}
+                            onChange={(e) => setForceAdjustReason(e.target.value)}
+                            placeholder="e.g., Wrong serial delivered but correct item installed"
+                            required
+                        />
+                    </Box>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setForceAdjustDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button 
+                            onClick={() => handleSubmit(null, true, true)} 
+                            disabled={!forceAdjustReason || submitting}
+                            loading={submitting}
+                        >
+                            Confirm Force Adjust
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }
