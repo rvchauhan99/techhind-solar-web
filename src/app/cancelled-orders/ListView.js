@@ -233,7 +233,8 @@ export default function ListView({ filters }) {
                 outstanding > 0 ? "error.main" : "success.main"
               )}
               {renderOrderDetail("Cancelled By", row.cancelled_by_name || "-")}
-              {renderOrderDetail("Reason", row.cancellation_reason || "-", false)}
+              {renderOrderDetail("Reason", row.cancellation_reason_name || row.cancellation_reason || "-", false)}
+              {row.cancellation_remarks && renderOrderDetail("Remarks", row.cancellation_remarks, false)}
             </Grid>
           </Grid>
         </Box>
