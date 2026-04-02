@@ -26,6 +26,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import BlockIcon from "@mui/icons-material/Block";
 import CloseIcon from "@mui/icons-material/Close";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import { useRouter } from "next/navigation";
@@ -33,6 +34,7 @@ import moment from "moment";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import FollowupForm from "@/app/followup/components/FollowupForm";
 import DocumentUploadForm from "./components/DocumentUploadForm";
+import MarkDeadModal from "./components/MarkDeadModal";
 import followupService from "@/services/followupService";
 import inquiryService from "@/services/inquiryService";
 import inquiryDocumentsService from "@/services/inquiryDocumentsService";
@@ -138,6 +140,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
   const [menuInquiryId, setMenuInquiryId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [markDeadModalOpen, setMarkDeadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
@@ -271,12 +274,14 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     setServerError(null);
     try {
       await followupService.createFollowup(payload);
+      toastSuccess("Followup created successfully");
       handleCloseModal();
       setReloadTrigger((prev) => prev + 1);
       if (onRefresh) await onRefresh();
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Failed to create followup";
       setServerError(errorMessage);
+      toastError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -315,6 +320,12 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     },
     [filterParams]
   );
+
+  const handleOpenMarkDeadModal = (inquiryId) => {
+    setSelectedInquiryId(inquiryId);
+    setMarkDeadModalOpen(true);
+    handleMenuClose();
+  };
 
   const handleRowsChange = useCallback((rows) => {
     if (Array.isArray(rows)) setCurrentPageRows(rows);
@@ -811,6 +822,12 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
             </ListItemIcon>
             <ListItemText>Upload Documents</ListItemText>
           </MenuItem>
+          <MenuItem onClick={() => handleOpenMarkDeadModal(menuInquiryId)}>
+            <ListItemIcon>
+              <BlockIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText sx={{ color: "error.main" }}>Mark as Dead</ListItemText>
+          </MenuItem>
           {(() => {
             const inquiry = currentPageRows.find((row) => row.id === menuInquiryId);
             const canConvert = inquiry?.status === "Quotation" || inquiry?.status === "Under Discussion";
@@ -886,11 +903,24 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
                   setDocumentServerError(null);
                 }
               }}
-            />
-          </Box>
-        </Modal>
+          />
+        </Box>
+      </Modal>
 
-        <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Inquiry Details">
+      <MarkDeadModal
+        open={markDeadModalOpen}
+        onClose={() => {
+          setMarkDeadModalOpen(false);
+          setSelectedInquiryId(null);
+        }}
+        inquiryId={selectedInquiryId}
+        onRefresh={() => {
+          setReloadTrigger((prev) => prev + 1);
+          if (onRefresh) onRefresh();
+        }}
+      />
+
+      <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Inquiry Details">
           <InquiryDetailsContent inquiry={selectedInquiry} loading={loadingRecord} />
         </DetailsSidebar>
 
