@@ -1,6 +1,7 @@
 /**
  * Resolve tenant key from subdomain (e.g. se.techhind.in -> "se").
- * Safe for SSR: returns "" when window is undefined.
+ * Safe for SSR: returns "" when window is undefined
+ * 
  */
 export function getTenantKeyFromSubdomain() {
   if (typeof window === "undefined") return "";

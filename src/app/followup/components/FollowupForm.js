@@ -12,6 +12,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Checkbox from "@/components/common/Checkbox";
 import LoadingButton from "@/components/common/LoadingButton";
 import { cn } from "@/lib/utils";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const inquiryStatusOptions = [
   { key: "Live", value: "Live" },
@@ -222,6 +223,7 @@ export default function FollowupForm({
       <form
         id="followup-form"
         onSubmit={handleSubmit}
+        onKeyDown={preventEnterSubmit}
         noValidate
         className={cn("grid gap-4 max-w-[700px]")}
       >

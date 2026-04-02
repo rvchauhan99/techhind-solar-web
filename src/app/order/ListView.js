@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -25,8 +25,10 @@ import { useRouter } from "next/navigation";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
@@ -49,6 +51,7 @@ const COLUMN_FILTER_KEYS = [
   "order_date_op",
   "customer_name",
   "customer_name_op",
+  "project_scheme_id",
   "capacity",
   "capacity_op",
   "capacity_to",
@@ -85,6 +88,10 @@ export default function ListView({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+  const [projectSchemeOptions, setProjectSchemeOptions] = useState([]);
+  const [loadingProjectSchemes, setLoadingProjectSchemes] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters, status: filters.status || defaultStatus }), [filters, defaultStatus]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -97,6 +104,33 @@ export default function ListView({
     if (!obj.status) obj.status = defaultStatus;
     return { q: undefined, ...obj };
   }, [filters, defaultStatus]);
+
+  useEffect(() => {
+    let mounted = true;
+    setLoadingProjectSchemes(true);
+    getReferenceOptionsSearch("project_scheme.model", { q: "", limit: 1000 })
+      .then((rows) => {
+        if (!mounted) return;
+        const list = Array.isArray(rows) ? rows : [];
+        setProjectSchemeOptions(
+          list
+            .map((o) => ({
+              value: o?.id != null ? String(o.id) : (o?.value != null ? String(o.value) : ""),
+              label: o?.name ?? o?.label ?? o?.value ?? (o?.id != null ? String(o.id) : ""),
+            }))
+            .filter((o) => o.value !== "")
+        );
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setProjectSchemeOptions([]);
+      })
+      .finally(() => {
+        if (!mounted) return;
+        setLoadingProjectSchemes(false);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -165,6 +199,12 @@ export default function ListView({
     }
   }, []);
 
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -223,6 +263,9 @@ export default function ListView({
       {
         field: "project_scheme_name",
         label: "Project Scheme",
+        filterType: "select",
+        filterKey: "project_scheme_id",
+        filterOptions: projectSchemeOptions,
         render: (row) => row.project_scheme_name || "-",
       },
       {
@@ -249,7 +292,7 @@ export default function ListView({
       { field: "inquiry_by_name", label: "Inquiry By", render: (row) => row.inquiry_by_name || "-" },
       {
         field: "project_cost",
-        label: "Project Cost",
+        label: "Total Payable",
         sortable: true,
         filterType: "number",
         filterKey: "project_cost",
@@ -297,6 +340,15 @@ export default function ListView({
             >
               <IconCurrencyRupee className="size-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              title="Quotation Details"
+              onClick={() => handleOpenQuotationDrawer(row)}
+            >
+              <IconDownload className="size-4" />
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-8 w-8 shrink-0">
                 <IconDotsVertical className="size-4" />
@@ -320,7 +372,7 @@ export default function ListView({
         ),
       },
     ],
-    [handleOpenSidebar, router, getStatusVariant]
+    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant]
   );
 
   const tableHeight = "calc(100vh - 150px)";
@@ -390,6 +442,15 @@ export default function ListView({
         onPrint={handlePrintOrder}
         showPrint
         showDeliverySnapshot
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </Container>
   );

@@ -164,8 +164,7 @@ export default function ChallanDetailsDrawer({
                     <DetailRow label="Consumer No" value={order.consumer_no} />
                     <DetailRow label="Capacity" value={order.capacity != null ? `${order.capacity} kW` : null} />
                     <DetailRow label="Demand Load" value={order.demand_load != null ? `${order.demand_load} kW` : null} />
-                    <DetailRow label="Project Cost" value={fmtCurrency(order.project_cost)} />
-                    {order.discount > 0 && <DetailRow label="Discount" value={fmtCurrency(order.discount)} />}
+                    <DetailRow label="Total Payable" value={fmtCurrency(order.project_cost)} />
                     <DetailRow label="Payment Type" value={order.payment_type} />
                     <DetailRow label="Project Scheme" value={projectScheme.name} />
                     <DetailRow label="Discom" value={discom.name} />

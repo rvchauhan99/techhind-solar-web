@@ -187,7 +187,7 @@ export default function PaymentsReportPage() {
           </div>
 
           {/* Collapsible Filters */}
-          <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+          <Card className="rounded-xl shadow-sm border-slate-200 bg-white overflow-visible">
             <button
               onClick={() => setFiltersOpen((o) => !o)}
               className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors rounded-xl"
@@ -205,6 +205,7 @@ export default function PaymentsReportPage() {
                 <DateField label="Date From" name="start_date" value={filters.start_date || ""} onChange={(e) => fc("start_date", e.target.value || null)} />
                 <DateField label="Date To" name="end_date" value={filters.end_date || ""} onChange={(e) => fc("end_date", e.target.value || null)} />
                 <AutocompleteField
+                  usePortal
                   name="branch_id" label="Branch"
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
                   referenceModel="company_branch.model"
@@ -213,6 +214,7 @@ export default function PaymentsReportPage() {
                   onChange={(e, v) => fc("branch_id", v?.id ?? null)} placeholder="Search branch…"
                 />
                 <AutocompleteField
+                  usePortal
                   name="handled_by" label="Handled By"
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
                   referenceModel="user.model"
@@ -221,6 +223,7 @@ export default function PaymentsReportPage() {
                   onChange={(e, v) => fc("handled_by", v?.id ?? null)} placeholder="Search user…"
                 />
                 <AutocompleteField
+                  usePortal
                   name="payment_mode_id" label="Payment Mode"
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
                   referenceModel="payment_mode.model"
@@ -229,6 +232,7 @@ export default function PaymentsReportPage() {
                   onChange={(e, v) => fc("payment_mode_id", v?.id ?? null)} placeholder="Search mode…"
                 />
                 <AutocompleteField
+                  usePortal
                   name="status" label="Status" multiple options={STATUS_OPTIONS}
                   getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
                   value={(Array.isArray(filters.status) ? filters.status : []).map((v) => STATUS_OPTIONS.find((s) => s.value === v)).filter(Boolean)}

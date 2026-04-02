@@ -34,6 +34,7 @@ import quotationTemplateService from "@/services/quotationTemplateService";
 import { getDefaultState } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function CompanyProfilePage() {
     const [company, setCompany] = useState(null);
@@ -1988,6 +1989,7 @@ export default function CompanyProfilePage() {
                                 e.preventDefault();
                                 handleSave(() => setCompanyEditDialogOpen(false));
                             }}
+                            onKeyDown={preventEnterSubmit}
                         >
                             <div className="flex-1 min-h-0 overflow-y-auto pt-2 space-y-4">
                                 <FormSection title="Company Information">
@@ -2149,6 +2151,7 @@ export default function CompanyProfilePage() {
                                 e.preventDefault();
                                 handleBankSave();
                             }}
+                            onKeyDown={preventEnterSubmit}
                         >
                             <div className="flex-1 min-h-0 overflow-y-auto pt-2">
                                 <FormSection title="">
@@ -2281,6 +2284,7 @@ export default function CompanyProfilePage() {
                                 e.preventDefault();
                                 handleBranchSave();
                             }}
+                            onKeyDown={preventEnterSubmit}
                         >
                             <div className="flex-1 min-h-0 overflow-y-auto pt-2">
                                 <FormSection title="">
@@ -2413,6 +2417,7 @@ export default function CompanyProfilePage() {
                                 e.preventDefault();
                                 handleWarehouseSave();
                             }}
+                            onKeyDown={preventEnterSubmit}
                         >
                             <div className="flex-1 min-h-0 overflow-y-auto pt-2">
                                 <FormSection title="">

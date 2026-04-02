@@ -15,7 +15,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentOutstandingAnalysis from "./components/PaymentOutstandingAnalysis";
 
-const INR = (v) => Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const INR = (v, fractionDigits = 2) =>
+  Number(v || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: Number(fractionDigits || 0),
+    maximumFractionDigits: Number(fractionDigits || 0),
+  });
+const fmtINDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
 const pct = (part, total) => {
   const p = Number(part || 0);
   const t = Number(total || 0);
@@ -53,9 +58,10 @@ const PAYMENT_TYPE_TABS = [
 const FILTER_LABELS = {
   status: "Status",
   order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
+  delivery_date_from: "Delivery Date From", delivery_date_to: "Delivery Date To",
   branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
   order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
-  reference_from: "Reference", current_stage_key: "Stage", inquiry_source_id: "Source", q: "Search",
+  reference_from: "Reference", current_stage_key: "Order Stage", inquiry_source_id: "Source", q: "Search",
 };
 
 function getChips(filters) {
@@ -138,6 +144,13 @@ export default function PaymentOutstandingPage() {
     return () => { mounted = false; };
   }, [filters]);
 
+  const total = Number(summary?.total_outstanding || 0);
+  const currencyFractionDigits = Number(summary?.config?.currency_fraction_digits ?? 2);
+  const fmtMoney = React.useCallback(
+    (amount) => INR(amount, currencyFractionDigits),
+    [currencyFractionDigits]
+  );
+
   const fetcher = useCallback(async (params) => {
     // NOTE: PaginatedTable merges `filterParams` into `params` internally.
     // Keep this fetcher independent of local `filters` so the table reloads
@@ -150,7 +163,7 @@ export default function PaymentOutstandingPage() {
 
   const columns = useMemo(() => ([
     {
-      field: "actions", label: "Actions", isActionColumn: true,
+      field: "actions", label: "Actions", isActionColumn: true, stickyLeft: true, stickyWidth: 128,
       render: (row) => (
         <div className="flex items-center gap-1">
           {/* Icon tooltips: custom hover tooltip (reliable vs native title) */}
@@ -202,12 +215,12 @@ export default function PaymentOutstandingPage() {
       ),
     },
     {
-      field: "order_number", label: "Order #", sortable: true,
+      field: "order_number", label: "Order #", sortable: true, stickyLeft: true, stickyWidth: 100,
       render: (row) => <Link href={`/order/view?id=${row.id}`} className="text-primary hover:underline text-[11px] font-medium">{row.order_number || row.id}</Link>,
     },
-    { field: "capacity", label: "Cap.", sortable: true },
+    { field: "capacity", label: "Cap.", sortable: true, stickyLeft: true, stickyWidth: 72 },
     {
-      field: "customer", label: "Customer",
+      field: "customer", label: "Customer", stickyLeft: true, stickyWidth: 180,
       render: (row) => <span className="text-[11px]">{row.customer?.name}</span>,
     },
     {
@@ -215,30 +228,45 @@ export default function PaymentOutstandingPage() {
       render: (row) => <span className="text-[11px] text-slate-500">{row.customer?.mobile_number || "-"}</span>,
     },
     {
-      field: "project_cost", label: "Project Cost", sortable: true,
-      render: (row) => <span className="text-[11px] font-semibold text-slate-800">₹{INR(row.project_cost)}</span>,
+      field: "project_cost", label: "Total Payable", sortable: true,
+      render: (row) => <span className="text-[11px] font-semibold text-slate-800">₹{fmtMoney(row.project_cost)}</span>,
     },
     {
       field: "total_paid", label: "Paid", sortable: true,
-      render: (row) => <span className="text-[11px] text-emerald-700 font-semibold">₹{INR(row.dataValues?.total_paid ?? row.total_paid)}</span>,
+      render: (row) => <span className="text-[11px] text-emerald-700 font-semibold">₹{fmtMoney(row.dataValues?.total_paid ?? row.total_paid)}</span>,
     },
     {
       field: "outstanding", label: "Outstanding", sortable: true,
-      render: (row) => <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{INR(row.dataValues?.outstanding ?? row.outstanding)}</span>,
+      render: (row) => <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{fmtMoney(row.dataValues?.outstanding ?? row.outstanding)}</span>,
     },
     { field: "payment_type", label: "Payment Type" },
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
-    { field: "order_date", label: "Order Date", render: (row) => row.order_date ? new Date(row.order_date).toLocaleDateString("en-IN") : "-" },
-    { field: "current_stage_key", label: "Stage", render: (row) => {
-      const key = row.current_stage_key;
-      const label = ORDER_STAGE_OPTIONS.find((o) => o.value === key)?.label;
-      return <span className="text-[11px]">{label || key || "-"}</span>;
-    } },
+    { field: "disbursed_date", label: "Subsidy Disb.", render: (row) => <span className="text-[11px]">{fmtINDate(row.disbursed_date)}</span> },
+    { field: "netmeter_applied_on", label: "Netm. Apply", render: (row) => <span className="text-[11px]">{fmtINDate(row.netmeter_applied_on)}</span> },
+    { field: "planned_delivery_date", label: "Deliv. Date", render: (row) => <span className="text-[11px]">{fmtINDate(row.planned_delivery_date)}</span> },
+    { field: "order_date", label: "Order Date", render: (row) => fmtINDate(row.order_date) },
+    {
+      field: "current_stage_key",
+      label: "Order Stage",
+      wrap: true,
+      render: (row) => {
+        const key =
+          row.current_stage_key ??
+          row.currentStageKey ??
+          row.dataValues?.current_stage_key;
+        const label = ORDER_STAGE_OPTIONS.find((o) => o.value === key)?.label ?? (key ? String(key) : null);
+        const text = label || "-";
+        return (
+          <span className="text-[11px]" title={text}>
+            {text}
+          </span>
+        );
+      },
+    },
     { field: "branch.name", label: "Branch", render: (row) => <span className="text-[11px] text-slate-500">{row.branch?.name || "-"}</span> },
     { field: "handledBy.name", label: "Handled By", render: (row) => <span className="text-[11px] text-slate-500">{row.handledBy?.name || "-"}</span> },
-  ]), []);
+  ]), [fmtMoney]);
 
-  const total = Number(summary?.total_outstanding || 0);
   const tableHeight = filterPanelOpen ? "calc(100vh - 520px)" : "calc(100vh - 300px)";
 
   const exportCsv = async () => {
@@ -376,6 +404,7 @@ export default function PaymentOutstandingPage() {
               onClear={handleClearFilters}
               defaultOpen
               excludeKeys={["status"]}
+              showDeliveryDateRange
             />
           )}
 
@@ -386,7 +415,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Total Outstanding</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(total)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(total)}</div>
                     <div className="text-[10px] text-slate-400">Filtered view</div>
                   </div>
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">All</Badge>
@@ -397,7 +426,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Direct</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.direct_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.direct_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.direct_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-sky-50 text-sky-700 border border-sky-200 text-[10px] h-5 px-1.5" variant="secondary">Direct</Badge>
@@ -408,7 +437,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Loan</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.loan_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.loan_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.loan_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] h-5 px-1.5" variant="secondary">Loan</Badge>
@@ -419,7 +448,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">PDC</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.pdc_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.pdc_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.pdc_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] h-5 px-1.5" variant="secondary">PDC</Badge>
@@ -430,7 +459,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Unknown</div>
-                    <div className="text-lg font-bold leading-tight">₹{INR(summary?.unknown_outstanding || 0)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.unknown_outstanding || 0)}</div>
                     <div className="text-[10px] text-slate-400">{pct(summary?.unknown_outstanding, total)}%</div>
                   </div>
                   <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] h-5 px-1.5" variant="secondary">Unknown</Badge>

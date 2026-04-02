@@ -40,6 +40,7 @@ import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import stockService from "@/services/stockService";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const compactCardContentSx = { p: 1, "&:last-child": { pb: 1 } };
 const compactCellSx = { py: 0.5, px: 1 };
@@ -738,7 +739,7 @@ export default function B2bShipmentForm({
     }
 
     return (
-        <Box component="form" onSubmit={handleSubmit} noValidate>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
             <FormContainer>
                 <Box sx={{ p: { xs: 1.5, sm: 1 } }}>
                     {serverError && (

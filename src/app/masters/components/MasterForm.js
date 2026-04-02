@@ -10,9 +10,16 @@ import Checkbox from "@/components/common/Checkbox";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toastError, toastSuccess } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const REASON_TYPE_OPTIONS = [
   { value: "payment_rejection", label: "Payment Rejection" },
+];
+const PLATFORM_CONFIG_VALUE_TYPE_OPTIONS = [
+  { value: "string", label: "String" },
+  { value: "number", label: "Number" },
+  { value: "boolean", label: "Boolean" },
+  { value: "json", label: "JSON" },
 ];
 
 export default function MasterForm({ 
@@ -173,6 +180,38 @@ export default function MasterForm({
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
+    }
+
+    // Type validation for platform config values
+    if (
+      Object.prototype.hasOwnProperty.call(formData, "value_type") &&
+      Object.prototype.hasOwnProperty.call(formData, "config_value")
+    ) {
+      const selectedType = String(formData.value_type || "").trim().toLowerCase();
+      const rawValue = formData.config_value;
+      const valueStr = rawValue == null ? "" : String(rawValue).trim();
+
+      if (selectedType === "number") {
+        const num = Number(valueStr);
+        if (!valueStr || !Number.isFinite(num)) {
+          setErrors({ config_value: "Config Value must be a valid number" });
+          return;
+        }
+      } else if (selectedType === "boolean") {
+        const normalized = valueStr.toLowerCase();
+        const allowed = ["true", "false", "1", "0", "yes", "no"];
+        if (!allowed.includes(normalized)) {
+          setErrors({ config_value: "Config Value must be true/false (or 1/0, yes/no)" });
+          return;
+        }
+      } else if (selectedType === "json") {
+        try {
+          JSON.parse(valueStr);
+        } catch (_) {
+          setErrors({ config_value: "Config Value must be valid JSON" });
+          return;
+        }
+      }
     }
     
     // Clear errors if validation passes
@@ -444,6 +483,31 @@ export default function MasterForm({
             />
           );
         }
+
+        if (fieldName === "value_type") {
+          const val = String(fieldValue || "").trim().toLowerCase();
+          return (
+            <AutocompleteField
+              key={fieldName}
+              name={fieldName}
+              label={displayLabel}
+              options={PLATFORM_CONFIG_VALUE_TYPE_OPTIONS}
+              getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+              value={
+                PLATFORM_CONFIG_VALUE_TYPE_OPTIONS.find((o) => o.value === val) ||
+                (val ? { value: val, label: val } : null)
+              }
+              onChange={(e, newValue) =>
+                handleChange({ target: { name: fieldName, value: newValue?.value ?? "" } })
+              }
+              disabled={viewMode}
+              required={isRequired && !viewMode}
+              error={hasError}
+              helperText={hasError ? errors[fieldName] : null}
+              placeholder="Select type..."
+            />
+          );
+        }
         
         return (
           <Input
@@ -470,7 +534,7 @@ export default function MasterForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 pt-1">
+    <form onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="flex flex-col gap-2 pt-1">
       {serverError ? (
         <div
           role="alert"

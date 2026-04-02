@@ -162,7 +162,7 @@ export default function MarketingLeadsPage() {
             />
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden pb-10">
           {view === "kanban" ? (
             <KanbanBoard
               leads={kanbanLeads}

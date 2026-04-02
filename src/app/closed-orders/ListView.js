@@ -8,10 +8,6 @@ import {
   Grid,
   Chip,
   Tooltip,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
 } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -23,8 +19,7 @@ import Inventory2Icon from "@mui/icons-material/Inventory2";
 import PaymentIcon from "@mui/icons-material/Payment";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import CommentIcon from "@mui/icons-material/Comment";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
-import EditIcon from "@mui/icons-material/Edit";
+import DescriptionIcon from "@mui/icons-material/Description";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -37,6 +32,7 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 const DEFAULT_CLOSED_FILTERS = { ...ORDER_FILTER_EMPTY, current_stage_key: "order_completed" };
 
@@ -72,8 +68,8 @@ export default function ListView() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [serialsDialogOpen, setSerialsDialogOpen] = useState(false);
   const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
-  const [menuAnchor, setMenuAnchor] = useState(null);
-  const [menuOrderId, setMenuOrderId] = useState(null);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
   const fetchData = useCallback(async (params) => {
     const merged = { ...params, current_stage_key: params.current_stage_key || "order_completed" };
@@ -89,21 +85,6 @@ export default function ListView() {
     setDetailsOpen(false);
     setSelectedOrder(null);
   }, []);
-
-  const handleMenuOpen = (event, id) => {
-    setMenuAnchor(event.currentTarget);
-    setMenuOrderId(id);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchor(null);
-    setMenuOrderId(null);
-  };
-
-  const handleEdit = () => {
-    router.push(`/order/edit?id=${menuOrderId}`);
-    handleMenuClose();
-  };
 
   const handlePrintOrder = useCallback(async (resolvedOrder) => {
     try {
@@ -125,11 +106,17 @@ export default function ListView() {
     }
   }, []);
 
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
+  }, []);
+
   const getStageIcon = (status) => {
     if (status === "completed")
       return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
     if (status === "pending")
-      return <EventIcon color="primary" sx={{ fontSize: 18 }} />;
+      return <EventIcon color="error" sx={{ fontSize: 18 }} />;
     if (status === "locked")
       return <CancelIcon color="error" sx={{ fontSize: 18 }} />;
     return <HelpIcon color="disabled" sx={{ fontSize: 18 }} />;
@@ -160,7 +147,7 @@ export default function ListView() {
     const stages = row.stages || {};
     const fullyCompleted = isOrderFullyCompleted(row);
     const outstanding =
-      Number(row.project_cost || 0) - Number(row.discount || 0) - Number(row.total_paid || 0);
+      Number(row.project_cost || 0) - Number(row.total_paid || 0);
 
     return (
       <Paper
@@ -266,8 +253,8 @@ export default function ListView() {
             <IconButton size="small" title="Remarks" onClick={() => router.push(`/order/view?id=${row.id}&tab=4`)}>
               <CommentIcon sx={{ fontSize: 16 }} />
             </IconButton>
-            <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
-              <MoreVertIcon sx={{ fontSize: 16 }} />
+            <IconButton size="small" title="Quotation Details" onClick={() => handleOpenQuotationDrawer(row)}>
+              <DescriptionIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>
         </Box>
@@ -314,7 +301,7 @@ export default function ListView() {
             <Grid item size={3}>
               {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
               {renderOrderDetail(
-                "Project Cost",
+                "Total Payable",
                 `Rs. ${Number(row.project_cost || 0).toLocaleString()}`
               )}
               {renderOrderDetail(
@@ -372,7 +359,7 @@ export default function ListView() {
                       <Chip
                         label="Current"
                         size="small"
-                        color="primary"
+                        color="warning"
                         sx={{ height: 14, fontSize: "0.5rem", px: 0, borderRadius: "2px" }}
                       />
                     ) : (
@@ -429,47 +416,6 @@ export default function ListView() {
         limit={limit}
         setLimit={setLimit}
       />
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
-        <MenuItem
-          onClick={() => {
-            router.push(`/order/view?id=${menuOrderId}&tab=2`);
-            handleMenuClose();
-          }}
-        >
-          <ListItemIcon>
-            <PaymentIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Add Payment</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            router.push(`/order/view?id=${menuOrderId}&tab=4`);
-            handleMenuClose();
-          }}
-        >
-          <ListItemIcon>
-            <CommentIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Remarks</ListItemText>
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            router.push(`/order/view?id=${menuOrderId}&tab=5`);
-            handleMenuClose();
-          }}
-        >
-          <ListItemIcon>
-            <UploadFileIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Upload Documents</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleEdit}>
-          <ListItemIcon>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Edit</ListItemText>
-        </MenuItem>
-      </Menu>
       <OrderDetailsDrawer
         open={detailsOpen}
         onClose={handleCloseDetails}
@@ -486,6 +432,15 @@ export default function ListView() {
         }}
         orderNumber={serialsDialogOrder?.order_number}
         customerName={serialsDialogOrder?.customer_name}
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </Box>
   );

@@ -21,6 +21,7 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
+    Drawer,
 } from "@mui/material";
 import HomeIcon from "@mui/icons-material/Home";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -33,6 +34,7 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import moment from "moment";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import EstimateGenerated from "../components/EstimateGenerated";
 import EstimatePaid from "../components/EstimatePaid";
 import Planner from "../components/Planner";
@@ -50,6 +52,10 @@ import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
 import { toastError, toastSuccess } from "@/utils/toast";
 import CustomerProjectDetails from "./components/CustomerProjectDetails";
 import orderService from "@/services/orderService";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import userMasterService from "@/services/userMasterService";
+import { useAuth } from "@/hooks/useAuth";
+import CloseIcon from "@mui/icons-material/Close";
 
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
@@ -105,7 +111,7 @@ const PipelineStages = ({ currentStageKey, stagesStatus = {}, onStageClick }) =>
 
     const getIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" />;
-        if (status === "pending") return <EventIcon color="primary" />;
+        if (status === "pending") return <EventIcon color="error" />;
         if (status === "locked") return <CancelIcon color="error" />;
         return <HelpIcon color="disabled" />;
     };
@@ -141,7 +147,7 @@ const PipelineStages = ({ currentStageKey, stagesStatus = {}, onStageClick }) =>
                             </Typography>
                             <Box sx={{ mt: 0.5 }}>
                                 {isActive ? (
-                                    <Chip label="Current" size="small" color="primary" sx={{ height: "20px", fontSize: "10px" }} />
+                                    <Chip label="Current" size="small" color="warning" sx={{ height: "20px", fontSize: "10px" }} />
                                 ) : (
                                     getIcon(status)
                                 )}
@@ -170,6 +176,7 @@ function ConfirmedOrderViewPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -181,6 +188,20 @@ function ConfirmedOrderViewPageContent() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelling, setCancelling] = useState(false);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+    const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
+    const [handledByUsers, setHandledByUsers] = useState([]);
+    const [handledByLoading, setHandledByLoading] = useState(false);
+    const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
+    const [reassignReason, setReassignReason] = useState("");
+    const [reassigning, setReassigning] = useState(false);
+    const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
+
+    const normalizeRoleName = (s) =>
+        String(s || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "");
+    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -256,6 +277,40 @@ function ConfirmedOrderViewPageContent() {
         }
     }, [orderData?.current_stage_key]);
 
+    useEffect(() => {
+        if (!isSuperAdmin) return;
+        let mounted = true;
+        const loadUsers = async () => {
+            try {
+                setHandledByLoading(true);
+                const response = await userMasterService.listUserMasters({
+                    page: 1,
+                    limit: 1000,
+                    status: "active",
+                    sortBy: "name",
+                    sortOrder: "ASC",
+                });
+                const rows = response?.result?.data || [];
+                if (!mounted) return;
+                setHandledByUsers(
+                    rows.map((u) => ({
+                        id: Number(u.id),
+                        name: u.name || `User ${u.id}`,
+                    }))
+                );
+            } catch (err) {
+                if (!mounted) return;
+                toastError(err?.response?.data?.message || "Failed to load users");
+            } finally {
+                if (mounted) setHandledByLoading(false);
+            }
+        };
+        loadUsers();
+        return () => {
+            mounted = false;
+        };
+    }, [isSuperAdmin]);
+
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
     };
@@ -299,6 +354,43 @@ function ConfirmedOrderViewPageContent() {
         }
     };
 
+    const openChangeHandledByDialog = useCallback(() => {
+        if (!orderData?.id) return;
+        const preselected = handledByUsers.find((u) => Number(u.id) === Number(orderData.handled_by)) || null;
+        setSelectedHandledByUser(preselected);
+        setReassignReason("");
+        setChangeHandledByOpen(true);
+    }, [orderData, handledByUsers]);
+
+    const closeChangeHandledByDialog = useCallback(() => {
+        if (reassigning) return;
+        setChangeHandledByOpen(false);
+        setSelectedHandledByUser(null);
+        setReassignReason("");
+    }, [reassigning]);
+
+    const submitChangeHandledBy = useCallback(async () => {
+        if (!orderData?.id || !selectedHandledByUser?.id) return;
+        if (Number(selectedHandledByUser.id) === Number(orderData.handled_by)) {
+            toastError("Please select a different user");
+            return;
+        }
+        try {
+            setReassigning(true);
+            await confirmOrdersService.changeHandledBy(orderData.id, {
+                handled_by: selectedHandledByUser.id,
+                reason: reassignReason?.trim() || undefined,
+            });
+            toastSuccess("Handled By updated successfully");
+            closeChangeHandledByDialog();
+            await fetchOrderData();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Failed to update Handled By");
+        } finally {
+            setReassigning(false);
+        }
+    }, [orderData, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, fetchOrderData]);
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -329,6 +421,83 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const currentStageKey = orderData?.current_stage_key;
+    const renderOrderDetailsSidebar = () => (
+        <Paper sx={{ p: 1.5, height: "100%", overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
+            <CustomerProjectDetails orderData={orderData} />
+
+            {orderData?.bom_snapshot?.length > 0 && (
+                <>
+                    <div className={COMPACT_SECTION_HEADER_CLASS}>Scope (BOM)</div>
+                    <Box mt={2} mb={2} sx={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
+                            <thead>
+                                <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
+                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {orderData.bom_snapshot.map((line, idx) => {
+                                    const p = line.product_snapshot || line;
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
+                                            <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </Box>
+                </>
+            )}
+
+            <div className={COMPACT_SECTION_HEADER_CLASS}>Payment Details</div>
+            <Box mt={2} mb={2}>
+                <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
+                <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
+
+                {orderData?.estimate_paid_by && (
+                    <>
+                        <Typography variant="body2" color="text.secondary" mt={2}>Paid By:</Typography>
+                        <Typography variant="body1" fontWeight="bold">
+                            {orderData.estimate_paid_by === "customer" ? "Customer" : orderData.estimate_paid_by === "company" ? "Company" : orderData.estimate_paid_by}
+                        </Typography>
+                    </>
+                )}
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    Rs. {totalReceivedAmount.toLocaleString()}
+                </Typography>
+
+                <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
+                <Typography
+                    variant="h6"
+                    fontWeight="bold"
+                    color="white"
+                    bgcolor="error.main"
+                    px={1}
+                    py={0.5}
+                    borderRadius={0.5}
+                    mt={1}
+                >
+                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
+                </Typography>
+            </Box>
+        </Paper>
+    );
 
     return (
         <Box>
@@ -343,16 +512,41 @@ function ConfirmedOrderViewPageContent() {
                         Confirmed Order - {orderData?.order_number || "N/A"}
                     </Typography>
                 </Stack>
-                {canCancelOrder() && (
+                <Stack direction="row" spacing={1}>
                     <Button
                         variant="outlined"
-                        color="error"
                         size="small"
-                        onClick={handleOpenCancelDialog}
+                        onClick={() => setQuotationDrawerOpen(true)}
                     >
-                        Cancel Order
+                        Quotation
                     </Button>
-                )}
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setDetailsDrawerOpen(true)}
+                    >
+                        Order Details
+                    </Button>
+                    {isSuperAdmin && (
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={openChangeHandledByDialog}
+                        >
+                            Change Handled By
+                        </Button>
+                    )}
+                    {canCancelOrder() && (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            onClick={handleOpenCancelDialog}
+                        >
+                            Cancel Order
+                        </Button>
+                    )}
+                </Stack>
             </Box>
             {/* Pipeline Top Bar */}
             <PipelineStages
@@ -362,95 +556,8 @@ function ConfirmedOrderViewPageContent() {
             />
 
             <Grid container spacing={1}>
-                {/* Left Sidebar - Details */}
-                <Grid size={2.5}>
-                    <Paper sx={{ p: 1.5, height: calculateOrderDetailHeight(), overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
-                        <CustomerProjectDetails orderData={orderData} />
-
-                        {orderData?.bom_snapshot?.length > 0 && (
-                            <>
-                                <div className={COMPACT_SECTION_HEADER_CLASS}>Scope (BOM)</div>
-                                <Box mt={2} mb={2} sx={{ overflowX: "auto" }}>
-                                    <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
-                                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {orderData.bom_snapshot.map((line, idx) => {
-                                                const p = line.product_snapshot || line;
-                                                return (
-                                                    <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                                                        <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
-                                                        <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </Box>
-                            </>
-                        )}
-
-                        <div className={COMPACT_SECTION_HEADER_CLASS}>Payment Details</div>
-                        <Box mt={2} mb={2}>
-                            <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
-                            <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
-
-                            {orderData?.estimate_paid_by && (
-                                <>
-                                    <Typography variant="body2" color="text.secondary" mt={2}>Paid By:</Typography>
-                                    <Typography variant="body1" fontWeight="bold">
-                                        {orderData.estimate_paid_by === "customer" ? "Customer" : orderData.estimate_paid_by === "company" ? "Company" : orderData.estimate_paid_by}
-                                    </Typography>
-                                </>
-                            )}
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Project Cost:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Discount:</Typography>
-                            <Typography variant="body1">Rs. {orderData?.discount || "0"}</Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Payable Cost:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - (Number(orderData.discount) || 0)).toLocaleString() : "0"}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
-                            <Typography variant="body1" fontWeight="bold">
-                                Rs. {totalReceivedAmount.toLocaleString()}
-                            </Typography>
-
-                            <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
-                            <Typography
-                                variant="h6"
-                                fontWeight="bold"
-                                color="white"
-                                bgcolor="error.main"
-                                px={1}
-                                py={0.5}
-                                borderRadius={0.5}
-                                mt={1}
-                            >
-                                Rs. {orderData?.project_cost ? ((Number(orderData.project_cost) - (Number(orderData.discount) || 0)) - totalReceivedAmount).toLocaleString() : "0"}
-                            </Typography>
-                        </Box>
-                    </Paper>
-                </Grid>
-
                 {/* Right Panel - Stage Tabs */}
-                <Grid size={9.5}>
+                <Grid size={12}>
                     <Paper elevation={0} sx={{ height: calculateOrderDetailHeight(), display: "flex", flexDirection: "column", overflow: "hidden" }} className="border border-border rounded-lg">
                         <Tabs
                             value={tabValue}
@@ -546,6 +653,25 @@ function ConfirmedOrderViewPageContent() {
                     </Paper>
                 </Grid>
             </Grid>
+            <Drawer
+                anchor="left"
+                open={detailsDrawerOpen}
+                onClose={() => setDetailsDrawerOpen(false)}
+            >
+                <Box sx={{ width: { xs: 320, sm: 380 }, p: 1, height: "100vh" }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                            Order Details
+                        </Typography>
+                        <IconButton size="small" onClick={() => setDetailsDrawerOpen(false)}>
+                            <CloseIcon fontSize="small" />
+                        </IconButton>
+                    </Box>
+                    <Box sx={{ height: "calc(100% - 34px)" }}>
+                        {renderOrderDetailsSidebar()}
+                    </Box>
+                </Box>
+            </Drawer>
 
             <Dialog
                 open={cancelDialogOpen}
@@ -583,6 +709,51 @@ function ConfirmedOrderViewPageContent() {
                     </Button>
                 </DialogActions>
             </Dialog>
+            <Dialog open={changeHandledByOpen} onClose={closeChangeHandledByDialog} maxWidth="xs" fullWidth>
+                <DialogTitle sx={{ py: 1 }}>Change Handled By</DialogTitle>
+                <DialogContent sx={{ pt: "8px !important" }}>
+                    <AutocompleteField
+                        options={handledByUsers}
+                        loading={handledByLoading}
+                        value={selectedHandledByUser}
+                        onChange={(e, v) => setSelectedHandledByUser(v || null)}
+                        getOptionLabel={(o) => o?.name || ""}
+                        placeholder="Select active user"
+                        label="Handled By"
+                        name="handled_by"
+                        required
+                    />
+                    <Box mt={1}>
+                        <Input
+                            name="reassign_reason"
+                            label="Reason (optional)"
+                            value={reassignReason}
+                            onChange={(e) => setReassignReason(e.target.value)}
+                            multiline
+                            rows={3}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 1 }}>
+                    <Button size="small" onClick={closeChangeHandledByDialog} disabled={reassigning}>
+                        Close
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="contained"
+                        onClick={submitChangeHandledBy}
+                        disabled={reassigning || !selectedHandledByUser?.id}
+                    >
+                        {reassigning ? "Updating..." : "Update"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <QuotationDetailsDrawer
+                open={quotationDrawerOpen}
+                onClose={() => setQuotationDrawerOpen(false)}
+                orderId={orderId}
+                quotationId={orderData?.quotation_id}
+            />
         </Box>
     );
 }

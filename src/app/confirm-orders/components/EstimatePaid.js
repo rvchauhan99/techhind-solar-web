@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuccess }) {
     const pathname = usePathname();
@@ -104,7 +105,7 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
     const receiptDoc = orderDocuments?.find(d => d.doc_type === "estimation_paid_receipt");
 
     return (
-        <Box component="form" onSubmit={handleMarkAsPaid} className="p-4">
+        <Box component="form" onSubmit={handleMarkAsPaid} onKeyDown={preventEnterSubmit} className="p-4">
             <FormSection title="Estimate paid details">
                 <FormGrid cols={3}>
                     <Input

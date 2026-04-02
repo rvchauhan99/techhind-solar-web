@@ -54,7 +54,7 @@ import {
 
 const INITIAL_FILTERS = {
   from: "", to: "", branch_id: "", source_ids: [], status: [],
-  priority: [], campaign_name: "", lead_segment: "", product_interest: "", assigned_to: "",
+  priority: [], campaign_id: "", lead_segment: "", product_interest: "", assigned_to: "",
 };
 
 const STATUS_COLORS = {
@@ -84,7 +84,7 @@ const STATUS_TABS = [
 
 const FILTER_LABELS = {
   from: "Date From", to: "Date To", branch_id: "Branch", source_ids: "Sources",
-  status: "Status", priority: "Priority", campaign_name: "Campaign",
+  status: "Status", priority: "Priority", campaign_id: "Campaign",
   lead_segment: "Segment", product_interest: "Product", assigned_to: "Assigned To",
 };
 
@@ -210,7 +210,7 @@ export default function MarketingLeadAnalysisPage() {
         source_ids: f.source_ids?.length ? f.source_ids.join(",") : undefined,
         status: f.status?.length ? f.status.join(",") : undefined,
         priority: f.priority?.length ? f.priority.join(",") : undefined,
-        campaign_name: f.campaign_name || undefined, lead_segment: f.lead_segment || undefined,
+        campaign_id: f.campaign_id || undefined, lead_segment: f.lead_segment || undefined,
         product_interest: f.product_interest || undefined, assigned_to: f.assigned_to || undefined,
       };
       const res = await marketingLeadsService.getMarketingLeadsSummary(params);

@@ -7,6 +7,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import PhoneField from "@/components/common/PhoneField";
 import { validateE164Phone, validateEmail, normalizeEmail } from "@/utils/validators";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const UserForm = forwardRef(function UserForm({
   defaultValues = null,
@@ -145,6 +146,7 @@ const UserForm = forwardRef(function UserForm({
         component="form"
         ref={formRef}
         onSubmit={handleSubmit}
+        onKeyDown={preventEnterSubmit}
         sx={{ 
           display: "flex", 
           flexDirection: "column", 

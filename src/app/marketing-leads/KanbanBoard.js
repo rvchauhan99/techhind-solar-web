@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import AddCallDetailsForm from "./components/AddCallDetailsForm";
 
 const COLUMN_WIDTH = 320;
-const COLUMN_HEIGHT = "calc(100vh - 150px)";
+const COLUMN_HEIGHT = "100%";
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
@@ -150,6 +150,12 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
 
   const pendingStatusTitle =
     STATUS_COLUMNS.find((c) => c.key === pendingToStatus)?.title || pendingToStatus || "";
+
+  /** Stable reference so AddCallDetailsForm reset effect does not run on every parent re-render. */
+  const followUpDefaultValues = useMemo(
+    () => ({ outcome: outcomeForStatus(pendingToStatus) }),
+    [pendingToStatus]
+  );
 
   const onDragEnd = async (result) => {
     const { destination, source } = result;
@@ -277,11 +283,12 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                         <Box
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                          sx={{
-                            flex: 1,
-                            overflowY: "auto",
-                            pr: 0.5,
-                            scrollbarWidth: "thin",
+                            sx={{
+                              flex: 1,
+                              overflowY: "auto",
+                              pr: 0.5,
+                              pb: 4,
+                              scrollbarWidth: "thin",
                             "&::-webkit-scrollbar": { width: 4 },
                             "&::-webkit-scrollbar-thumb": {
                               bgcolor: "rgba(0,0,0,0.2)",
@@ -500,9 +507,11 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               Add Call Details {pendingStatusTitle ? `→ ${pendingStatusTitle}` : ""}
             </DialogTitle>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground">
-            Follow-up is mandatory when changing lead stage.
-          </div>
+          {pendingToStatus && pendingToStatus !== "converted" && (
+            <div className="text-sm text-muted-foreground">
+              Follow-up is mandatory when changing lead stage.
+            </div>
+          )}
           <div className="pt-2">
             <AddCallDetailsForm
               leadId={pendingLeadId}
@@ -510,9 +519,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               forcedStatus={pendingToStatus}
               forcedOutcome={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).forcedOutcome : null}
               allowedOutcomes={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).allowedOutcomes : null}
-              defaultValues={{
-                outcome: outcomeForStatus(pendingToStatus),
-              }}
+              defaultValues={followUpDefaultValues}
               onSaved={async () => {
                 closeFollowUpDialog();
                 setUpdatingStatus(true);

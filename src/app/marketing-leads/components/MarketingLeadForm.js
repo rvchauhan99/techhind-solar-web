@@ -17,6 +17,7 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function MarketingLeadForm(props) {
   const { defaultValues: propDefaultValues, onSubmit, loading } = props;
@@ -178,6 +179,7 @@ export default function MarketingLeadForm(props) {
       <form
         id="marketing-lead-form"
         onSubmit={handleSubmit}
+        onKeyDown={preventEnterSubmit}
         className="mx-auto ml-2 pr-1 max-w-full"
         noValidate
       >
@@ -201,11 +203,28 @@ export default function MarketingLeadForm(props) {
               helperText={errors.mobile_number}
               required
             />
-            <Input
-              name="campaign_name"
+            <AutocompleteField
+              name="campaign_id"
               label="Campaign"
-              value={formData.campaign_name || ""}
-              onChange={handleChange}
+              asyncLoadOptions={(q) =>
+                getReferenceOptionsSearch("campaign.model", { q, limit: 20 })
+              }
+              referenceModel="campaign.model"
+              getOptionLabel={getOptionLabel}
+              value={
+                formData.campaign_id
+                  ? { id: formData.campaign_id, name: formData.campaign_name }
+                  : null
+              }
+              onChange={(e, v) => {
+                handleChange({
+                  target: { name: "campaign_id", value: v?.id ?? "" },
+                });
+                handleChange({
+                  target: { name: "campaign_name", value: v?.name ?? "" },
+                });
+              }}
+              placeholder="Type to search..."
             />
             <AutocompleteField
               name="inquiry_source_id"

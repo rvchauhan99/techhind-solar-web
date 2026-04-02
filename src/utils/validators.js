@@ -170,6 +170,17 @@ export const validateE164Phone = (phone, { required = false } = {}) => {
     };
   }
 
+  // India-specific rule: +91 must have exactly 10 local digits and start with 6/7/8/9
+  if (cleaned.startsWith("+91")) {
+    const local = cleaned.slice(3);
+    if (!/^[6-9]\d{9}$/.test(local)) {
+      return {
+        isValid: false,
+        message: "For +91, enter a valid 10-digit mobile number starting with 6, 7, 8, or 9",
+      };
+    }
+  }
+
   return { isValid: true, message: "" };
 };
 

@@ -16,7 +16,7 @@ const FILTER_KEYS = [
   "lead_number",
   "customer_name",
   "mobile_number",
-  "campaign_name",
+  "campaign_id",
   "status",
   "priority",
   "branch_id",
@@ -37,6 +37,7 @@ const MULTI_SELECT_KEYS = [
   "branch_id",
   "inquiry_source_id",
   "assigned_to",
+  "campaign_id",
 ];
 
 function normalizeLocalValues(values = {}) {
@@ -188,7 +189,7 @@ export default function LeadListFilterPanel({
     const labels = {
       customer_name: "Name",
       mobile_number: "Mobile",
-      campaign_name: "Campaign",
+      campaign_id: "Campaign",
       status: "Status",
       priority: "Priority",
       branch_id: "Branch",
@@ -303,15 +304,37 @@ export default function LeadListFilterPanel({
             />
           )}
 
-          {!hideFields.includes("campaign_name") && (
-            <Input
-              name="campaign_name"
-              label="Campaign"
-              placeholder="Campaign"
-              value={localValues.campaign_name}
-              onChange={(e) => handleChange("campaign_name", e.target.value)}
-            />
-          )}
+          {/* Campaign Filter (Async MultiSelect) */}
+          <MultiSelect
+            name="campaign_id"
+            label="Campaign"
+            placeholder="All campaigns"
+            options={[]}
+            value={
+              Array.isArray(localValues.campaign_id)
+                ? localValues.campaign_id
+                : localValues.campaign_id
+                  ? [localValues.campaign_id]
+                  : []
+            }
+            onChange={(e) => handleChange("campaign_id", e.target.value)}
+            disabled={loadingOptions}
+            searchable
+            searchPlaceholder="Search campaigns..."
+            asyncLoadOptions={(q, id) =>
+              mastersService
+                .getReferenceOptionsSearch("campaign.model", { q, id, limit: id ? 1 : 20 })
+                .then((res) => {
+                  const data = res?.result ?? res?.data ?? res;
+                  return Array.isArray(data)
+                    ? data.map((c) => ({
+                        value: String(c.id),
+                        label: c.name ?? `Campaign #${c.id}`,
+                      }))
+                    : [];
+                })
+            }
+          />
 
           <MultiSelect
             name="status"
@@ -409,11 +432,12 @@ export default function LeadListFilterPanel({
             disabled={loadingOptions}
             searchable
             searchPlaceholder="Search users..."
-            asyncLoadOptions={(q) =>
+            asyncLoadOptions={(q, id) =>
               mastersService
                 .getReferenceOptionsSearch("user.model", {
                   q,
-                  limit: 20,
+                  id,
+                  limit: id ? 1 : 20,
                   status_in: "active,inactive",
                 })
                 .then((res) => {

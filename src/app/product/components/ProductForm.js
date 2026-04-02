@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import Loader from "@/components/common/Loader";
 import { COMPACT_FORM_SPACING, FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 /**
  * Build product name for Panel type: Make PanelType Technology Capacity WP
@@ -57,6 +58,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         selling_price: "",
         mrp: "",
         gst_percent: "",
+        profit_margin_percent: "",
         min_stock_quantity: "",
         tracking_type: "LOT",
         serial_required: false,
@@ -164,6 +166,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 selling_price: defaultValues.selling_price ?? "",
                 mrp: defaultValues.mrp ?? "",
                 gst_percent: defaultValues.gst_percent ?? "",
+                profit_margin_percent: defaultValues.profit_margin_percent ?? "",
                 min_stock_quantity: defaultValues.min_stock_quantity ?? "",
                 tracking_type: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() : "LOT",
                 serial_required: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() === "SERIAL" : false,
@@ -232,14 +235,15 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             }
 
             try {
-                const response = await mastersService.getReferenceOptions("product_make.model");
-                const raw = response?.result ?? response?.data ?? response;
-                const allProductMakes = Array.isArray(raw) ? raw : [];
                 const productTypeIdStr = String(productTypeId);
-                const filteredMakes = allProductMakes.filter(
-                    (make) => make != null && String(make.product_type_id) === productTypeIdStr
-                );
-                setOptions((prev) => ({ ...prev, productMakes: filteredMakes }));
+                const response = await mastersService.getReferenceOptions("product_make.model", { product_type_id: productTypeIdStr });
+                const raw = response?.result ?? response?.data ?? response;
+                const filteredMakes = Array.isArray(raw) ? raw : [];
+                const mappedMakes = filteredMakes.map(m => ({
+                    ...m,
+                    label: m.label || m.name || String(m.id)
+                }));
+                setOptions((prev) => ({ ...prev, productMakes: mappedMakes }));
             } catch (err) {
                 console.error("Failed to load product makes", err);
                 setOptions((prev) => ({ ...prev, productMakes: [] }));
@@ -493,7 +497,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
 
     return (
         <FormContainer>
-            <Box component="form" id="product-form" onSubmit={handleSubmit} sx={{ p: FORM_PADDING }}>
+            <Box component="form" id="product-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ p: FORM_PADDING }}>
                 {serverError && (
                     <div className="mb-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between gap-2">
                         <span>{serverError}</span>
@@ -524,7 +528,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             name="product_make_id"
                             label="Product Make"
                             options={options.productMakes}
-                            getOptionLabel={(m) => m?.name ?? m?.label ?? ""}
+                            getOptionLabel={(m) => m?.label ?? m?.name ?? ""}
                             value={options.productMakes.find((m) => m.id === formData.product_make_id) || (formData.product_make_id ? { id: formData.product_make_id } : null)}
                             onChange={(e, newValue) => handleChange({ target: { name: "product_make_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
@@ -764,6 +768,20 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             required
                             error={!!errors.gst_percent}
                             helperText={errors.gst_percent}
+                        />
+                    </Grid>
+
+                    {/* Profit Margin Percent */}
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="profit_margin_percent"
+                            label="Profit Margin %"
+                            type="number"
+                            value={formData.profit_margin_percent}
+                            onChange={handleChange}
+                            inputProps={{ min: 0, step: 0.01 }}
+                            error={!!errors.profit_margin_percent}
+                            helperText={errors.profit_margin_percent || "Markup on pre-GST purchase price"}
                         />
                     </Grid>
 

@@ -1079,6 +1079,11 @@ function InquiryDetailsContent() {
                                                     render: (row) => row.remarks || "-",
                                                 },
                                                 {
+                                                    field: "updated_by_name",
+                                                    label: "Uploaded By",
+                                                    render: (row) => row.updated_by_name || "-",
+                                                },
+                                                {
                                                     field: "created_at",
                                                     label: "Uploaded On",
                                                     render: (row) => formatDateTime(row.created_at),

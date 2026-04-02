@@ -48,7 +48,7 @@ const ALL_FILTER_KEYS = [
   "lead_number",
   "customer_name",
   "mobile_number",
-  "campaign_name",
+  "campaign_id",
   "status",
   "priority",
   "branch_id",
@@ -541,6 +541,7 @@ export default function MarketingLeadFollowupPage() {
     <>
       {/* Followup Outcome filter */}
       <AutocompleteField
+        usePortal
         name="followup_outcome"
         label="Last Outcome"
         options={[{ value: "", label: "All outcomes" }, ...FOLLOWUP_OUTCOME_OPTIONS]}

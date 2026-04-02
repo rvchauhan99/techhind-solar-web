@@ -17,6 +17,7 @@ import companyService from "@/services/companyService";
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import {
     FABRICATION_STRUCTURE_TYPES,
     FABRICATION_STRUCTURE_MATERIALS,
@@ -327,7 +328,7 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
     }
 
     return (
-        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} className="p-3 sm:p-4 max-w-4xl">
+        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} onKeyDown={preventEnterSubmit} className="p-3 sm:p-4 max-w-4xl">
             {orderData?.fabricator_id || orderData?.fabricator_installer_id ? (
                 <FormSection title="Fabricator (from assignment)">
                     <Typography variant="body2" color="text.secondary">

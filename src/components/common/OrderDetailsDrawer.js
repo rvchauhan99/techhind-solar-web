@@ -40,7 +40,8 @@ function statusBadgeClass(status) {
 function stageBadgeClass(status) {
     if (status === "completed") return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border-green-200";
     if (status === "in_progress") return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200";
-    return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200";
+    // Pending / locked / any unknown => red (per pipeline color rules)
+    return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200";
 }
 
 export default function OrderDetailsDrawer({
@@ -204,13 +205,11 @@ export default function OrderDetailsDrawer({
                         )}
                     </div>
                     <div className="mt-1 border-t border-dashed border-border pt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
-                        <DetailRow label="Project Cost" value={formatCurrency(resolvedOrder?.project_cost)} />
-                        <DetailRow label="Discount" value={formatCurrency(resolvedOrder?.discount)} />
-                        <DetailRow label="Payable Cost" value={formatCurrency(resolvedOrder?.payable_cost)} />
+                        <DetailRow label="Total Payable" value={formatCurrency(resolvedOrder?.project_cost)} />
                         <DetailRow label="Total Paid" value={formatCurrency(resolvedOrder?.total_paid)} />
                         <DetailRow
                             label="Outstanding Balance"
-                            value={formatCurrency(resolvedOrder?.outstanding_balance)}
+                            value={formatCurrency(Number(resolvedOrder?.project_cost || 0) - Number(resolvedOrder?.total_paid || 0))}
                         />
                     </div>
 
@@ -281,9 +280,7 @@ export default function OrderDetailsDrawer({
                             <span
                                 key={stage.key}
                                 className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap ${
-                                    stage.isCurrent 
-                                    ? stageBadgeClass(stage.status) 
-                                    : "bg-transparent text-slate-500 border-slate-200 dark:border-slate-800 dark:text-slate-400"
+                                    stageBadgeClass(stage.isCurrent ? "in_progress" : stage.status)
                                 }`}
                             >
                                 {stage.label}: {stage.isCurrent ? "Current" : stage.status}

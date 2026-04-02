@@ -348,7 +348,9 @@ export default function QuotationList() {
               : row.total_project_value != null && row.total_project_value !== ""
               ? Number(row.total_project_value)
               : null;
-          return value != null && !Number.isNaN(value) ? `₹${value.toLocaleString()}` : "-";
+          if (value == null || Number.isNaN(value)) return "-";
+          const rounded = Math.round(Number(value) || 0);
+          return `₹${rounded.toLocaleString("en-IN")}`;
         },
       },
       {

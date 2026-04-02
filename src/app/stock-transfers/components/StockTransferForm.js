@@ -37,6 +37,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 export default function StockTransferForm({
   defaultValues = {},
@@ -562,7 +563,7 @@ export default function StockTransferForm({
   }
 
   return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
+    <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
       <FormContainer>
         <Box sx={{ p: FORM_PADDING }}>
         {serverError && (

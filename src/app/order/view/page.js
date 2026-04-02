@@ -36,6 +36,7 @@ import companyService from "@/services/companyService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -298,7 +299,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     );
 }
 
-function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [] }) {
+function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [], maxPaymentAmount = 0 }) {
     const [formData, setFormData] = useState({
         order_id: orderId,
         date_of_payment: "",
@@ -369,7 +370,12 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
             // Validate required fields
             const newErrors = {};
             if (!formData.date_of_payment) newErrors.date_of_payment = "Date of Payment is required";
-            if (!formData.payment_amount || formData.payment_amount <= 0) newErrors.payment_amount = "Payment Amount is required and must be greater than 0";
+            const payAmount = parseFloat(String(formData.payment_amount || "").replace(/,/g, ""));
+            if (!formData.payment_amount || !Number.isFinite(payAmount) || payAmount <= 0) {
+                newErrors.payment_amount = "Payment Amount is required and must be greater than 0";
+            } else if (maxPaymentAmount > 0 && payAmount > maxPaymentAmount + 1e-6) {
+                newErrors.payment_amount = `Cannot exceed outstanding Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`;
+            }
             if (!formData.payment_mode_id) newErrors.payment_mode_id = "Payment Mode is required";
             if (!formData.company_bank_account_id) newErrors.company_bank_account_id = "Company Bank Account is required";
 
@@ -467,7 +473,17 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         value={formData.payment_amount}
                         onChange={(e) => handleChange('payment_amount', e.target.value)}
                         error={!!errors.payment_amount}
-                        helperText={errors.payment_amount}
+                        helperText={
+                            errors.payment_amount
+                            || (maxPaymentAmount > 0
+                                ? `Max Rs. ${maxPaymentAmount.toLocaleString("en-IN")} (outstanding)`
+                                : "No outstanding balance")
+                        }
+                        inputProps={
+                            maxPaymentAmount > 0
+                                ? { max: maxPaymentAmount, min: 0, step: "any" }
+                                : { min: 0, step: "any" }
+                        }
                     />
                 </Grid>
 
@@ -564,7 +580,7 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         variant="contained"
                         color="success"
                         onClick={handleSave}
-                        disabled={loading}
+                        disabled={loading || maxPaymentAmount <= 0}
                         startIcon={loading ? <CircularProgress size={20} /> : null}
                     >
                         Save
@@ -972,6 +988,7 @@ function OrderViewPageContent() {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelling, setCancelling] = useState(false);
+    const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
 
     // Determine which tabs should be visible based on initial tab
     const getVisibleTabs = () => {
@@ -991,6 +1008,7 @@ function OrderViewPageContent() {
         }
     };
     const visibleTabs = getVisibleTabs();
+    const maxPaymentAmount = Math.max(0, Number(orderData?.project_cost ?? 0) - totalReceivedAmount);
     console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {
@@ -1120,7 +1138,7 @@ function OrderViewPageContent() {
         {
             id: "uploaded_by",
             label: "Uploaded By",
-            render: (row) => orderData?.handled_by_name || "System",
+            render: (row) => row?.updated_by_name || "System",
         },
         {
             id: "actions",
@@ -1140,6 +1158,33 @@ function OrderViewPageContent() {
                         }}
                     >
                         View Document
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={async () => {
+                            try {
+                                const { blob, filename } = await orderDocumentsService.downloadOrderDocument(row.id);
+                                if (!blob) throw new Error("Download payload missing");
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download =
+                                    filename ||
+                                    row?.document_name ||
+                                    resolveOrderDocTypeLabel(row.doc_type, orderDocumentTypes) ||
+                                    `order-document-${row.id}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(url);
+                            } catch (e) {
+                                console.error("Failed to download document", e);
+                                toastError("Failed to download document");
+                            }
+                        }}
+                    >
+                        Download
                     </Button>
                 </Box>
             ),
@@ -1196,6 +1241,13 @@ function OrderViewPageContent() {
                         Pending Order - {orderData?.order_number || "N/A"}
                     </Typography>
                     <Box display="flex" gap={1}>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setQuotationDrawerOpen(true)}
+                        >
+                            Quotation
+                        </Button>
                         {canCancelOrder() && (
                             <Button
                                 variant="outlined"
@@ -1325,17 +1377,9 @@ function OrderViewPageContent() {
                                 <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
                                 <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
 
-                                <Typography variant="body2" color="text.secondary" mt={2}>Project Cost:</Typography>
+                                <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
                                 <Typography variant="body1" fontWeight="bold">
                                     Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Discount:</Typography>
-                                <Typography variant="body1">Rs. {orderData?.discount || "0"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Payable Cost:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - (Number(orderData.discount) || 0)).toLocaleString() : "0"}
                                 </Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
@@ -1354,7 +1398,7 @@ function OrderViewPageContent() {
                                     borderRadius={0.5}
                                     mt={1}
                                 >
-                                    Rs. {orderData?.project_cost ? ((Number(orderData.project_cost) - (Number(orderData.discount) || 0)) - totalReceivedAmount).toLocaleString() : "0"}
+                                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
                                 </Typography>
                             </Box>
                         </Paper>
@@ -1404,6 +1448,7 @@ function OrderViewPageContent() {
                                         orderId={orderId}
                                         onPaymentSaved={handlePaymentSaved}
                                         orderDocumentTypes={orderDocumentTypes}
+                                        maxPaymentAmount={maxPaymentAmount}
                                     />
                                 )}
                             </TabPanel>
@@ -1460,6 +1505,12 @@ function OrderViewPageContent() {
                         </Button>
                     </DialogActions>
                 </Dialog>
+                <QuotationDetailsDrawer
+                    open={quotationDrawerOpen}
+                    onClose={() => setQuotationDrawerOpen(false)}
+                    orderId={orderId}
+                    quotationId={orderData?.quotation_id}
+                />
             </Box>
         </ProtectedRoute >
     );

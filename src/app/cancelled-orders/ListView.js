@@ -5,6 +5,7 @@ import { Paper, Typography, Box, Grid, Chip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import PhoneIcon from "@mui/icons-material/Phone";
+import DescriptionIcon from "@mui/icons-material/Description";
 import moment from "moment";
 import { useRouter } from "next/navigation";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -14,11 +15,14 @@ import cancelledOrdersService from "@/services/cancelledOrdersService";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 import { useState } from "react";
+import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 
 export default function ListView({ filters }) {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
+  const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
 
   const fetchData = useCallback(
     async (params) => {
@@ -58,6 +62,12 @@ export default function ListView({ filters }) {
     }
   }, []);
 
+  const handleOpenQuotationDrawer = useCallback((row) => {
+    if (!row?.id) return;
+    setSelectedQuotationOrder(row);
+    setQuotationDrawerOpen(true);
+  }, []);
+
   const renderOrderDetail = (label, value, isBold = true, color = "text.primary") => (
     <Box mb={0.4}>
       <Typography
@@ -81,7 +91,7 @@ export default function ListView({ filters }) {
 
   const renderOrderItem = (row) => {
     const outstanding =
-      Number(row.project_cost || 0) - Number(row.discount || 0) - Number(row.total_paid || 0);
+      Number(row.project_cost || 0) - Number(row.total_paid || 0);
 
     return (
       <Paper
@@ -155,6 +165,9 @@ export default function ListView({ filters }) {
             }}
           />
           <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 0.2 }}>
+            <IconButton size="small" title="Quotation Details" onClick={() => handleOpenQuotationDrawer(row)}>
+              <DescriptionIcon sx={{ fontSize: 16 }} />
+            </IconButton>
             <IconButton size="small" title="Details" onClick={() => handleOpenDetails(row)}>
               <VisibilityIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -211,7 +224,7 @@ export default function ListView({ filters }) {
             </Grid>
             <Grid item size={3}>
               {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
-              {renderOrderDetail("Project Cost", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
+              {renderOrderDetail("Total Payable", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
               {renderOrderDetail("Payment Received", `Rs. ${Number(row.total_paid || 0).toLocaleString()}`)}
               {renderOrderDetail(
                 "Outstanding",
@@ -248,6 +261,15 @@ export default function ListView({ filters }) {
         onPrint={handlePrintOrder}
         showPrint
         showDeliverySnapshot
+      />
+      <QuotationDetailsDrawer
+        open={quotationDrawerOpen}
+        onClose={() => {
+          setQuotationDrawerOpen(false);
+          setSelectedQuotationOrder(null);
+        }}
+        orderId={selectedQuotationOrder?.id}
+        quotationId={selectedQuotationOrder?.quotation_id}
       />
     </>
   );

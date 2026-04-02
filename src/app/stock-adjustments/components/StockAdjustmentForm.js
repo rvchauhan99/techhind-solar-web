@@ -43,6 +43,7 @@ import BarcodeScanner from "@/components/common/BarcodeScanner";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { toastError } from "@/utils/toast";
 import { FORM_PADDING } from "@/utils/formConstants";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const ADJUSTMENT_TYPE_OPTIONS = [
     { value: "FOUND", label: "Found" },
@@ -50,6 +51,14 @@ const ADJUSTMENT_TYPE_OPTIONS = [
     { value: "LOSS", label: "Loss" },
     { value: "AUDIT", label: "Audit" },
 ];
+
+// Auto-direction: for non-AUDIT types the direction is fixed by the type
+const ADJUSTMENT_TYPE_DIRECTION = {
+    FOUND: "IN",
+    DAMAGE: "OUT",
+    LOSS: "OUT",
+    // AUDIT: not set — user selects per item
+};
 
 export default function StockAdjustmentForm({
     defaultValues = {},
@@ -81,6 +90,7 @@ export default function StockAdjustmentForm({
     const [currentItem, setCurrentItem] = useState({
         product_id: "",
         product_name: "",
+        product_type_id: null,
         product_serial_required: false,
         product_measurement_unit_name: "",
         adjustment_direction: "OUT",
@@ -91,6 +101,7 @@ export default function StockAdjustmentForm({
     const [addRowSerialDrawerOpen, setAddRowSerialDrawerOpen] = useState(false);
     const [serialDrawerValues, setSerialDrawerValues] = useState([]);
     const [serialDrawerError, setSerialDrawerError] = useState("");
+    const [serialDrawerValidating, setSerialDrawerValidating] = useState(false);
     const serialInputRefs = useRef([]);
     const [gunScanValue, setGunScanValue] = useState("");
     const gunScanRef = useRef(null);
@@ -170,10 +181,15 @@ export default function StockAdjustmentForm({
     const loadAvailableStocks = async (warehouseId) => {
         try {
             const response = await stockService.getStocksByWarehouse(warehouseId);
-            const data = response?.result?.data || response?.data || [];
+            // getStocksByWarehouse returns a plain array (not paginated), so result IS the array
+            const data = Array.isArray(response?.result)
+                ? response.result
+                : Array.isArray(response?.data)
+                ? response.data
+                : [];
             const stockMap = {};
             data.forEach((stock) => {
-                stockMap[stock.product_id] = stock;
+                stockMap[parseInt(stock.product_id)] = stock;
             });
             setAvailableStocks(stockMap);
         } catch (err) {
@@ -184,6 +200,13 @@ export default function StockAdjustmentForm({
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+        // Auto-set direction when adjustment type changes
+        if (name === "adjustment_type") {
+            const autoDir = ADJUSTMENT_TYPE_DIRECTION[value];
+            if (autoDir) {
+                setCurrentItem((prev) => ({ ...prev, adjustment_direction: autoDir, serials: [] }));
+            }
+        }
         if (formErrors[name]) {
             setFormErrors((prev) => {
                 const next = { ...prev };
@@ -305,7 +328,7 @@ export default function StockAdjustmentForm({
         }
     };
 
-    const handleAddRowSerialDrawerDone = () => {
+    const handleAddRowSerialDrawerDone = async () => {
         const trimmed = serialDrawerValues.map((s) => String(s || "").trim());
         const emptyIndex = trimmed.findIndex((s) => !s);
         if (emptyIndex !== -1) {
@@ -318,6 +341,44 @@ export default function StockAdjustmentForm({
             setSerialDrawerError("Duplicate serial numbers are not allowed.");
             return;
         }
+
+        // Backend serial validation on Done
+        const productId = parseInt(currentItem.product_id);
+        const warehouseId = parseInt(formData.warehouse_id);
+        if (currentItem.product_serial_required && productId && warehouseId) {
+            setSerialDrawerValidating(true);
+            try {
+                if (currentItem.adjustment_direction === "OUT") {
+                    // Loss/Damage: each serial must be AVAILABLE at this product + warehouse
+                    for (const serial of trimmed) {
+                        const res = await stockService.validateSerialAvailable(serial, productId, warehouseId);
+                        const result = res?.result ?? res?.data ?? res;
+                        if (!result?.valid) {
+                            setSerialDrawerError(result?.message ?? `Serial "${serial}" is not available in stock at this warehouse`);
+                            setSerialDrawerValidating(false);
+                            return;
+                        }
+                    }
+                } else if (currentItem.adjustment_direction === "IN") {
+                    // Found: serial must NOT already exist for the same product type
+                    for (const serial of trimmed) {
+                        const res = await stockService.validateSerialNotExists(serial, productId, warehouseId);
+                        const result = res?.result ?? res?.data ?? res;
+                        if (result?.exists) {
+                            setSerialDrawerError(result?.message ?? `Serial "${serial}" already exists for this product type`);
+                            setSerialDrawerValidating(false);
+                            return;
+                        }
+                    }
+                }
+            } catch (err) {
+                setSerialDrawerError(err?.response?.data?.message ?? err?.message ?? "Serial validation failed");
+                setSerialDrawerValidating(false);
+                return;
+            }
+            setSerialDrawerValidating(false);
+        }
+
         setCurrentItem((prev) => ({ ...prev, serials: trimmed }));
         if (itemErrors.serials) {
             setItemErrors((prev) => {
@@ -352,7 +413,6 @@ export default function StockAdjustmentForm({
         if (!currentItem.quantity || Number(currentItem.quantity) <= 0) errs.quantity = "Quantity must be greater than 0";
 
         const productId = parseInt(currentItem.product_id);
-        const warehouseId = parseInt(formData.warehouse_id);
         const qty = Number(currentItem.quantity);
         const stock = availableStocks[productId];
         const availableQty = stock?.quantity_available ?? 0;
@@ -383,38 +443,6 @@ export default function StockAdjustmentForm({
 
         const serials = (currentItem.serials || []).map((s) => (typeof s === "string" ? s : s?.serial_number ?? "").trim()).filter(Boolean);
 
-        if (product?.serial_required && serials.length > 0) {
-            setAddItemValidating(true);
-            try {
-                if (currentItem.adjustment_direction === "OUT") {
-                    for (const serial of serials) {
-                        const res = await stockService.validateSerialAvailable(serial, productId, warehouseId);
-                        const result = res?.result ?? res?.data ?? res;
-                        if (!result?.valid) {
-                            setItemErrors({ serials: result?.message ?? `Serial "${serial}" is not available` });
-                            setAddItemValidating(false);
-                            return;
-                        }
-                    }
-                } else if (currentItem.adjustment_direction === "IN") {
-                    for (const serial of serials) {
-                        const res = await stockService.validateSerialNotExists(serial, productId, warehouseId);
-                        const result = res?.result ?? res?.data ?? res;
-                        if (result?.exists) {
-                            setItemErrors({ serials: result?.message ?? `Serial "${serial}" already exists` });
-                            setAddItemValidating(false);
-                            return;
-                        }
-                    }
-                }
-            } catch (err) {
-                toastError(err?.response?.data?.message ?? err?.message ?? "Serial validation failed");
-                setAddItemValidating(false);
-                return;
-            }
-            setAddItemValidating(false);
-        }
-
         const newItem = {
             product_id: productId,
             product_name: currentItem.product_name || "",
@@ -428,6 +456,7 @@ export default function StockAdjustmentForm({
         setCurrentItem({
             product_id: "",
             product_name: "",
+            product_type_id: null,
             product_serial_required: false,
             product_measurement_unit_name: "",
             adjustment_direction: "OUT",
@@ -454,6 +483,12 @@ export default function StockAdjustmentForm({
         if (!formData.adjustment_type) errs.adjustment_type = "Adjustment type is required";
         if (!formData.remarks || !String(formData.remarks).trim()) errs.remarks = "Reason / Remarks is required";
         if (formData.items.length === 0) errs.items = "At least one item is required";
+
+        // Warn if the user has partially filled the item row but hasn't clicked Add
+        const hasPendingItem = !!(currentItem.product_id || currentItem.quantity);
+        if (hasPendingItem && formData.items.length === 0) {
+            errs.items = "You have a product selected but haven't clicked \"Add\" yet. Please add it to the list first, then save.";
+        }
 
         if (Object.keys(errs).length > 0) {
             setFormErrors(errs);
@@ -490,7 +525,7 @@ export default function StockAdjustmentForm({
 
     return (
         <FormContainer className="flex-1 min-h-0 flex flex-col">
-            <form id="stock-adjustment-form" onSubmit={handleSubmit} className="mx-auto w-full max-w-[1100px] flex flex-col flex-1 min-h-0" noValidate>
+            <form id="stock-adjustment-form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="mx-auto w-full max-w-[1100px] flex flex-col flex-1 min-h-0" noValidate>
                 <Box sx={{ p: FORM_PADDING }}>
                 {serverError && (
                     <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
@@ -583,6 +618,7 @@ export default function StockAdjustmentForm({
                                             id: row.id,
                                             product_name: row.product_name,
                                             serial_required: row.serial_required,
+                                            product_type_id: row.product_type_id ?? null,
                                             measurement_unit_name: row.measurement_unit_name ?? null,
                                         }
                                         : null;
@@ -595,6 +631,7 @@ export default function StockAdjustmentForm({
                                         ...prev,
                                         product_id: newValue?.id ?? "",
                                         product_name: newValue?.product_name ?? "",
+                                        product_type_id: newValue?.product_type_id ?? null,
                                         product_serial_required: !!newValue?.serial_required,
                                         product_measurement_unit_name: newValue?.measurement_unit_name ?? "",
                                     }));
@@ -607,12 +644,18 @@ export default function StockAdjustmentForm({
                             />
                             <Select
                                 name="adjustment_direction"
-                                label="Direction *"
+                                label="Direction **"
                                 value={currentItem.adjustment_direction}
                                 onChange={handleItemChange}
                                 required
+                                disabled={!!ADJUSTMENT_TYPE_DIRECTION[formData.adjustment_type]}
                                 error={!!itemErrors.adjustment_direction}
-                                helperText={itemErrors.adjustment_direction}
+                                helperText={
+                                    itemErrors.adjustment_direction ||
+                                    (ADJUSTMENT_TYPE_DIRECTION[formData.adjustment_type]
+                                        ? `Fixed by "${formData.adjustment_type}" type`
+                                        : "")
+                                }
                             >
                                 <MenuItem value="OUT">OUT (Lost/Damaged)</MenuItem>
                                 <MenuItem value="IN">IN (Found)</MenuItem>
@@ -760,11 +803,11 @@ export default function StockAdjustmentForm({
                                                 ))}
                                         </Box>
                                         <Box sx={{ display: "flex", gap: 1 }}>
-                                            <Button type="button" variant="outline" size="sm" className="flex-1 min-h-[38px]" onClick={closeAddRowSerialDrawer}>
+                                            <Button type="button" variant="outline" size="sm" className="flex-1 min-h-[38px]" onClick={closeAddRowSerialDrawer} disabled={serialDrawerValidating}>
                                                 Cancel
                                             </Button>
-                                            <Button type="button" size="sm" className="flex-1 min-h-[38px]" onClick={handleAddRowSerialDrawerDone}>
-                                                Done
+                                            <Button type="button" size="sm" className="flex-1 min-h-[38px]" onClick={handleAddRowSerialDrawerDone} disabled={serialDrawerValidating}>
+                                                {serialDrawerValidating ? "Validating…" : "Done"}
                                             </Button>
                                         </Box>
                                     </Box>
