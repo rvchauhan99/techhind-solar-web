@@ -264,7 +264,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             let updatedBomSnapshot = Array.isArray(orderData?.bom_snapshot) ? orderData.bom_snapshot : [];
             if (Array.isArray(bomPlan) && bomPlan.length > 0) {
                 updatedBomSnapshot = bomPlan.map((line) => {
-                    const { __rowKey, planned, ...rest } = line;
+                    const { __rowKey, planned, planner_added, ...rest } = line;
                     const qty = (n, fallback) => {
                         if (n === "" || n == null) return fallback;
                         const num = Number(n);
@@ -276,6 +276,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         ...rest,
                         quantity: baseQuantity || plannedQty,
                         planned_qty: plannedQty,
+                        ...(planner_added && { planner_added: true }),
                     };
                 });
             }
@@ -305,10 +306,13 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
                         manual_unit_price_excluding_gst:
                             line.priceSource === "MANUAL_FALLBACK" ? line.unitExcl : undefined,
-                        manual_unit_price_including_gst:
-                            line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
-                        price_source: line.priceSource || "LATEST_PURCHASE",
-                    }));
+                    manual_unit_price_including_gst:
+                        line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
+                    price_source: line.priceSource || "LATEST_PURCHASE",
+                    metadata: {
+                        planner_added: !!(bomPlan || []).find((bp) => bp.__rowKey === line.rowKey)?.planner_added,
+                    },
+                }));
             const hasMissingManualPrice = costAdjustments.some((line) =>
                 line.price_source === "MANUAL_FALLBACK" &&
                 (!Number.isFinite(Number(line.manual_unit_price_excluding_gst)) ||
@@ -381,6 +385,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                         amount_excl: Number(line.amountExcl) || 0,
                         amount_incl: Number(line.amountIncl) || 0,
                         price_source: line.priceSource || "LATEST_PURCHASE",
+                        planner_added: !!rowInPlan?.planner_added,
                     };
                 });
 
@@ -479,7 +484,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const isPlannerLocked = isCompleted && !withinEditableWindow;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
-    const showImportFromProject = hasNoBom && !isReadOnly && !isPlannerLocked;
+    const showImportFromProject = isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked;
 
     useEffect(() => {
         if (showImportFromProject && projectPricesWithBom.length === 0 && !loadingProjectPrices) {
@@ -649,6 +654,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
             product_make_name: makeName,
             measurement_unit_name: measurementUnitName,
             serial_required: serialRequired,
+            planner_added: true,
         };
         setBomPlan((prev) => [...prev, newLine]);
         setAdjustmentByRow((prev) => ({
@@ -1251,6 +1257,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                 const amountExcl = adjQty * unitExcl;
                                                 const amountIncl = adjQty * unitIncl;
 
+                                                const isPlannerAdded = !!line.planner_added;
+                                                const canEditRow = isSuperAdmin || isPlannerAdded;
+
                                                 return (
                                                     <tr
                                                         key={line.__rowKey}
@@ -1264,7 +1273,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                 label=""
                                                                 checked={!!line.planned}
                                                                 onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
-                                                                disabled={isPlannerLocked || isReadOnly || isFullyShipped}
+                                                                disabled={isPlannerLocked || isReadOnly || isFullyShipped || !canEditRow}
                                                                 className="w-auto"
                                                             />
                                                         </td>
@@ -1291,7 +1300,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                         )
                                                                     )
                                                                 }
-                                                                disabled={isPlannerLocked || isReadOnly}
+                                                                disabled={isPlannerLocked || isReadOnly || !canEditRow}
                                                                 className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                             />
                                                         </td>
@@ -1306,7 +1315,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                             <select
                                                                 value={adjustment.gst_mode || "INCLUDING_GST"}
                                                                 onChange={(e) => updateLineAdjustment(line.__rowKey, { gst_mode: e.target.value })}
-                                                                disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                disabled={isPlannerLocked || isReadOnly || adjQty === 0 || !canEditRow}
                                                                 className="w-28 border border-input rounded px-1 py-0.5 bg-background text-xs"
                                                             >
                                                                 <option value="INCLUDING_GST">Including GST</option>
@@ -1314,7 +1323,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                             </select>
                                                         </td>
                                                         <td className="p-2 text-right align-middle">
-                                                            {isMissingLatestPrice ? (
+                                                            {!canEditRow ? "—" : isMissingLatestPrice ? (
                                                                 <input
                                                                     type="number"
                                                                     min={0}
@@ -1336,7 +1345,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                             )}
                                                         </td>
                                                         <td className="p-2 text-right align-middle">
-                                                            {isMissingLatestPrice ? (
+                                                            {!canEditRow ? "—" : isMissingLatestPrice ? (
                                                                 <input
                                                                     type="number"
                                                                     min={0}
@@ -1357,11 +1366,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                 unitIncl.toFixed(2)
                                                             )}
                                                         </td>
-                                                        <td className="p-2 text-right align-middle">{amountExcl.toFixed(2)}</td>
-                                                        <td className="p-2 text-right align-middle">{amountIncl.toFixed(2)}</td>
+                                                        <td className="p-2 text-right align-middle">{canEditRow ? amountExcl.toFixed(2) : "—"}</td>
+                                                        <td className="p-2 text-right align-middle">{canEditRow ? amountIncl.toFixed(2) : "—"}</td>
                                                         {!isReadOnly && !isPlannerLocked && (
                                                             <td className="p-2 text-center align-middle">
-                                                                {canRemove ? (
+                                                                {canRemove && canEditRow ? (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleBomRemove(line.__rowKey)}
@@ -1371,7 +1380,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                         <DeleteOutlineIcon fontSize="small" />
                                                                     </button>
                                                                 ) : (
-                                                                    <span className="text-muted-foreground/50" title={shippedQty > 0 ? "Cannot remove: already shipped" : ""}>—</span>
+                                                                    <span className="text-muted-foreground/50" title={shippedQty > 0 ? "Cannot remove: already shipped" : !canEditRow ? "Cannot remove original items" : ""}>—</span>
                                                                 )}
                                                             </td>
                                                         )}
@@ -1470,11 +1479,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                         <span className="text-[11px] text-muted-foreground">Preview</span>
                                                     </div>
                                                     <div className="mt-1 grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px]">
-                                                        <div><span className="text-muted-foreground">Unit Excl</span><br />{Number(item.unit_excl || 0).toFixed(2)}</div>
-                                                        <div><span className="text-muted-foreground">Unit Incl</span><br />{Number(item.unit_incl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">Unit Excl</span><br />{isSuperAdmin || item.planner_added ? Number(item.unit_excl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Unit Incl</span><br />{isSuperAdmin || item.planner_added ? Number(item.unit_incl || 0).toFixed(2) : "—"}</div>
                                                         <div><span className="text-muted-foreground">GST Mode</span><br />{item.gst_mode || "—"}</div>
-                                                        <div><span className="text-muted-foreground">Amt Excl</span><br />{Number(item.amount_excl || 0).toFixed(2)}</div>
-                                                        <div><span className="text-muted-foreground">Amt Incl</span><br />{Number(item.amount_incl || 0).toFixed(2)}</div>
+                                                        <div><span className="text-muted-foreground">Amt Excl</span><br />{isSuperAdmin || item.planner_added ? Number(item.amount_excl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Amt Incl</span><br />{isSuperAdmin || item.planner_added ? Number(item.amount_incl || 0).toFixed(2) : "—"}</div>
                                                         <div><span className="text-muted-foreground">Cost Basis</span><br />{item.gst_mode === "EXCLUDING_GST" ? "Excl GST" : "Incl GST"}</div>
                                                     </div>
                                                 </div>
@@ -1614,16 +1623,16 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                         </div>
 
                                         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-1 text-[11px]">
-                                            <div><span className="text-muted-foreground">Unit Excl</span><br />{formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "EXCLUDING_GST" ? entry.unit_price_base : entry.line_amount_excluding_gst && qtyDelta ? Number(entry.line_amount_excluding_gst) / qtyDelta : null)}</div>
-                                            <div><span className="text-muted-foreground">Unit Incl</span><br />{formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "INCLUDING_GST" ? entry.unit_price_base : entry.line_amount_including_gst && qtyDelta ? Number(entry.line_amount_including_gst) / qtyDelta : null)}</div>
+                                            <div><span className="text-muted-foreground">Unit Excl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "EXCLUDING_GST" ? entry.unit_price_base : entry.line_amount_excluding_gst && qtyDelta ? Number(entry.line_amount_excluding_gst) / qtyDelta : null) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Unit Incl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "INCLUDING_GST" ? entry.unit_price_base : entry.line_amount_including_gst && qtyDelta ? Number(entry.line_amount_including_gst) / qtyDelta : null) : "—"}</div>
                                             <div><span className="text-muted-foreground">GST Mode</span><br />{entry.gst_mode || "—"}</div>
-                                            <div><span className="text-muted-foreground">Amt Excl</span><br />{formatMoneyOrDash(entry.line_amount_excluding_gst)}</div>
-                                            <div><span className="text-muted-foreground">Amt Incl</span><br />{formatMoneyOrDash(entry.line_amount_including_gst)}</div>
-                                            <div><span className="text-muted-foreground">Project Cost</span><br />{formatMoneyOrDash(entry.project_cost_before)} → {formatMoneyOrDash(entry.project_cost_after)}</div>
+                                            <div><span className="text-muted-foreground">Amt Excl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_excluding_gst) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Amt Incl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_including_gst) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Project Cost</span><br />{isSuperAdmin ? `${formatMoneyOrDash(entry.project_cost_before)} → ${formatMoneyOrDash(entry.project_cost_after)}` : "—"}</div>
                                         </div>
                                         <div className="mt-1 text-[11px]">
                                             <span className="text-muted-foreground">Final Payable:</span>{" "}
-                                            <span>{formatMoneyOrDash(entry.final_payable_before)} → {formatMoneyOrDash(entry.final_payable_after)}</span>
+                                            <span>{isSuperAdmin ? `${formatMoneyOrDash(entry.final_payable_before)} → ${formatMoneyOrDash(entry.final_payable_after)}` : "—"}</span>
                                         </div>
                                     </Paper>
                                 );
