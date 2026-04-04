@@ -28,6 +28,8 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
+import productService from "@/services/productService";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
@@ -58,7 +60,26 @@ const COLUMN_FILTER_KEYS = [
   "project_cost",
   "project_cost_op",
   "project_cost_to",
+  "solar_panel_id",
+  "inverter_id",
 ];
+
+async function searchProductsByTypeCi(q, productTypeCi) {
+  const res = await productService.getProducts({
+    q: q?.trim() ? q.trim() : undefined,
+    limit: 30,
+    product_type_ci: productTypeCi,
+    visibility: "active",
+  });
+  const payload = res?.result ?? res?.data ?? res;
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.product_name,
+    label: row.product_name,
+    product_name: row.product_name,
+  }));
+}
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -401,6 +422,65 @@ export default function ListView({
               Home
             </Button>
           )}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2 shrink-0">
+        <div className="w-full sm:w-[min(100%,220px)]">
+          <AutocompleteField
+            usePortal
+            name="solar_panel_id"
+            label="Solar panel"
+            variant="minimal"
+            asyncLoadOptions={(q) => searchProductsByTypeCi(q, "panel")}
+            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            resolveOptionById={async (id) => {
+              try {
+                const res = await productService.getProductById(id);
+                const p = res?.result ?? res?.data ?? res;
+                if (!p?.id) return null;
+                return { id: p.id, product_name: p.product_name, label: p.product_name };
+              } catch {
+                return null;
+              }
+            }}
+            value={filters.solar_panel_id ? { id: filters.solar_panel_id } : null}
+            onChange={(e, newValue) =>
+              handleColumnFilterChange(
+                "solar_panel_id",
+                newValue?.id != null ? String(newValue.id) : ""
+              )
+            }
+            placeholder="Panel product…"
+          />
+        </div>
+        <div className="w-full sm:w-[min(100%,220px)]">
+          <AutocompleteField
+            usePortal
+            name="inverter_id"
+            label="Inverter"
+            variant="minimal"
+            asyncLoadOptions={(q) => searchProductsByTypeCi(q, "inverter")}
+            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            resolveOptionById={async (id) => {
+              try {
+                const res = await productService.getProductById(id);
+                const p = res?.result ?? res?.data ?? res;
+                if (!p?.id) return null;
+                return { id: p.id, product_name: p.product_name, label: p.product_name };
+              } catch {
+                return null;
+              }
+            }}
+            value={filters.inverter_id ? { id: filters.inverter_id } : null}
+            onChange={(e, newValue) =>
+              handleColumnFilterChange(
+                "inverter_id",
+                newValue?.id != null ? String(newValue.id) : ""
+              )
+            }
+            placeholder="Inverter…"
+          />
         </div>
       </div>
 

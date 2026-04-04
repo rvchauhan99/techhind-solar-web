@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Paper, Typography, Box, Grid, Chip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -14,8 +14,31 @@ import OrderNumberLink from "@/components/common/OrderNumberLink";
 import cancelledOrdersService from "@/services/cancelledOrdersService";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
-import { useState } from "react";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  IconBolt,
+  IconCircleX,
+  IconCurrencyRupee,
+  IconTopologyRing3,
+} from "@tabler/icons-react";
+
+const STAGES = [
+  { key: "estimate_generated", label: "Estimate Generated" },
+  { key: "estimate_paid", label: "Estimate Paid" },
+  { key: "planner", label: "Planner" },
+  { key: "delivery", label: "Delivery" },
+  { key: "assign_fabricator_and_installer", label: "Assign Fabricator & Installer" },
+  { key: "fabrication", label: "Fabrication" },
+  { key: "installation", label: "Installation" },
+  { key: "netmeter_apply", label: "Netmeter Apply" },
+  { key: "netmeter_installed", label: "Netmeter Installed" },
+  { key: "subsidy_claim", label: "Subsidy Claim" },
+  { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
+  { key: "order_completed", label: "Order Completed" },
+  { key: "payment_outstanding", label: "Order Completed but payment pending" },
+];
 
 export default function ListView({ filters }) {
   const router = useRouter();
@@ -23,10 +46,33 @@ export default function ListView({ filters }) {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+  const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+
+  const handleListingMetaChange = useCallback((meta) => {
+    const total = meta?.total ?? 0;
+    const summary =
+      meta?.summary ??
+      (typeof meta?.total === "number"
+        ? { total_orders: meta.total, by_stage: [] }
+        : null);
+    setListMeta({ total, summary, received: true });
+  }, []);
 
   const fetchData = useCallback(
     async (params) => {
-      const merged = { ...params, ...filters };
+      const merged = { ...params, ...filters, includeSummary: "true" };
+      const fromRaw = merged.capacity_kw_from;
+      const toRaw = merged.capacity_kw_to;
+      delete merged.capacity_kw_from;
+      delete merged.capacity_kw_to;
+      const fromStr = fromRaw != null ? String(fromRaw).trim() : "";
+      if (fromStr !== "") {
+        merged.capacity_from = fromStr;
+        merged.capacity_to =
+          toRaw != null && String(toRaw).trim() !== ""
+            ? String(toRaw).trim()
+            : fromStr;
+      }
       return await cancelledOrdersService.getCancelledOrders(merged);
     },
     [filters]
@@ -242,10 +288,102 @@ export default function ListView({ filters }) {
     );
   };
 
-  const calculateHeight = () => `calc(100vh - 145px)`;
+  const stageOrderMap = useMemo(() => new Map(STAGES.map((s, i) => [s.key, i])), []);
+  const sortedSummaryStages = useMemo(() => {
+    const rows = listMeta.summary?.by_stage;
+    if (!Array.isArray(rows)) return [];
+    return [...rows].sort((a, b) => {
+      const ia = stageOrderMap.has(a.current_stage_key)
+        ? stageOrderMap.get(a.current_stage_key)
+        : 999;
+      const ib = stageOrderMap.has(b.current_stage_key)
+        ? stageOrderMap.get(b.current_stage_key)
+        : 999;
+      return ia - ib;
+    });
+  }, [listMeta.summary, stageOrderMap]);
+
+  const calculateHeight = () => `calc(100vh - 200px)`;
 
   return (
     <>
+      {listMeta.received && listMeta.summary && (
+        <Card className="mb-2 overflow-hidden rounded-xl border border-slate-200 border-l-[3px] border-l-red-600 bg-white shadow-sm">
+          <div className="flex flex-col gap-1.5 px-2.5 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 rounded-lg border border-red-200/80 bg-gradient-to-r from-red-50/90 to-white px-2 py-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <IconCircleX size={14} className="shrink-0 text-red-600" aria-hidden />
+                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                  Filtered
+                </span>
+                <Badge className="h-5 min-h-5 border-0 bg-red-600 px-1.5 text-[10px] font-bold text-white hover:bg-red-600">
+                  {listMeta.summary.total_orders}
+                </Badge>
+                <span className="text-[10px] font-semibold text-slate-600">cancelled</span>
+              </div>
+              {typeof listMeta.summary.total_capacity_kw === "number" && (
+                <div className="flex items-center gap-1 rounded-lg border border-amber-200/70 bg-amber-50/50 px-2 py-0.5">
+                  <IconBolt size={14} className="shrink-0 text-amber-600" aria-hidden />
+                  <span className="text-[11px] font-bold tabular-nums text-slate-800">
+                    {Number(listMeta.summary.total_capacity_kw || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
+                    kW
+                  </span>
+                </div>
+              )}
+              {typeof listMeta.summary.total_project_cost === "number" && (
+                <div className="flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-50/50 px-2 py-0.5">
+                  <IconCurrencyRupee size={14} className="shrink-0 text-emerald-700" aria-hidden />
+                  <span className="text-[11px] font-bold tabular-nums text-slate-800">
+                    {Number(listMeta.summary.total_project_cost || 0).toLocaleString()}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
+                    payable
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {sortedSummaryStages.length > 0 && (
+              <>
+                <div
+                  className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block"
+                  aria-hidden
+                />
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                  <div className="mr-0.5 hidden shrink-0 items-center gap-0.5 text-slate-400 sm:flex">
+                    <IconTopologyRing3 size={12} aria-hidden />
+                    <span className="text-[9px] font-bold uppercase tracking-tighter">
+                      By stage
+                    </span>
+                  </div>
+                  {sortedSummaryStages.map((row) => {
+                    const label =
+                      STAGES.find((s) => s.key === row.current_stage_key)?.label ||
+                      row.current_stage_key ||
+                      "-";
+                    const shortLabel = `${label}: ${row.count} · ${Number(
+                      row.total_capacity_kw || 0
+                    ).toLocaleString(undefined, { maximumFractionDigits: 2 })} kW`;
+                    return (
+                      <span
+                        key={row.current_stage_key || "unknown"}
+                        className="inline-flex max-w-[min(100%,240px)] items-center truncate rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter text-red-800"
+                        title={shortLabel}
+                      >
+                        {shortLabel}
+                      </span>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
       <PaginatedList
         fetcher={fetchData}
         filters={filters ?? {}}
@@ -254,6 +392,7 @@ export default function ListView({ filters }) {
         defaultSortBy="order_date"
         defaultSortOrder="DESC"
         height={calculateHeight()}
+        onMetaChange={handleListingMetaChange}
       />
       <OrderDetailsDrawer
         open={detailsOpen}
