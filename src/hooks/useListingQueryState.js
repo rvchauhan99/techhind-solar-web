@@ -141,14 +141,20 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
     [filters, setFilters]
   );
 
-  const clearFilters = useCallback(() => {
-    const next = new URLSearchParams();
-    next.set("limit", String(limit));
-    if (q) next.set("q", q);
-    if (sortBy) next.set("sortBy", sortBy);
-    if (sortOrder) next.set("sortOrder", sortOrder);
-    router.replace(`${pathname}?${next.toString()}`);
-  }, [pathname, router, limit, q, sortBy, sortOrder]);
+  const clearFilters = useCallback(
+    (options) => {
+      const keepQuickSearch =
+        options == null ||
+        (typeof options === "object" && options.keepQuickSearch !== false);
+      const next = new URLSearchParams();
+      next.set("limit", String(limit));
+      if (keepQuickSearch && q) next.set("q", q);
+      if (sortBy) next.set("sortBy", sortBy);
+      if (sortOrder) next.set("sortOrder", sortOrder);
+      router.replace(`${pathname}?${next.toString()}`);
+    },
+    [pathname, router, limit, q, sortBy, sortOrder]
+  );
 
   return {
     page,

@@ -48,6 +48,7 @@ export default function PaginatedList({
   limit: controlledLimit,
   setLimit: controlledSetLimit,
   filterSlot = null,
+  onMetaChange = null,
 }) {
   const [rows, setRows] = React.useState([]);
   const [page, setPage] = React.useState(initialPage - 1);
@@ -111,17 +112,29 @@ export default function PaginatedList({
   }, [moduleKey, user, fetchPermissionForModule, modulePermissions]);
 
   const normalize = (res) => {
-    if (!res) return { data: [], total: 0 };
-    if (Array.isArray(res)) return { data: res, total: res.length };
-    if (res.data && res.meta) return { data: res.data, total: res.meta.total || 0 };
-    if (res.result && Array.isArray(res.result))
-      return { data: res.result, total: res.result.length };
-    if (res.result?.data)
+    if (!res) return { data: [], total: 0, summary: undefined };
+    if (Array.isArray(res)) return { data: res, total: res.length, summary: undefined };
+    if (res.data && res.meta)
       return {
-        data: res.result.data,
-        total: res.result.meta?.total || 0,
+        data: res.data,
+        total: res.meta.total || 0,
+        summary: res.meta.summary,
       };
-    return { data: [], total: 0 };
+    if (res.result && Array.isArray(res.result))
+      return { data: res.result, total: res.result.length, summary: undefined };
+    if (res.result?.data != null)
+      return {
+        data: Array.isArray(res.result.data) ? res.result.data : [],
+        total: res.result.meta?.total ?? 0,
+        summary: res.result.meta?.summary,
+      };
+    if (res.result?.meta && Array.isArray(res.result.rows))
+      return {
+        data: res.result.rows,
+        total: res.result.meta?.total ?? res.result.rows.length,
+        summary: res.result.meta?.summary,
+      };
+    return { data: [], total: 0, summary: undefined };
   };
 
   React.useEffect(() => {
@@ -173,15 +186,28 @@ export default function PaginatedList({
         setRows(result.data);
         setTotalCount(result.total);
         if (onRowsChange) onRowsChange(result.data);
+        if (onMetaChange) onMetaChange({ total: result.total, summary: result.summary });
       } catch (err) {
         console.error("PaginatedList load error:", err);
         setRows([]);
         setTotalCount(0);
+        if (onMetaChange) onMetaChange({ total: 0, summary: undefined });
       } finally {
         setLoading(false);
       }
     },
-    [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, onRowsChange, controlledFilters, buildFetcherParams, getOrCreatePromise]
+    [
+      effectivePage,
+      effectiveRowsPerPage,
+      effectiveDebouncedQ,
+      sortBy,
+      sortOrder,
+      onRowsChange,
+      onMetaChange,
+      controlledFilters,
+      buildFetcherParams,
+      getOrCreatePromise,
+    ]
   );
 
   React.useEffect(() => {
@@ -206,6 +232,7 @@ export default function PaginatedList({
           setRows(result.data);
           setTotalCount(result.total);
           if (onRowsChange) onRowsChange(result.data);
+          if (onMetaChange) onMetaChange({ total: result.total, summary: result.summary });
         }
       })
       .catch((err) => {
@@ -213,6 +240,7 @@ export default function PaginatedList({
         if (mountedRef.current) {
           setRows([]);
           setTotalCount(0);
+          if (onMetaChange) onMetaChange({ total: 0, summary: undefined });
         }
       })
       .finally(() => {
@@ -221,7 +249,18 @@ export default function PaginatedList({
     return () => {
       mountedRef.current = false;
     };
-  }, [effectivePage, effectiveRowsPerPage, effectiveDebouncedQ, sortBy, sortOrder, buildFetcherParams, getOrCreatePromise, onRowsChange, controlledFilters]);
+  }, [
+    effectivePage,
+    effectiveRowsPerPage,
+    effectiveDebouncedQ,
+    sortBy,
+    sortOrder,
+    buildFetcherParams,
+    getOrCreatePromise,
+    onRowsChange,
+    onMetaChange,
+    controlledFilters,
+  ]);
 
   const handleChangePage = (event, newPage) => {
     if (isPaginationControlled) controlledSetPage(newPage + 1);

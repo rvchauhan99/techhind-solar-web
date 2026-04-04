@@ -51,6 +51,10 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import DescriptionIcon from "@mui/icons-material/Description";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { IconBolt, IconChartBar, IconTopologyRing3 } from "@tabler/icons-react";
+import { cn } from "@/lib/utils";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -97,6 +101,46 @@ export default function ListView() {
     const [reassignReloadFn, setReassignReloadFn] = useState(null);
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
     const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+    const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+
+    const handleListingMetaChange = useCallback((meta) => {
+        const total = meta?.total ?? 0;
+        const summary =
+            meta?.summary ??
+            (typeof meta?.total === "number"
+                ? { total_orders: meta.total, by_stage: [] }
+                : null);
+        setListMeta({ total, summary, received: true });
+    }, []);
+
+    const stageOrderMap = useMemo(() => new Map(STAGES.map((s, i) => [s.key, i])), []);
+    const sortedSummaryStages = useMemo(() => {
+        const rows = listMeta.summary?.by_stage;
+        if (!Array.isArray(rows)) return [];
+        return [...rows].sort((a, b) => {
+            const ia = stageOrderMap.has(a.current_stage_key)
+                ? stageOrderMap.get(a.current_stage_key)
+                : 999;
+            const ib = stageOrderMap.has(b.current_stage_key)
+                ? stageOrderMap.get(b.current_stage_key)
+                : 999;
+            return ia - ib;
+        });
+    }, [listMeta.summary, stageOrderMap]);
+
+    const handleSummaryStageClick = useCallback(
+        (stageKey) => {
+            const key = stageKey != null ? String(stageKey).trim() : "";
+            if (!key || key === "unknown") return;
+            const current = String(filters.current_stage_key ?? "").trim();
+            if (current === key) {
+                setFilters({ ...filters, current_stage_key: "" }, true, true);
+            } else {
+                setFilters({ ...filters, current_stage_key: key }, true, true);
+            }
+        },
+        [filters, setFilters]
+    );
 
     const normalizeRoleName = (s) =>
         String(s || "")
@@ -184,7 +228,20 @@ export default function ListView() {
     }, [router]);
 
     const fetchData = useCallback(async (params) => {
-        return await confirmOrdersService.getConfirmedOrders(params);
+        const next = { ...params, includeSummary: "true" };
+        const fromRaw = next.capacity_kw_from;
+        const toRaw = next.capacity_kw_to;
+        delete next.capacity_kw_from;
+        delete next.capacity_kw_to;
+        const fromStr = fromRaw != null ? String(fromRaw).trim() : "";
+        if (fromStr !== "") {
+            next.capacity_from = fromStr;
+            next.capacity_to =
+                toRaw != null && String(toRaw).trim() !== ""
+                    ? String(toRaw).trim()
+                    : fromStr;
+        }
+        return await confirmOrdersService.getConfirmedOrders(next);
     }, []);
 
     const submitChangeHandledBy = useCallback(async (reload) => {
@@ -451,9 +508,113 @@ export default function ListView() {
                     setFilters(v, true, true);
                     setFilterPanelOpen(false);
                 }}
-                onClear={() => clearFilters()}
+                onClear={() => clearFilters({ keepQuickSearch: false })}
                 variant="confirm"
             />
+            {listMeta.received && listMeta.summary && (
+                <Card className="mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex flex-col gap-1.5 px-2.5 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1.5 rounded-lg border border-green-200/80 bg-gradient-to-r from-green-50/90 to-white px-2 py-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                                <IconChartBar size={14} className="shrink-0 text-green-600" aria-hidden />
+                                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                                    Filtered
+                                </span>
+                                <Badge className="h-5 min-h-5 border-0 bg-green-600 px-1.5 text-[10px] font-bold text-white hover:bg-green-600">
+                                    {listMeta.summary.total_orders}
+                                </Badge>
+                                <span className="text-[10px] font-semibold text-slate-600">orders</span>
+                            </div>
+                            {typeof listMeta.summary.total_capacity_kw === "number" && (
+                                <div className="flex items-center gap-1 rounded-lg border border-amber-200/70 bg-amber-50/50 px-2 py-0.5">
+                                    <IconBolt size={14} className="shrink-0 text-amber-600" aria-hidden />
+                                    <span className="text-[11px] font-bold tabular-nums text-slate-800">
+                                        {Number(listMeta.summary.total_capacity_kw || 0).toLocaleString(
+                                            undefined,
+                                            { maximumFractionDigits: 2 }
+                                        )}
+                                    </span>
+                                    <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
+                                        kW
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div
+                            className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block"
+                            aria-hidden
+                        />
+
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                            <div className="mr-0.5 hidden shrink-0 items-center gap-0.5 text-slate-400 sm:flex">
+                                <IconTopologyRing3 size={12} aria-hidden />
+                                <span className="text-[9px] font-bold uppercase tracking-tighter">
+                                    By stage
+                                </span>
+                            </div>
+                            {sortedSummaryStages.map((row) => {
+                                const label =
+                                    STAGES.find((s) => s.key === row.current_stage_key)?.label ||
+                                    row.current_stage_key ||
+                                    "-";
+                                const stageKey = row.current_stage_key;
+                                const actionable =
+                                    stageKey != null &&
+                                    String(stageKey).trim() !== "" &&
+                                    String(stageKey) !== "unknown";
+                                const selected =
+                                    actionable &&
+                                    String(filters.current_stage_key ?? "").trim() ===
+                                        String(stageKey).trim();
+                                const tip = selected
+                                    ? "Click to clear stage filter"
+                                    : "Filter by this stage";
+                                const shortLabel = `${label}: ${row.count} · ${Number(
+                                    row.total_capacity_kw || 0
+                                ).toLocaleString(undefined, { maximumFractionDigits: 2 })} kW`;
+                                const tooltipTitle = `${shortLabel} — ${tip}`;
+                                const pillClass = cn(
+                                    "inline-flex max-w-[min(100%,220px)] items-center truncate rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter transition-colors",
+                                    !actionable &&
+                                        "cursor-default border-slate-200 bg-slate-50 text-slate-500",
+                                    actionable &&
+                                        !selected &&
+                                        "border-green-200 bg-green-50 text-green-800 hover:border-green-300 hover:bg-green-100",
+                                    actionable &&
+                                        selected &&
+                                        "border-green-600 bg-green-600 text-white shadow-sm ring-1 ring-green-600/20 hover:bg-green-700"
+                                );
+                                const inner = actionable ? (
+                                    <button
+                                        type="button"
+                                        className={cn(pillClass, "cursor-pointer text-left")}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSummaryStageClick(stageKey);
+                                        }}
+                                    >
+                                        {shortLabel}
+                                    </button>
+                                ) : (
+                                    <span className={pillClass} title={shortLabel}>
+                                        {shortLabel}
+                                    </span>
+                                );
+                                return (
+                                    <span key={stageKey || "unknown"} className="inline-flex">
+                                        {actionable ? (
+                                            <Tooltip title={tooltipTitle}>{inner}</Tooltip>
+                                        ) : (
+                                            inner
+                                        )}
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </Card>
+            )}
             <PaginatedList
                 fetcher={fetchData}
                 renderItem={renderOrderItem}
@@ -468,6 +629,7 @@ export default function ListView() {
                 setPage={setPage}
                 limit={limit}
                 setLimit={setLimit}
+                onMetaChange={handleListingMetaChange}
             />
 
             <Menu
