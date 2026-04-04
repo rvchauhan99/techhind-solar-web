@@ -62,6 +62,7 @@ const FILTER_LABELS = {
   branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
   order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
   reference_from: "Reference", current_stage_key: "Order Stage", inquiry_source_id: "Source", q: "Search",
+  solar_panel_id: "Solar panel", inverter_id: "Inverter",
 };
 
 function getChips(filters) {
@@ -403,7 +404,7 @@ export default function PaymentOutstandingPage() {
               onApply={(next) => { handleApplyFilters(next); setFilterPanelOpen(false); }}
               onClear={handleClearFilters}
               defaultOpen
-              excludeKeys={["status"]}
+              excludeKeys={["status", "solar_panel_id", "inverter_id"]}
               showDeliveryDateRange
             />
           )}
