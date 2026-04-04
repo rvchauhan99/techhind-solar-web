@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Box, Alert, Typography } from "@mui/material";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Box, Alert, Typography, TextField, IconButton, Divider, Collapse } from "@mui/material";
+import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
+import ClearIcon from "@mui/icons-material/Clear";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { usePathname } from "next/navigation";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
@@ -82,6 +86,11 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     const [installationScans, setInstallationScans] = useState({}); // { product_id: [serial1, serial2] }
     const [scannerOpen, setScannerOpen] = useState(false);
     const [scanTarget, setScanTarget] = useState(null); // { product_id, index }
+    const [gunScanByProduct, setGunScanByProduct] = useState({});
+    /** product_id -> true means expanded (default collapsed when key missing) */
+    const [serialExpandByPid, setSerialExpandByPid] = useState({});
+    const serialInputRefs = useRef({});
+    const gunScanInputRefs = useRef({});
     const [mismatchData, setMismatchData] = useState(null); // { mismatches, can_force_adjust }
     const [forceAdjustDialogOpen, setForceAdjustDialogOpen] = useState(false);
     const [forceAdjustReason, setForceAdjustReason] = useState("");
@@ -243,23 +252,230 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         });
     };
 
-    const handleSerialScanChange = (productId, index, value) => {
-        setInstallationScans(prev => {
-            const current = [...(prev[productId] || [])];
-            current[index] = value;
-            return { ...prev, [productId]: current };
+    const getSerialSlotCount = useCallback(
+        (pid) => (deliveredSerialsMap[pid] || []).length,
+        [deliveredSerialsMap]
+    );
+
+    const clearScanFieldError = useCallback((pid) => {
+        setFieldErrors((fe) => {
+            const n = { ...fe };
+            delete n[`scans_${pid}`];
+            return n;
         });
+    }, []);
+
+    /** Apply one or many serials from raw string into fixed slots for a product (gun, paste, pallet scan). */
+    const applySerialsToProduct = useCallback(
+        (pid, startIndex, rawString) => {
+            const tokens = splitSerialInput(rawString);
+            if (!tokens.length) return;
+            const len = getSerialSlotCount(pid);
+            if (!len) return;
+
+            let dupToast = false;
+            let dupPartialMsg = "";
+            let overflowCount = 0;
+
+            setInstallationScans((prev) => {
+                const slotsRaw = Array.from({ length: len }, (_, i) => String((prev[pid] || [])[i] ?? ""));
+
+                if (tokens.length === 1) {
+                    const trimmed = tokens[0];
+                    const dupIdx = slotsRaw.findIndex(
+                        (v, i) =>
+                            i !== startIndex &&
+                            String(v || "").trim() &&
+                            String(v || "").trim().toLowerCase() === trimmed.toLowerCase()
+                    );
+                    if (dupIdx >= 0) {
+                        dupToast = true;
+                        return prev;
+                    }
+                    const next = [...slotsRaw];
+                    next[startIndex] = trimmed;
+                    clearScanFieldError(pid);
+                    return { ...prev, [pid]: next };
+                }
+
+                const { nextSlots, overflow, duplicates } = fillSerialSlots({
+                    slots: slotsRaw,
+                    startIndex,
+                    incoming: tokens,
+                    caseInsensitive: true,
+                });
+                if (duplicates.length) {
+                    dupPartialMsg = `Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`;
+                }
+                if (overflow.length) overflowCount = overflow.length;
+                clearScanFieldError(pid);
+                return { ...prev, [pid]: nextSlots };
+            });
+
+            if (dupToast) toastError("Serial number already entered for this product.");
+            if (dupPartialMsg) toastError(dupPartialMsg);
+            if (overflowCount)
+                toastError(
+                    `Cannot add ${overflowCount} serial(s): all slots filled or limit reached.`
+                );
+        },
+        [getSerialSlotCount, clearScanFieldError]
+    );
+
+    const handleInstallationSerialChange = (pid, idx, value) => {
+        const tokens = splitSerialInput(value);
+        if (tokens.length <= 1) {
+            const len = getSerialSlotCount(pid);
+            if (!len) return;
+            const trimmed = String(value || "").trim();
+            if (trimmed) {
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) => String((prev[pid] || [])[i] ?? ""));
+                    const dupIdx = cur.findIndex(
+                        (v, i) =>
+                            i !== idx &&
+                            String(v || "").trim() &&
+                            String(v || "").trim().toLowerCase() === trimmed.toLowerCase()
+                    );
+                    if (dupIdx >= 0) {
+                        toastError("Serial number already entered for this product.");
+                        return prev;
+                    }
+                    cur[idx] = value;
+                    return { ...prev, [pid]: cur };
+                });
+            } else {
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) => String((prev[pid] || [])[i] ?? ""));
+                    cur[idx] = value;
+                    return { ...prev, [pid]: cur };
+                });
+            }
+            clearScanFieldError(pid);
+            return;
+        }
+        applySerialsToProduct(pid, idx, value);
+    };
+
+    const handleInstallationSerialKeyDown = (pid, idx, serialCount, e) => {
+        if (e.key !== "Enter" && e.key !== "Tab") return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (idx < serialCount - 1) {
+            serialInputRefs.current[pid]?.[idx + 1]?.focus();
+        } else {
+            gunScanInputRefs.current[pid]?.focus();
+        }
+    };
+
+    const handleGunKeyDown = (e, pid) => {
+        if (e.key !== "Enter" && e.key !== "Tab") return;
+        e.preventDefault();
+        e.stopPropagation();
+        const buf = (gunScanByProduct[pid] || "").trim();
+        if (!buf) {
+            setTimeout(() => gunScanInputRefs.current[pid]?.focus(), 0);
+            return;
+        }
+        const len = getSerialSlotCount(pid);
+        const slotsRaw = Array.from({ length: len }, (_, i) =>
+            String((installationScans[pid] || [])[i] ?? "")
+        );
+        const firstEmpty = slotsRaw.findIndex((v) => !String(v || "").trim());
+        const idx = firstEmpty >= 0 ? firstEmpty : 0;
+        applySerialsToProduct(pid, idx, buf);
+        setGunScanByProduct((p) => ({ ...p, [pid]: "" }));
+        setTimeout(() => gunScanInputRefs.current[pid]?.focus(), 0);
+    };
+
+    const openScannerForProduct = (pid) => {
+        const len = getSerialSlotCount(pid);
+        const slotsRaw = Array.from({ length: len }, (_, i) =>
+            String((installationScans[pid] || [])[i] ?? "")
+        );
+        const firstEmpty = slotsRaw.findIndex((v) => !String(v || "").trim());
+        setScanTarget({ product_id: pid, index: firstEmpty >= 0 ? firstEmpty : 0 });
+        setScannerOpen(true);
     };
 
     const handleScanResult = (value) => {
         if (!scanTarget) return;
         const { product_id, index } = scanTarget;
-        const tokens = splitSerialInput(value);
-        if (tokens.length > 0) {
-            handleSerialScanChange(product_id, index, tokens[0]);
-            setScannerOpen(false);
-            setScanTarget(null);
+        const tokens = splitSerialInput(value || "");
+        if (!tokens.length) return;
+
+        const len = getSerialSlotCount(product_id);
+        if (!len) return;
+
+        if (tokens.length === 1) {
+            const trimmed = tokens[0];
+            let dup = false;
+            setInstallationScans((prev) => {
+                const slotsRaw = Array.from({ length: len }, (_, i) =>
+                    String((prev[product_id] || [])[i] ?? "")
+                );
+                const dupIdx = slotsRaw.findIndex(
+                    (v, i) =>
+                        i !== index &&
+                        String(v || "").trim() &&
+                        String(v || "").trim().toLowerCase() === trimmed.toLowerCase()
+                );
+                if (dupIdx >= 0) {
+                    dup = true;
+                    return prev;
+                }
+                const next = [...slotsRaw];
+                next[index] = trimmed;
+                const nextEmpty = next.findIndex((v, i) => i > index && !String(v || "").trim());
+                queueMicrotask(() => {
+                    if (nextEmpty === -1) {
+                        setScannerOpen(false);
+                        setScanTarget(null);
+                    } else {
+                        setScanTarget({ product_id, index: nextEmpty });
+                    }
+                });
+                return { ...prev, [product_id]: next };
+            });
+            if (dup) {
+                toastError("Serial number already entered for this product.");
+                return;
+            }
+            clearScanFieldError(product_id);
+            return;
         }
+
+        let dupPartialMsg = "";
+        let overflowCount = 0;
+        setInstallationScans((prev) => {
+            const slotsRaw = Array.from({ length: len }, (_, i) =>
+                String((prev[product_id] || [])[i] ?? "")
+            );
+            const { nextSlots, overflow, duplicates } = fillSerialSlots({
+                slots: slotsRaw,
+                startIndex: index,
+                incoming: tokens,
+                caseInsensitive: true,
+            });
+            if (duplicates.length) {
+                dupPartialMsg = `Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`;
+            }
+            if (overflow.length) overflowCount = overflow.length;
+            return { ...prev, [product_id]: nextSlots };
+        });
+        if (dupPartialMsg) toastError(dupPartialMsg);
+        if (overflowCount) {
+            toastError(
+                `Cannot add ${overflowCount} serial(s): all slots filled or limit reached.`
+            );
+        }
+        clearScanFieldError(product_id);
+        setScannerOpen(false);
+        setScanTarget(null);
+    };
+
+    const toggleSerialExpand = (pid) => {
+        setSerialExpandByPid((p) => ({ ...p, [pid]: !p[pid] }));
     };
 
     const validate = () => {
@@ -271,9 +487,18 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
         // Validate serial scans if completing
         Object.entries(deliveredSerialsMap).forEach(([pid, serials]) => {
-            const scans = installationScans[pid] || [];
-            if (scans.filter(Boolean).length < serials.length) {
-                errs[`scans_${pid}`] = `All ${serials.length} serials must be scanned`;
+            const len = serials.length;
+            const padded = Array.from({ length: len }, (_, i) =>
+                String((installationScans[pid] || [])[i] || "").trim()
+            );
+            const filled = padded.filter(Boolean);
+            if (filled.length < len) {
+                errs[`scans_${pid}`] = `All ${len} serials must be entered`;
+                return;
+            }
+            const uniq = new Set(filled.map((s) => s.toLowerCase()));
+            if (uniq.size !== filled.length) {
+                errs[`scans_${pid}`] = "Duplicate serial numbers are not allowed.";
             }
         });
 
@@ -416,50 +641,187 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
             <FormSection title="Installation execution">
                 {Object.entries(deliveredSerialsMap).length > 0 && (
-                    <Box sx={{ mb: 3, p: 2, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
+                    <Box sx={{ mb: 2, p: 1.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
                         <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-                            Delivered Serial Scanning (Mandatory)
+                            Delivered serials (mandatory)
                         </Typography>
-                        {Object.entries(deliveredSerialsMap).map(([pid, serials]) => (
-                            <Box key={pid} sx={{ mb: 2 }}>
-                                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                                    Product ID: {pid} ({serials.length} items delivered)
-                                </Typography>
-                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                    {serials.map((_, idx) => {
-                                        const value = installationScans[pid]?.[idx] || "";
-                                        return (
-                                            <TextField
-                                                key={idx}
-                                                size="small"
-                                                label={`Serial ${idx + 1}`}
-                                                value={value}
-                                                onChange={(e) => handleSerialScanChange(pid, idx, e.target.value)}
-                                                sx={{ minWidth: 180 }}
-                                                InputProps={{
-                                                    endAdornment: (
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => {
-                                                                setScanTarget({ product_id: pid, index: idx });
-                                                                setScannerOpen(true);
-                                                            }}
-                                                        >
-                                                            <QrCodeScannerIcon fontSize="small" />
-                                                        </IconButton>
-                                                    ),
-                                                }}
+                        {Object.entries(deliveredSerialsMap).map(([pid, serials]) => {
+                            const row = installationScans[pid] || [];
+                            const filledCount = serials.reduce(
+                                (n, _, i) => n + (String(row[i] || "").trim() ? 1 : 0),
+                                0
+                            );
+                            const expanded = !!serialExpandByPid[pid];
+                            const expectedLabel = (i) => {
+                                const sn = serials[i]?.serial_number;
+                                return sn ? `Delivered: ${sn}` : undefined;
+                            };
+                            return (
+                                <Box key={pid} sx={{ mb: 1.5 }}>
+                                    <Box
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => !disabled && toggleSerialExpand(pid)}
+                                        onKeyDown={(e) => {
+                                            if (disabled) return;
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                toggleSerialExpand(pid);
+                                            }
+                                        }}
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            p: 1,
+                                            borderRadius: 1,
+                                            border: 1,
+                                            borderColor: fieldErrors[`scans_${pid}`] ? "error.main" : "divider",
+                                            bgcolor: "background.paper",
+                                            cursor: disabled ? "default" : "pointer",
+                                            minHeight: 40,
+                                        }}
+                                    >
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                                            <QrCodeScannerIcon
+                                                fontSize="small"
+                                                color={filledCount === serials.length ? "success" : "action"}
                                             />
-                                        );
-                                    })}
+                                            <Typography variant="body2" noWrap>
+                                                Product #{pid} — {filledCount}/{serials.length} serials
+                                            </Typography>
+                                        </Box>
+                                        {expanded ? (
+                                            <ExpandLessIcon fontSize="small" color="action" />
+                                        ) : (
+                                            <ExpandMoreIcon fontSize="small" color="action" />
+                                        )}
+                                    </Box>
+                                    {fieldErrors[`scans_${pid}`] && !expanded && (
+                                        <Typography variant="caption" color="error" sx={{ mt: 0.25, display: "block", pl: 0.5 }}>
+                                            {fieldErrors[`scans_${pid}`]}
+                                        </Typography>
+                                    )}
+                                    <Collapse in={expanded} timeout="auto" unmountOnExit>
+                                        <Box sx={{ pt: 1 }}>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={disabled}
+                                                className="w-full mb-1.5 min-h-9 touch-manipulation flex items-center justify-center gap-1"
+                                                onClick={() => openScannerForProduct(pid)}
+                                            >
+                                                <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                                                Scan barcode / QR
+                                            </Button>
+                                            <TextField
+                                                inputRef={(el) => {
+                                                    gunScanInputRefs.current[pid] = el;
+                                                }}
+                                                size="small"
+                                                fullWidth
+                                                label="Scanner gun"
+                                                placeholder="Point scanner here, then Enter"
+                                                value={gunScanByProduct[pid] ?? ""}
+                                                onChange={(e) =>
+                                                    setGunScanByProduct((p) => ({ ...p, [pid]: e.target.value }))
+                                                }
+                                                onKeyDown={(e) => handleGunKeyDown(e, pid)}
+                                                variant="outlined"
+                                                disabled={disabled}
+                                                sx={{ mb: 1 }}
+                                                helperText="Hardware scanner types here; press Enter to fill next empty slot."
+                                            />
+                                            <Divider sx={{ my: 1 }}>
+                                                <Typography variant="caption" color="text.secondary">
+                                                    or type per slot
+                                                </Typography>
+                                            </Divider>
+                                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                                {serials.map((del, idx) => {
+                                                    const value = installationScans[pid]?.[idx] ?? "";
+                                                    return (
+                                                        <TextField
+                                                            key={idx}
+                                                            size="small"
+                                                            fullWidth
+                                                            label={`Serial ${idx + 1} of ${serials.length}`}
+                                                            placeholder={expectedLabel(idx)}
+                                                            value={value}
+                                                            onChange={(e) =>
+                                                                handleInstallationSerialChange(pid, idx, e.target.value)
+                                                            }
+                                                            onKeyDown={(e) =>
+                                                                handleInstallationSerialKeyDown(
+                                                                    pid,
+                                                                    idx,
+                                                                    serials.length,
+                                                                    e
+                                                                )
+                                                            }
+                                                            inputRef={(el) => {
+                                                                if (!serialInputRefs.current[pid]) {
+                                                                    serialInputRefs.current[pid] = [];
+                                                                }
+                                                                serialInputRefs.current[pid][idx] = el;
+                                                            }}
+                                                            variant="outlined"
+                                                            disabled={disabled}
+                                                            InputProps={{
+                                                                endAdornment: (
+                                                                    <Box sx={{ display: "flex" }}>
+                                                                        {String(value || "").trim() ? (
+                                                                            <IconButton
+                                                                                size="small"
+                                                                                tabIndex={-1}
+                                                                                edge="end"
+                                                                                disabled={disabled}
+                                                                                onClick={() =>
+                                                                                    handleInstallationSerialChange(
+                                                                                        pid,
+                                                                                        idx,
+                                                                                        ""
+                                                                                    )
+                                                                                }
+                                                                                aria-label="Clear serial"
+                                                                            >
+                                                                                <ClearIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                        ) : null}
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            tabIndex={-1}
+                                                                            edge="end"
+                                                                            disabled={disabled}
+                                                                            onClick={() => {
+                                                                                setScanTarget({
+                                                                                    product_id: pid,
+                                                                                    index: idx,
+                                                                                });
+                                                                                setScannerOpen(true);
+                                                                            }}
+                                                                            aria-label="Scan this serial"
+                                                                        >
+                                                                            <QrCodeScannerIcon fontSize="small" />
+                                                                        </IconButton>
+                                                                    </Box>
+                                                                ),
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </Box>
+                                            {fieldErrors[`scans_${pid}`] && (
+                                                <Typography variant="caption" color="error" sx={{ mt: 0.75, display: "block" }}>
+                                                    {fieldErrors[`scans_${pid}`]}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </Collapse>
                                 </Box>
-                                {fieldErrors[`scans_${pid}`] && (
-                                    <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
-                                        {fieldErrors[`scans_${pid}`]}
-                                    </Typography>
-                                )}
-                            </Box>
-                        ))}
+                            );
+                        })}
                     </Box>
                 )}
 
@@ -761,7 +1123,11 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 open={scannerOpen}
                 onScan={handleScanResult}
                 onClose={() => { setScannerOpen(false); setScanTarget(null); }}
-                hint={scanTarget ? `Scanning serial ${scanTarget.index + 1} for product #${scanTarget.product_id}` : ""}
+                hint={
+                    scanTarget
+                        ? `Serial ${scanTarget.index + 1} of ${getSerialSlotCount(scanTarget.product_id)} — product #${scanTarget.product_id}`
+                        : ""
+                }
             />
 
             {/* ─── Force Adjust Dialog ─────────────────────── */}
