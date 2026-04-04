@@ -14,6 +14,8 @@ import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
+import productService from "@/services/productService";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
 
 const FILTER_KEYS = [
@@ -31,11 +33,32 @@ const FILTER_KEYS = [
   "order_date_from",
   "order_date_to",
   "current_stage_key",
+  "capacity_kw_from",
+  "capacity_kw_to",
+  "solar_panel_id",
+  "inverter_id",
 ];
 
 const EMPTY_VALUES = Object.fromEntries(
   FILTER_KEYS.map((k) => [k, ""])
 );
+
+async function searchProductsByTypeCi(q, productTypeCi) {
+  const res = await productService.getProducts({
+    q: q?.trim() ? q.trim() : undefined,
+    limit: 30,
+    product_type_ci: productTypeCi,
+    visibility: "active",
+  });
+  const payload = res?.result ?? res?.data ?? res;
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.product_name,
+    label: row.product_name,
+    product_name: row.product_name,
+  }));
+}
 
 export default function OrderListFilterDialog({
   open,
@@ -92,6 +115,9 @@ export default function OrderListFilterDialog({
 
   const handleApply = useCallback(() => {
     const applied = { ...localValues };
+    const from = String(applied.capacity_kw_from ?? "").trim();
+    const to = String(applied.capacity_kw_to ?? "").trim();
+    if (from && !to) applied.capacity_kw_to = from;
     onApply?.(applied);
     onClose?.();
   }, [localValues, onApply, onClose]);
@@ -227,6 +253,84 @@ export default function OrderListFilterDialog({
             placeholder="Order number"
             value={localValues.order_number}
             onChange={(e) => handleChange("order_number", e.target.value)}
+            size="small"
+            fullWidth
+          />
+          <Input
+            name="capacity_kw_from"
+            label="Capacity from (kW)"
+            placeholder="e.g. 3"
+            type="number"
+            inputProps={{ step: "any" }}
+            value={localValues.capacity_kw_from}
+            onChange={(e) => handleChange("capacity_kw_from", e.target.value)}
+            onBlur={() => {
+              setLocalValues((prev) => {
+                const from = String(prev.capacity_kw_from ?? "").trim();
+                const to = String(prev.capacity_kw_to ?? "").trim();
+                if (from && !to) return { ...prev, capacity_kw_to: from };
+                return prev;
+              });
+            }}
+            size="small"
+            fullWidth
+          />
+          <Input
+            name="capacity_kw_to"
+            label="Capacity to (kW)"
+            placeholder="Leave empty to match “from”"
+            type="number"
+            inputProps={{ step: "any" }}
+            value={localValues.capacity_kw_to}
+            onChange={(e) => handleChange("capacity_kw_to", e.target.value)}
+            size="small"
+            fullWidth
+          />
+          <AutocompleteField
+            usePortal={true}
+            name="solar_panel_id"
+            label="Solar panel"
+            asyncLoadOptions={(q) => searchProductsByTypeCi(q, "panel")}
+            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            resolveOptionById={async (id) => {
+              try {
+                const res = await productService.getProductById(id);
+                const p = res?.result ?? res?.data ?? res;
+                if (!p?.id) return null;
+                return { id: p.id, product_name: p.product_name, label: p.product_name };
+              } catch {
+                return null;
+              }
+            }}
+            value={localValues.solar_panel_id ? { id: localValues.solar_panel_id } : null}
+            onChange={(e, newValue) =>
+              handleChange("solar_panel_id", newValue?.id != null ? String(newValue.id) : "")
+            }
+            placeholder="Search panel product…"
+            size="small"
+            fullWidth
+          />
+          <AutocompleteField
+            usePortal={true}
+            name="inverter_id"
+            label="Inverter"
+            asyncLoadOptions={(q) => searchProductsByTypeCi(q, "inverter")}
+            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            resolveOptionById={async (id) => {
+              try {
+                const res = await productService.getProductById(id);
+                const p = res?.result ?? res?.data ?? res;
+                if (!p?.id) return null;
+                return { id: p.id, product_name: p.product_name, label: p.product_name };
+              } catch {
+                return null;
+              }
+            }}
+            value={localValues.inverter_id ? { id: localValues.inverter_id } : null}
+            onChange={(e, newValue) =>
+              handleChange("inverter_id", newValue?.id != null ? String(newValue.id) : "")
+            }
+            placeholder="Search inverter…"
             size="small"
             fullWidth
           />

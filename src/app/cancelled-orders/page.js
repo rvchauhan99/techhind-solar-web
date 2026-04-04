@@ -31,6 +31,10 @@ const INITIAL_FILTERS = {
   q: "",
   cancelled_stage: "",
   cancelled_at_stage_key: "",
+  capacity_kw_from: "",
+  capacity_kw_to: "",
+  solar_panel_id: "",
+  inverter_id: "",
 };
 
 function countActive(filters) {

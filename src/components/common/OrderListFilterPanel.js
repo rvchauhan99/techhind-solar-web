@@ -17,6 +17,7 @@ import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import companyService from "@/services/companyService";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
+import productService from "@/services/productService";
 
 const FILTER_KEYS = [
   "q",
@@ -38,6 +39,10 @@ const FILTER_KEYS = [
   "current_stage_key",
   "cancelled_stage",
   "cancelled_at_stage_key",
+  "capacity_kw_from",
+  "capacity_kw_to",
+  "solar_panel_id",
+  "inverter_id",
 ];
 
 export const ORDER_STAGE_OPTIONS = [
@@ -56,6 +61,23 @@ export const ORDER_STAGE_OPTIONS = [
   { value: "payment_outstanding", label: "Order Completed but payment pending" },
 ];
 
+async function searchProductsByTypeCi(q, productTypeCi) {
+  const res = await productService.getProducts({
+    q: q?.trim() ? q.trim() : undefined,
+    limit: 30,
+    product_type_ci: productTypeCi,
+    visibility: "active",
+  });
+  const payload = res?.result ?? res?.data ?? res;
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.product_name,
+    label: row.product_name,
+    product_name: row.product_name,
+  }));
+}
+
 const CANCELLED_STAGE_OPTIONS = [
   { value: "before_confirmation", label: "Before Confirmation" },
   { value: "after_confirmation", label: "After Confirmation" },
@@ -70,7 +92,7 @@ export default function OrderListFilterPanel({
   onApply,
   onClear,
   defaultOpen = false,
-  variant = "dashboard", // "dashboard" | "confirm" | "closed"
+  variant = "dashboard", // "dashboard" | "confirm" | "closed" | "cancelled"
   excludeKeys = [],
   showDeliveryDateRange = false,
 }) {
@@ -96,6 +118,18 @@ export default function OrderListFilterPanel({
 
   const showStatus = variant === "dashboard";
 
+  const dashboardStatusMenuValue = useMemo(() => {
+    const st = localValues.status;
+    const sk = String(localValues.current_stage_key || "").trim();
+    if (st === "confirmed" && !sk) return "confirmed";
+    if (st === "all" && sk === "order_completed") return "completed";
+    if (st === "all" && !sk) return "all";
+    if (st === "pending" && !sk) return "pending";
+    if (st === "cancelled" && !sk) return "cancelled";
+    if (st === "cancelled") return "cancelled";
+    return "all";
+  }, [localValues.status, localValues.current_stage_key]);
+
   useEffect(() => {
     setLocalValues((prev) => ({ ...EMPTY_VALUES, ...values }));
   }, [values]);
@@ -119,9 +153,29 @@ export default function OrderListFilterPanel({
   const handleChange = useCallback((key, value) => {
     setLocalValues((p) => ({ ...p, [key]: value ?? "" }));
   }, []);
-  const handleApply = useCallback(() => { onApply?.(localValues); }, [localValues, onApply]);
+  const handleApply = useCallback(() => {
+    const next = { ...localValues };
+    const from = String(next.capacity_kw_from ?? "").trim();
+    const to = String(next.capacity_kw_to ?? "").trim();
+    if (from && !to) next.capacity_kw_to = from;
+    if (variant === "dashboard") {
+      if (next.status === "active") {
+        next.status = "confirmed";
+        next.current_stage_key = next.current_stage_key ?? "";
+      } else if (next.status === "completed") {
+        next.status = "all";
+        next.current_stage_key = "order_completed";
+      } else if (next.status === "pending") {
+        next.current_stage_key = "";
+      } else if (next.status === "cancelled") {
+        next.current_stage_key = "";
+      }
+    }
+    onApply?.(next);
+  }, [localValues, onApply, variant]);
   const handleClear = useCallback(() => {
     setLocalValues({ ...EMPTY_VALUES });
+    setQuickSearch("");
     onClear?.();
   }, [onClear]);
 
@@ -185,6 +239,10 @@ export default function OrderListFilterPanel({
       delivery_date_to: "Delivery Date To",
       cancelled_stage: "Cancelled Stage",
       cancelled_at_stage_key: "Cancelled At",
+      capacity_kw_from: "kW From",
+      capacity_kw_to: "kW To",
+      solar_panel_id: "Solar panel",
+      inverter_id: "Inverter",
     };
 
     return Object.entries(values || {})
@@ -193,6 +251,10 @@ export default function OrderListFilterPanel({
   };
 
   const appliedSummary = getAppliedFiltersSummary();
+
+  const hasQuickSearch = String(quickSearch ?? "").trim() !== "";
+  const showQuickClear =
+    activeCount > 0 || hasQuickSearch;
 
   return (
     <Card className="rounded-xl shadow-sm border-slate-200 bg-white mb-2 overflow-visible">
@@ -219,6 +281,19 @@ export default function OrderListFilterPanel({
             <IconChevronDown size={14} className="text-slate-400" />
           )}
         </button>
+
+        {showQuickClear && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 px-2 text-[10px] font-semibold uppercase tracking-tight border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200"
+            onClick={handleClear}
+          >
+            <IconX size={12} className="mr-0.5" />
+            Clear filters
+          </Button>
+        )}
 
         <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           {appliedSummary.map((label) => (
@@ -273,11 +348,25 @@ export default function OrderListFilterPanel({
             <Select
               name="status"
               label="Status"
-              value={localValues.status}
-              onChange={(e) => handleChange("status", e.target.value)}
+              value={dashboardStatusMenuValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "confirmed") {
+                  setLocalValues((p) => ({ ...p, status: "confirmed", current_stage_key: "" }));
+                } else if (v === "completed") {
+                  setLocalValues((p) => ({ ...p, status: "all", current_stage_key: "order_completed" }));
+                } else if (v === "all") {
+                  setLocalValues((p) => ({ ...p, status: "all", current_stage_key: "" }));
+                } else if (v === "pending") {
+                  setLocalValues((p) => ({ ...p, status: "pending", current_stage_key: "" }));
+                } else if (v === "cancelled") {
+                  setLocalValues((p) => ({ ...p, status: "cancelled", current_stage_key: "" }));
+                }
+              }}
             >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="confirmed">Active</MenuItem>
               <MenuItem value="completed">Completed</MenuItem>
               <MenuItem value="cancelled">Cancelled</MenuItem>
             </Select>
@@ -359,6 +448,91 @@ export default function OrderListFilterPanel({
           <Input name="order_number" label="Order Number" placeholder="Search..." value={localValues.order_number} onChange={(e) => handleChange("order_number", e.target.value)} />
           <DateField name="order_date_from" label="Order Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
           <DateField name="order_date_to" label="Order Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
+          {(variant === "confirm" ||
+            variant === "closed" ||
+            variant === "cancelled" ||
+            variant === "dashboard") && (
+            <>
+              <Input
+                name="capacity_kw_from"
+                label="Capacity from (kW)"
+                placeholder="e.g. 3"
+                type="number"
+                inputProps={{ step: "any" }}
+                value={localValues.capacity_kw_from}
+                onChange={(e) => handleChange("capacity_kw_from", e.target.value)}
+                onBlur={() => {
+                  setLocalValues((prev) => {
+                    const from = String(prev.capacity_kw_from ?? "").trim();
+                    const to = String(prev.capacity_kw_to ?? "").trim();
+                    if (from && !to) return { ...prev, capacity_kw_to: from };
+                    return prev;
+                  });
+                }}
+              />
+              <Input
+                name="capacity_kw_to"
+                label="Capacity to (kW)"
+                placeholder="Match “from” if empty"
+                type="number"
+                inputProps={{ step: "any" }}
+                value={localValues.capacity_kw_to}
+                onChange={(e) => handleChange("capacity_kw_to", e.target.value)}
+              />
+              <AutocompleteField
+                usePortal={true}
+                name="solar_panel_id"
+                label="Solar panel"
+                asyncLoadOptions={(q) => searchProductsByTypeCi(q, "panel")}
+                getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+                resolveOptionById={async (id) => {
+                  try {
+                    const res = await productService.getProductById(id);
+                    const p = res?.result ?? res?.data ?? res;
+                    if (!p?.id) return null;
+                    return {
+                      id: p.id,
+                      product_name: p.product_name,
+                      label: p.product_name,
+                    };
+                  } catch {
+                    return null;
+                  }
+                }}
+                value={localValues.solar_panel_id ? { id: localValues.solar_panel_id } : null}
+                onChange={(e, newValue) =>
+                  handleChange("solar_panel_id", newValue?.id != null ? String(newValue.id) : "")
+                }
+                placeholder="Search panel product…"
+              />
+              <AutocompleteField
+                usePortal={true}
+                name="inverter_id"
+                label="Inverter"
+                asyncLoadOptions={(q) => searchProductsByTypeCi(q, "inverter")}
+                getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+                resolveOptionById={async (id) => {
+                  try {
+                    const res = await productService.getProductById(id);
+                    const p = res?.result ?? res?.data ?? res;
+                    if (!p?.id) return null;
+                    return {
+                      id: p.id,
+                      product_name: p.product_name,
+                      label: p.product_name,
+                    };
+                  } catch {
+                    return null;
+                  }
+                }}
+                value={localValues.inverter_id ? { id: localValues.inverter_id } : null}
+                onChange={(e, newValue) =>
+                  handleChange("inverter_id", newValue?.id != null ? String(newValue.id) : "")
+                }
+                placeholder="Search inverter…"
+              />
+            </>
+          )}
           {showDeliveryDateRange && (
             <>
               <DateField name="delivery_date_from" label="Delivery Date From" value={localValues.delivery_date_from} onChange={(e) => handleChange("delivery_date_from", e.target.value)} />

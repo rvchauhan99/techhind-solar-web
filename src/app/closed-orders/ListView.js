@@ -33,6 +33,14 @@ import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  IconBolt,
+  IconCircleCheck,
+  IconCurrencyRupee,
+  IconTopologyRing3,
+} from "@tabler/icons-react";
 
 const DEFAULT_CLOSED_FILTERS = { ...ORDER_FILTER_EMPTY, current_stage_key: "order_completed" };
 
@@ -70,10 +78,37 @@ export default function ListView() {
   const [serialsDialogOrder, setSerialsDialogOrder] = useState(null);
   const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
+  const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+
+  const handleListingMetaChange = useCallback((meta) => {
+    const total = meta?.total ?? 0;
+    const summary =
+      meta?.summary ??
+      (typeof meta?.total === "number"
+        ? { total_orders: meta.total, by_stage: [] }
+        : null);
+    setListMeta({ total, summary, received: true });
+  }, []);
 
   const fetchData = useCallback(async (params) => {
-    const merged = { ...params, current_stage_key: params.current_stage_key || "order_completed" };
-    return await closedOrdersService.getClosedOrders(merged);
+    const next = {
+      ...params,
+      current_stage_key: params.current_stage_key || "order_completed",
+      includeSummary: "true",
+    };
+    const fromRaw = next.capacity_kw_from;
+    const toRaw = next.capacity_kw_to;
+    delete next.capacity_kw_from;
+    delete next.capacity_kw_to;
+    const fromStr = fromRaw != null ? String(fromRaw).trim() : "";
+    if (fromStr !== "") {
+      next.capacity_from = fromStr;
+      next.capacity_to =
+        toRaw != null && String(toRaw).trim() !== ""
+          ? String(toRaw).trim()
+          : fromStr;
+    }
+    return await closedOrdersService.getClosedOrders(next);
   }, []);
 
   const handleOpenDetails = useCallback((row) => {
@@ -380,6 +415,21 @@ export default function ListView() {
     [filters]
   );
 
+  const stageOrderMap = useMemo(() => new Map(STAGES.map((s, i) => [s.key, i])), []);
+  const sortedSummaryStages = useMemo(() => {
+    const rows = listMeta.summary?.by_stage;
+    if (!Array.isArray(rows)) return [];
+    return [...rows].sort((a, b) => {
+      const ia = stageOrderMap.has(a.current_stage_key)
+        ? stageOrderMap.get(a.current_stage_key)
+        : 999;
+      const ib = stageOrderMap.has(b.current_stage_key)
+        ? stageOrderMap.get(b.current_stage_key)
+        : 999;
+      return ia - ib;
+    });
+  }, [listMeta.summary, stageOrderMap]);
+
   const calculateHeight = () => `calc(100vh - 125px)`;
 
   return (
@@ -394,13 +444,90 @@ export default function ListView() {
             setFilterPanelOpen(false);
           }}
           onClear={() => {
-            setFilters(DEFAULT_CLOSED_FILTERS);
+            setFilters({ ...DEFAULT_CLOSED_FILTERS, q: "" }, true, true);
             setFilterPanelOpen(false);
           }}
           defaultOpen={false}
           variant="closed"
         />
       </div>
+      {listMeta.received && listMeta.summary && (
+        <Card className="mb-2 overflow-hidden rounded-xl border border-slate-200 border-l-[3px] border-l-green-600 bg-white shadow-sm">
+          <div className="flex flex-col gap-1.5 px-2.5 py-1.5 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 rounded-lg border border-green-200/80 bg-gradient-to-r from-green-50/90 to-white px-2 py-0.5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                <IconCircleCheck size={14} className="shrink-0 text-green-600" aria-hidden />
+                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                  Filtered
+                </span>
+                <Badge className="h-5 min-h-5 border-0 bg-green-600 px-1.5 text-[10px] font-bold text-white hover:bg-green-600">
+                  {listMeta.summary.total_orders}
+                </Badge>
+                <span className="text-[10px] font-semibold text-slate-600">closed</span>
+              </div>
+              {typeof listMeta.summary.total_capacity_kw === "number" && (
+                <div className="flex items-center gap-1 rounded-lg border border-amber-200/70 bg-amber-50/50 px-2 py-0.5">
+                  <IconBolt size={14} className="shrink-0 text-amber-600" aria-hidden />
+                  <span className="text-[11px] font-bold tabular-nums text-slate-800">
+                    {Number(listMeta.summary.total_capacity_kw || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
+                    kW
+                  </span>
+                </div>
+              )}
+              {typeof listMeta.summary.total_project_cost === "number" && (
+                <div className="flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-50/50 px-2 py-0.5">
+                  <IconCurrencyRupee size={14} className="shrink-0 text-emerald-700" aria-hidden />
+                  <span className="text-[11px] font-bold tabular-nums text-slate-800">
+                    {Number(listMeta.summary.total_project_cost || 0).toLocaleString()}
+                  </span>
+                  <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
+                    payable
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {sortedSummaryStages.length > 0 && (
+              <>
+                <div
+                  className="hidden h-5 w-px shrink-0 bg-slate-200 sm:block"
+                  aria-hidden
+                />
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                  <div className="mr-0.5 hidden shrink-0 items-center gap-0.5 text-slate-400 sm:flex">
+                    <IconTopologyRing3 size={12} aria-hidden />
+                    <span className="text-[9px] font-bold uppercase tracking-tighter">
+                      By stage
+                    </span>
+                  </div>
+                  {sortedSummaryStages.map((row) => {
+                    const label =
+                      STAGES.find((s) => s.key === row.current_stage_key)?.label ||
+                      row.current_stage_key ||
+                      "-";
+                    const shortLabel = `${label}: ${row.count} · ${Number(
+                      row.total_capacity_kw || 0
+                    ).toLocaleString(undefined, { maximumFractionDigits: 2 })} kW`;
+                    return (
+                      <span
+                        key={row.current_stage_key || "unknown"}
+                        className="inline-flex max-w-[min(100%,240px)] items-center truncate rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter text-green-800"
+                        title={shortLabel}
+                      >
+                        {shortLabel}
+                      </span>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
       <PaginatedList
         fetcher={fetchData}
         renderItem={renderOrderItem}
@@ -415,6 +542,7 @@ export default function ListView() {
         setPage={setPage}
         limit={limit}
         setLimit={setLimit}
+        onMetaChange={handleListingMetaChange}
       />
       <OrderDetailsDrawer
         open={detailsOpen}
