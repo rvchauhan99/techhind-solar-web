@@ -376,11 +376,10 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                         serial_required: expectedSerialRequired,
                     }));
                 }
-                // Serial number length required when serialized
-                if (expectedSerialRequired) {
-                    const len = formData.serial_number_length;
-                    if (len == null || len === "" || Number(len) < 1) {
-                        validationErrors.serial_number_length = "Serial number character length is required and must be at least 1";
+                if (expectedSerialRequired && formData.serial_number_length !== "" && formData.serial_number_length != null) {
+                    const n = Number(formData.serial_number_length);
+                    if (Number.isNaN(n) || n < 1) {
+                        validationErrors.serial_number_length = "Serial number length must be a positive number when provided";
                     }
                 }
             }
@@ -680,9 +679,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 value={formData.serial_number_length}
                                 onChange={handleChange}
                                 inputProps={{ min: 1, step: 1 }}
-                                required
                                 error={!!errors.serial_number_length}
-                                helperText={errors.serial_number_length}
+                                helperText={errors.serial_number_length || "Optional"}
                             />
                         </Grid>
                     )}
