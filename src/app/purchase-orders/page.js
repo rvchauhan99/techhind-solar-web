@@ -694,6 +694,8 @@ export default function PurchaseOrderPage() {
         title="Purchase Orders"
         addButtonLabel={currentPerm.can_create ? "Create PO" : undefined}
         onAddClick={currentPerm.can_create ? () => router.push("/purchase-orders/add") : undefined}
+        secondaryButtonLabel="PO Lines"
+        onSecondaryClick={() => router.push("/purchase-orders/lines")}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

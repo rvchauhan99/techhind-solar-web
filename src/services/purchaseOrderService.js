@@ -3,8 +3,14 @@ import apiClient from "./apiClient";
 export const getPurchaseOrders = (params = {}) =>
   apiClient.get("/purchase-orders", { params }).then((r) => r.data);
 
+export const getPurchaseOrderLines = (params = {}) =>
+  apiClient.get("/purchase-orders/lines", { params }).then((r) => r.data);
+
 export const exportPurchaseOrders = (params = {}) =>
   apiClient.get("/purchase-orders/export", { params, responseType: "blob" }).then((r) => r.data);
+
+export const exportPurchaseOrderLines = (params = {}) =>
+  apiClient.get("/purchase-orders/lines/export", { params, responseType: "blob" }).then((r) => r.data);
 
 export const createPurchaseOrder = (payload, files = []) => {
   const formData = new FormData();
@@ -87,7 +93,9 @@ export const approvePurchaseOrder = (id) =>
 
 export default {
   getPurchaseOrders,
+  getPurchaseOrderLines,
   exportPurchaseOrders,
+  exportPurchaseOrderLines,
   createPurchaseOrder,
   getPurchaseOrderById,
   getPurchaseOrderPdf,
