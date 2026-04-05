@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Alert, Typography, TextField, IconButton, Divider, Collapse } from "@mui/material";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Box, Alert, Typography, TextField, IconButton, Divider, Chip, LinearProgress } from "@mui/material";
 import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import ClearIcon from "@mui/icons-material/Clear";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Input as ShadcnInput } from "@/components/ui/input";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
-import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import BucketImage from "@/components/common/BucketImage";
@@ -23,6 +25,11 @@ import companyService from "@/services/companyService";
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
+import {
+    previewInstallationReconciliation,
+    scannedValueInvalidForInstallationSlot,
+    slotIsCaptureAtDelivery,
+} from "@/utils/installationSerialReconciliation";
 import moment from "moment";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import {
@@ -34,7 +41,7 @@ import {
     INSTALLATION_NETMETER_READINESS,
     INSTALLATION_IMAGE_KEYS,
 } from "@/utils/fabricationInstallationOptions";
-import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
+import { COMPACT_SECTION_HEADER_CLASS, FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 
 const DEFAULT_CHECKLIST = [
     { id: "1", label: "Inverter installed and wired", checked: false },
@@ -42,6 +49,26 @@ const DEFAULT_CHECKLIST = [
     { id: "3", label: "Earthing verified", checked: false },
     { id: "4", label: "Panel serials recorded", checked: false },
 ];
+
+/**
+ * Per slot: known DC serial must be on challan multiset; capture slots (no DC serial) keep any value.
+ * @returns {{ slots: string[], cleared: boolean }}
+ */
+function sanitizeSlotsAgainstChallan(pid, slots, deliveredSerialsMap) {
+    const rows = deliveredSerialsMap[String(pid)] || deliveredSerialsMap[Number(pid)] || [];
+    if (!rows.length) return { slots, cleared: false };
+    let cleared = false;
+    const next = slots.map((v, idx) => {
+        const t = String(v || "").trim();
+        if (!t) return "";
+        if (scannedValueInvalidForInstallationSlot(t, rows, idx)) {
+            cleared = true;
+            return "";
+        }
+        return t;
+    });
+    return { slots: next, cleared };
+}
 
 function getDocumentUrlById(id) {
     return orderDocumentsService.getDocumentUrl(id);
@@ -66,8 +93,6 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         panel_mounting_type: "",
         netmeter_readiness_status: "",
         total_panels_installed: "",
-        inverter_serial_no: "",
-        panel_serial_numbers_text: "",
         earthing_resistance: "",
         initial_generation: "",
         remarks: "",
@@ -82,18 +107,27 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     const [successMsg, setSuccessMsg] = useState(null);
 
     // -- Serial Scanning Reconciliation State --
-    const [deliveredSerialsMap, setDeliveredSerialsMap] = useState({}); // { product_id: [{serial_number, stock_serial_id}] }
+    const [deliveredSerialsMap, setDeliveredSerialsMap] = useState({}); // { product_id: [{serial_number, stock_serial_id, missing_at_delivery?}] }
+    const [productNamesById, setProductNamesById] = useState({});
     const [installationScans, setInstallationScans] = useState({}); // { product_id: [serial1, serial2] }
     const [scannerOpen, setScannerOpen] = useState(false);
     const [scanTarget, setScanTarget] = useState(null); // { product_id, index }
     const [gunScanByProduct, setGunScanByProduct] = useState({});
-    /** product_id -> true means expanded (default collapsed when key missing) */
-    const [serialExpandByPid, setSerialExpandByPid] = useState({});
     const serialInputRefs = useRef({});
     const gunScanInputRefs = useRef({});
+    const autoSaveTimerRef = useRef(null);
+    const autoSavingRef = useRef(false);
     const [mismatchData, setMismatchData] = useState(null); // { mismatches, can_force_adjust }
     const [forceAdjustDialogOpen, setForceAdjustDialogOpen] = useState(false);
     const [forceAdjustReason, setForceAdjustReason] = useState("");
+    /** Per-slot inventory validation in progress (Scenario A capture slots): key `${pid}:${idx}` */
+    const [serialValidating, setSerialValidating] = useState({});
+    /** Scenario C double-scan: slotKey → { serial, timestamp } — first-scan pending state */
+    const [pendingForceSlots, setPendingForceSlots] = useState({});
+    /** Context when Force Adjust dialog is opened from a specific slot (vs server SERIAL_MISMATCH path) */
+    const [slotForceAdjustCtx, setSlotForceAdjustCtx] = useState(null); // { pid, idx, serial }
+    /** Committed slot-level force-adjust intents: slotKey → { serial, reason } */
+    const [slotForceAdjustIntent, setSlotForceAdjustIntent] = useState({});
 
     const loadInstallation = useCallback(async () => {
         if (!orderId) return;
@@ -104,16 +138,11 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 orderService.getDeliveredSerials(orderId)
             ]);
 
-            setDeliveredSerialsMap(deliveredSerials || {});
+            const slotsMap = deliveredSerials?.serials ?? deliveredSerials ?? {};
+            setDeliveredSerialsMap(slotsMap);
+            setProductNamesById(deliveredSerials?.product_names ?? {});
 
             if (data) {
-                // ... existing load logic ...
-                const panelSerials = data.panel_serial_numbers;
-                const panelText = Array.isArray(panelSerials)
-                    ? panelSerials.join("\n")
-                    : typeof panelSerials === "string"
-                        ? panelSerials
-                        : "";
                 setFormData({
                     installation_start_date: data.installation_start_date
                         ? moment(data.installation_start_date).format("YYYY-MM-DD")
@@ -128,8 +157,6 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     panel_mounting_type: data.panel_mounting_type || "",
                     netmeter_readiness_status: data.netmeter_readiness_status || "",
                     total_panels_installed: data.total_panels_installed != null ? String(data.total_panels_installed) : "",
-                    inverter_serial_no: data.inverter_serial_no || "",
-                    panel_serial_numbers_text: panelText,
                     earthing_resistance: data.earthing_resistance != null ? String(data.earthing_resistance) : "",
                     initial_generation: data.initial_generation != null ? String(data.initial_generation) : "",
                     remarks: data.remarks || "",
@@ -140,9 +167,18 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                         : DEFAULT_CHECKLIST
                 );
                 setImages(data.images && typeof data.images === "object" ? { ...data.images } : {});
+                const rawScans = data.installation_scans;
+                const scans = {};
+                if (rawScans && typeof rawScans === "object" && !Array.isArray(rawScans)) {
+                    Object.entries(rawScans).forEach(([pid, arr]) => {
+                        scans[String(pid)] = Array.isArray(arr) ? arr.map((s) => String(s ?? "")) : [];
+                    });
+                }
+                setInstallationScans(scans);
             } else {
                 setImages({});
                 setChecklist(DEFAULT_CHECKLIST);
+                setInstallationScans({});
             }
         } catch (err) {
             console.error("Failed to load installation:", err);
@@ -253,8 +289,29 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     };
 
     const getSerialSlotCount = useCallback(
-        (pid) => (deliveredSerialsMap[pid] || []).length,
+        (pid) =>
+            (deliveredSerialsMap[pid] || deliveredSerialsMap[String(pid)] || []).length,
         [deliveredSerialsMap]
+    );
+
+    /** All delivered SERIAL slots must be filled before Complete Installation. */
+    const allInstallationSerialsFilled = useMemo(() => {
+        const entries = Object.entries(deliveredSerialsMap);
+        if (entries.length === 0) return true;
+        for (const [pid, serials] of entries) {
+            const len = serials.length;
+            const row = installationScans[pid] || installationScans[Number(pid)] || [];
+            for (let i = 0; i < len; i++) {
+                if (!String(row[i] ?? "").trim()) return false;
+            }
+        }
+        return true;
+    }, [deliveredSerialsMap, installationScans]);
+
+    /** Live preview of Complete-time reconciliation (server remains authoritative). */
+    const reconciliationPreview = useMemo(
+        () => previewInstallationReconciliation(deliveredSerialsMap, installationScans),
+        [deliveredSerialsMap, installationScans]
     );
 
     const clearScanFieldError = useCallback((pid) => {
@@ -265,38 +322,197 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         });
     }, []);
 
+    /** Single commit path: duplicate check, challan (Scenario B), inventory API (Scenario A capture). */
+    const validateAndCommitSerial = useCallback(
+        async (pid, idx, trimmedValue) => {
+            const key = String(pid);
+            const rows = deliveredSerialsMap[key] || deliveredSerialsMap[Number(pid)] || [];
+            const len = getSerialSlotCount(pid);
+            if (!len) return false;
+
+            if (!trimmedValue) {
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) =>
+                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                    );
+                    const next = [...cur];
+                    next[idx] = "";
+                    return { ...prev, [key]: next };
+                });
+                clearScanFieldError(pid);
+                return false;
+            }
+
+            let dupRejected = false;
+            setInstallationScans((prev) => {
+                const cur = Array.from({ length: len }, (_, i) =>
+                    String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                );
+                const dupIdx = cur.findIndex(
+                    (v, i) =>
+                        i !== idx &&
+                        String(v || "").trim() &&
+                        String(v || "").trim().toLowerCase() === trimmedValue.toLowerCase()
+                );
+                if (dupIdx >= 0) {
+                    dupRejected = true;
+                    const next = [...cur];
+                    next[idx] = "";
+                    toastError("Duplicate serial — already entered for this product.");
+                    return { ...prev, [key]: next };
+                }
+                return prev;
+            });
+            if (dupRejected) {
+                clearScanFieldError(pid);
+                return false;
+            }
+
+            const slot = rows[idx];
+            const isCapture = slotIsCaptureAtDelivery(slot);
+
+            if (!isCapture) {
+                if (scannedValueInvalidForInstallationSlot(trimmedValue, rows, idx)) {
+                    const slotKey = `${pid}:${idx}`;
+                    const pending = pendingForceSlots[slotKey];
+                    const isDoubleScan =
+                        pending &&
+                        pending.serial.toLowerCase() === trimmedValue.toLowerCase() &&
+                        Date.now() - pending.timestamp < 30000;
+
+                    if (isDoubleScan) {
+                        // Second scan of same invalid serial within 30s — open Force Adjust dialog
+                        setPendingForceSlots((p) => {
+                            const n = { ...p };
+                            delete n[slotKey];
+                            return n;
+                        });
+                        // Keep slot blank — will be committed on dialog confirm
+                        setInstallationScans((prev) => {
+                            const cur = Array.from({ length: len }, (_, i) =>
+                                String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                            );
+                            const next = [...cur];
+                            next[idx] = "";
+                            return { ...prev, [key]: next };
+                        });
+                        setSlotForceAdjustCtx({ pid, idx, serial: trimmedValue });
+                        setForceAdjustDialogOpen(true);
+                        clearScanFieldError(pid);
+                        return false;
+                    }
+
+                    // First scan of invalid serial — store pending, clear slot, advise re-scan
+                    setPendingForceSlots((p) => ({
+                        ...p,
+                        [slotKey]: { serial: trimmedValue, timestamp: Date.now() },
+                    }));
+                    toastError("Serial not on delivery challan — scan the same serial again to Force Adjust.");
+                    setInstallationScans((prev) => {
+                        const cur = Array.from({ length: len }, (_, i) =>
+                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                        );
+                        const next = [...cur];
+                        next[idx] = "";
+                        return { ...prev, [key]: next };
+                    });
+                    clearScanFieldError(pid);
+                    return false;
+                }
+                // Valid DC serial — clear any pending force state for this slot
+                setPendingForceSlots((p) => {
+                    const slotKey = `${pid}:${idx}`;
+                    if (!p[slotKey]) return p;
+                    const n = { ...p };
+                    delete n[slotKey];
+                    return n;
+                });
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) =>
+                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                    );
+                    const next = [...cur];
+                    next[idx] = trimmedValue;
+                    return { ...prev, [key]: next };
+                });
+                clearScanFieldError(pid);
+                return true;
+            }
+
+            const slotKey = `${pid}:${idx}`;
+            setSerialValidating((p) => ({ ...p, [slotKey]: true }));
+            try {
+                const result = await orderService.validateInstallationSerial(orderId, trimmedValue, pid);
+                if (!result?.valid) {
+                    toastError(result?.message || "Serial not found in inventory — cleared.");
+                    setInstallationScans((prev) => {
+                        const cur = Array.from({ length: len }, (_, i) =>
+                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                        );
+                        const next = [...cur];
+                        next[idx] = "";
+                        return { ...prev, [key]: next };
+                    });
+                    clearScanFieldError(pid);
+                    return false;
+                }
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) =>
+                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                    );
+                    const next = [...cur];
+                    next[idx] = trimmedValue;
+                    return { ...prev, [key]: next };
+                });
+                clearScanFieldError(pid);
+                return true;
+            } catch (err) {
+                const msg =
+                    err?.response?.data?.message ||
+                    err?.response?.data?.result?.message ||
+                    err?.message ||
+                    "Validation failed";
+                toastError(msg);
+                setInstallationScans((prev) => {
+                    const cur = Array.from({ length: len }, (_, i) =>
+                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                    );
+                    const next = [...cur];
+                    next[idx] = "";
+                    return { ...prev, [key]: next };
+                });
+                clearScanFieldError(pid);
+                return false;
+            } finally {
+                setSerialValidating((p) => {
+                    const n = { ...p };
+                    delete n[slotKey];
+                    return n;
+                });
+            }
+        },
+        [deliveredSerialsMap, getSerialSlotCount, clearScanFieldError, orderId, pendingForceSlots]
+    );
+
     /** Apply one or many serials from raw string into fixed slots for a product (gun, paste, pallet scan). */
     const applySerialsToProduct = useCallback(
-        (pid, startIndex, rawString) => {
+        async (pid, startIndex, rawString) => {
             const tokens = splitSerialInput(rawString);
             if (!tokens.length) return;
             const len = getSerialSlotCount(pid);
             if (!len) return;
 
-            let dupToast = false;
             let dupPartialMsg = "";
             let overflowCount = 0;
+            let challanClearToast = false;
+
+            if (tokens.length === 1) {
+                await validateAndCommitSerial(pid, startIndex, tokens[0]);
+                return;
+            }
 
             setInstallationScans((prev) => {
                 const slotsRaw = Array.from({ length: len }, (_, i) => String((prev[pid] || [])[i] ?? ""));
-
-                if (tokens.length === 1) {
-                    const trimmed = tokens[0];
-                    const dupIdx = slotsRaw.findIndex(
-                        (v, i) =>
-                            i !== startIndex &&
-                            String(v || "").trim() &&
-                            String(v || "").trim().toLowerCase() === trimmed.toLowerCase()
-                    );
-                    if (dupIdx >= 0) {
-                        dupToast = true;
-                        return prev;
-                    }
-                    const next = [...slotsRaw];
-                    next[startIndex] = trimmed;
-                    clearScanFieldError(pid);
-                    return { ...prev, [pid]: next };
-                }
 
                 const { nextSlots, overflow, duplicates } = fillSerialSlots({
                     slots: slotsRaw,
@@ -308,18 +524,24 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     dupPartialMsg = `Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`;
                 }
                 if (overflow.length) overflowCount = overflow.length;
+                const { slots: sanitizedMulti, cleared: clearedMulti } = sanitizeSlotsAgainstChallan(
+                    pid,
+                    nextSlots,
+                    deliveredSerialsMap
+                );
+                if (clearedMulti) challanClearToast = true;
                 clearScanFieldError(pid);
-                return { ...prev, [pid]: nextSlots };
+                return { ...prev, [pid]: sanitizedMulti };
             });
 
-            if (dupToast) toastError("Serial number already entered for this product.");
+            if (challanClearToast) toastError("Serial not on delivery challan — cleared.");
             if (dupPartialMsg) toastError(dupPartialMsg);
             if (overflowCount)
                 toastError(
                     `Cannot add ${overflowCount} serial(s): all slots filled or limit reached.`
                 );
         },
-        [getSerialSlotCount, clearScanFieldError]
+        [getSerialSlotCount, clearScanFieldError, deliveredSerialsMap, validateAndCommitSerial]
     );
 
     const handleInstallationSerialChange = (pid, idx, value) => {
@@ -359,6 +581,14 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
     const handleInstallationSerialKeyDown = (pid, idx, serialCount, e) => {
         if (e.key !== "Enter" && e.key !== "Tab") return;
+        if (e.key === "Tab" && e.shiftKey) {
+            if (idx > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                serialInputRefs.current[pid]?.[idx - 1]?.focus();
+            }
+            return;
+        }
         e.preventDefault();
         e.stopPropagation();
         if (idx < serialCount - 1) {
@@ -368,7 +598,48 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         }
     };
 
-    const handleGunKeyDown = (e, pid) => {
+    /** Trim, duplicate check, and commit on Tab/click away. Uses DOM value so blur is not stale vs last onChange. */
+    const handleSerialSlotBlur = useCallback(
+        async (pid, idx, e) => {
+            const len = getSerialSlotCount(pid);
+            if (!len) return;
+            const trimmed =
+                e?.currentTarget != null
+                    ? String(e.currentTarget.value ?? "").trim()
+                    : "";
+            await validateAndCommitSerial(pid, idx, trimmed);
+        },
+        [getSerialSlotCount, validateAndCommitSerial]
+    );
+
+    const handleGunBlur = useCallback(
+        async (pid, e) => {
+            const raw = String(e?.currentTarget?.value ?? "").trim();
+            setGunScanByProduct((p) => ({ ...p, [pid]: "" }));
+            if (!raw) return;
+            const len = getSerialSlotCount(pid);
+            if (!len) return;
+            const slotsRaw = Array.from({ length: len }, (_, i) =>
+                String((installationScans[pid] || installationScans[String(pid)] || [])[i] ?? "")
+            );
+            const firstEmpty = slotsRaw.findIndex((v) => !String(v || "").trim());
+            const idx = firstEmpty >= 0 ? firstEmpty : 0;
+            await applySerialsToProduct(pid, idx, raw);
+            clearScanFieldError(pid);
+        },
+        [getSerialSlotCount, installationScans, applySerialsToProduct, clearScanFieldError]
+    );
+
+    const handleGunKeyDown = async (e, pid) => {
+        if (e.key === "Tab" && e.shiftKey) {
+            const len = getSerialSlotCount(pid);
+            if (len > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                serialInputRefs.current[pid]?.[len - 1]?.focus();
+            }
+            return;
+        }
         if (e.key !== "Enter" && e.key !== "Tab") return;
         e.preventDefault();
         e.stopPropagation();
@@ -383,7 +654,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         );
         const firstEmpty = slotsRaw.findIndex((v) => !String(v || "").trim());
         const idx = firstEmpty >= 0 ? firstEmpty : 0;
-        applySerialsToProduct(pid, idx, buf);
+        await applySerialsToProduct(pid, idx, buf);
         setGunScanByProduct((p) => ({ ...p, [pid]: "" }));
         setTimeout(() => gunScanInputRefs.current[pid]?.focus(), 0);
     };
@@ -398,7 +669,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         setScannerOpen(true);
     };
 
-    const handleScanResult = (value) => {
+    const handleScanResult = async (value) => {
         if (!scanTarget) return;
         const { product_id, index } = scanTarget;
         const tokens = splitSerialInput(value || "");
@@ -409,44 +680,31 @@ export default function Installation({ orderId, orderData, onSuccess }) {
 
         if (tokens.length === 1) {
             const trimmed = tokens[0];
-            let dup = false;
-            setInstallationScans((prev) => {
-                const slotsRaw = Array.from({ length: len }, (_, i) =>
-                    String((prev[product_id] || [])[i] ?? "")
-                );
-                const dupIdx = slotsRaw.findIndex(
-                    (v, i) =>
-                        i !== index &&
-                        String(v || "").trim() &&
-                        String(v || "").trim().toLowerCase() === trimmed.toLowerCase()
-                );
-                if (dupIdx >= 0) {
-                    dup = true;
-                    return prev;
-                }
-                const next = [...slotsRaw];
-                next[index] = trimmed;
-                const nextEmpty = next.findIndex((v, i) => i > index && !String(v || "").trim());
-                queueMicrotask(() => {
-                    if (nextEmpty === -1) {
-                        setScannerOpen(false);
-                        setScanTarget(null);
-                    } else {
-                        setScanTarget({ product_id, index: nextEmpty });
-                    }
-                });
-                return { ...prev, [product_id]: next };
-            });
-            if (dup) {
-                toastError("Serial number already entered for this product.");
+            const accepted = await validateAndCommitSerial(product_id, index, trimmed);
+            if (!accepted) {
+                clearScanFieldError(product_id);
                 return;
             }
+            const key = String(product_id);
+            const row = installationScans[key] || installationScans[Number(product_id)] || [];
+            const simulated = Array.from({ length: len }, (_, i) => String(row[i] ?? ""));
+            simulated[index] = trimmed;
+            const nextEmpty = simulated.findIndex((v, i) => i > index && !String(v || "").trim());
+            queueMicrotask(() => {
+                if (nextEmpty === -1) {
+                    setScannerOpen(false);
+                    setScanTarget(null);
+                } else {
+                    setScanTarget({ product_id, index: nextEmpty });
+                }
+            });
             clearScanFieldError(product_id);
             return;
         }
 
         let dupPartialMsg = "";
         let overflowCount = 0;
+        let challanClearToastMulti = false;
         setInstallationScans((prev) => {
             const slotsRaw = Array.from({ length: len }, (_, i) =>
                 String((prev[product_id] || [])[i] ?? "")
@@ -461,7 +719,13 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 dupPartialMsg = `Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`;
             }
             if (overflow.length) overflowCount = overflow.length;
-            return { ...prev, [product_id]: nextSlots };
+            const { slots: sanitizedMulti, cleared } = sanitizeSlotsAgainstChallan(
+                product_id,
+                nextSlots,
+                deliveredSerialsMap
+            );
+            if (cleared) challanClearToastMulti = true;
+            return { ...prev, [product_id]: sanitizedMulti };
         });
         if (dupPartialMsg) toastError(dupPartialMsg);
         if (overflowCount) {
@@ -469,13 +733,10 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 `Cannot add ${overflowCount} serial(s): all slots filled or limit reached.`
             );
         }
+        if (challanClearToastMulti) toastError("Serial not on delivery challan — cleared.");
         clearScanFieldError(product_id);
         setScannerOpen(false);
         setScanTarget(null);
-    };
-
-    const toggleSerialExpand = (pid) => {
-        setSerialExpandByPid((p) => ({ ...p, [pid]: !p[pid] }));
     };
 
     const validate = () => {
@@ -550,10 +811,18 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             }
             setPendingImages({});
 
-            const panelText = formData.panel_serial_numbers_text?.trim() || "";
-            const panelSerials = panelText
-                ? panelText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
-                : null;
+            // Merge slot-level force-adjust intents into the payload flags
+            const hasSlotForceIntents = complete && Object.keys(slotForceAdjustIntent).length > 0;
+            const effectiveForceAdjust = forceAdjust || hasSlotForceIntents;
+            const effectiveForceAdjustReason = forceAdjust
+                ? forceAdjustReason
+                : hasSlotForceIntents
+                  ? Object.values(slotForceAdjustIntent)
+                        .map((v) => v.reason)
+                        .filter(Boolean)
+                        .join("; ") || forceAdjustReason
+                  : forceAdjustReason;
+
             const payload = {
                 installation_start_date: formData.installation_start_date || null,
                 installation_end_date: formData.installation_end_date || null,
@@ -564,8 +833,8 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 panel_mounting_type: formData.panel_mounting_type || null,
                 netmeter_readiness_status: formData.netmeter_readiness_status || null,
                 total_panels_installed: formData.total_panels_installed ? parseInt(formData.total_panels_installed, 10) : null,
-                inverter_serial_no: formData.inverter_serial_no || null,
-                panel_serial_numbers: panelSerials,
+                inverter_serial_no: null,
+                panel_serial_numbers: null,
                 earthing_resistance: formData.earthing_resistance ? parseFloat(formData.earthing_resistance) : null,
                 initial_generation: formData.initial_generation ? parseFloat(formData.initial_generation) : null,
                 remarks: formData.remarks || null,
@@ -573,8 +842,8 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 images: finalImages,
                 complete,
                 installation_scans: installationScans,
-                force_adjust: forceAdjust,
-                force_adjust_reason: forceAdjustReason,
+                force_adjust: effectiveForceAdjust,
+                force_adjust_reason: effectiveForceAdjustReason,
             };
             await orderService.saveInstallation(orderId, payload);
             setImages(finalImages);
@@ -583,6 +852,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             setMismatchData(null);
             setForceAdjustDialogOpen(false);
             setForceAdjustReason("");
+            if (complete) setSlotForceAdjustIntent({});
             if (onSuccess) onSuccess();
         } catch (err) {
             const data = err?.response?.data;
@@ -600,6 +870,89 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     };
 
     const disabled = isCompleted || isReadOnly || (!isReadOnly && !canPerform);
+
+    useEffect(() => {
+        if (loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+                autoSaveTimerRef.current = null;
+            }
+            return;
+        }
+
+        const anyProductFullyFilled = Object.entries(deliveredSerialsMap).some(([pid, serials]) => {
+            if (!serials?.length) return false;
+            const row = installationScans[String(pid)] ?? installationScans[Number(pid)] ?? [];
+            return serials.every((_, i) => String(row[i] ?? "").trim());
+        });
+
+        if (!anyProductFullyFilled) {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+                autoSaveTimerRef.current = null;
+            }
+            return;
+        }
+
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = setTimeout(async () => {
+            autoSaveTimerRef.current = null;
+            if (loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) return;
+            if (autoSavingRef.current) return;
+            autoSavingRef.current = true;
+            try {
+                const payload = {
+                    installation_start_date: formData.installation_start_date || null,
+                    installation_end_date: formData.installation_end_date || null,
+                    inverter_installation_location: formData.inverter_installation_location || null,
+                    earthing_type: formData.earthing_type || null,
+                    wiring_type: formData.wiring_type || null,
+                    acdb_dcdb_make: formData.acdb_dcdb_make || null,
+                    panel_mounting_type: formData.panel_mounting_type || null,
+                    netmeter_readiness_status: formData.netmeter_readiness_status || null,
+                    total_panels_installed: formData.total_panels_installed
+                        ? parseInt(formData.total_panels_installed, 10)
+                        : null,
+                    inverter_serial_no: null,
+                    panel_serial_numbers: null,
+                    earthing_resistance: formData.earthing_resistance ? parseFloat(formData.earthing_resistance) : null,
+                    initial_generation: formData.initial_generation ? parseFloat(formData.initial_generation) : null,
+                    remarks: formData.remarks || null,
+                    checklist,
+                    images,
+                    complete: false,
+                    installation_scans: installationScans,
+                    force_adjust: false,
+                    force_adjust_reason: "",
+                };
+                await orderService.saveInstallation(orderId, payload);
+                toastSuccess("Serials auto-saved.");
+            } catch {
+                // Background save failed — user can use Save explicitly.
+            } finally {
+                autoSavingRef.current = false;
+            }
+        }, 1200);
+
+        return () => {
+            if (autoSaveTimerRef.current) {
+                clearTimeout(autoSaveTimerRef.current);
+                autoSaveTimerRef.current = null;
+            }
+        };
+    }, [
+        installationScans,
+        deliveredSerialsMap,
+        loading,
+        submitting,
+        isReadOnly,
+        canPerform,
+        isCompleted,
+        orderId,
+        formData,
+        checklist,
+        images,
+    ]);
 
     if (loading) {
         return (
@@ -630,19 +983,16 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     }
 
     return (
-        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} onKeyDown={preventEnterSubmit} className="p-3 sm:p-4 max-w-4xl">
-            {orderData?.installer_id || orderData?.fabricator_installer_id ? (
-                <FormSection title="Installer (from assignment)">
-                    <Typography variant="body2" color="text.secondary">
-                        Installer is assigned in the &quot;Assign Fabricator &amp; Installer&quot; stage.
-                    </Typography>
-                </FormSection>
-            ) : null}
-
-            <FormSection title="Installation execution">
+        <Box
+            component="form"
+            onSubmit={(e) => handleSubmit(e, false)}
+            onKeyDown={preventEnterSubmit}
+            className="flex min-h-0 w-full max-w-none min-w-0 flex-col p-1.5 pb-1"
+        >
+            <div className="w-full space-y-1">
                 {Object.entries(deliveredSerialsMap).length > 0 && (
-                    <Box sx={{ mb: 2, p: 1.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    <Box sx={{ mb: 0.75, p: 0.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
+                        <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: "0.8125rem" }}>
                             Delivered serials (mandatory)
                         </Typography>
                         {Object.entries(deliveredSerialsMap).map(([pid, serials]) => {
@@ -651,181 +1001,410 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                                 (n, _, i) => n + (String(row[i] || "").trim() ? 1 : 0),
                                 0
                             );
-                            const expanded = !!serialExpandByPid[pid];
+                            const productPreview = reconciliationPreview.perProduct.find(
+                                (p) => String(p.productId) === String(pid)
+                            );
+                            const productMismatch = reconciliationPreview.mismatches.find(
+                                (m) => String(m.product_id) === String(pid)
+                            );
+                            const productLabel =
+                                productNamesById[String(pid)] || productNamesById[pid];
                             const expectedLabel = (i) => {
-                                const sn = serials[i]?.serial_number;
-                                return sn ? `Delivered: ${sn}` : undefined;
+                                const slot = serials[i];
+                                if (slot?.missing_at_delivery || !slot?.serial_number) {
+                                    return "Not at DC — scan unit (required)";
+                                }
+                                return "Scan or enter serial";
                             };
+                            const isSerialBlockComplete = filledCount === serials.length && serials.length > 0;
                             return (
-                                <Box key={pid} sx={{ mb: 1.5 }}>
+                                <Box key={pid} sx={{ mb: 0.75 }}>
                                     <Box
-                                        role="button"
-                                        tabIndex={0}
-                                        onClick={() => !disabled && toggleSerialExpand(pid)}
-                                        onKeyDown={(e) => {
-                                            if (disabled) return;
-                                            if (e.key === "Enter" || e.key === " ") {
-                                                e.preventDefault();
-                                                toggleSerialExpand(pid);
-                                            }
-                                        }}
                                         sx={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
                                             p: 1,
                                             borderRadius: 1,
                                             border: 1,
                                             borderColor: fieldErrors[`scans_${pid}`] ? "error.main" : "divider",
                                             bgcolor: "background.paper",
-                                            cursor: disabled ? "default" : "pointer",
-                                            minHeight: 40,
                                         }}
                                     >
-                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-                                            <QrCodeScannerIcon
-                                                fontSize="small"
-                                                color={filledCount === serials.length ? "success" : "action"}
+                                        <Box
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "flex-start",
+                                                justifyContent: "space-between",
+                                                gap: 1,
+                                                flexWrap: "wrap",
+                                            }}
+                                        >
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, minWidth: 0 }}>
+                                                <QrCodeScannerIcon
+                                                    sx={{ fontSize: 22 }}
+                                                    color={isSerialBlockComplete ? "success" : "action"}
+                                                />
+                                                <Box sx={{ minWidth: 0 }}>
+                                                    <Typography variant="subtitle2" fontWeight={600} noWrap title={productLabel || `Product #${pid}`}>
+                                                        {productLabel || `Product #${pid}`}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary" display="block">
+                                                        Product #{pid}
+                                                    </Typography>
+                                                </Box>
+                                            </Box>
+                                            <Chip
+                                                label={`${filledCount} / ${serials.length}`}
+                                                size="small"
+                                                color={isSerialBlockComplete ? "success" : "default"}
+                                                icon={isSerialBlockComplete ? <CheckCircleIcon sx={{ fontSize: "16px !important" }} /> : undefined}
+                                                sx={{ flexShrink: 0 }}
                                             />
-                                            <Typography variant="body2" noWrap>
-                                                Product #{pid} — {filledCount}/{serials.length} serials
-                                            </Typography>
                                         </Box>
-                                        {expanded ? (
-                                            <ExpandLessIcon fontSize="small" color="action" />
-                                        ) : (
-                                            <ExpandMoreIcon fontSize="small" color="action" />
-                                        )}
+                                        <LinearProgress
+                                            variant="determinate"
+                                            value={serials.length > 0 ? (filledCount / serials.length) * 100 : 0}
+                                            sx={{ mt: 0.75, borderRadius: 1, height: 4 }}
+                                            color={isSerialBlockComplete ? "success" : "primary"}
+                                        />
+                                        {!productPreview?.blockingReason &&
+                                        filledCount > 0 &&
+                                        filledCount < serials.length &&
+                                        serials.some((_, i) => {
+                                            const t = String(
+                                                (installationScans[pid]?.[i] ??
+                                                    installationScans[Number(pid)]?.[i]) ??
+                                                    ""
+                                            ).trim();
+                                            return t && scannedValueInvalidForInstallationSlot(t, serials, i);
+                                        }) ? (
+                                            <Alert severity="warning" sx={{ py: 0.25, mt: 0.5, alignItems: "center" }}>
+                                                <Typography variant="caption" component="div">
+                                                    Some entered serials are not on this delivery challan. Tab out of the field to
+                                                    clear invalid entries.
+                                                </Typography>
+                                            </Alert>
+                                        ) : null}
+                                        {productPreview?.blockingReason === "count_mismatch" ? (
+                                            <Typography variant="caption" color="warning.main" sx={{ mt: 0.5, display: "block" }}>
+                                                Serial slot count does not match delivery ({serials.length} required).
+                                            </Typography>
+                                        ) : null}
+                                        {productPreview?.blockingReason === "empty_slots" ? (
+                                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+                                                Fill all serial slots to preview reconciliation with delivery.
+                                            </Typography>
+                                        ) : null}
+                                        {productPreview?.blockingReason === "duplicate_in_product" ? (
+                                            <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
+                                                Duplicate serial numbers in this product.
+                                            </Typography>
+                                        ) : null}
+                                        {!productPreview?.blockingReason && productMismatch && reconciliationPreview.placeholderMismatch ? (
+                                            <Alert severity="warning" sx={{ py: 0.25, mt: 0.5, alignItems: "center" }}>
+                                                <Typography variant="caption" component="div">
+                                                    Scanned serials do not match the placeholder delivery pattern. Complete will be
+                                                    blocked until corrected. Force Adjust is not available for this case.
+                                                </Typography>
+                                            </Alert>
+                                        ) : null}
+                                        {!productPreview?.blockingReason && productMismatch && reconciliationPreview.canForceAdjust ? (
+                                            <Alert severity="warning" sx={{ py: 0.25, mt: 0.5, alignItems: "center" }}>
+                                                <Typography variant="caption" component="div">
+                                                    Some scanned serials are not on the delivery challan. Complete Installation will
+                                                    require <strong>Force Adjust</strong> with a reason.
+                                                </Typography>
+                                            </Alert>
+                                        ) : null}
+                                        {!productPreview?.blockingReason && !productMismatch && isSerialBlockComplete ? (
+                                            <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: "block" }}>
+                                                Matches delivery records.
+                                            </Typography>
+                                        ) : null}
                                     </Box>
-                                    {fieldErrors[`scans_${pid}`] && !expanded && (
-                                        <Typography variant="caption" color="error" sx={{ mt: 0.25, display: "block", pl: 0.5 }}>
+                                    {fieldErrors[`scans_${pid}`] && (
+                                        <Typography variant="caption" color="error" sx={{ mt: 0.25, display: "block", pl: 0.25 }}>
                                             {fieldErrors[`scans_${pid}`]}
                                         </Typography>
                                     )}
-                                    <Collapse in={expanded} timeout="auto" unmountOnExit>
-                                        <Box sx={{ pt: 1 }}>
+                                    <Box sx={{ pt: 0.75 }}>
+                                        <Box className="flex flex-wrap items-end gap-1">
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
                                                 disabled={disabled}
-                                                className="w-full mb-1.5 min-h-9 touch-manipulation flex items-center justify-center gap-1"
+                                                className={`inline-flex shrink-0 touch-manipulation items-center justify-center gap-1.5 px-3 ${FIELD_HEIGHT_CLASS_SMALL}`}
                                                 onClick={() => openScannerForProduct(pid)}
                                             >
-                                                <QrCodeScannerIcon sx={{ fontSize: 18 }} />
-                                                Scan barcode / QR
+                                                <QrCodeScannerIcon sx={{ fontSize: 20 }} />
+                                                Scan Barcode / QR Code
                                             </Button>
-                                            <TextField
-                                                inputRef={(el) => {
-                                                    gunScanInputRefs.current[pid] = el;
-                                                }}
-                                                size="small"
-                                                fullWidth
-                                                label="Scanner gun"
-                                                placeholder="Point scanner here, then Enter"
-                                                value={gunScanByProduct[pid] ?? ""}
-                                                onChange={(e) =>
-                                                    setGunScanByProduct((p) => ({ ...p, [pid]: e.target.value }))
-                                                }
-                                                onKeyDown={(e) => handleGunKeyDown(e, pid)}
-                                                variant="outlined"
-                                                disabled={disabled}
-                                                sx={{ mb: 1 }}
-                                                helperText="Hardware scanner types here; press Enter to fill next empty slot."
-                                            />
-                                            <Divider sx={{ my: 1 }}>
-                                                <Typography variant="caption" color="text.secondary">
-                                                    or type per slot
-                                                </Typography>
-                                            </Divider>
-                                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                                                {serials.map((del, idx) => {
-                                                    const value = installationScans[pid]?.[idx] ?? "";
-                                                    return (
-                                                        <TextField
-                                                            key={idx}
-                                                            size="small"
-                                                            fullWidth
-                                                            label={`Serial ${idx + 1} of ${serials.length}`}
-                                                            placeholder={expectedLabel(idx)}
-                                                            value={value}
-                                                            onChange={(e) =>
-                                                                handleInstallationSerialChange(pid, idx, e.target.value)
-                                                            }
-                                                            onKeyDown={(e) =>
-                                                                handleInstallationSerialKeyDown(
-                                                                    pid,
-                                                                    idx,
-                                                                    serials.length,
-                                                                    e
-                                                                )
-                                                            }
-                                                            inputRef={(el) => {
-                                                                if (!serialInputRefs.current[pid]) {
-                                                                    serialInputRefs.current[pid] = [];
-                                                                }
-                                                                serialInputRefs.current[pid][idx] = el;
-                                                            }}
-                                                            variant="outlined"
-                                                            disabled={disabled}
-                                                            InputProps={{
-                                                                endAdornment: (
-                                                                    <Box sx={{ display: "flex" }}>
-                                                                        {String(value || "").trim() ? (
-                                                                            <IconButton
-                                                                                size="small"
-                                                                                tabIndex={-1}
-                                                                                edge="end"
-                                                                                disabled={disabled}
-                                                                                onClick={() =>
-                                                                                    handleInstallationSerialChange(
-                                                                                        pid,
-                                                                                        idx,
-                                                                                        ""
-                                                                                    )
-                                                                                }
-                                                                                aria-label="Clear serial"
-                                                                            >
-                                                                                <ClearIcon fontSize="small" />
-                                                                            </IconButton>
-                                                                        ) : null}
-                                                                        <IconButton
-                                                                            size="small"
-                                                                            tabIndex={-1}
-                                                                            edge="end"
-                                                                            disabled={disabled}
-                                                                            onClick={() => {
-                                                                                setScanTarget({
-                                                                                    product_id: pid,
-                                                                                    index: idx,
-                                                                                });
-                                                                                setScannerOpen(true);
-                                                                            }}
-                                                                            aria-label="Scan this serial"
-                                                                        >
-                                                                            <QrCodeScannerIcon fontSize="small" />
-                                                                        </IconButton>
-                                                                    </Box>
-                                                                ),
-                                                            }}
-                                                        />
-                                                    );
-                                                })}
+                                            <Box className="min-w-[200px] flex-1">
+                                                <Input
+                                                    ref={(el) => {
+                                                        gunScanInputRefs.current[pid] = el;
+                                                    }}
+                                                    name={`gun_scan_${pid}`}
+                                                    label="Scan with gun"
+                                                    placeholder="Scanner gun types here, then Enter"
+                                                    value={gunScanByProduct[pid] ?? ""}
+                                                    onChange={(e) =>
+                                                        setGunScanByProduct((p) => ({ ...p, [pid]: e.target.value }))
+                                                    }
+                                                    onKeyDown={(e) => handleGunKeyDown(e, pid)}
+                                                    onBlur={(e) => handleGunBlur(pid, e)}
+                                                    disabled={disabled}
+                                                    size="small"
+                                                    fullWidth
+                                                />
                                             </Box>
-                                            {fieldErrors[`scans_${pid}`] && (
-                                                <Typography variant="caption" color="error" sx={{ mt: 0.75, display: "block" }}>
-                                                    {fieldErrors[`scans_${pid}`]}
-                                                </Typography>
-                                            )}
                                         </Box>
-                                    </Collapse>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                                            Gun: type and press Enter or Tab away to fill slots (invalid serials are cleared).
+                                        </Typography>
+                                        <Divider sx={{ my: 0.75 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                                or type manually
+                                            </Typography>
+                                        </Divider>
+                                        <Box className="flex flex-wrap gap-1.5">
+                                            {serials.map((_, idx) => {
+                                                const value = installationScans[pid]?.[idx] ?? "";
+                                                const trimmed = String(value || "").trim();
+                                                const slotId = `inst-serial-${pid}-${idx}`;
+                                                const slotValidatingKey = `${pid}:${idx}`;
+                                                const slotBusy = !!serialValidating[slotValidatingKey];
+                                                const slotPendingForce = !!pendingForceSlots[slotValidatingKey];
+                                                const slotHasForceIntent = !!slotForceAdjustIntent[slotValidatingKey];
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        className="min-w-[180px] max-w-full flex-1 basis-[220px]"
+                                                    >
+                                                        <Label
+                                                            htmlFor={slotId}
+                                                            className="mb-1.5 block text-sm font-medium text-slate-700"
+                                                        >
+                                                            Serial {idx + 1} of {serials.length}
+                                                        </Label>
+                                                        <div className="relative w-full">
+                                                            <ShadcnInput
+                                                                ref={(el) => {
+                                                                    if (!serialInputRefs.current[pid]) {
+                                                                        serialInputRefs.current[pid] = [];
+                                                                    }
+                                                                    serialInputRefs.current[pid][idx] = el;
+                                                                }}
+                                                                id={slotId}
+                                                                value={value}
+                                                                onChange={(e) =>
+                                                                    handleInstallationSerialChange(
+                                                                        pid,
+                                                                        idx,
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                onKeyDown={(e) =>
+                                                                    handleInstallationSerialKeyDown(
+                                                                        pid,
+                                                                        idx,
+                                                                        serials.length,
+                                                                        e
+                                                                    )
+                                                                }
+                                                                onBlur={(e) => handleSerialSlotBlur(pid, idx, e)}
+                                                                placeholder={expectedLabel(idx) || ""}
+                                                                disabled={disabled || slotBusy}
+                                                                autoComplete="off"
+                                                                className={cn(
+                                                                    FIELD_HEIGHT_CLASS_SMALL,
+                                                                    FIELD_TEXT_SMALL,
+                                                                    "rounded-md border-slate-300 pr-[4.5rem] shadow-none",
+                                                                    trimmed &&
+                                                                        (slotIsCaptureAtDelivery(serials[idx])
+                                                                            ? undefined
+                                                                            : scannedValueInvalidForInstallationSlot(
+                                                                                    trimmed,
+                                                                                    serials,
+                                                                                    idx
+                                                                                )
+                                                                              ? "border-amber-600 ring-1 ring-amber-500/35 focus:border-amber-600 focus:ring-amber-500/40"
+                                                                              : "border-green-600 ring-1 ring-green-500/30 focus:border-green-600 focus:ring-green-500/40")
+                                                                )}
+                                                            />
+                                                            <div className="pointer-events-none absolute right-1 top-1/2 flex h-10 -translate-y-1/2 items-center gap-0">
+                                                                {trimmed ? (
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        tabIndex={-1}
+                                                                        disabled={disabled || slotBusy}
+                                                                        className="pointer-events-auto"
+                                                                        onClick={() =>
+                                                                            handleInstallationSerialChange(
+                                                                                pid,
+                                                                                idx,
+                                                                                ""
+                                                                            )
+                                                                        }
+                                                                        aria-label="Clear serial"
+                                                                        sx={{ p: 0.35 }}
+                                                                    >
+                                                                        <ClearIcon sx={{ fontSize: 18 }} />
+                                                                    </IconButton>
+                                                                ) : null}
+                                                                <IconButton
+                                                                    size="small"
+                                                                    tabIndex={-1}
+                                                                    disabled={disabled || slotBusy}
+                                                                    className="pointer-events-auto"
+                                                                    onClick={() => {
+                                                                        setScanTarget({
+                                                                            product_id: pid,
+                                                                            index: idx,
+                                                                        });
+                                                                        setScannerOpen(true);
+                                                                    }}
+                                                                    aria-label="Scan this serial"
+                                                                    sx={{ p: 0.35 }}
+                                                                >
+                                                                    <QrCodeScannerIcon sx={{ fontSize: 18 }} />
+                                                                </IconButton>
+                                                            </div>
+                                                        </div>
+                                                        {slotBusy ? (
+                                                            <Typography
+                                                                variant="caption"
+                                                                color="text.secondary"
+                                                                sx={{
+                                                                    display: "block",
+                                                                    mt: 0.25,
+                                                                    fontSize: "0.6875rem",
+                                                                    lineHeight: 1.2,
+                                                                }}
+                                                            >
+                                                                Checking inventory…
+                                                            </Typography>
+                                                        ) : null}
+                                                        {slotPendingForce ? (
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    display: "block",
+                                                                    mt: 0.25,
+                                                                    fontSize: "0.6875rem",
+                                                                    lineHeight: 1.2,
+                                                                    color: "warning.main",
+                                                                    fontWeight: 600,
+                                                                }}
+                                                            >
+                                                                Force Adjust pending — scan same serial again to confirm.
+                                                            </Typography>
+                                                        ) : null}
+                                                        {slotHasForceIntent && trimmed ? (
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{
+                                                                    display: "block",
+                                                                    mt: 0.25,
+                                                                    fontSize: "0.6875rem",
+                                                                    lineHeight: 1.2,
+                                                                    color: "warning.dark",
+                                                                }}
+                                                            >
+                                                                Force Adjusted — will reconcile on Complete.
+                                                            </Typography>
+                                                        ) : null}
+                                                        {trimmed ? (
+                                                            slotIsCaptureAtDelivery(serials[idx]) ? (
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    color="text.secondary"
+                                                                    sx={{
+                                                                        display: "block",
+                                                                        mt: 0.25,
+                                                                        fontSize: "0.6875rem",
+                                                                        lineHeight: 1.2,
+                                                                    }}
+                                                                >
+                                                                    Will be captured on Complete.
+                                                                </Typography>
+                                                            ) : scannedValueInvalidForInstallationSlot(
+                                                                  trimmed,
+                                                                  serials,
+                                                                  idx
+                                                              ) ? (
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        display: "block",
+                                                                        mt: 0.25,
+                                                                        fontSize: "0.6875rem",
+                                                                        lineHeight: 1.2,
+                                                                        color: "warning.main",
+                                                                    }}
+                                                                >
+                                                                    Not on delivery challan.
+                                                                </Typography>
+                                                            ) : (
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        gap: 0.25,
+                                                                        mt: 0.25,
+                                                                        fontSize: "0.6875rem",
+                                                                        lineHeight: 1.2,
+                                                                        color: "success.main",
+                                                                    }}
+                                                                >
+                                                                    <CheckCircleIcon sx={{ fontSize: 14 }} />
+                                                                    Confirmed.
+                                                                </Typography>
+                                                            )
+                                                        ) : null}
+                                                        {trimmed && !slotIsCaptureAtDelivery(serials[idx]) ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={disabled || slotBusy}
+                                                                className="mt-0.5 h-6 px-1.5 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                                onClick={() => {
+                                                                    setInstallationScans((prev) => {
+                                                                        const k = String(pid);
+                                                                        const cur = Array.from(
+                                                                            { length: serials.length },
+                                                                            (_, i) =>
+                                                                                String(
+                                                                                    (prev[k] ||
+                                                                                        prev[Number(pid)] ||
+                                                                                        [])[i] ?? ""
+                                                                                )
+                                                                        );
+                                                                        cur[idx] = "";
+                                                                        return { ...prev, [k]: cur };
+                                                                    });
+                                                                    toastSuccess("Serial removed.");
+                                                                }}
+                                                            >
+                                                                <RemoveCircleOutlineIcon
+                                                                    sx={{ fontSize: 14, mr: 0.35, verticalAlign: "middle" }}
+                                                                />
+                                                                Remove
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                );
+                                            })}
+                                        </Box>
+                                    </Box>
                                 </Box>
                             );
                         })}
                     </Box>
                 )}
 
-                <FormGrid cols={2}>
+                <FormGrid cols={4} className="gap-1.5">
                     <DateField
                         name="installation_start_date"
                         label="Installation Start Date"
@@ -912,14 +1491,6 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                         disabled={disabled}
                     />
                     <Input
-                        name="inverter_serial_no"
-                        label="Inverter Serial No"
-                        value={formData.inverter_serial_no}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <Input
                         name="earthing_resistance"
                         label="Earthing Resistance"
                         value={formData.earthing_resistance}
@@ -937,19 +1508,8 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     />
                 </FormGrid>
 
-                <Input
-                    name="panel_serial_numbers_text"
-                    label="Panel Serial Numbers (one per line or comma-separated)"
-                    multiline
-                    rows={3}
-                    value={formData.panel_serial_numbers_text}
-                    onChange={handleInputChange}
-                    fullWidth
-                    disabled={disabled}
-                />
-
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Checklist</div>
-                <Box className="mt-1 mb-2">
+                <Box className="mt-0.5 mb-1 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0">
                     {checklist.map((item) => (
                         <Checkbox
                             key={item.id}
@@ -963,14 +1523,14 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 </Box>
 
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
-                <Box className="mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Box className="mt-0.5 mb-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1">
                     {INSTALLATION_IMAGE_KEYS.map(({ key, label, required }) => {
                         const hasPending = !!pendingImages[key];
                         const hasSaved = !!images[key];
                         const previewUrl = pendingPreviewUrls[key];
                         return (
                             <Box key={key}>
-                                <Typography variant="body2" className="mb-1">
+                                <Typography variant="caption" className="mb-0.5 block leading-tight">
                                     {label}
                                     {required && <span className="text-destructive ml-0.5">*</span>}
                                 </Typography>
@@ -981,7 +1541,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                                                 component="img"
                                                 src={previewUrl}
                                                 alt={label}
-                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                                sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
                                             />
                                         ) : hasPending ? (
                                             <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>
@@ -990,12 +1550,12 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                                                 path={images[key]}
                                                 getUrl={getDocumentUrlById}
                                                 alt={label}
-                                                sx={{ width: 120, height: 120, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
+                                                sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
                                             />
                                         ) : null}
                                         {!disabled && (
                                             <>
-                                                <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-[44px]">
+                                                <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-9">
                                                     Replace:{" "}
                                                     <input
                                                         type="file"
@@ -1034,7 +1594,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                                                     e.target.value = "";
                                                 }}
                                             />
-                                            <span className="inline-flex items-center min-h-[44px] px-4 rounded-lg border border-input bg-background text-sm cursor-pointer hover:bg-accent touch-manipulation">
+                                            <span className="inline-flex items-center min-h-9 px-2 py-1 rounded-md border border-input bg-background text-xs cursor-pointer hover:bg-accent touch-manipulation">
                                                 Take photo or upload
                                             </span>
                                         </label>
@@ -1052,15 +1612,15 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     name="remarks"
                     label="Remarks"
                     multiline
-                    rows={3}
+                    rows={2}
                     value={formData.remarks}
                     onChange={handleInputChange}
                     fullWidth
                     disabled={disabled}
                 />
-            </FormSection>
+            </div>
 
-            <div className="mt-4 flex flex-col gap-2">
+            <div className="mt-2 flex flex-col gap-1.5">
                 {error && <Alert severity="error">{error}</Alert>}
                 {mismatchData && (
                     <Alert
@@ -1093,7 +1653,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     <Button
                         type="submit"
                         size="sm"
-                        className="min-h-[44px] touch-manipulation"
+                        className="min-h-9 touch-manipulation"
                         loading={submitting}
                         disabled={disabled}
                     >
@@ -1104,14 +1664,20 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                             type="button"
                             size="sm"
                             variant="default"
-                            className="min-h-[44px] touch-manipulation"
+                            className="min-h-9 touch-manipulation"
                             loading={submitting}
+                            disabled={disabled || !allInstallationSerialsFilled}
                             onClick={(e) => handleSubmit(e, true)}
                         >
                             Complete Installation
                         </Button>
                     )}
                 </div>
+                {canComplete && !allInstallationSerialsFilled && Object.keys(deliveredSerialsMap).length > 0 && (
+                    <Typography variant="caption" color="text.secondary">
+                        Enter every delivered serial (one per unit) to complete installation.
+                    </Typography>
+                )}
                 {!canComplete && orderData?.stages?.fabrication !== "completed" && !isCompleted && (
                     <Typography variant="caption" color="text.secondary">
                         Complete the Fabrication stage to unlock Installation.
@@ -1131,16 +1697,28 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             />
 
             {/* ─── Force Adjust Dialog ─────────────────────── */}
-            <Dialog open={forceAdjustDialogOpen} onOpenChange={setForceAdjustDialogOpen}>
+            <Dialog open={forceAdjustDialogOpen} onOpenChange={(open) => {
+                if (!open) {
+                    setForceAdjustDialogOpen(false);
+                    if (slotForceAdjustCtx) setSlotForceAdjustCtx(null);
+                }
+            }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Force Adjust Serials</DialogTitle>
                     </DialogHeader>
                     <Box sx={{ py: 2 }}>
-                        <Typography variant="body2" sx={{ mb: 2 }}>
-                            You are about to force adjust the serial numbers for this installation. 
-                            This will mark the scanned serials as ISSUED and return the originally delivered (but missing) serials to AVAILABLE stock.
-                        </Typography>
+                        {slotForceAdjustCtx ? (
+                            <Typography variant="body2" sx={{ mb: 2 }}>
+                                Serial <strong>{slotForceAdjustCtx.serial}</strong> is not on the delivery challan for this slot.
+                                Confirming will record it as a Force Adjust — the originally delivered serial will be returned to stock and this serial will be issued when you Complete Installation.
+                            </Typography>
+                        ) : (
+                            <Typography variant="body2" sx={{ mb: 2 }}>
+                                You are about to force adjust the serial numbers for this installation.
+                                This will mark the scanned serials as ISSUED and return the originally delivered (but missing) serials to AVAILABLE stock.
+                            </Typography>
+                        )}
                         <TextField
                             fullWidth
                             label="Reason for Force Adjust"
@@ -1153,11 +1731,41 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                         />
                     </Box>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setForceAdjustDialogOpen(false)}>
+                        <Button variant="outline" onClick={() => {
+                            setForceAdjustDialogOpen(false);
+                            setSlotForceAdjustCtx(null);
+                        }}>
                             Cancel
                         </Button>
-                        <Button 
-                            onClick={() => handleSubmit(null, true, true)} 
+                        <Button
+                            onClick={() => {
+                                if (slotForceAdjustCtx) {
+                                    // Slot-level force adjust: commit serial + store intent locally
+                                    const { pid, idx, serial } = slotForceAdjustCtx;
+                                    const key = String(pid);
+                                    const len = getSerialSlotCount(pid);
+                                    setInstallationScans((prev) => {
+                                        const cur = Array.from({ length: len }, (_, i) =>
+                                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                                        );
+                                        const next = [...cur];
+                                        next[idx] = serial;
+                                        return { ...prev, [key]: next };
+                                    });
+                                    const slotKey = `${pid}:${idx}`;
+                                    setSlotForceAdjustIntent((prev) => ({
+                                        ...prev,
+                                        [slotKey]: { serial, reason: forceAdjustReason },
+                                    }));
+                                    toastSuccess("Force Adjust recorded — will apply on Complete Installation.");
+                                    setForceAdjustDialogOpen(false);
+                                    setSlotForceAdjustCtx(null);
+                                    setForceAdjustReason("");
+                                } else {
+                                    // Complete-time path (server SERIAL_MISMATCH triggered dialog)
+                                    handleSubmit(null, true, true);
+                                }
+                            }}
                             disabled={!forceAdjustReason || submitting}
                             loading={submitting}
                         >
