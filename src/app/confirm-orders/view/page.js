@@ -100,8 +100,9 @@ const STAGES = [
 // --- Components ---
 
 function TabPanel({ children, value, index }) {
+    const noTabPadding = index === 3 || index === 6;
     return (
-        <div hidden={value !== index} style={{ padding: index == 3 ? "0" : "10px 0" }}>
+        <div hidden={value !== index} style={{ padding: noTabPadding ? "0" : "10px 0" }}>
             {value === index && children}
         </div>
     );
@@ -320,8 +321,8 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const calculateOrderDetailHeight = () => {
-        // Slightly taller panels to better use vertical space on large screens
-        return `calc(100vh - 140px)`;
+        // Pipeline + toolbar + main padding; dvh for mobile; taller tab panel
+        return `calc(100dvh - 108px)`;
     };
 
     const canCancelOrder = () => {

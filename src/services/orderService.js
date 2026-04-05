@@ -48,6 +48,13 @@ export const saveInstallation = (orderId, payload) =>
 export const getDeliveredSerials = (orderId) =>
     apiClient.get(`/order/${orderId}/delivered-serials`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
+export const validateInstallationSerial = (orderId, serialNumber, productId) =>
+    apiClient
+        .get(`/order/${orderId}/installation/validate-serial`, {
+            params: { serial_number: serialNumber, product_id: productId },
+        })
+        .then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
 export const downloadOrderPDF = (id) =>
     apiClient
         .get(`/order/${id}/pdf`, { responseType: "blob" })
@@ -93,6 +100,7 @@ export default {
     getInstallationByOrderId,
     saveInstallation,
     getDeliveredSerials,
+    validateInstallationSerial,
     downloadOrderPDF,
     forceCompleteDelivery,
     cancelOrder,
