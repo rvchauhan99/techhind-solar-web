@@ -37,13 +37,13 @@ export const getFabricationByOrderId = (orderId) =>
     apiClient.get(`/order/${orderId}/fabrication`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
 export const saveFabrication = (orderId, payload) =>
-    apiClient.put(`/order/${orderId}/fabrication`, payload).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+    apiClient.put(`/order/${orderId}/fabrication`, payload, { timeout: 120000 }).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
 export const getInstallationByOrderId = (orderId) =>
     apiClient.get(`/order/${orderId}/installation`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
 export const saveInstallation = (orderId, payload) =>
-    apiClient.put(`/order/${orderId}/installation`, payload).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+    apiClient.put(`/order/${orderId}/installation`, payload, { timeout: 120000 }).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
 export const getDeliveredSerials = (orderId) =>
     apiClient.get(`/order/${orderId}/delivered-serials`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));

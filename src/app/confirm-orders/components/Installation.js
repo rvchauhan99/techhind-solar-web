@@ -23,7 +23,7 @@ import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import companyService from "@/services/companyService";
 import { useAuth } from "@/hooks/useAuth";
-import { toastSuccess, toastError } from "@/utils/toast";
+import { toastSuccess, toastError, toastWarning, toastInfo } from "@/utils/toast";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import {
     previewInstallationReconciliation,
@@ -374,6 +374,60 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             if (!isCapture) {
                 if (scannedValueInvalidForInstallationSlot(trimmedValue, rows, idx)) {
                     const slotKey = `${pid}:${idx}`;
+                    setSerialValidating((p) => ({ ...p, [slotKey]: true }));
+                    let validateResult = null;
+                    try {
+                        validateResult = await orderService.validateInstallationSerial(orderId, trimmedValue, pid);
+                    } catch (err) {
+                        const msg =
+                            err?.response?.data?.message ||
+                            err?.response?.data?.result?.message ||
+                            err?.message ||
+                            "Validation failed";
+                        toastError(msg);
+                        setPendingForceSlots((p) => {
+                            if (!p[slotKey]) return p;
+                            const n = { ...p };
+                            delete n[slotKey];
+                            return n;
+                        });
+                        setInstallationScans((prev) => {
+                            const cur = Array.from({ length: len }, (_, i) =>
+                                String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                            );
+                            const next = [...cur];
+                            next[idx] = "";
+                            return { ...prev, [key]: next };
+                        });
+                        clearScanFieldError(pid);
+                        return false;
+                    } finally {
+                        setSerialValidating((p) => {
+                            const n = { ...p };
+                            delete n[slotKey];
+                            return n;
+                        });
+                    }
+                    if (!validateResult?.valid) {
+                        toastError(validateResult?.message || "Serial cannot be used on this order.");
+                        setPendingForceSlots((p) => {
+                            if (!p[slotKey]) return p;
+                            const n = { ...p };
+                            delete n[slotKey];
+                            return n;
+                        });
+                        setInstallationScans((prev) => {
+                            const cur = Array.from({ length: len }, (_, i) =>
+                                String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                            );
+                            const next = [...cur];
+                            next[idx] = "";
+                            return { ...prev, [key]: next };
+                        });
+                        clearScanFieldError(pid);
+                        return false;
+                    }
+
                     const pending = pendingForceSlots[slotKey];
                     const isDoubleScan =
                         pending &&
@@ -419,7 +473,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     clearScanFieldError(pid);
                     return false;
                 }
-                // Valid DC serial — clear any pending force state for this slot
+                // Valid DC serial for this challan — still enforce global serial uniqueness via API
                 setPendingForceSlots((p) => {
                     const slotKey = `${pid}:${idx}`;
                     if (!p[slotKey]) return p;
@@ -427,16 +481,60 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     delete n[slotKey];
                     return n;
                 });
-                setInstallationScans((prev) => {
-                    const cur = Array.from({ length: len }, (_, i) =>
-                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
-                    );
-                    const next = [...cur];
-                    next[idx] = trimmedValue;
-                    return { ...prev, [key]: next };
-                });
-                clearScanFieldError(pid);
-                return true;
+                const knownSlotKey = `${pid}:${idx}`;
+                setSerialValidating((p) => ({ ...p, [knownSlotKey]: true }));
+                try {
+                    const result = await orderService.validateInstallationSerial(orderId, trimmedValue, pid);
+                    if (!result?.valid) {
+                        toastError(result?.message || "Serial cannot be used on this order — cleared.");
+                        setInstallationScans((prev) => {
+                            const cur = Array.from({ length: len }, (_, i) =>
+                                String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                            );
+                            const next = [...cur];
+                            next[idx] = "";
+                            return { ...prev, [key]: next };
+                        });
+                        clearScanFieldError(pid);
+                        return false;
+                    }
+                    if (result.warning) {
+                        toastWarning(result.warning);
+                    }
+                    setInstallationScans((prev) => {
+                        const cur = Array.from({ length: len }, (_, i) =>
+                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                        );
+                        const next = [...cur];
+                        next[idx] = trimmedValue;
+                        return { ...prev, [key]: next };
+                    });
+                    clearScanFieldError(pid);
+                    return true;
+                } catch (err) {
+                    const msg =
+                        err?.response?.data?.message ||
+                        err?.response?.data?.result?.message ||
+                        err?.message ||
+                        "Validation failed";
+                    toastError(msg);
+                    setInstallationScans((prev) => {
+                        const cur = Array.from({ length: len }, (_, i) =>
+                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                        );
+                        const next = [...cur];
+                        next[idx] = "";
+                        return { ...prev, [key]: next };
+                    });
+                    clearScanFieldError(pid);
+                    return false;
+                } finally {
+                    setSerialValidating((p) => {
+                        const n = { ...p };
+                        delete n[knownSlotKey];
+                        return n;
+                    });
+                }
             }
 
             const slotKey = `${pid}:${idx}`;
@@ -455,6 +553,9 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                     });
                     clearScanFieldError(pid);
                     return false;
+                }
+                if (result.warning) {
+                    toastWarning(result.warning);
                 }
                 setInstallationScans((prev) => {
                     const cur = Array.from({ length: len }, (_, i) =>
@@ -767,7 +868,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         return Object.keys(errs).length === 0;
     };
 
-    const handleSubmit = async (e, complete = false, forceAdjust = false) => {
+    const handleSubmit = async (e, complete = false, forceAdjust = false, _autoRetry = false) => {
         if (e) e.preventDefault();
         if (isReadOnly) return;
         if (!canPerform) {
@@ -787,6 +888,11 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             return next;
         });
         setSuccessMsg(null);
+
+        const pendingCount = Object.keys(pendingImages).length;
+        if (complete && pendingCount > 0) {
+            toastInfo(`Uploading ${pendingCount} photo${pendingCount > 1 ? "s" : ""} — please wait…`);
+        }
 
         try {
             let finalImages = { ...images };
@@ -810,6 +916,27 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                 }
             }
             setPendingImages({});
+
+            // Recheck all pending force-adjust intents right before submit.
+            // This blocks stale cases where a serial became installed on another order after dialog confirmation.
+            if (complete && Object.keys(slotForceAdjustIntent).length > 0) {
+                for (const [slotKey, intent] of Object.entries(slotForceAdjustIntent)) {
+                    const [pidRaw] = String(slotKey).split(":");
+                    const pid = Number(pidRaw);
+                    const serial = String(intent?.serial || "").trim();
+                    if (!Number.isFinite(pid) || !serial) continue;
+                    const result = await orderService.validateInstallationSerial(orderId, serial, pid);
+                    if (!result?.valid) {
+                        toastError(result?.message || `Serial '${serial}' cannot be used on this order.`);
+                        setFieldErrors((prev) => ({
+                            ...prev,
+                            [`scans_${pid}`]: result?.message || "Invalid force-adjust serial.",
+                        }));
+                        setSubmitting(false);
+                        return;
+                    }
+                }
+            }
 
             // Merge slot-level force-adjust intents into the payload flags
             const hasSlotForceIntents = complete && Object.keys(slotForceAdjustIntent).length > 0;
@@ -856,7 +983,9 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             if (onSuccess) onSuccess();
         } catch (err) {
             const data = err?.response?.data;
-            if (data?.code === "SERIAL_MISMATCH") {
+            if (data?.code === "SERIAL_MISMATCH" && data?.can_force_adjust && complete && !_autoRetry) {
+                return handleSubmit(null, true, true, true);
+            } else if (data?.code === "SERIAL_MISMATCH") {
                 setMismatchData(data);
                 toastError("Serial mismatch detected. Please review and adjust if necessary.");
             } else {
@@ -1623,21 +1752,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
             <div className="mt-2 flex flex-col gap-1.5">
                 {error && <Alert severity="error">{error}</Alert>}
                 {mismatchData && (
-                    <Alert
-                        severity="warning"
-                        action={
-                            mismatchData.can_force_adjust && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    color="inherit"
-                                    onClick={() => setForceAdjustDialogOpen(true)}
-                                >
-                                    Force Adjust
-                                </Button>
-                            )
-                        }
-                    >
+                    <Alert severity="warning">
                         <Typography variant="body2" fontWeight={600}>
                             Serial Mismatch Detected
                         </Typography>
@@ -1708,15 +1823,10 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                         <DialogTitle>Force Adjust Serials</DialogTitle>
                     </DialogHeader>
                     <Box sx={{ py: 2 }}>
-                        {slotForceAdjustCtx ? (
+                        {slotForceAdjustCtx && (
                             <Typography variant="body2" sx={{ mb: 2 }}>
                                 Serial <strong>{slotForceAdjustCtx.serial}</strong> is not on the delivery challan for this slot.
                                 Confirming will record it as a Force Adjust — the originally delivered serial will be returned to stock and this serial will be issued when you Complete Installation.
-                            </Typography>
-                        ) : (
-                            <Typography variant="body2" sx={{ mb: 2 }}>
-                                You are about to force adjust the serial numbers for this installation.
-                                This will mark the scanned serials as ISSUED and return the originally delivered (but missing) serials to AVAILABLE stock.
                             </Typography>
                         )}
                         <TextField
@@ -1738,36 +1848,78 @@ export default function Installation({ orderId, orderData, onSuccess }) {
                             Cancel
                         </Button>
                         <Button
-                            onClick={() => {
-                                if (slotForceAdjustCtx) {
-                                    // Slot-level force adjust: commit serial + store intent locally
-                                    const { pid, idx, serial } = slotForceAdjustCtx;
-                                    const key = String(pid);
-                                    const len = getSerialSlotCount(pid);
-                                    setInstallationScans((prev) => {
-                                        const cur = Array.from({ length: len }, (_, i) =>
-                                            String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
-                                        );
-                                        const next = [...cur];
-                                        next[idx] = serial;
-                                        return { ...prev, [key]: next };
+                            onClick={async () => {
+                                if (!slotForceAdjustCtx) return;
+                                const { pid, idx, serial } = slotForceAdjustCtx;
+                                const slotKey = `${pid}:${idx}`;
+                                const trimmed = String(serial || "").trim();
+                                if (!trimmed) return;
+                                setSerialValidating((p) => ({ ...p, [slotKey]: true }));
+                                try {
+                                    const result = await orderService.validateInstallationSerial(orderId, trimmed, pid);
+                                    if (!result?.valid) {
+                                        toastError(result?.message || "Serial cannot be used on this order.");
+                                        setInstallationScans((prev) => {
+                                            const key = String(pid);
+                                            const len = getSerialSlotCount(pid);
+                                            const cur = Array.from({ length: len }, (_, i) =>
+                                                String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                                            );
+                                            const next = [...cur];
+                                            next[idx] = "";
+                                            return { ...prev, [key]: next };
+                                        });
+                                        return;
+                                    }
+                                } catch (err) {
+                                    const msg =
+                                        err?.response?.data?.message ||
+                                        err?.response?.data?.result?.message ||
+                                        err?.message ||
+                                        "Validation failed";
+                                    toastError(msg);
+                                    return;
+                                } finally {
+                                    setSerialValidating((p) => {
+                                        const n = { ...p };
+                                        delete n[slotKey];
+                                        return n;
                                     });
-                                    const slotKey = `${pid}:${idx}`;
-                                    setSlotForceAdjustIntent((prev) => ({
-                                        ...prev,
-                                        [slotKey]: { serial, reason: forceAdjustReason },
-                                    }));
-                                    toastSuccess("Force Adjust recorded — will apply on Complete Installation.");
-                                    setForceAdjustDialogOpen(false);
-                                    setSlotForceAdjustCtx(null);
-                                    setForceAdjustReason("");
-                                } else {
-                                    // Complete-time path (server SERIAL_MISMATCH triggered dialog)
-                                    handleSubmit(null, true, true);
                                 }
+
+                                const key = String(pid);
+                                const len = getSerialSlotCount(pid);
+                                setInstallationScans((prev) => {
+                                    const cur = Array.from({ length: len }, (_, i) =>
+                                        String((prev[key] ?? prev[Number(pid)] ?? [])[i] ?? "")
+                                    );
+                                    const next = [...cur];
+                                    next[idx] = serial;
+                                    return { ...prev, [key]: next };
+                                });
+                                setSlotForceAdjustIntent((prev) => ({
+                                    ...prev,
+                                    [slotKey]: { serial, reason: forceAdjustReason },
+                                }));
+                                toastSuccess("Force Adjust recorded — will apply on Complete Installation.");
+                                setForceAdjustDialogOpen(false);
+                                setSlotForceAdjustCtx(null);
+                                setForceAdjustReason("");
                             }}
-                            disabled={!forceAdjustReason || submitting}
-                            loading={submitting}
+                            disabled={
+                                !slotForceAdjustCtx ||
+                                !forceAdjustReason ||
+                                submitting ||
+                                (slotForceAdjustCtx
+                                    ? !!serialValidating[`${slotForceAdjustCtx.pid}:${slotForceAdjustCtx.idx}`]
+                                    : false)
+                            }
+                            loading={
+                                submitting ||
+                                (slotForceAdjustCtx
+                                    ? !!serialValidating[`${slotForceAdjustCtx.pid}:${slotForceAdjustCtx.idx}`]
+                                    : false)
+                            }
                         >
                             Confirm Force Adjust
                         </Button>

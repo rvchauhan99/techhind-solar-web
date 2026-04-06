@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
     Alert,
     Box,
-    Button,
     Chip,
     CircularProgress,
     Drawer,
     Paper,
-    TextField,
     Typography,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { IconFilter } from "@tabler/icons-react";
+import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
+import Input from "@/components/common/Input";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
@@ -108,14 +112,30 @@ function FabricationInstallationPageContent() {
     const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [filters, setFilters] = useState(initialFilters);
-    const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+    const [appliedDrawerFilters, setAppliedDrawerFilters] = useState(initialFilters);
+    const [quickSearch, setQuickSearch] = useState("");
+    const [appliedQ, setAppliedQ] = useState("");
+    const [isSearching, setIsSearching] = useState(false);
+    const debounceRef = useRef(null);
+    const searchFeedbackRef = useRef(null);
+
+    const handleQuickSearchChange = useCallback((val) => {
+        setQuickSearch(val);
+        setIsSearching(true);
+        if (searchFeedbackRef.current) clearTimeout(searchFeedbackRef.current);
+        searchFeedbackRef.current = setTimeout(() => setIsSearching(false), 500);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => setAppliedQ(val.trim()), 350);
+    }, []);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
                 setError(null);
-                const sharedParams = buildFilterParams(appliedFilters);
+                const sharedParams = appliedQ
+                    ? { q: appliedQ }
+                    : buildFilterParams(appliedDrawerFilters);
                 const responses = await Promise.all(
                     COLUMNS.map((col) =>
                         orderService.getFabricationInstallationOrders({
@@ -144,7 +164,7 @@ function FabricationInstallationPageContent() {
         };
 
         fetchData();
-    }, [appliedFilters]);
+    }, [appliedQ, appliedDrawerFilters]);
 
     const handleFilterChange = (event) => {
         const { name, value } = event.target;
@@ -152,16 +172,22 @@ function FabricationInstallationPageContent() {
     };
 
     const applyFilters = () => {
-        setAppliedFilters(filters);
+        setAppliedDrawerFilters(filters);
+        setQuickSearch("");
+        setAppliedQ("");
         setFilterDrawerOpen(false);
     };
 
     const resetFilters = () => {
         setFilters(initialFilters);
-        setAppliedFilters(initialFilters);
+        setAppliedDrawerFilters(initialFilters);
+        setQuickSearch("");
+        setAppliedQ("");
     };
 
-    const activeFilterCount = Object.keys(buildFilterParams(appliedFilters)).length;
+    const activeFilterCount = appliedQ
+        ? 1
+        : Object.keys(buildFilterParams(appliedDrawerFilters)).length;
 
     const handleOpenDetails = (order) => {
         setSelectedOrder(order);
@@ -206,52 +232,60 @@ function FabricationInstallationPageContent() {
     const renderActions = (statusKey, order) => {
         if (statusKey === "pending_fabrication") {
             return (
-                <>
-                    <Button size="small" variant="contained" onClick={() => handleActionFabrication(order.id)}>
-                        Action
-                    </Button>
-                </>
+                <Button size="sm" onClick={() => handleActionFabrication(order.id)}>
+                    Action
+                </Button>
             );
         }
-
         if (statusKey === "pending_installation") {
             return (
-                <>
-                    <Button size="small" variant="contained" onClick={() => handleActionInstallation(order.id)}>
-                        Action
-                    </Button>
-                </>
+                <Button size="sm" onClick={() => handleActionInstallation(order.id)}>
+                    Action
+                </Button>
             );
         }
-
         return null;
     };
 
     return (
-        <Box
-            sx={{
-                p: 2,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                height: "calc(100dvh)",
-                minHeight: 0,
-                overflow: "hidden",
-            }}
-        >
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                <Typography variant="h6">Fabrication & Installation</Typography>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Button size="small" variant="outlined" onClick={() => setFilterDrawerOpen(true)}>
-                        Filter {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
-                    </Button>
-                    {activeFilterCount > 0 && (
-                        <Button size="small" variant="text" onClick={resetFilters}>
-                            Clear
+        <div className="p-2 flex flex-col gap-2 h-dvh min-h-0 overflow-hidden">
+            <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+                <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5">
+                    <h1 className="text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
+                        Fabrication & Installation
+                    </h1>
+                    <OrderListQuickSearch
+                        value={quickSearch}
+                        onValueChange={handleQuickSearchChange}
+                        isSearching={isSearching}
+                        className="flex-1 min-w-[180px] max-w-[340px] w-full sm:w-80"
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setFilterDrawerOpen(true)}
+                            className="h-8 text-xs gap-1.5 px-2.5"
+                        >
+                            <IconFilter size={14} />
+                            Filters
+                            {activeFilterCount > 0 && (
+                                <Badge
+                                    variant="secondary"
+                                    className="text-[10px] h-4 px-1 leading-none bg-green-100 text-green-700 border-green-200"
+                                >
+                                    {activeFilterCount}
+                                </Badge>
+                            )}
                         </Button>
-                    )}
-                </Box>
-            </Box>
+                        {activeFilterCount > 0 && (
+                            <Button size="sm" variant="ghost" onClick={resetFilters} className="h-8 text-xs px-2">
+                                Clear
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </Card>
 
             {loading && (
                 <Box display="flex" justifyContent="center" mt={4}>
@@ -452,26 +486,26 @@ function FabricationInstallationPageContent() {
             )}
 
             <Drawer anchor="left" open={filterDrawerOpen} onClose={() => setFilterDrawerOpen(false)}>
-                <Box sx={{ width: { xs: 320, sm: 420 }, p: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
-                    <Typography variant="h6">Filters</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                        Apply filters to narrow down fabrication/installation orders.
-                    </Typography>
-                    <TextField
+                <div className="w-[320px] sm:w-[420px] p-4 flex flex-col gap-2.5">
+                    <h2 className="text-lg font-bold text-slate-900">Filters</h2>
+                    <p className="text-xs text-slate-500 -mt-1 mb-0.5">
+                        Narrow down fabrication/installation orders.
+                    </p>
+                    <Input
                         size="small"
                         label="Order No"
                         name="order_number"
                         value={filters.order_number ?? ""}
                         onChange={handleFilterChange}
                     />
-                    <TextField
+                    <Input
                         size="small"
                         label="Customer Name"
                         name="customer_name"
                         value={filters.customer_name ?? ""}
                         onChange={handleFilterChange}
                     />
-                    <TextField
+                    <Input
                         size="small"
                         label="Contact Number"
                         name="contact_number"
@@ -479,7 +513,7 @@ function FabricationInstallationPageContent() {
                         onChange={handleFilterChange}
                         placeholder="Mobile or phone"
                     />
-                    <TextField
+                    <Input
                         size="small"
                         label="Address"
                         name="address"
@@ -487,20 +521,21 @@ function FabricationInstallationPageContent() {
                         onChange={handleFilterChange}
                         placeholder="Address, landmark, taluka, district, pin"
                     />
-                    <TextField
+                    <Input
                         size="small"
                         label="Consumer No"
                         name="consumer_no"
                         value={filters.consumer_no ?? ""}
                         onChange={handleFilterChange}
                     />
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
-                        <Button size="small" variant="contained" onClick={applyFilters}>
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                        <Button size="sm" onClick={applyFilters} className="h-8 px-3 text-xs w-20">
                             Apply
                         </Button>
                         <Button
-                            size="small"
-                            variant="outlined"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-xs w-20"
                             onClick={() => {
                                 resetFilters();
                                 setFilterDrawerOpen(false);
@@ -508,11 +543,11 @@ function FabricationInstallationPageContent() {
                         >
                             Reset
                         </Button>
-                        <Button size="small" variant="text" onClick={() => setFilterDrawerOpen(false)}>
+                        <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={() => setFilterDrawerOpen(false)}>
                             Cancel
                         </Button>
-                    </Box>
-                </Box>
+                    </div>
+                </div>
             </Drawer>
 
             <OrderDetailsDrawer
@@ -523,7 +558,7 @@ function FabricationInstallationPageContent() {
                 showPrint
                 showDeliverySnapshot={false}
             />
-        </Box>
+        </div>
     );
 }
 
