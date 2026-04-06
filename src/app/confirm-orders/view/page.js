@@ -54,6 +54,7 @@ import CustomerProjectDetails from "./components/CustomerProjectDetails";
 import orderService from "@/services/orderService";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import userMasterService from "@/services/userMasterService";
+import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import CloseIcon from "@mui/icons-material/Close";
 
@@ -99,8 +100,9 @@ const STAGES = [
 // --- Components ---
 
 function TabPanel({ children, value, index }) {
+    const noTabPadding = index === 3 || index === 6;
     return (
-        <div hidden={value !== index} style={{ padding: index == 3 ? "0" : "10px 0" }}>
+        <div hidden={value !== index} style={{ padding: noTabPadding ? "0" : "10px 0" }}>
             {value === index && children}
         </div>
     );
@@ -186,7 +188,10 @@ function ConfirmedOrderViewPageContent() {
     const [tabValue, setTabValue] = useState(0);
     const mountedRef = useRef(true);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-    const [cancelReason, setCancelReason] = useState("");
+    const [cancelReasonId, setCancelReasonId] = useState("");
+    const [cancelRemarks, setCancelRemarks] = useState("");
+    const [cancelReasonOptions, setCancelReasonOptions] = useState([]);
+    const [cancelReasonLoading, setCancelReasonLoading] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
     const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
@@ -316,8 +321,8 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const calculateOrderDetailHeight = () => {
-        // Slightly taller panels to better use vertical space on large screens
-        return `calc(100vh - 140px)`;
+        // Pipeline + toolbar + main padding; dvh for mobile; taller tab panel
+        return `calc(100dvh - 108px)`;
     };
 
     const canCancelOrder = () => {
@@ -330,17 +335,38 @@ function ConfirmedOrderViewPageContent() {
         return true;
     };
 
-    const handleOpenCancelDialog = () => {
-        setCancelReason("");
+    const handleOpenCancelDialog = async () => {
+        setCancelReasonId("");
+        setCancelRemarks("");
         setCancelDialogOpen(true);
+        try {
+            setCancelReasonLoading(true);
+            const options = await mastersService.getReferenceOptionsSearch("reason.model", {
+                reason_type: "order_cancellation",
+                is_active: true,
+            });
+            setCancelReasonOptions(Array.isArray(options) ? options : []);
+        } catch (err) {
+            console.error("Failed to load cancellation reasons:", err);
+            toastError("Failed to load cancellation reasons");
+        } finally {
+            setCancelReasonLoading(false);
+        }
     };
 
     const handleConfirmCancel = async () => {
         if (!orderId) return;
+        if (!cancelReasonId) {
+            toastError("Please select a cancellation reason");
+            return;
+        }
         try {
             setCancelling(true);
+            const selectedReason = cancelReasonOptions.find((o) => o.id == cancelReasonId);
             await orderService.cancelOrder(orderId, {
-                cancellation_reason: cancelReason?.trim() || undefined,
+                cancellation_reason_id: cancelReasonId,
+                cancellation_reason: selectedReason?.label || selectedReason?.reason || "",
+                cancellation_remarks: cancelRemarks?.trim() || undefined,
             });
             toastSuccess("Order cancelled successfully");
             setCancelDialogOpen(false);
@@ -681,18 +707,32 @@ function ConfirmedOrderViewPageContent() {
             >
                 <DialogTitle>Cancel Order</DialogTitle>
                 <DialogContent dividers>
-                    <Typography variant="body2" mb={1}>
+                    <Typography variant="body2" mb={2}>
                         Are you sure you want to cancel this order? This action cannot be undone.
                     </Typography>
-                    <Input
+                    <AutocompleteField
+                        options={cancelReasonOptions}
+                        loading={cancelReasonLoading}
+                        value={cancelReasonOptions.find((o) => o.id == cancelReasonId) || null}
+                        onChange={(e, v) => setCancelReasonId(v?.id || "")}
+                        getOptionLabel={(o) => o?.label || o?.reason || ""}
+                        placeholder="Select Cancellation Reason"
+                        label="Reason"
+                        name="cancellation_reason_id"
+                        required
                         fullWidth
-                        label="Reason (optional)"
-                        name="cancellation_reason"
-                        value={cancelReason}
-                        onChange={(e) => setCancelReason(e.target.value)}
-                        multiline
-                        rows={3}
                     />
+                    <Box mt={2}>
+                        <Input
+                            fullWidth
+                            label="Remarks (optional)"
+                            name="cancellation_remarks"
+                            value={cancelRemarks}
+                            onChange={(e) => setCancelRemarks(e.target.value)}
+                            multiline
+                            rows={3}
+                        />
+                    </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setCancelDialogOpen(false)} disabled={cancelling} size="small">
@@ -703,7 +743,7 @@ function ConfirmedOrderViewPageContent() {
                         color="error"
                         variant="contained"
                         size="small"
-                        disabled={cancelling}
+                        disabled={cancelling || !cancelReasonId}
                     >
                         {cancelling ? "Cancelling..." : "Confirm Cancel"}
                     </Button>

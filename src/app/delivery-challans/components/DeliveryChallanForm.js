@@ -42,6 +42,7 @@ import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
 import productService from "@/services/productService";
+import challanService from "@/services/challanService";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -61,17 +62,18 @@ const makeErrorUserFriendly = (msg, lines) => {
 const DELIVERY_CHALLAN_LOAD_CACHE_TTL_MS = 60 * 1000;
 const deliveryChallanLoadCache = {};
 
-function getCachedOrderLoad(orderId) {
+function getCachedOrderLoad(orderId, serialScanRequired) {
     if (!orderId) return null;
-    const key = String(orderId);
+    const key = `${orderId}_${serialScanRequired}`;
     const entry = deliveryChallanLoadCache[key];
     if (!entry || Date.now() - entry.timestamp > DELIVERY_CHALLAN_LOAD_CACHE_TTL_MS) return null;
     return entry.data;
 }
 
-function setCachedOrderLoad(orderId, data) {
+function setCachedOrderLoad(orderId, data, serialScanRequired) {
     if (!orderId) return;
-    deliveryChallanLoadCache[String(orderId)] = { data, timestamp: Date.now() };
+    const key = `${orderId}_${serialScanRequired}`;
+    deliveryChallanLoadCache[key] = { data, timestamp: Date.now() };
 }
 
 /**
@@ -104,6 +106,8 @@ export default function DeliveryChallanForm({
     const [availableOrders, setAvailableOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [serialScanRequired, setSerialScanRequired] = useState(true);
+    const [configLoading, setConfigLoading] = useState(true);
 
     const [formData, setFormData] = useState({
         challan_date: new Date().toISOString().split("T")[0],
@@ -171,7 +175,7 @@ export default function DeliveryChallanForm({
                 unit_name: unitName,
                 ship_now: "",
                 serials: [],
-                serial_required: !!p?.serial_required,
+                serial_required: serialScanRequired ? !!p?.serial_required : false,
             };
         });
     };
@@ -228,7 +232,7 @@ export default function DeliveryChallanForm({
             }
             if (signal?.aborted) return;
 
-            setCachedOrderLoad(id, { order: data, lines: newLines, stockByProductId: stockMap, availableSerialsByLineIndex: byIndex });
+            setCachedOrderLoad(id, { order: data, lines: newLines, stockByProductId: stockMap, availableSerialsByLineIndex: byIndex }, serialScanRequired);
             setStockByProductId(stockMap);
             setOrder(data);
             setSelectedOrderOption(null);
@@ -259,8 +263,29 @@ export default function DeliveryChallanForm({
         let abortController = null;
 
         const init = async () => {
+            // 1. Fetch serial scan requirement config
+            try {
+                const cfg = await challanService.getSerialScanRequired();
+                setSerialScanRequired(cfg?.result?.required ?? cfg?.required ?? true);
+            } catch (err) {
+                console.error("Failed to fetch serial scan config:", err);
+                setSerialScanRequired(true);
+            } finally {
+                setConfigLoading(false);
+            }
+        };
+
+        init();
+    }, []);
+
+    useEffect(() => {
+        if (configLoading) return; // Wait for config
+
+        let abortController = null;
+
+        const init = async () => {
             if (orderIdParam) {
-                const cached = getCachedOrderLoad(orderIdParam);
+                const cached = getCachedOrderLoad(orderIdParam, serialScanRequired);
                 if (cached) {
                     setOrder(cached.order);
                     setLines(cached.lines);
@@ -303,7 +328,7 @@ export default function DeliveryChallanForm({
             if (abortController) abortController.abort();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [orderIdParam]);
+    }, [orderIdParam, configLoading, serialScanRequired]);
 
     // ── Add Product Dialog: debounced search (>=2 chars) ──────────────────
     useEffect(() => {
@@ -512,7 +537,7 @@ export default function DeliveryChallanForm({
             unit_name: p.measurement_unit_name || "",
             ship_now: "",
             serials: [],
-            serial_required: !!p.serial_required,
+            serial_required: serialScanRequired ? !!p.serial_required : false,
             is_custom: true,
         };
 
@@ -1014,7 +1039,7 @@ export default function DeliveryChallanForm({
     const itemsToShip = lines.filter((l) => Number(l.ship_now) > 0).length;
 
     // ── Loading spinner ────────────────────────────────────────────────
-    if (initialLoading && !ordersLoading) {
+    if ((initialLoading || configLoading) && !ordersLoading) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 200 }}>
                 <CircularProgress />

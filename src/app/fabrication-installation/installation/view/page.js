@@ -1,18 +1,14 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Box, Paper, Alert, CircularProgress, Grid } from "@mui/material";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import { Button } from "@/components/ui/button";
 import CustomerProjectDetails from "@/app/confirm-orders/view/components/CustomerProjectDetails";
 import Installation from "@/app/confirm-orders/components/Installation";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
-import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
-
 function InstallationViewContent() {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
     const [loading, setLoading] = useState(true);
@@ -56,37 +52,45 @@ function InstallationViewContent() {
         return <Alert severity="error">{error}</Alert>;
     }
 
+    /** Fills dashboard main: mobile subtracts top bar (h-14) + main py-2; desktop subtracts main py-2 only. */
+    const pageFillHeight = { xs: "calc(100dvh - 3.5rem - 16px)", lg: "calc(100dvh - 16px)" };
+
     return (
-        <Box sx={{ p: 2 }}>
-            <Grid container spacing={1}>
-                <Grid size={2.5}>
+        <Box
+            sx={{
+                height: pageFillHeight,
+                minHeight: 480,
+                display: "flex",
+                flexDirection: "column",
+                p: 1,
+                boxSizing: "border-box",
+            }}
+        >
+            <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
+                <Grid size={2.5} sx={{ display: "flex", minHeight: 0 }}>
                     <Paper
-                        sx={{ p: 1.5, height: "calc(100vh - 140px)", overflowY: "auto" }}
+                        sx={{ p: 1.5, flex: 1, minHeight: 0, width: "100%", overflowY: "auto" }}
                         elevation={0}
                         className="border border-border rounded-lg"
                     >
                         <CustomerProjectDetails orderData={orderData} />
                     </Paper>
                 </Grid>
-                <Grid size={9.5}>
+                <Grid size={9.5} sx={{ display: "flex", minHeight: 0, minWidth: 0 }}>
                     <Paper
                         elevation={0}
                         sx={{
                             p: 1.5,
-                            height: "calc(100vh - 140px)",
+                            flex: 1,
+                            minHeight: 0,
+                            width: "100%",
                             display: "flex",
                             flexDirection: "column",
                             overflow: "hidden",
                         }}
                         className="border border-border rounded-lg"
                     >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                            <div className={COMPACT_SECTION_HEADER_CLASS}>Installation</div>
-                            <Button size="sm" variant="outline" onClick={() => router.push("/fabrication-installation")}>
-                                Back
-                            </Button>
-                        </Box>
-                        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
                             <Installation
                                 orderId={orderId}
                                 orderData={orderData}

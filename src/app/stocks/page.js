@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import {
+  IconAlertTriangle,
   IconBuildingWarehouse,
   IconChevronDown,
   IconChevronUp,
@@ -84,6 +85,7 @@ const EMPTY_SUMMARY = {
     total_stock_value_incl_gst: 0,
     low_stock_count: 0,
     out_of_stock_count: 0,
+    total_damaged: 0,
   },
   by_product_type: [],
   by_warehouse: [],
@@ -417,6 +419,19 @@ export default function StockPage() {
         field: "quantity_available",
         label: "Available",
         sortable: true,
+      },
+      {
+        field: "quantity_damaged",
+        label: "Damaged",
+        sortable: false,
+        render: (row) =>
+          toNum(row.quantity_damaged) > 0 ? (
+            <span className="text-red-600 font-semibold tabular-nums">
+              {formatNumber(row.quantity_damaged)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground tabular-nums">0</span>
+          ),
       },
       {
         field: "avg_price_excl_gst",
@@ -802,7 +817,7 @@ export default function StockPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
             <StatCard
               icon={<IconPackage size={16} />}
               label="Total Products"
@@ -825,6 +840,14 @@ export default function StockPage() {
               value={formatNumber(totals.total_available)}
               accentColor="#10b981"
               subLabel={`Reserved: ${formatNumber(totals.total_reserved)}`}
+              loading={summaryLoading}
+            />
+            <StatCard
+              icon={<IconAlertTriangle size={16} />}
+              label="Damaged"
+              value={formatNumber(totals.total_damaged)}
+              accentColor="#ef4444"
+              subLabel="Posted DAMAGE adjustments"
               loading={summaryLoading}
             />
             <StatCard
@@ -966,14 +989,15 @@ export default function StockPage() {
                   <div className="p-2 text-xs text-muted-foreground">No summary rows found for selected filters.</div>
                 ) : (
                   <div className="max-h-64 overflow-auto scrollbar-thin">
-                    <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10">
+                    <div className="grid grid-cols-12 gap-1 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10">
                       <div className="col-span-3">Product Type</div>
                       <div className="col-span-1 text-right">SKUs</div>
                       <div className="col-span-1 text-right">On Hand</div>
                       <div className="col-span-1 text-right">Available</div>
+                      <div className="col-span-1 text-right">Damaged</div>
                       <div className="col-span-2 text-right">Value (Excl)</div>
                       <div className="col-span-2 text-right">Value (Incl)</div>
-                      <div className="col-span-2 text-right">Health Status</div>
+                      <div className="col-span-1 text-right">Health</div>
                     </div>
                     {(summary.by_product_type || []).map((row) => {
                       const isActive = String(filters.product_type_id || "") === String(row.product_type_id || "");
@@ -982,7 +1006,7 @@ export default function StockPage() {
                           key={`summary-type-${row.product_type_id || row.product_type_name}`}
                           onClick={() => setProductTypeFilter(isActive ? "" : String(row.product_type_id || ""))}
                           className={[
-                            "grid grid-cols-12 gap-2 px-3 py-2 text-[11px] border-b last:border-b-0 border-border/40 cursor-pointer transition-colors",
+                            "grid grid-cols-12 gap-1 px-3 py-2 text-[11px] border-b last:border-b-0 border-border/40 cursor-pointer transition-colors",
                             isActive ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/50",
                           ].join(" ")}
                         >
@@ -993,9 +1017,16 @@ export default function StockPage() {
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.product_count)}</div>
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.total_on_hand)}</div>
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.total_available)}</div>
+                          <div className="col-span-1 text-right tabular-nums">
+                            {toNum(row.damaged_count) > 0 ? (
+                              <span className="text-red-600 font-semibold">{formatNumber(row.damaged_count)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </div>
                           <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_excl_gst)}</div>
                           <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_incl_gst)}</div>
-                          <div className="col-span-2 text-right">
+                          <div className="col-span-1 text-right">
                             <Badge
                               variant={toNum(row.low_stock_count) > 0 ? "destructive" : "default"}
                               className="text-[9px] h-4 px-1.5"

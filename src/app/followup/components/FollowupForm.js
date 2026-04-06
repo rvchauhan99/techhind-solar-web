@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import userService from "@/services/userMasterService";
 import followupService from "@/services/followupService";
+import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -13,6 +14,7 @@ import Checkbox from "@/components/common/Checkbox";
 import LoadingButton from "@/components/common/LoadingButton";
 import { cn } from "@/lib/utils";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { toastSuccess, toastError } from "@/utils/toast";
 
 const inquiryStatusOptions = [
   { key: "Live", value: "Live" },
@@ -40,16 +42,20 @@ export default function FollowupForm({
     is_msg_send_to_customer: defaultValues.is_msg_send_to_customer || false,
     rating: defaultValues.rating || "",
     isFromInquiry: defaultValues.isFromInquiry || false,
+    dead_reason_id: defaultValues.dead_reason_id || "",
+    dead_remarks: defaultValues.dead_remarks || "",
   });
 
   const [inquiries, setInquiries] = useState([]);
   const [users, setUsers] = useState([]);
   const [ratingOptions, setRatingOptions] = useState([]);
+  const [deadReasonOptions, setDeadReasonOptions] = useState([]);
   const [errors, setErrors] = useState({});
   const [loadingOptions, setLoadingOptions] = useState({
     inquiries: false,
     users: false,
     ratings: false,
+    deadReasons: false,
   });
 
   const formatDateForInput = (dateString) => {
@@ -95,8 +101,29 @@ export default function FollowupForm({
       is_msg_send_to_customer: defaultValues.is_msg_send_to_customer || false,
       rating: defaultValues.rating || "",
       isFromInquiry: defaultValues.isFromInquiry || false,
+      dead_reason_id: defaultValues.dead_reason_id || "",
+      dead_remarks: defaultValues.dead_remarks || "",
     });
   }, [defaultValues, user]);
+
+  useEffect(() => {
+    const fetchDeadReasons = async () => {
+      if (formData.inquiry_status !== "Dead") return;
+      setLoadingOptions((prev) => ({ ...prev, deadReasons: true }));
+      try {
+        const response = await mastersService.getReferenceOptionsSearch("reason.model", {
+          reason_type: "inquiry_dead",
+        });
+        setDeadReasonOptions(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error("Error fetching dead reasons:", error);
+        setDeadReasonOptions([]);
+      } finally {
+        setLoadingOptions((prev) => ({ ...prev, deadReasons: false }));
+      }
+    };
+    fetchDeadReasons();
+  }, [formData.inquiry_status]);
 
   useEffect(() => {
     const fetchInquiries = async () => {
@@ -167,46 +194,63 @@ export default function FollowupForm({
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+    const handleSubmit = (e) => {
+        e.preventDefault();
 
-    const newErrors = {};
+        const newErrors = {};
 
-    if (!formData.inquiry_id) {
-      newErrors.inquiry_id = "Inquiry is required";
-    }
-    if (!formData.inquiry_status) {
-      newErrors.inquiry_status = "Inquiry Status is required";
-    }
-    if (!formData.remarks || formData.remarks.trim() === "") {
-      newErrors.remarks = "Call Remarks is required";
-    }
-    if (!formData.next_reminder) {
-      newErrors.next_reminder = "Next Reminder Date is required";
-    }
-    if (!formData.call_by && !user?.id) {
-      newErrors.call_by = "Call By is required";
-    }
+        if (!formData.inquiry_id) {
+            newErrors.inquiry_id = "Inquiry is required";
+        }
+        if (!formData.inquiry_status) {
+            newErrors.inquiry_status = "Inquiry Status is required";
+        }
+        if (!formData.remarks || formData.remarks.trim() === "") {
+            newErrors.remarks = "Call Remarks is required";
+        }
+        if (!formData.next_reminder) {
+            newErrors.next_reminder = "Next Reminder Date is required";
+        }
+        if (!formData.call_by && !user?.id) {
+            newErrors.call_by = "Call By is required";
+        }
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
+        if (formData.inquiry_status === "Dead" && !formData.dead_reason_id) {
+            newErrors.dead_reason_id = "Dead Reason is required";
+        }
 
-    setErrors({});
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
 
-    const payload = {
-      ...formData,
-      inquiry_id: formData.inquiry_id || null,
-      call_by: formData.call_by || user?.id || null,
-      next_reminder: formData.next_reminder
-        ? new Date(formData.next_reminder + "T00:00:00").toISOString()
-        : null,
-      remarks: formData.remarks || null,
-      rating: formData.rating || "",
+        setErrors({});
+
+        const payload = {
+            ...formData,
+            inquiry_id: formData.inquiry_id || null,
+            call_by: formData.call_by || user?.id || null,
+            next_reminder: formData.next_reminder
+                ? new Date(formData.next_reminder + "T00:00:00").toISOString()
+                : null,
+            remarks: formData.remarks || null,
+            rating: formData.rating || "",
+        };
+
+        // Handle submission with toast messages
+        const submitFollowup = async () => {
+            try {
+                await followupService.createFollowup(payload);
+                toastSuccess(`Followup ${defaultValues?.id ? "updated" : "created"} successfully`);
+                onSubmit(payload);
+            } catch (err) {
+                const errorMessage = err.response?.data?.message || err.message || `Failed to ${defaultValues?.id ? "update" : "create"} followup`;
+                toastError(errorMessage);
+            }
+        };
+
+        submitFollowup();
     };
-    onSubmit(payload);
-  };
 
   if (loading) {
     return (
@@ -281,6 +325,35 @@ export default function FollowupForm({
             error={!!errors.inquiry_status}
             helperText={errors.inquiry_status}
           />
+
+          {formData.inquiry_status === "Dead" && (
+            <>
+              <AutocompleteField
+                name="dead_reason_id"
+                label="Dead Reason"
+                options={deadReasonOptions}
+                getOptionLabel={(o) => o?.label ?? o?.reason ?? ""}
+                value={(Array.isArray(deadReasonOptions) ? deadReasonOptions : []).find((o) => o.id == formData.dead_reason_id) || (formData.dead_reason_id ? { id: formData.dead_reason_id } : null)}
+                onChange={(e, newValue) => handleChange({ target: { name: "dead_reason_id", value: newValue?.id ?? "" } })}
+                placeholder="Select Dead Reason"
+                disabled={loadingOptions.deadReasons}
+                required
+                error={!!errors.dead_reason_id}
+                helperText={errors.dead_reason_id}
+              />
+              <Input
+                name="dead_remarks"
+                label="Dead Remarks"
+                value={formData.dead_remarks}
+                onChange={handleChange}
+                multiline
+                rows={1}
+                placeholder="Optional remarks..."
+                error={!!errors.dead_remarks}
+                helperText={errors.dead_remarks}
+              />
+            </>
+          )}
         </div>
 
         <DateField

@@ -151,6 +151,20 @@ export default function InquiryDetailsContent({ inquiry, loading }) {
           Do not send SMS / messages for this inquiry.
         </p>
       ) : null}
+
+      {i.is_dead && (
+        <>
+          <SectionTitle>Dead Details</SectionTitle>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
+            <DetailRow label="Reason" value={i.dead_reason || i.dead_reason_name || "-"} />
+          </div>
+          {i.dead_remarks && (
+            <div className="mt-1 text-xs whitespace-pre-wrap leading-snug bg-red-50/50 dark:bg-red-900/10 p-2 rounded-md border border-red-100/50 dark:border-red-900/20">
+              {i.dead_remarks}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

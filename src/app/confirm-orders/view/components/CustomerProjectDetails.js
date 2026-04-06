@@ -83,6 +83,45 @@ export default function CustomerProjectDetails({ orderData }) {
         </Typography>
       </Box>
 
+      {orderData?.status === "cancelled" && (
+        <>
+          <div className={COMPACT_SECTION_HEADER_CLASS}>Cancellation Details</div>
+          <Box mt={2} mb={2}>
+            <Typography variant="body2" color="text.secondary">
+              Cancelled At:
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {orderData?.cancelled_at ? moment(orderData.cancelled_at).format("DD-MM-YYYY HH:mm") : "N/A"}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" mt={2}>
+              Cancelled By:
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {orderData?.cancelled_by_name || "N/A"}
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" mt={2}>
+              Reason:
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">
+              {orderData?.cancellation_reason_name || orderData?.cancellation_reason || "N/A"}
+            </Typography>
+
+            {orderData?.cancellation_remarks && (
+              <>
+                <Typography variant="body2" color="text.secondary" mt={2}>
+                  Remarks:
+                </Typography>
+                <Typography variant="body1" sx={{ wordBreak: "break-word" }}>
+                  {orderData.cancellation_remarks}
+                </Typography>
+              </>
+            )}
+          </Box>
+        </>
+      )}
+
       <div className={COMPACT_SECTION_HEADER_CLASS}>Project Details</div>
       <Box mt={2} mb={2}>
         <Typography variant="body2" color="text.secondary">
