@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -29,6 +29,11 @@ import AddIcon from "@mui/icons-material/Add";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button as UIButton } from "@/components/ui/button";
+import { IconFilter } from "@tabler/icons-react";
+import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
 import { toastError, toastSuccess } from "@/utils/toast";
@@ -113,7 +118,12 @@ export default function DeliveryExecutionPage() {
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+  const [appliedDrawerFilters, setAppliedDrawerFilters] = useState(initialFilters);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [appliedQ, setAppliedQ] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceRef = useRef(null);
+  const searchFeedbackRef = useRef(null);
   const [assignTeamDrawerOpen, setAssignTeamDrawerOpen] = useState(false);
   const [assignTeamOrderId, setAssignTeamOrderId] = useState(null);
   const [assignTeamOrderData, setAssignTeamOrderData] = useState(null);
@@ -125,11 +135,23 @@ export default function DeliveryExecutionPage() {
   const [forceCompleteLoading, setForceCompleteLoading] = useState(false);
   const router = useRouter();
 
+  const handleQuickSearchChange = useCallback((val) => {
+    setQuickSearch(val);
+    setIsSearching(true);
+    if (searchFeedbackRef.current) clearTimeout(searchFeedbackRef.current);
+    searchFeedbackRef.current = setTimeout(() => setIsSearching(false), 500);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setAppliedQ(val.trim()), 350);
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await orderService.getDeliveryExecutionOrders(buildFilterParams(appliedFilters));
+      const sharedParams = appliedQ
+        ? { q: appliedQ }
+        : buildFilterParams(appliedDrawerFilters);
+      const res = await orderService.getDeliveryExecutionOrders(sharedParams);
       const data = res?.result || res || [];
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -141,7 +163,7 @@ export default function DeliveryExecutionPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters]);
+  }, [appliedDrawerFilters, appliedQ]);
 
   useEffect(() => {
     fetchData();
@@ -194,16 +216,22 @@ export default function DeliveryExecutionPage() {
   };
 
   const applyFilters = () => {
-    setAppliedFilters(filters);
+    setAppliedDrawerFilters(filters);
+    setQuickSearch("");
+    setAppliedQ("");
     setFilterDrawerOpen(false);
   };
 
   const resetFilters = () => {
     setFilters(initialFilters);
-    setAppliedFilters(initialFilters);
+    setAppliedDrawerFilters(initialFilters);
+    setQuickSearch("");
+    setAppliedQ("");
   };
 
-  const activeFilterCount = Object.keys(buildFilterParams(appliedFilters)).length;
+  const activeFilterCount = appliedQ
+    ? 1
+    : Object.keys(buildFilterParams(appliedDrawerFilters)).length;
 
   const grouped = COLUMNS.reduce((acc, col) => {
     acc[col.key] = [];
@@ -329,19 +357,43 @@ export default function DeliveryExecutionPage() {
         overflow: "hidden",
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-        <Typography variant="h6">Delivery Execution & Team Planning</Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Button size="small" variant="outlined" onClick={() => setFilterDrawerOpen(true)}>
-            Filter {activeFilterCount > 0 ? `(${activeFilterCount})` : ""}
-          </Button>
-          {activeFilterCount > 0 && (
-            <Button size="small" variant="text" onClick={resetFilters}>
-              Clear
-            </Button>
-          )}
-        </Box>
-      </Box>
+      <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+        <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5">
+          <h1 className="text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
+            Delivery Execution & Team Planning
+          </h1>
+          <OrderListQuickSearch
+            value={quickSearch}
+            onValueChange={handleQuickSearchChange}
+            isSearching={isSearching}
+            className="flex-1 min-w-[180px] max-w-[340px] w-full sm:w-80"
+          />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <UIButton
+              size="sm"
+              variant="outline"
+              onClick={() => setFilterDrawerOpen(true)}
+              className="h-8 text-xs gap-1.5 px-2.5"
+            >
+              <IconFilter size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] h-4 px-1 leading-none bg-green-100 text-green-700 border-green-200"
+                >
+                  {activeFilterCount}
+                </Badge>
+              )}
+            </UIButton>
+            {activeFilterCount > 0 && (
+              <UIButton size="sm" variant="ghost" onClick={resetFilters} className="h-8 text-xs px-2">
+                Clear
+              </UIButton>
+            )}
+          </div>
+        </div>
+      </Card>
 
       {loading && (
         <Box display="flex" justifyContent="center" mt={4}>

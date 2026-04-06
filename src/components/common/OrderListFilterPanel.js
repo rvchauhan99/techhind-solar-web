@@ -8,9 +8,8 @@ import {
   IconFilter,
   IconChevronDown,
   IconChevronUp,
-  IconSearch,
-  IconX,
 } from "@tabler/icons-react";
+import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
@@ -306,41 +305,12 @@ export default function OrderListFilterPanel({
           ))}
         </div>
 
-        <div className="w-full sm:w-80 relative shrink-0">
-          <div
-            className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
-              isSearching ? "text-green-500 animate-pulse" : "text-slate-400"
-            }`}
-          >
-            {isSearching ? (
-              <div className="h-4 w-4 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
-            ) : (
-              <IconSearch size={16} />
-            )}
-          </div>
-          <input
-            type="text"
-            placeholder="Quick Search (Name/Mobile/Order #)"
-            className="w-full h-10 pl-10 pr-8 bg-white border-2 border-green-200/60 rounded-xl text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all placeholder:text-slate-400 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]"
-            value={quickSearch}
-            onChange={(e) => handleQuickSearchChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-                handleQuickSearchChange(quickSearch);
-              }
-            }}
-          />
-          {quickSearch && (
-            <button
-              type="button"
-              onClick={() => handleQuickSearchChange("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 transition-colors"
-            >
-              <IconX size={14} />
-            </button>
-          )}
-        </div>
+        <OrderListQuickSearch
+          value={quickSearch}
+          onValueChange={handleQuickSearchChange}
+          isSearching={isSearching}
+          className="w-full sm:w-80"
+        />
       </div>
       {open && (
         <div className="border-t border-slate-100 px-2.5 py-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">

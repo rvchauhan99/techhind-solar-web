@@ -56,41 +56,56 @@ function FabricationViewContent() {
         return <Alert severity="error">{error}</Alert>;
     }
 
+    /** Fills dashboard main: mobile subtracts top bar (h-14) + main py-2; desktop subtracts main py-2 only. */
+    const pageFillHeight = { xs: "calc(100dvh - 3.5rem - 16px)", lg: "calc(100dvh - 16px)" };
+
     return (
-        <Box sx={{ p: 2 }}>
-            <Grid container spacing={1}>
-                <Grid size={2.5}>
+        <Box
+            sx={{
+                height: pageFillHeight,
+                minHeight: 480,
+                display: "flex",
+                flexDirection: "column",
+                p: 1,
+                boxSizing: "border-box",
+            }}
+        >
+            <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
+                <Grid size={2.5} sx={{ display: "flex", minHeight: 0 }}>
                     <Paper
-                        sx={{ p: 1.5, height: "calc(100vh - 140px)", overflowY: "auto" }}
+                        sx={{ p: 1.5, flex: 1, minHeight: 0, width: "100%", overflowY: "auto" }}
                         elevation={0}
                         className="border border-border rounded-lg"
                     >
                         <CustomerProjectDetails orderData={orderData} />
                     </Paper>
                 </Grid>
-                <Grid size={9.5}>
+                <Grid size={9.5} sx={{ display: "flex", minHeight: 0 }}>
                     <Paper
                         elevation={0}
                         sx={{
                             p: 1.5,
-                            height: "calc(100vh - 140px)",
+                            flex: 1,
+                            minHeight: 0,
+                            width: "100%",
                             display: "flex",
                             flexDirection: "column",
                             overflow: "hidden",
                         }}
                         className="border border-border rounded-lg"
                     >
-                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5, flexShrink: 0 }}>
                             <div className={COMPACT_SECTION_HEADER_CLASS}>Fabrication</div>
                             <Button size="sm" variant="outline" onClick={() => router.push("/fabrication-installation")}>
                                 Back
                             </Button>
                         </Box>
-                        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
                             <Fabrication
                                 orderId={orderId}
                                 orderData={orderData}
                                 onSuccess={fetchOrder}
+                                splitLayout
                             />
                         </Box>
                     </Paper>

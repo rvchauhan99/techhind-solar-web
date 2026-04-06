@@ -28,6 +28,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FollowupForm from "@/app/followup/components/FollowupForm";
 import SiteVisitForm from "@/app/site-visit/components/SiteVisitForm";
 import DocumentUploadForm from "../inquiry/components/DocumentUploadForm";
+import MarkDeadModal from "../inquiry/components/MarkDeadModal";
 import followupService from "@/services/followupService";
 import siteVisitService from "@/services/siteVisitService";
 import inquiryService from "@/services/inquiryService";
@@ -195,6 +196,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [siteVisitModalOpen, setSiteVisitModalOpen] = useState(false);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [markDeadModalOpen, setMarkDeadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [siteVisitLoading, setSiteVisitLoading] = useState(false);
   const [documentLoading, setDocumentLoading] = useState(false);
@@ -389,6 +391,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     setServerError(null);
     try {
       await followupService.createFollowup(payload);
+      toastSuccess("Followup created successfully");
       handleCloseModal();
       // Refresh inquiries list after successful followup creation
       if (onRefresh) {
@@ -397,28 +400,18 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Failed to create followup";
       setServerError(errorMessage);
+      toastError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkAsDead = async () => {
-    if (!menuInquiryId) return;
-
-    // Optimistic update or just set loading
-    setLoading(true);
-    try {
-      await inquiryService.updateInquiry(menuInquiryId, { is_dead: true });
-      if (onRefresh) {
-        await onRefresh();
-      }
-    } catch (err) {
-      console.error("Failed to mark as dead", err);
-      // setServerError(err.message);
-    } finally {
-      setLoading(false);
-      handleMenuClose();
+  const handleMarkAsDead = () => {
+    if (menuInquiryId) {
+      setSelectedInquiryId(menuInquiryId);
+      setMarkDeadModalOpen(true);
     }
+    handleMenuClose();
   };
 
   const handleSiteVisitSubmit = async (formData, files) => {
@@ -1175,6 +1168,16 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
           />
         </Box>
       </Modal>
+
+      <MarkDeadModal
+        open={markDeadModalOpen}
+        onClose={() => {
+          setMarkDeadModalOpen(false);
+          setSelectedInquiryId(null);
+        }}
+        inquiryId={selectedInquiryId}
+        onRefresh={onRefresh}
+      />
 
       {/* Error Snackbar - only for backend errors */}
       {dragError && (

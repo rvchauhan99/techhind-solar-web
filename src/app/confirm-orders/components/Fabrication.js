@@ -39,7 +39,7 @@ function getDocumentUrlById(id) {
     return orderDocumentsService.getDocumentUrl(id);
 }
 
-export default function Fabrication({ orderId, orderData, onSuccess }) {
+export default function Fabrication({ orderId, orderData, onSuccess, splitLayout = false }) {
     const pathname = usePathname();
     const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
@@ -327,16 +327,11 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
         );
     }
 
-    return (
-        <Box component="form" onSubmit={(e) => handleSubmit(e, false)} onKeyDown={preventEnterSubmit} className="p-3 sm:p-4 max-w-4xl">
-            {orderData?.fabricator_id || orderData?.fabricator_installer_id ? (
-                <FormSection title="Fabricator (from assignment)">
-                    <Typography variant="body2" color="text.secondary">
-                        Fabricator is assigned in the &quot;Assign Fabricator &amp; Installer&quot; stage.
-                    </Typography>
-                </FormSection>
-            ) : null}
+    const formId = `fabrication-form-${orderId}`;
+    const formShellClass = splitLayout ? "p-2 sm:p-3 w-full min-w-0" : "p-3 sm:p-4 max-w-4xl";
 
+    const formBody = (
+        <>
             <FormSection title="Fabrication execution">
                 <FormGrid cols={2}>
                     <DateField
@@ -447,7 +442,13 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                 </Box>
 
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
-                <Box className="mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Box
+                    className={
+                        splitLayout
+                            ? "mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2"
+                            : "mt-1 mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                    }
+                >
                     {FABRICATION_IMAGE_KEYS.map(({ key, label, required }) => {
                         const hasPending = !!pendingImages[key];
                         const hasSaved = !!images[key];
@@ -536,46 +537,100 @@ export default function Fabrication({ orderId, orderData, onSuccess }) {
                     name="remarks"
                     label="Remarks"
                     multiline
-                    rows={3}
+                    // rows={splitLayout ? 8 : 3}  
                     value={formData.remarks}
                     onChange={handleInputChange}
                     fullWidth
                     disabled={disabled}
+                    // className={splitLayout ? "min-h-[min(38dvh,22rem)] resize-y" : un /defined}
                 />
             </FormSection>
+        </>
+    );
 
-            <div className="mt-4 flex flex-col gap-2">
-                {error && <Alert severity="error">{error}</Alert>}
-                {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                <div className="flex gap-2 flex-wrap">
+    const actionsFooter = (
+        <div className={splitLayout ? "flex flex-col gap-1.5" : "mt-4 flex flex-col gap-2"}>
+            {error && <Alert severity="error">{error}</Alert>}
+            {successMsg && <Alert severity="success">{successMsg}</Alert>}
+            <div className="flex gap-2 flex-wrap items-center">
+                <Button
+                    type="submit"
+                    form={splitLayout ? formId : undefined}
+                    size="sm"
+                    className="min-h-[44px] touch-manipulation"
+                    loading={submitting}
+                    disabled={disabled}
+                >
+                    Save
+                </Button>
+                {canComplete && (
                     <Button
-                        type="submit"
+                        type="button"
                         size="sm"
+                        variant="default"
                         className="min-h-[44px] touch-manipulation"
                         loading={submitting}
-                        disabled={disabled}
+                        onClick={(e) => handleSubmit(e, true)}
                     >
-                        Save
+                        Complete Fabrication
                     </Button>
-                    {canComplete && (
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="default"
-                            className="min-h-[44px] touch-manipulation"
-                            loading={submitting}
-                            onClick={(e) => handleSubmit(e, true)}
-                        >
-                            Complete Fabrication
-                        </Button>
-                    )}
-                </div>
-                {!canComplete && orderData?.stages?.planner !== "completed" && !isCompleted && (
-                    <Typography variant="caption" color="text.secondary">
-                        Complete the Planner stage to unlock Fabrication.
-                    </Typography>
                 )}
             </div>
+            {!canComplete && orderData?.stages?.planner !== "completed" && !isCompleted && (
+                <Typography variant="caption" color="text.secondary">
+                    Complete the Planner stage to unlock Fabrication.
+                </Typography>
+            )}
+        </div>
+    );
+
+    if (splitLayout) {
+        return (
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minHeight: 0,
+                    height: "100%",
+                    overflow: "hidden",
+                }}
+            >
+                <Box
+                    component="form"
+                    id={formId}
+                    onSubmit={(e) => handleSubmit(e, false)}
+                    onKeyDown={preventEnterSubmit}
+                    className={formShellClass}
+                    sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}
+                >
+                    {formBody}
+                </Box>
+                <Box
+                    sx={{
+                        flexShrink: 0,
+                        borderTop: 1,
+                        borderColor: "divider",
+                        bgcolor: "background.paper",
+                        px: { xs: 1, sm: 1.5 },
+                        py: 1,
+                    }}
+                >
+                    {actionsFooter}
+                </Box>
+            </Box>
+        );
+    }
+
+    return (
+        <Box
+            component="form"
+            onSubmit={(e) => handleSubmit(e, false)}
+            onKeyDown={preventEnterSubmit}
+            className={formShellClass}
+        >
+            {formBody}
+            {actionsFooter}
         </Box>
     );
 }

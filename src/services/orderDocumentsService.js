@@ -6,6 +6,7 @@ export const getOrderDocuments = (params = {}) =>
 export const createOrderDocument = (formData) =>
     apiClient.post("/order-documents", formData, {
         headers: { "Content-Type": undefined },
+        timeout: 120000,
     }).then((r) => r.data);
 
 export const getOrderDocumentById = (id) =>
@@ -14,6 +15,7 @@ export const getOrderDocumentById = (id) =>
 export const updateOrderDocument = (id, formData) =>
     apiClient.put(`/order-documents/${id}`, formData, {
         headers: { "Content-Type": undefined },
+        timeout: 120000,
     }).then((r) => r.data);
 
 export const deleteOrderDocument = (id) =>
