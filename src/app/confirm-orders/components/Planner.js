@@ -400,6 +400,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 outstandingAmount,
                 adjustmentCount: amendmentItems.length,
                 amendmentItems,
+                previousCapacityKw: Number(orderData?.capacity) || 0,
+                previewCapacityKw: bomCapacityPreviewKw,
             });
             setSaveConfirmPayload(payload);
             setSaveConfirmOpen(true);
@@ -828,6 +830,24 @@ export default function Planner({ orderId, orderData, onSuccess }) {
 
     const barState = deriveBarStateFromBomPlan(bomPlan);
 
+    /** Preview kW from BOM (product W × planned qty ÷ 1000). Snapshot capacity; server uses product master. */
+    const bomCapacityPreviewKw = useMemo(() => {
+        const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+        let totalW = 0;
+        let sawPanel = false;
+        for (const line of bomPlan || []) {
+            const p = line.product_snapshot || line;
+            const key = productTypeNameToBarKey(normalizeProductTypeName(p?.product_type_name ?? ""));
+            if (key !== "solar_panel") continue;
+            sawPanel = true;
+            const w = qtyNum(p?.capacity);
+            const q = qtyNum(line.planned_qty ?? line.quantity);
+            totalW += w * q;
+        }
+        if (!sawPanel) return null;
+        return Math.round((totalW / 1000 + Number.EPSILON) * 100) / 100;
+    }, [bomPlan]);
+
     const costPreview = useMemo(() => {
         const baseProjectCost = Number(orderData?.project_cost) || 0;
         const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
@@ -1160,6 +1180,14 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 </div>
                             </div>
                         </div>
+                        <div className="rounded border border-amber-200/80 bg-amber-50/90 p-1.5 text-[11px] mb-1.5 md:mb-1 leading-tight">
+                            <span className="text-muted-foreground">Order capacity (BOM preview, W×qty→kW): </span>
+                            <span className="font-semibold text-slate-800">
+                                {bomCapacityPreviewKw != null ? `${bomCapacityPreviewKw.toFixed(2)} kW` : "—"}
+                            </span>
+                            <span className="text-muted-foreground"> · stored: </span>
+                            <span className="font-medium">{(Number(orderData?.capacity) || 0).toFixed(2)} kW</span>
+                        </div>
                         {costUpdateSummary && (
                             <div className="rounded border border-emerald-200 bg-emerald-50 p-1.5 text-xs mb-1.5 md:mb-1">
                                 <div className="font-semibold mb-1">Update Summary</div>
@@ -1186,6 +1214,28 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                         <div className="text-muted-foreground">Override</div>
                                         <div className={`font-semibold ${costUpdateSummary.override_applied ? "text-amber-700" : "text-emerald-700"}`}>
                                             {costUpdateSummary.override_applied ? "Yes" : "No"}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 mt-1.5 pt-1.5 border-t border-emerald-200/80">
+                                    <div>
+                                        <div className="text-muted-foreground">Capacity before (kW)</div>
+                                        <div className="font-medium text-slate-700">{Number(costUpdateSummary.previous_capacity_kw ?? 0).toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Capacity saved (kW)</div>
+                                        <div className="font-medium text-indigo-800">{Number(costUpdateSummary.computed_capacity_kw ?? 0).toFixed(2)}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Δ kW</div>
+                                        <div className={`font-semibold ${Number(costUpdateSummary.capacity_delta_kw || 0) < 0 ? "text-rose-700" : "text-emerald-800"}`}>
+                                            {Number(costUpdateSummary.capacity_delta_kw || 0).toFixed(2)}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">From BOM</div>
+                                        <div className={`font-semibold ${costUpdateSummary.capacity_recomputed ? "text-emerald-800" : "text-slate-600"}`}>
+                                            {costUpdateSummary.capacity_recomputed ? "Yes" : "No"}
                                         </div>
                                     </div>
                                 </div>
@@ -1452,6 +1502,20 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                     <div className="rounded border border-rose-300 bg-rose-100 p-2 md:col-span-2">
                                         <div className="text-muted-foreground">Outstanding</div>
                                         <div className="font-semibold text-rose-800">{Number(saveConfirmSummary?.outstandingAmount || 0).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    <div className="rounded border border-amber-200 bg-amber-50 p-2">
+                                        <div className="text-muted-foreground">Capacity now (kW)</div>
+                                        <div className="font-semibold text-slate-800">{Number(saveConfirmSummary?.previousCapacityKw || 0).toFixed(2)}</div>
+                                    </div>
+                                    <div className="rounded border border-amber-200 bg-amber-50 p-2 md:col-span-3">
+                                        <div className="text-muted-foreground">After save — BOM preview (kW)</div>
+                                        <div className="font-semibold text-amber-950">
+                                            {saveConfirmSummary?.previewCapacityKw != null
+                                                ? `${saveConfirmSummary.previewCapacityKw.toFixed(2)} (server uses product master W)`
+                                                : "—"}
+                                        </div>
                                     </div>
                                 </div>
                                 <details open className="rounded border p-2 bg-slate-50/60">
