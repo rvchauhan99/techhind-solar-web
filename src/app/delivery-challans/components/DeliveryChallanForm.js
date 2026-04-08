@@ -153,10 +153,8 @@ export default function DeliveryChallanForm({
                 ? Number(line.planned_qty)
                 : rawQty;
             const shipped = Number(line.shipped_qty) || 0;
-            const pending =
-                line.pending_qty != null && !Number.isNaN(Number(line.pending_qty))
-                    ? Number(line.pending_qty)
-                    : Math.max(0, planned - shipped + (Number(line.returned_qty) || 0));
+            const returned = Number(line.returned_qty) || 0;
+            const pending = Math.max(0, planned - shipped + returned);
             const stockRow = stockMap && stockMap[line.product_id];
             const available =
                 stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
