@@ -208,7 +208,7 @@ export default function TechnicalSection({
                         field: "structure_items",
                         typeName: "structure",
                         labelBase: "Structure",
-                        qtyLabel: "Height",
+                        qtyLabel: "Quantity",
                         makeLabel: "Make",
                         descLabel: "Material",
                         fallbackSingle: {
