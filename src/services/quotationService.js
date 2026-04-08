@@ -24,6 +24,12 @@ export const approveQuotation = (id) =>
 export const unapproveQuotation = (id) =>
     apiClient.put(`/quotation/${id}/unapprove`).then((r) => r.data);
 
+export const managerApproveQuotation = (id, payload = {}) =>
+    apiClient.put(`/quotation/${id}/manager-approve`, payload).then((r) => r.data);
+
+export const managerRejectQuotation = (id, payload = {}) =>
+    apiClient.put(`/quotation/${id}/manager-reject`, payload).then((r) => r.data);
+
 export const getAllProjectPrices = (schemeId) =>
     apiClient.post("/quotation/project-price", { schemeId }).then((r) => r.data);
 
@@ -63,6 +69,8 @@ export default {
     deleteQuotation,
     approveQuotation,
     unapproveQuotation,
+    managerApproveQuotation,
+    managerRejectQuotation,
     getAllProjectPrices,
     getProjectPriceBomDetails,
     getAllProductMakes,

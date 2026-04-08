@@ -92,12 +92,19 @@ function AddOrderContent() {
                     const quotations = quotationResponse?.result?.data || [];
 
                     if (quotations.length > 0) {
-                        // Priority 1: Find quotation with is_approved = true
-                        let selectedQuotation = quotations.find((q) => q.is_approved === true);
+                        const managerApproved = quotations.filter((q) => q.approval_status === "Approved");
+                        if (managerApproved.length === 0) {
+                            setQuotationData(null);
+                            setSelectedQuotationDetails(null);
+                            toastError("No manager-approved quotation found for this inquiry.");
+                            return;
+                        }
+                        // Priority 1: Find quotation finalized for order among manager-approved records.
+                        let selectedQuotation = managerApproved.find((q) => q.is_approved === true);
 
-                        // Priority 2: If no approved quotation, get the latest by created_at and show confirmation
+                        // Priority 2: If no finalized quotation, get latest manager-approved and show confirmation
                         if (!selectedQuotation) {
-                            const sorted = [...quotations].sort(
+                            const sorted = [...managerApproved].sort(
                                 (a, b) => new Date(b.created_at) - new Date(a.created_at)
                             );
                             selectedQuotation = sorted[0];
@@ -418,10 +425,10 @@ function AddOrderContent() {
             >
                 <AlertDialogContent size="lg">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>No approved quotation</AlertDialogTitle>
+                        <AlertDialogTitle>No finalized quotation</AlertDialogTitle>
                         <AlertDialogDescription>
-                            No approved quotation for this inquiry. Use the latest quotation below?
-                            You can approve a quotation from the Quotations list first.
+                            No finalized quotation for this inquiry. Use the latest manager-approved quotation below?
+                            You can finalize a quotation from the Quotations list first.
                         </AlertDialogDescription>
                         <div className="space-y-3 text-sm">
                             {fullQuotationDetailsLoading ? (
@@ -482,7 +489,7 @@ function AddOrderContent() {
                                 setQuotationData(null);
                                 setFullQuotationDetails(null);
                                 setConfirmNoApprovedOpen(false);
-                                toast.info("Please approve a quotation from the Quotations list, then try again.");
+                                toast.info("Please finalize a quotation from the Quotations list, then try again.");
                             }}
                         >
                             Cancel

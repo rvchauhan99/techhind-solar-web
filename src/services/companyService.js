@@ -33,6 +33,12 @@ export const updateBranch = (id, payload) =>
 export const deleteBranch = (id) =>
   apiClient.delete(`/company/branches/${id}`).then((r) => r.data);
 
+export const getBranchManagers = (branchId) =>
+  apiClient.get(`/company/branches/${branchId}/managers`).then((r) => r.data);
+
+export const setBranchManagers = (branchId, userIds) =>
+  apiClient.put(`/company/branches/${branchId}/managers`, { user_ids: userIds }).then((r) => r.data);
+
 export const listWarehouses = (companyId = null) => {
   const params = companyId ? { company_id: companyId } : {};
   return apiClient.get("/company/warehouses", { params }).then((r) => r.data);
@@ -87,6 +93,8 @@ export default {
   createBranch,
   updateBranch,
   deleteBranch,
+  getBranchManagers,
+  setBranchManagers,
   listWarehouses,
   createWarehouse,
   updateWarehouse,
