@@ -145,20 +145,6 @@ export default function QuotationForm({
         return () => { cancelled = true; };
     }, []);
 
-    useEffect(() => {
-        if (!formData.project_scheme_id) {
-            setOptions((prev) => ({ ...prev, projectPrices: [] }));
-            return;
-        }
-        let cancelled = false;
-        quotationService.getAllProjectPrices(formData.project_scheme_id).then((r) => {
-            if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: r?.result ?? [] }));
-        }).catch(() => {
-            if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
-        });
-        return () => { cancelled = true; };
-    }, [formData.project_scheme_id]);
-
     const handleProjectPriceChange = useCallback(async (projectPriceId) => {
         if (!projectPriceId) {
             bomProductsBySectionRef.current = {};
@@ -178,6 +164,30 @@ export default function QuotationForm({
             setLastFetchedProductBySection({});
         }
     }, [patchForm]);
+
+    useEffect(() => {
+        if (!formData.project_scheme_id || !formData.state_id) {
+            setOptions((prev) => ({ ...prev, projectPrices: [] }));
+            if (formData.project_price_id) {
+                patchForm({ project_price_id: "" });
+                handleProjectPriceChange("");
+            }
+            return;
+        }
+        let cancelled = false;
+        quotationService.getAllProjectPrices(formData.project_scheme_id, formData.state_id).then((r) => {
+            if (cancelled) return;
+            const projectPrices = r?.result ?? [];
+            setOptions((prev) => ({ ...prev, projectPrices }));
+            if (formData.project_price_id && !projectPrices.some((price) => price.id === formData.project_price_id)) {
+                patchForm({ project_price_id: "" });
+                handleProjectPriceChange("");
+            }
+        }).catch(() => {
+            if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
+        });
+        return () => { cancelled = true; };
+    }, [formData.project_scheme_id, formData.state_id, formData.project_price_id, patchForm, handleProjectPriceChange]);
 
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
@@ -448,7 +458,7 @@ export default function QuotationForm({
                                 handleProjectPriceChange(newValue?.id ?? "");
                             }}
                             placeholder="Type to search..."
-                            disabled={!formData.project_scheme_id || loadingOptions}
+                            disabled={!formData.project_scheme_id || !formData.state_id || loadingOptions}
                         />
                     </Grid>
                 </Grid>
