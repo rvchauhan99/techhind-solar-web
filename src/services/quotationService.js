@@ -30,8 +30,8 @@ export const managerApproveQuotation = (id, payload = {}) =>
 export const managerRejectQuotation = (id, payload = {}) =>
     apiClient.put(`/quotation/${id}/manager-reject`, payload).then((r) => r.data);
 
-export const getAllProjectPrices = (schemeId) =>
-    apiClient.post("/quotation/project-price", { schemeId }).then((r) => r.data);
+export const getAllProjectPrices = (schemeId, stateId) =>
+    apiClient.post("/quotation/project-price", { schemeId, stateId }).then((r) => r.data);
 
 export const getProjectPriceBomDetails = (payload) =>
     apiClient.post(`/quotation/project-price-bom-details`, payload).then((r) => r.data);
