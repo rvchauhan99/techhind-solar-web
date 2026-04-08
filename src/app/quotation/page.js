@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { IconDotsVertical, IconFileTypePdf, IconFileDescription, IconCheck, Icon
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import quotationService from "@/services/quotationService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import Container from "@/components/container";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
@@ -32,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 const COLUMN_FILTER_KEYS = [
   "quotation_number",
@@ -70,6 +72,7 @@ const COLUMN_FILTER_KEYS = [
   "created_at_from",
   "created_at_to",
   "created_at_op",
+  "approval_status",
 ];
 
 const IS_APPROVED_OPTIONS = [
@@ -82,6 +85,12 @@ const QUOTATION_STATUS_OPTIONS = [
   { value: "Sent", label: "Sent" },
   { value: "Converted", label: "Converted" },
   { value: "Not Selected", label: "Not Selected" },
+];
+
+const APPROVAL_STATUS_OPTIONS = [
+  { value: "Approved", label: "Approved" },
+  { value: "Pending Approval", label: "Pending Approval" },
+  { value: "Rejected", label: "Rejected" },
 ];
 
 export default function QuotationList() {
@@ -115,6 +124,14 @@ export default function QuotationList() {
   const [quotationToApprove, setQuotationToApprove] = useState(null);
   const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false);
   const [quotationToUnapprove, setQuotationToUnapprove] = useState(null);
+  const [managerApproveDialogOpen, setManagerApproveDialogOpen] = useState(false);
+  const [managerRejectDialogOpen, setManagerRejectDialogOpen] = useState(false);
+  const [quotationForManagerAction, setQuotationForManagerAction] = useState(null);
+  const [managerApproveRemarks, setManagerApproveRemarks] = useState("");
+  const [managerRejectReasonId, setManagerRejectReasonId] = useState("");
+  const [managerRejectRemarks, setManagerRejectRemarks] = useState("");
+  const [rejectionReasonOptions, setRejectionReasonOptions] = useState([]);
+  const [rejectionReasonsLoading, setRejectionReasonsLoading] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -184,10 +201,10 @@ export default function QuotationList() {
       setFullQuotation((prev) => (prev?.id === quotationToApprove ? { ...prev, is_approved: true } : prev));
       setApproveDialogOpen(false);
       setQuotationToApprove(null);
-      toast.success("Quotation approved");
+      toast.success("Quotation finalized for order");
     } catch (err) {
       console.error("Failed to approve quotation", err);
-      toast.error(err.response?.data?.message || "Failed to approve quotation");
+      toast.error(err.response?.data?.message || "Failed to finalize quotation");
     } finally {
       setActionId(null);
     }
@@ -208,10 +225,10 @@ export default function QuotationList() {
       setFullQuotation((prev) => (prev?.id === quotationToUnapprove ? { ...prev, is_approved: false } : prev));
       setUnapproveDialogOpen(false);
       setQuotationToUnapprove(null);
-      toast.success("Quotation unapproved");
+      toast.success("Quotation unfinalized for order");
     } catch (err) {
       console.error("Failed to unapprove quotation", err);
-      toast.error(err.response?.data?.message || "Failed to unapprove quotation");
+      toast.error(err.response?.data?.message || "Failed to unfinalize quotation");
     } finally {
       setActionId(null);
     }
@@ -233,6 +250,85 @@ export default function QuotationList() {
       setLoadingQuotation(false);
     }
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadRejectionReasons = async () => {
+      try {
+        setRejectionReasonsLoading(true);
+        const options = await getReferenceOptionsSearch("reason.model", {
+          reason_type: "quotation_rejection",
+          is_active: true,
+          limit: 200,
+        });
+        if (!mounted) return;
+        setRejectionReasonOptions(Array.isArray(options) ? options : []);
+      } catch (err) {
+        if (!mounted) return;
+        setRejectionReasonOptions([]);
+      } finally {
+        if (mounted) setRejectionReasonsLoading(false);
+      }
+    };
+    loadRejectionReasons();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const openManagerApproveDialog = useCallback((id) => {
+    setQuotationForManagerAction(id);
+    setManagerApproveRemarks("");
+    setManagerApproveDialogOpen(true);
+  }, []);
+
+  const openManagerRejectDialog = useCallback((id) => {
+    setQuotationForManagerAction(id);
+    setManagerRejectReasonId("");
+    setManagerRejectRemarks("");
+    setManagerRejectDialogOpen(true);
+  }, []);
+
+  const handleManagerApprove = useCallback(async () => {
+    if (!quotationForManagerAction) return;
+    setActionId(quotationForManagerAction);
+    try {
+      await quotationService.managerApproveQuotation(quotationForManagerAction, {
+        remarks: managerApproveRemarks || "",
+      });
+      setReloadTrigger((prev) => prev + 1);
+      toast.success("Quotation approved by manager");
+      setManagerApproveDialogOpen(false);
+      setQuotationForManagerAction(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed manager approval");
+    } finally {
+      setActionId(null);
+    }
+  }, [quotationForManagerAction, managerApproveRemarks]);
+
+  const handleManagerReject = useCallback(async () => {
+    if (!quotationForManagerAction) return;
+    if (!managerRejectReasonId) {
+      toast.error("Please select rejection reason");
+      return;
+    }
+    setActionId(quotationForManagerAction);
+    try {
+      await quotationService.managerRejectQuotation(quotationForManagerAction, {
+        reason_id: Number(managerRejectReasonId),
+        remarks: managerRejectRemarks || "",
+      });
+      setReloadTrigger((prev) => prev + 1);
+      toast.success("Quotation rejected by manager");
+      setManagerRejectDialogOpen(false);
+      setQuotationForManagerAction(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed manager rejection");
+    } finally {
+      setActionId(null);
+    }
+  }, [quotationForManagerAction, managerRejectReasonId, managerRejectRemarks]);
 
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
@@ -263,11 +359,30 @@ export default function QuotationList() {
     [filters]
   );
 
+  const rowDetailsRender = useCallback(
+    (row) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 text-[11px] leading-tight">
+        <div><span className="text-muted-foreground">Valid Till:</span> {formatDate(row.valid_till) || "-"}</div>
+        <div><span className="text-muted-foreground">Created By:</span> {row.user_name || "-"}</div>
+        <div><span className="text-muted-foreground">State:</span> {row.state_name || "-"}</div>
+        <div><span className="text-muted-foreground">Order Type:</span> {row.order_type_name || "-"}</div>
+        <div><span className="text-muted-foreground">Project Scheme:</span> {row.project_scheme_name || "-"}</div>
+        <div><span className="text-muted-foreground">Inquiry #:</span> {row.inquiry_number || "-"}</div>
+        <div><span className="text-muted-foreground">Created On:</span> {formatDate(row.created_at) || "-"}</div>
+      </div>
+    ),
+    []
+  );
+
   const columns = useMemo(
     () => [
       {
         field: "quotation_number",
         label: "Quotation #",
+        stickyLeft: true,
+        stickyWidth: 120,
+        width: 120,
+        minWidth: 120,
         sortable: true,
         filterType: "text",
         filterKey: "quotation_number",
@@ -286,6 +401,8 @@ export default function QuotationList() {
       {
         field: "quotation_date",
         label: "Date",
+        width: 110,
+        minWidth: 105,
         sortable: true,
         filterType: "date",
         filterKey: "quotation_date_from",
@@ -295,19 +412,12 @@ export default function QuotationList() {
         render: (row) => formatDate(row.quotation_date) || "-",
       },
       {
-        field: "valid_till",
-        label: "Valid Till",
-        sortable: true,
-        filterType: "date",
-        filterKey: "valid_till_from",
-        filterKeyTo: "valid_till_to",
-        operatorKey: "valid_till_op",
-        defaultFilterOperator: "inRange",
-        render: (row) => formatDate(row.valid_till) || "-",
-      },
-      {
         field: "customer_name",
         label: "Customer",
+        stickyLeft: true,
+        stickyWidth: 150,
+        width: 160,
+        minWidth: 140,
         filterType: "text",
         filterKey: "customer_name",
         defaultFilterOperator: "contains",
@@ -316,6 +426,8 @@ export default function QuotationList() {
       {
         field: "mobile_number",
         label: "Mobile",
+        width: 130,
+        minWidth: 120,
         filterType: "text",
         filterKey: "mobile_number",
         defaultFilterOperator: "contains",
@@ -324,6 +436,8 @@ export default function QuotationList() {
       {
         field: "project_capacity",
         label: "Capacity (kW)",
+        width: 95,
+        minWidth: 90,
         sortable: true,
         filterType: "number",
         filterKey: "project_capacity",
@@ -335,6 +449,10 @@ export default function QuotationList() {
       {
         field: "total_project_value",
         label: "Total Payable",
+        stickyLeft: true,
+        stickyWidth: 130,
+        width: 130,
+        minWidth: 120,
         sortable: true,
         filterType: "number",
         filterKey: "total_project_value",
@@ -355,7 +473,9 @@ export default function QuotationList() {
       },
       {
         field: "is_approved",
-        label: "Approved",
+        label: "Finalized",
+        width: 90,
+        minWidth: 86,
         filterType: "select",
         filterKey: "is_approved",
         filterOptions: IS_APPROVED_OPTIONS,
@@ -366,75 +486,46 @@ export default function QuotationList() {
         ),
       },
       {
+        field: "approval_status",
+        label: "Mgr Approval",
+        stickyLeft: true,
+        stickyWidth: 120,
+        width: 120,
+        minWidth: 110,
+        filterType: "select",
+        filterKey: "approval_status",
+        filterOptions: APPROVAL_STATUS_OPTIONS,
+        render: (row) => (
+          <Badge variant={row.approval_status === "Approved" ? "default" : row.approval_status === "Rejected" ? "destructive" : "secondary"} className="text-xs">
+            {row.approval_status || "Approved"}
+          </Badge>
+        ),
+      },
+      {
         field: "status",
         label: "Status",
+        width: 100,
+        minWidth: 95,
         filterType: "select",
         filterKey: "status",
         filterOptions: QUOTATION_STATUS_OPTIONS,
         render: (row) => row.status || "Draft",
       },
       {
-        field: "user_name",
-        label: "Created By",
-        filterType: "text",
-        filterKey: "user_name",
-        defaultFilterOperator: "contains",
-        render: (row) => row.user_name || "-",
-      },
-      {
         field: "branch_name",
         label: "Branch",
+        width: 120,
+        minWidth: 110,
         filterType: "text",
         filterKey: "branch_name",
         defaultFilterOperator: "contains",
         render: (row) => row.branch_name || "-",
       },
       {
-        field: "state_name",
-        label: "State",
-        filterType: "text",
-        filterKey: "state_name",
-        defaultFilterOperator: "contains",
-        render: (row) => row.state_name || "-",
-      },
-      {
-        field: "order_type_name",
-        label: "Order Type",
-        filterType: "text",
-        filterKey: "order_type_name",
-        defaultFilterOperator: "contains",
-        render: (row) => row.order_type_name || "-",
-      },
-      {
-        field: "project_scheme_name",
-        label: "Project Scheme",
-        filterType: "text",
-        filterKey: "project_scheme_name",
-        defaultFilterOperator: "contains",
-        render: (row) => row.project_scheme_name || "-",
-      },
-      {
-        field: "inquiry_number",
-        label: "Inquiry #",
-        filterType: "text",
-        filterKey: "inquiry_number",
-        defaultFilterOperator: "contains",
-        render: (row) => row.inquiry_number || "-",
-      },
-      {
-        field: "created_at",
-        label: "Created On",
-        sortable: true,
-        filterType: "date",
-        filterKey: "created_at_from",
-        filterKeyTo: "created_at_to",
-        operatorKey: "created_at_op",
-        defaultFilterOperator: "inRange",
-        render: (row) => formatDate(row.created_at) || "-",
-      },
-      {
         field: "actions",
         label: "Actions",
+        width: 96,
+        minWidth: 96,
         sortable: false,
         isActionColumn: true,
         render: (row) => (
@@ -454,13 +545,13 @@ export default function QuotationList() {
                 <IconDotsVertical className="size-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {!row.is_approved && (
+                {!row.is_approved && row.approval_status === "Approved" && (
                   <DropdownMenuItem
                     onClick={() => handleApproveClick(row.id)}
                     disabled={actionId === row.id}
                   >
                     <IconCheck className="size-4 mr-2" />
-                    Approve
+                    Finalize For Order
                   </DropdownMenuItem>
                 )}
                 {row.is_approved && (
@@ -469,7 +560,19 @@ export default function QuotationList() {
                     disabled={actionId === row.id}
                   >
                     <IconX className="size-4 mr-2" />
-                    Unapprove
+                    Unfinalize For Order
+                  </DropdownMenuItem>
+                )}
+                {row.is_manager_for_branch && row.approval_status === "Pending Approval" && (
+                  <DropdownMenuItem onClick={() => openManagerApproveDialog(row.id)} disabled={actionId === row.id}>
+                    <IconCheck className="size-4 mr-2" />
+                    Manager Approve
+                  </DropdownMenuItem>
+                )}
+                {row.is_manager_for_branch && row.approval_status === "Pending Approval" && (
+                  <DropdownMenuItem onClick={() => openManagerRejectDialog(row.id)} disabled={actionId === row.id}>
+                    <IconX className="size-4 mr-2" />
+                    Manager Reject
                   </DropdownMenuItem>
                 )}
                 {/* <DropdownMenuItem onClick={() => handleEdit(row.id)}>
@@ -490,7 +593,7 @@ export default function QuotationList() {
         ),
       },
     ],
-    [handleOpenSidebar, handleApproveClick, handleUnapproveClick, actionId, router]
+    [handleOpenSidebar, handleApproveClick, handleUnapproveClick, openManagerApproveDialog, openManagerRejectDialog, actionId, router]
   );
 
   const sidebarHeaderActions = useMemo(
@@ -584,6 +687,8 @@ export default function QuotationList() {
             fetcher={fetcher}
             showSearch={false}
             showPagination={false}
+            compactDensity
+            rowDetailsRender={rowDetailsRender}
             height={calculatePaginatedTableHeight()}
             onTotalChange={setTotalCount}
             columnFilterValues={columnFilterValues}
@@ -643,15 +748,15 @@ export default function QuotationList() {
         <AlertDialog open={approveDialogOpen} onOpenChange={(open) => { if (!open) { setApproveDialogOpen(false); setQuotationToApprove(null); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Approve Quotation</AlertDialogTitle>
+              <AlertDialogTitle>Finalize Quotation For Order</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to approve this quotation? Only one quotation per inquiry can be approved.
+                Are you sure you want to finalize this quotation for order selection? Only one quotation per inquiry can be finalized.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleApproveConfirm} disabled={!!actionId} loading={!!actionId}>
-                Approve
+                Finalize
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -660,15 +765,103 @@ export default function QuotationList() {
         <AlertDialog open={unapproveDialogOpen} onOpenChange={(open) => { if (!open) { setUnapproveDialogOpen(false); setQuotationToUnapprove(null); } }}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Unapprove Quotation</AlertDialogTitle>
+              <AlertDialogTitle>Unfinalize Quotation For Order</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to unapprove this quotation?
+                Are you sure you want to remove finalization for this quotation?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleUnapproveConfirm} disabled={!!actionId} loading={!!actionId}>
-                Unapprove
+                Unfinalize
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={managerApproveDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setManagerApproveDialogOpen(false);
+              setQuotationForManagerAction(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Manager Approve Quotation</AlertDialogTitle>
+              <AlertDialogDescription>
+                Add remarks if needed and confirm manager approval.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Remarks (optional)</label>
+              <Textarea
+                value={managerApproveRemarks}
+                onChange={(e) => setManagerApproveRemarks(e.target.value)}
+                placeholder="Enter approval remarks"
+                rows={4}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleManagerApprove} disabled={!!actionId} loading={!!actionId}>
+                Approve
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={managerRejectDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setManagerRejectDialogOpen(false);
+              setQuotationForManagerAction(null);
+              setManagerRejectReasonId("");
+              setManagerRejectRemarks("");
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Manager Reject Quotation</AlertDialogTitle>
+              <AlertDialogDescription>
+                Select rejection reason and optionally add remarks.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reason</label>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={managerRejectReasonId}
+                onChange={(e) => setManagerRejectReasonId(e.target.value)}
+                disabled={rejectionReasonsLoading}
+              >
+                <option value="">Select reason</option>
+                {rejectionReasonOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label || opt.reason || opt.value}
+                  </option>
+                ))}
+              </select>
+              <label className="text-sm font-medium">Remarks (optional)</label>
+              <Textarea
+                value={managerRejectRemarks}
+                onChange={(e) => setManagerRejectRemarks(e.target.value)}
+                placeholder="Enter rejection remarks"
+                rows={4}
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleManagerReject}
+                disabled={!!actionId || !managerRejectReasonId}
+                loading={!!actionId}
+              >
+                Reject
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

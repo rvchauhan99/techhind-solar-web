@@ -98,7 +98,17 @@ export default function QuotationDetailsContent({ quotation, loading }) {
               className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${r.is_approved ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400"
                 }`}
             >
-              {r.is_approved ? "Approved" : "Not Approved"}
+              {r.is_approved ? "Finalized For Order" : "Not Finalized"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${r.approval_status === "Approved"
+                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40"
+                  : r.approval_status === "Rejected"
+                    ? "bg-rose-100 text-rose-800 dark:bg-rose-900/40"
+                    : "bg-amber-100 text-amber-800 dark:bg-amber-900/40"
+                }`}
+            >
+              {`Manager: ${r.approval_status || "Approved"}`}
             </span>
           </div>
         </div>
@@ -113,6 +123,39 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         <DetailRow label="Created By" value={r.user?.name} />
         <DetailRow label="Branch" value={r.branch?.name} />
         <DetailRow label="Inquiry #" value={r.inquiry?.inquiry_number} />
+      </div>
+
+      {/* Manager Approval Details */}
+      <SectionTitle>Manager Approval Details</SectionTitle>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
+        <DetailRow label="Approval Required" value={r.approval_required ? "Yes" : "No"} />
+        <DetailRow label="Manager Approval Status" value={r.approval_status || "Approved"} />
+        <DetailRow label="Approval Requested At" value={formatDate(r.approval_requested_at)} />
+
+        {r.approval_status === "Approved" && (
+          <>
+            <DetailRow label="Approved By Manager" value={r.approvedByUser?.name || "-"} />
+            <DetailRow label="Approved By Mobile" value={r.approvedByUser?.mobile_number || "-"} />
+            <DetailRow label="Approved By Email" value={r.approvedByUser?.email || "-"} />
+            <DetailRow label="Approved At" value={formatDate(r.approved_at)} />
+            <div className="sm:col-span-2">
+              <DetailRow label="Approval Remarks" value={r.approval_remarks || "-"} />
+            </div>
+          </>
+        )}
+
+        {r.approval_status === "Rejected" && (
+          <>
+            <DetailRow label="Rejected By Manager" value={r.rejectedByUser?.name || "-"} />
+            <DetailRow label="Rejection Reason" value={r.rejection_reason || r.rejectionReasonRef?.reason || "-"} />
+            <DetailRow label="Rejected By Mobile" value={r.rejectedByUser?.mobile_number || "-"} />
+            <DetailRow label="Rejected By Email" value={r.rejectedByUser?.email || "-"} />
+            <DetailRow label="Rejected At" value={formatDate(r.rejected_at)} />
+            <div className="sm:col-span-2">
+              <DetailRow label="Rejection Remarks" value={r.rejection_remarks || "-"} />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Customer Details */}
