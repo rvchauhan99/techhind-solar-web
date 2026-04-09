@@ -20,6 +20,7 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import quotationService from "@/services/quotationService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import apiClient from "@/services/apiClient";
 import moment from "moment";
 import { calculateTotals } from "../components/quotation/quotationCalculations";
@@ -33,6 +34,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // Module-level dedupe: one in-flight request per id (survives Strict Mode remounts and multiple effect runs)
 const quotationFetchInFlight = new Set();
@@ -103,6 +105,13 @@ export default function QuotationDetail() {
     const [error, setError] = useState(null);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
     const [unapproveDialogOpen, setUnapproveDialogOpen] = useState(false);
+    const [managerApproveDialogOpen, setManagerApproveDialogOpen] = useState(false);
+    const [managerRejectDialogOpen, setManagerRejectDialogOpen] = useState(false);
+    const [managerApproveRemarks, setManagerApproveRemarks] = useState("");
+    const [managerRejectReasonId, setManagerRejectReasonId] = useState("");
+    const [managerRejectRemarks, setManagerRejectRemarks] = useState("");
+    const [rejectionReasonOptions, setRejectionReasonOptions] = useState([]);
+    const [rejectionReasonsLoading, setRejectionReasonsLoading] = useState(false);
     const [actionId, setActionId] = useState(null);
     const pdfAbortRef = useRef(null);
     const pdfPollTimerRef = useRef(null);
@@ -140,6 +149,31 @@ export default function QuotationDetail() {
         };
     }, [pdfUrl]);
 
+    useEffect(() => {
+        let mounted = true;
+        const loadRejectionReasons = async () => {
+            try {
+                setRejectionReasonsLoading(true);
+                const options = await getReferenceOptionsSearch("reason.model", {
+                    reason_type: "quotation_rejection",
+                    is_active: true,
+                    limit: 200,
+                });
+                if (!mounted) return;
+                setRejectionReasonOptions(Array.isArray(options) ? options : []);
+            } catch (err) {
+                if (!mounted) return;
+                setRejectionReasonOptions([]);
+            } finally {
+                if (mounted) setRejectionReasonsLoading(false);
+            }
+        };
+        loadRejectionReasons();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     const loadQuotation = async () => {
         setLoading(true);
         setError(null);
@@ -147,7 +181,9 @@ export default function QuotationDetail() {
             const response = await quotationService.getQuotationById(id);
             const data = response.result || response.data || response;
             setQuotation(data);
-            if (!pdfRequestedRef.current && !pdfFetchInFlight.has(id)) {
+            if (data?.approval_status !== "Approved") {
+                setPdfLoading(false);
+            } else if (!pdfRequestedRef.current && !pdfFetchInFlight.has(id)) {
                 pdfRequestedRef.current = true;
                 generatePdf();
             }
@@ -252,6 +288,10 @@ export default function QuotationDetail() {
     }, [id, waitForPdfJobCompletion]);
 
     const handlePrint = () => {
+        if (quotation?.approval_status !== "Approved") {
+            toast.error("Manager approval required before PDF actions");
+            return;
+        }
         if (pdfUrl) {
             const printWindow = window.open(pdfUrl, "_blank");
             if (printWindow) {
@@ -263,12 +303,20 @@ export default function QuotationDetail() {
     };
 
     const handleOpenInNewTab = () => {
+        if (quotation?.approval_status !== "Approved") {
+            toast.error("Manager approval required before PDF actions");
+            return;
+        }
         if (pdfUrl) {
             window.open(pdfUrl, "_blank");
         }
     };
 
     const handleDownload = () => {
+        if (quotation?.approval_status !== "Approved") {
+            toast.error("Manager approval required before PDF actions");
+            return;
+        }
         if (!pdfUrl) return;
         if (pdfUrl.startsWith("blob:")) {
             const link = document.createElement("a");
@@ -304,10 +352,10 @@ export default function QuotationDetail() {
             await quotationService.approveQuotation(id);
             setQuotation((prev) => (prev ? { ...prev, is_approved: true } : null));
             setApproveDialogOpen(false);
-            toast.success("Quotation approved");
+            toast.success("Quotation finalized for order");
         } catch (err) {
             console.error("Failed to approve quotation", err);
-            toast.error(err.response?.data?.message || "Failed to approve quotation");
+            toast.error(err.response?.data?.message || "Failed to finalize quotation");
         } finally {
             setActionId(null);
         }
@@ -324,10 +372,67 @@ export default function QuotationDetail() {
             await quotationService.unapproveQuotation(id);
             setQuotation((prev) => (prev ? { ...prev, is_approved: false } : null));
             setUnapproveDialogOpen(false);
-            toast.success("Quotation unapproved");
+            toast.success("Quotation unfinalized for order");
         } catch (err) {
             console.error("Failed to unapprove quotation", err);
-            toast.error(err.response?.data?.message || "Failed to unapprove quotation");
+            toast.error(err.response?.data?.message || "Failed to unfinalize quotation");
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleManagerApprove = async () => {
+        if (!id) return;
+        setActionId(id);
+        try {
+            await quotationService.managerApproveQuotation(id, { remarks: managerApproveRemarks || "" });
+            setQuotation((prev) =>
+                prev ? { ...prev, approval_status: "Approved", approval_remarks: managerApproveRemarks || null, approved_at: new Date().toISOString() } : null
+            );
+            toast.success("Quotation approved by manager");
+            setManagerApproveDialogOpen(false);
+            setManagerApproveRemarks("");
+            if (!pdfRequestedRef.current) {
+                pdfRequestedRef.current = true;
+                generatePdf();
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed manager approval");
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleManagerReject = async () => {
+        if (!id) return;
+        if (!managerRejectReasonId) {
+            toast.error("Please select rejection reason");
+            return;
+        }
+        setActionId(id);
+        try {
+            await quotationService.managerRejectQuotation(id, {
+                reason_id: Number(managerRejectReasonId),
+                remarks: managerRejectRemarks || "",
+            });
+            setQuotation((prev) =>
+                prev
+                    ? {
+                        ...prev,
+                        approval_status: "Rejected",
+                        rejection_reason_id: Number(managerRejectReasonId),
+                        rejection_reason: rejectionReasonOptions.find((x) => Number(x.id) === Number(managerRejectReasonId))?.reason || null,
+                        rejection_remarks: managerRejectRemarks || null,
+                        rejected_at: new Date().toISOString(),
+                    }
+                    : null
+            );
+            toast.success("Quotation rejected by manager");
+            setManagerRejectDialogOpen(false);
+            setManagerRejectReasonId("");
+            setManagerRejectRemarks("");
+        } catch (err) {
+            toast.error(err.response?.data?.message || "Failed manager rejection");
         } finally {
             setActionId(null);
         }
@@ -444,7 +549,7 @@ export default function QuotationDetail() {
                         >
                             <DownloadIcon fontSize="small" />
                         </IconButton>
-                        {!quotation?.is_approved && (
+                        {!quotation?.is_approved && quotation?.approval_status === "Approved" && (
                             <Button
                                 variant="contained"
                                 size="small"
@@ -457,7 +562,7 @@ export default function QuotationDetail() {
                                     "&:hover": { bgcolor: "#388e3c" },
                                 }}
                             >
-                                Approve
+                                Finalize For Order
                             </Button>
                         )}
                         {quotation?.is_approved && (
@@ -471,7 +576,36 @@ export default function QuotationDetail() {
                                     px: 2,
                                 }}
                             >
-                                Unapprove
+                                Unfinalize For Order
+                            </Button>
+                        )}
+                        {quotation?.is_manager_for_branch && quotation?.approval_status === "Pending Approval" && (
+                            <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => {
+                                    setManagerApproveRemarks("");
+                                    setManagerApproveDialogOpen(true);
+                                }}
+                                disabled={!!actionId}
+                                sx={{ textTransform: "none", px: 2 }}
+                            >
+                                Manager Approve
+                            </Button>
+                        )}
+                        {quotation?.is_manager_for_branch && quotation?.approval_status === "Pending Approval" && (
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => {
+                                    setManagerRejectReasonId("");
+                                    setManagerRejectRemarks("");
+                                    setManagerRejectDialogOpen(true);
+                                }}
+                                disabled={!!actionId}
+                                sx={{ textTransform: "none", px: 2 }}
+                            >
+                                Manager Reject
                             </Button>
                         )}
                     </Box>
@@ -524,6 +658,10 @@ export default function QuotationDetail() {
                                 <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
                                     <Box component="span" sx={{ fontWeight: 600 }}>Contact Number:</Box>{" "}
                                     <Box component="span">{quotation?.user?.mobile_number || "-"}</Box>
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                                    <Box component="span" sx={{ fontWeight: 600 }}>Manager Approval:</Box>{" "}
+                                    <Box component="span">{quotation?.approval_status || "Approved"}</Box>
                                 </Typography>
                             </Box>
                         </Box>
@@ -634,15 +772,15 @@ export default function QuotationDetail() {
             <AlertDialog open={approveDialogOpen} onOpenChange={(open) => { if (!open) setApproveDialogOpen(false); }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Approve Quotation</AlertDialogTitle>
+                        <AlertDialogTitle>Finalize Quotation For Order</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to approve this quotation? Only one quotation per inquiry can be approved.
+                            Are you sure you want to finalize this quotation for order selection? Only one quotation per inquiry can be finalized.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleApproveConfirm} disabled={!!actionId} loading={!!actionId}>
-                            Approve
+                            Finalize
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -651,15 +789,81 @@ export default function QuotationDetail() {
             <AlertDialog open={unapproveDialogOpen} onOpenChange={(open) => { if (!open) setUnapproveDialogOpen(false); }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Unapprove Quotation</AlertDialogTitle>
+                        <AlertDialogTitle>Unfinalize Quotation For Order</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to unapprove this quotation?
+                            Are you sure you want to remove finalization for this quotation?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleUnapproveConfirm} disabled={!!actionId} loading={!!actionId}>
-                            Unapprove
+                            Unfinalize
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={managerApproveDialogOpen} onOpenChange={(open) => { if (!open) setManagerApproveDialogOpen(false); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Manager Approve Quotation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Add remarks if needed and confirm manager approval.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Remarks (optional)</label>
+                        <Textarea
+                            value={managerApproveRemarks}
+                            onChange={(e) => setManagerApproveRemarks(e.target.value)}
+                            placeholder="Enter approval remarks"
+                            rows={4}
+                        />
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleManagerApprove} disabled={!!actionId} loading={!!actionId}>
+                            Approve
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={managerRejectDialogOpen} onOpenChange={(open) => { if (!open) setManagerRejectDialogOpen(false); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Manager Reject Quotation</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Select rejection reason and optionally add remarks.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium">Reason</label>
+                        <select
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            value={managerRejectReasonId}
+                            onChange={(e) => setManagerRejectReasonId(e.target.value)}
+                            disabled={rejectionReasonsLoading}
+                        >
+                            <option value="">Select reason</option>
+                            {rejectionReasonOptions.map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                    {opt.label || opt.reason || opt.value}
+                                </option>
+                            ))}
+                        </select>
+                        <label className="text-sm font-medium">Remarks (optional)</label>
+                        <Textarea
+                            value={managerRejectRemarks}
+                            onChange={(e) => setManagerRejectRemarks(e.target.value)}
+                            placeholder="Enter rejection remarks"
+                            rows={4}
+                        />
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleManagerReject} disabled={!!actionId || !managerRejectReasonId} loading={!!actionId}>
+                            Reject
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

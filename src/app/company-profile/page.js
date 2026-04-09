@@ -61,8 +61,12 @@ export default function CompanyProfilePage() {
     const [managersDialogOpen, setManagersDialogOpen] = useState(false);
     const [managersDialogWarehouse, setManagersDialogWarehouse] = useState(null);
     const [warehouseManagersLoading, setWarehouseManagersLoading] = useState(false);
+    const [branchManagersDialogOpen, setBranchManagersDialogOpen] = useState(false);
+    const [branchManagersDialogBranch, setBranchManagersDialogBranch] = useState(null);
+    const [branchManagersLoading, setBranchManagersLoading] = useState(false);
     const [allUsers, setAllUsers] = useState([]);
     const [managersSelectedIds, setManagersSelectedIds] = useState([]);
+    const [branchManagersSelectedIds, setBranchManagersSelectedIds] = useState([]);
     const [activeTab, setActiveTab] = useState("0");
     const [quotationTemplateOptions, setQuotationTemplateOptions] = useState([]);
     const [imageUrls, setImageUrls] = useState({
@@ -956,6 +960,72 @@ export default function CompanyProfilePage() {
         }
     };
 
+    const handleOpenBranchManagersDialog = async (branch) => {
+        setBranchManagersDialogBranch(branch);
+        setBranchManagersDialogOpen(true);
+        setBranchManagersSelectedIds([]);
+        setBranchManagersLoading(true);
+        setError("");
+        try {
+            const [managersRes, usersRes] = await Promise.all([
+                companyService.getBranchManagers(branch.id),
+                userMasterService.listUserMasters({ limit: 1000 }),
+            ]);
+            const managers = managersRes?.result ?? managersRes?.data ?? managersRes;
+            const managersList = Array.isArray(managers) ? managers : [];
+            setBranchManagersSelectedIds(managersList.map((m) => Number(m.id)));
+            const usersPayload = usersRes?.result ?? usersRes?.data ?? usersRes;
+            const usersList = Array.isArray(usersPayload) ? usersPayload : usersPayload?.data ?? [];
+            setAllUsers(Array.isArray(usersList) ? usersList : []);
+        } catch (err) {
+            console.error("Error loading branch managers:", err);
+            const msg = err.response?.data?.message || "Failed to load branch managers";
+            setError(msg);
+            toastError(msg);
+        } finally {
+            setBranchManagersLoading(false);
+        }
+    };
+
+    const handleCloseBranchManagersDialog = () => {
+        setBranchManagersDialogOpen(false);
+        setBranchManagersDialogBranch(null);
+        setBranchManagersSelectedIds([]);
+        setAllUsers([]);
+    };
+
+    const handleBranchManagerToggle = (userId, checked) => {
+        const id = Number(userId);
+        setBranchManagersSelectedIds((prev) =>
+            checked ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((x) => x !== id)
+        );
+    };
+
+    const handleSaveBranchManagers = async () => {
+        if (!branchManagersDialogBranch) return;
+        try {
+            setSaving(true);
+            setError("");
+            const res = await companyService.setBranchManagers(
+                branchManagersDialogBranch.id,
+                branchManagersSelectedIds
+            );
+            const msg = res?.data?.message || res?.result?.message || "Branch managers updated";
+            setSuccess(msg);
+            toastSuccess(msg);
+            setTimeout(() => setSuccess(""), 3000);
+            await loadBranches(true);
+            handleCloseBranchManagersDialog();
+        } catch (err) {
+            console.error("Error saving branch managers:", err);
+            const msg = err.response?.data?.message || "Failed to save branch managers";
+            setError(msg);
+            toastError(msg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const handleNewWarehouse = async () => {
         setEditingWarehouse(null);
         const initialFormData = {
@@ -1406,6 +1476,7 @@ export default function CompanyProfilePage() {
                                                         <th className="px-4 py-3">Email</th>
                                                         <th className="px-4 py-3">Contact No</th>
                                                         <th className="px-4 py-3">GST Number</th>
+                                                        <th className="px-4 py-3">Managers</th>
                                                         <th className="px-4 py-3">Quotation Template</th>
                                                         <th className="px-4 py-3">Active</th>
                                                         <th className="px-4 py-3">Default</th>
@@ -1415,7 +1486,7 @@ export default function CompanyProfilePage() {
                                                 <tbody className="divide-y divide-gray-200">
                                                     {branches.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
                                                                 No branches found
                                                             </td>
                                                         </tr>
@@ -1427,6 +1498,11 @@ export default function CompanyProfilePage() {
                                                                 <td className="px-4 py-3">{branch.email}</td>
                                                                 <td className="px-4 py-3">{branch.contact_no}</td>
                                                                 <td className="px-4 py-3">{branch.gst_number}</td>
+                                                                <td className="px-4 py-3 text-gray-700 max-w-[240px] truncate" title={(branch.manager_names || []).join(", ")}>
+                                                                    {branch.manager_count > 0
+                                                                        ? (branch.manager_names || []).join(", ")
+                                                                        : "—"}
+                                                                </td>
                                                                 <td className="px-4 py-3 text-gray-500">
                                                                     {branch.quotation_template?.name ?? branch.quotation_template_id ?? "—"}
                                                                 </td>
@@ -1444,6 +1520,7 @@ export default function CompanyProfilePage() {
                                                                 </td>
                                                                 <td className="px-4 py-3 text-right">
                                                                     <div className="flex justify-end gap-2">
+                                                                        <Button size="xs" variant="outline" onClick={() => handleOpenBranchManagersDialog(branch)}>Managers</Button>
                                                                         <Button size="xs" variant="outline" onClick={() => handleEditBranch(branch)}>Edit</Button>
                                                                         <Button size="xs" variant="destructive-outline" onClick={() => handleDeleteBranch(branch.id)}>Delete</Button>
                                                                     </div>
@@ -1897,6 +1974,77 @@ export default function CompanyProfilePage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Branch Managers Dialog (theme) */}
+                <Dialog
+                    open={branchManagersDialogOpen}
+                    onOpenChange={(open) => {
+                        if (!open) handleCloseBranchManagersDialog();
+                    }}
+                >
+                    <DialogContent className={DIALOG_FORM_SMALL} showCloseButton={true}>
+                        <DialogHeader>
+                            <DialogTitle>
+                                Branch managers – {branchManagersDialogBranch?.name ?? ""}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="pt-2">
+                            {branchManagersLoading ? (
+                                <div className="flex justify-center py-6">
+                                    <Loader />
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Managers</label>
+                                    <div className="max-h-56 overflow-y-auto rounded-md border border-input p-2 space-y-1.5">
+                                        {allUsers.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground py-2">No users available</p>
+                                        ) : (
+                                            allUsers.map((user) => (
+                                                <Checkbox
+                                                    key={user.id}
+                                                    name={`branch-manager-${user.id}`}
+                                                    label={
+                                                        <>
+                                                            {user.name}
+                                                            {user.email ? (
+                                                                <span className="text-muted-foreground font-normal">
+                                                                    {" "}
+                                                                    ({user.email})
+                                                                </span>
+                                                            ) : null}
+                                                        </>
+                                                    }
+                                                    checked={branchManagersSelectedIds.includes(Number(user.id))}
+                                                    onChange={(e) =>
+                                                        handleBranchManagerToggle(user.id, !!e.target.checked)
+                                                    }
+                                                />
+                                            ))
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Multiple users can be linked as managers for this branch.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button type="button" variant="outline" size="sm" onClick={handleCloseBranchManagersDialog}>
+                                Cancel
+                            </Button>
+                            <Button
+                                type="button"
+                                size="sm"
+                                loading={saving}
+                                disabled={branchManagersLoading}
+                                onClick={handleSaveBranchManagers}
+                            >
+                                Save
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
                 {/* Warehouse Managers Dialog (theme) */}
                 <Dialog

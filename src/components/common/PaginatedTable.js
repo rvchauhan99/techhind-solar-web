@@ -20,6 +20,7 @@ import {
   IconChevronsLeft,
   IconChevronLeft,
   IconChevronRight,
+  IconChevronDown,
   IconChevronsRight,
   IconArrowUp,
   IconArrowDown,
@@ -36,6 +37,7 @@ import {
   getOperatorsForFilterType,
   getDefaultOperator,
 } from "@/utils/filterOperators";
+import { Z_INDEX_LAYERS } from "@/utils/zIndexLayers";
 import { cn } from "@/lib/utils";
 
 /** Solid hover for sticky tbody cells — alpha tints (e.g. bg-green/5) let horizontally scrolled cells show through. */
@@ -50,6 +52,15 @@ const TABLE_PAGINATION_PADDING = "0.5rem";
 
 /** Shared background and height for all table column filter inputs (text, date, select) */
 const TABLE_FILTER_INPUT_CLASS = "bg-white text-sm min-w-0";
+const Z_BODY_STICKY_BASE = Z_INDEX_LAYERS.tableStickyBody;
+const Z_FILTER_STICKY_BASE = Z_INDEX_LAYERS.tableStickyFilter;
+const Z_HEADER_STICKY_BASE = Z_INDEX_LAYERS.tableStickyHeader;
+const getConfiguredColumnWidth = (column, fallbackWidth) => {
+  if (typeof column?.stickyWidth === "number") return column.stickyWidth;
+  if (typeof column?.width === "number") return column.width;
+  if (typeof column?.minWidth === "number") return column.minWidth;
+  return fallbackWidth;
+};
 
 /**
  * PaginatedTable (MUI TablePagination) - reusable
@@ -92,7 +103,11 @@ export default function PaginatedTable({
   onColumnFilterChange = null,
   // When false, parent renders PaginationControls below; table still uses page/limit/onPageChange/onRowsPerPageChange
   showPagination = true,
+  compactDensity = false,
+  rowDetailsRender = null,
 }) {
+  const hasRowDetails = typeof rowDetailsRender === "function";
+  const [expandedRows, setExpandedRows] = React.useState(() => new Set());
   const hasColumnFilters = Boolean(onColumnFilterChange);
   const filterDebounceRef = React.useRef({});
   const pendingFilterRef = React.useRef({});
@@ -421,16 +436,11 @@ export default function PaginatedTable({
     indices.forEach((colIndex, rank) => {
       const c = columns[colIndex];
       const isAction = c.isActionColumn || c.field === "actions" || c.field === "action";
-      const w =
-        typeof c.stickyWidth === "number"
-          ? c.stickyWidth
-          : isAction
-            ? 120
-            : 80;
+      const w = getConfiguredColumnWidth(c, isAction ? 120 : 96);
       const isLastInGroup = rank === indices.length - 1;
       byIndex[colIndex] = {
         left: acc,
-        zIndex: 20 + (indices.length - rank),
+        zIndex: Z_BODY_STICKY_BASE + (indices.length - rank),
         shadow: isLastInGroup,
         width: w,
       };
@@ -447,6 +457,14 @@ export default function PaginatedTable({
   const totalPages = Math.ceil(totalCount / rowsPerPage) || 1;
   const from = totalCount === 0 ? 0 : page * rowsPerPage + 1;
   const to = Math.min((page + 1) * rowsPerPage, totalCount);
+  const toggleRowExpand = (rowKey) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
+      return next;
+    });
+  };
 
   return (
     <div
@@ -465,9 +483,17 @@ export default function PaginatedTable({
       )}
 
       <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
-        <table className="w-full min-w-max table-auto" aria-label="paginated table">
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-[#1b365d] text-white">
+        <table className={cn("w-full table-auto", compactDensity ? "min-w-full" : "min-w-max")} aria-label="paginated table">
+          <thead className="sticky top-0 z-[30] isolate">
+            <tr className="bg-[#1b365d] text-white relative z-[30]">
+              {hasRowDetails && (
+                <th
+                  className={cn(
+                    compactDensity ? "px-1 py-0.5" : "px-1.5 py-1",
+                    "text-left font-semibold text-xs uppercase tracking-wide border-b border-[#1b365d] min-w-[32px] w-[32px] border-r border-white/20"
+                  )}
+                />
+              )}
               {columns.map((c, colIndex) => {
                 const isSortable = c.sortable === true;
                 const isActiveSort = sortBy === c.field;
@@ -475,24 +501,28 @@ export default function PaginatedTable({
                 const isFirstColumn = colIndex === 0;
                 const isLastColumn = colIndex === columns.length - 1;
                 const sl = leftStickyInfo[colIndex];
+                const configuredWidth = getConfiguredColumnWidth(c, isActionColumn ? 120 : 96);
                 return (
                   <th
                     key={c.field || c.label}
                     onClick={isSortable ? () => handleSortClick(c.field) : undefined}
                     className={cn(
-                      "text-left font-semibold px-1.5 py-1 text-xs uppercase tracking-wide border-b border-[#1b365d] whitespace-nowrap",
+                      compactDensity ? "text-left font-semibold px-1 py-0.5 text-[11px] uppercase tracking-wide border-b border-[#1b365d] whitespace-nowrap" : "text-left font-semibold px-1.5 py-1 text-xs uppercase tracking-wide border-b border-[#1b365d] whitespace-nowrap",
                       isLastColumn ? "" : "border-r border-white/20",
                       isSortable && "cursor-pointer hover:bg-[#142847]",
-                      isActionColumn && "min-w-[120px] whitespace-normal",
-                      !isActionColumn && "min-w-[70px] overflow-hidden text-ellipsis",
+                      isActionColumn && "whitespace-normal",
+                      !isActionColumn && "overflow-hidden text-ellipsis",
                       sl && "sticky bg-[#1b365d]",
                       sl?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]",
-                      isLastColumn && isActionColumn && "sticky right-0 z-[25] bg-[#1b365d] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]"
+                      isLastColumn && isActionColumn && "sticky right-0 bg-[#1b365d] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.15)]"
                     )}
                     style={{
                       ...(sl
-                        ? { left: sl.left, zIndex: sl.zIndex, minWidth: sl.width }
+                        ? { left: sl.left, zIndex: Z_HEADER_STICKY_BASE + sl.zIndex, minWidth: sl.width, width: sl.width }
                         : {}),
+                      ...(isLastColumn && isActionColumn ? { right: 0, zIndex: Z_HEADER_STICKY_BASE + 1, width: configuredWidth, minWidth: configuredWidth } : { zIndex: Z_HEADER_STICKY_BASE }),
+                      ...(typeof c.width === "number" ? { width: c.width } : {}),
+                      ...(typeof c.minWidth === "number" ? { minWidth: c.minWidth } : {}),
                       maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
                     }}
                   >
@@ -520,7 +550,8 @@ export default function PaginatedTable({
               })}
             </tr>
             {hasColumnFilters && (
-              <tr className="bg-[#f8fafc] [&_td]:py-0.5 [&_td]:px-1 [&_td]:align-middle [&_td]:border-b [&_td]:border-border">
+              <tr className="bg-[#f8fafc] relative z-[20] [&_td]:py-0.5 [&_td]:px-1 [&_td]:align-middle [&_td]:border-b [&_td]:border-border">
+                {hasRowDetails && <td className="min-w-[32px] w-[32px]" />}
                 {columns.map((c, colIndex) => {
                   const filterKey = c.filterKey ?? c.field;
                   const operatorKey = c.operatorKey ?? filterKey + "_op";
@@ -529,21 +560,25 @@ export default function PaginatedTable({
                   const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
                   const sl = leftStickyInfo[colIndex];
                   const isLastColumn = colIndex === columns.length - 1;
+                  const configuredWidth = getConfiguredColumnWidth(c, isActionColumn ? 120 : 96);
                   if (isActionColumn || !filterType) {
                     const stickyClass = cn(
                       sl && "sticky bg-[#f8fafc]",
                       sl?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
                       isLastColumn && isActionColumn &&
-                        "sticky right-0 z-[25] bg-[#f8fafc] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                        "sticky right-0 bg-[#f8fafc] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
                     );
                     return (
                       <td
                         key={(c.field || c.label) + "-filter"}
-                        className={cn(stickyClass, c.field === "actions" ? "min-w-[120px]" : "")}
+                        className={cn(stickyClass)}
                         style={
-                          sl
-                            ? { left: sl.left, zIndex: sl.zIndex, minWidth: sl.width }
-                            : undefined
+                          sl || (isLastColumn && isActionColumn)
+                            ? {
+                                ...(sl ? { left: sl.left, zIndex: Z_FILTER_STICKY_BASE + sl.zIndex, minWidth: sl.width, width: sl.width } : {}),
+                                ...(isLastColumn && isActionColumn ? { right: 0, zIndex: Z_FILTER_STICKY_BASE + 1, minWidth: configuredWidth, width: configuredWidth } : {}),
+                              }
+                            : { zIndex: Z_FILTER_STICKY_BASE, ...(typeof c.width === "number" ? { width: c.width } : {}), ...(typeof c.minWidth === "number" ? { minWidth: c.minWidth } : {}) }
                         }
                       />
                     );
@@ -595,19 +630,22 @@ export default function PaginatedTable({
                       key={(c.field || c.label) + "-filter"}
                       className={cn(
                         slFilter && "sticky bg-[#f8fafc]",
-                        slFilter?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]"
+                        slFilter?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]",
+                        isLastColumn && isActionColumn && "sticky right-0 bg-[#f8fafc] shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.08)]"
                       )}
                       style={{
-                        ...(c.maxWidth ? { minWidth: c.maxWidth, maxWidth: c.maxWidth } : {}),
+                        ...(typeof c.width === "number" ? { width: c.width } : {}),
+                        ...(typeof c.minWidth === "number" ? { minWidth: c.minWidth } : {}),
+                        ...(c.maxWidth ? { maxWidth: c.maxWidth } : {}),
                         ...(slFilter
                           ? {
                               left: slFilter.left,
-                              zIndex: slFilter.zIndex,
-                              minWidth: c.maxWidth
-                                ? Math.max(Number(String(c.maxWidth).replace(/px$/i, "")) || 0, slFilter.width)
-                                : slFilter.width,
+                              zIndex: Z_FILTER_STICKY_BASE + slFilter.zIndex,
+                              minWidth: Math.max(typeof c.minWidth === "number" ? c.minWidth : 0, slFilter.width),
+                              width: slFilter.width,
                             }
                           : {}),
+                        ...(isLastColumn && isActionColumn ? { right: 0, zIndex: Z_FILTER_STICKY_BASE + 1, minWidth: configuredWidth, width: configuredWidth } : {}),
                       }}
                     >
                       <div className="flex items-center gap-1">
@@ -621,7 +659,7 @@ export default function PaginatedTable({
                                 setLocalFilterValues((prev) => ({ ...prev, [filterKey]: v }));
                                 debouncedColumnFilterChange(filterKey, v);
                               }}
-                              className={cn(FIELD_HEIGHT_CLASS_SMALL, "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
+                              className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "flex-1 py-0 px-1 text-xs" : "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
                               placeholder=""
                             />
                             {OperatorDropdown}
@@ -675,7 +713,7 @@ export default function PaginatedTable({
                                   debouncedColumnFilterChange(filterKey, v);
                                 }}
                                 placeholder=""
-                                className={cn(FIELD_HEIGHT_CLASS_SMALL, "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
+                                className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "flex-1 py-0 px-1 text-xs" : "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
                               />
                               {operatorValue === "between" && filterKeyTo && (
                                 <Input
@@ -688,7 +726,7 @@ export default function PaginatedTable({
                                     debouncedColumnFilterChange(filterKeyTo, v);
                                   }}
                                   placeholder="To"
-                                  className={cn(FIELD_HEIGHT_CLASS_SMALL, "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
+                                  className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "flex-1 py-0 px-1 text-xs" : "flex-1 py-1", TABLE_FILTER_INPUT_CLASS)}
                                 />
                               )}
                             </div>
@@ -704,7 +742,7 @@ export default function PaginatedTable({
                               onColumnFilterChange(filterKey, nextVal);
                             }}
                           >
-                            <SelectTrigger className={cn(FIELD_HEIGHT_CLASS_SMALL, "w-full min-w-0", TABLE_FILTER_INPUT_CLASS)}>
+                            <SelectTrigger className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "w-full min-w-0 px-1 text-xs" : "w-full min-w-0", TABLE_FILTER_INPUT_CLASS)}>
                               <SelectValue placeholder="All">
                                 {value ? (c.filterOptions?.find((o) => o.value === value)?.label ?? value) : "All"}
                               </SelectValue>
@@ -729,84 +767,118 @@ export default function PaginatedTable({
               </tr>
             )}
           </thead>
-          <tbody>
+          <tbody className="relative z-0">
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="text-center py-6 bg-card">
+                <td colSpan={columns.length + (hasRowDetails ? 1 : 0)} className="text-center py-6 bg-card">
                   <div className="flex justify-center">
                     <div className="size-6 animate-spin rounded-full border-2 border-[#00823b] border-t-transparent" />
                   </div>
                 </td>
               </tr>
             ) : rows.length > 0 ? (
-              rows.map((row) => (
-                <tr
-                  key={getRowKey(row)}
-                  onClick={
-                    onRowClick
-                      ? (e) => {
-                        if (e.target.closest?.("button, [role='button'], a")) return;
-                        onRowClick(row);
+              rows.map((row) => {
+                const rowKey = getRowKey(row);
+                const isExpanded = expandedRows.has(rowKey);
+                return (
+                  <React.Fragment key={rowKey}>
+                    <tr
+                      onClick={
+                        onRowClick
+                          ? (e) => {
+                            if (e.target.closest?.("button, [role='button'], a")) return;
+                            onRowClick(row);
+                          }
+                          : undefined
                       }
-                      : undefined
-                  }
-                  className={cn(
-                    onRowClick ? "cursor-pointer" : "",
-                    "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
-                  )}
-                >
-                  {columns.map((c, colIndex) => {
-                    const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
-                    const isLastColumn = colIndex === columns.length - 1;
-                    const sl = leftStickyInfo[colIndex];
-                    const isRightSticky = isLastColumn && isActionColumn;
-                    const isStickyCell = Boolean(sl) || isRightSticky;
-                    return (
-                      <td
-                        key={(c.field || c.label) + getRowKey(row)}
-                        className={cn(
-                          "px-1.5 py-1 border-b border-border text-sm text-foreground",
-                          isActionColumn && "min-w-[120px] overflow-visible whitespace-normal",
-                          !isActionColumn &&
-                            !c.wrap &&
-                            "min-w-[70px] overflow-hidden text-ellipsis whitespace-nowrap",
-                          !isActionColumn && c.wrap && "min-w-[70px] max-w-[220px] overflow-visible whitespace-normal break-words",
-                          isStickyCell &&
-                            cn(
-                              "sticky bg-card [background-clip:padding-box]",
-                              STICKY_ROW_HOVER_BG,
-                              sl?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]",
-                              isRightSticky && "right-0 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.06)]"
-                            ),
-                          !isStickyCell &&
-                            isActionColumn &&
-                            "bg-card group-hover:bg-[#00823b]/5"
-                        )}
-                        style={{
-                          ...(sl
-                            ? { left: sl.left, zIndex: sl.zIndex, minWidth: sl.width }
-                            : {}),
-                          ...(isRightSticky
-                            ? { right: 0, zIndex: 15, ...(sl ? {} : { minWidth: 120 }) }
-                            : {}),
-                          maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
-                        }}
-                      >
-                        {c.render
-                          ? c.render(
-                            row,
-                            reload,
-                            resolvedPerms ?? modulePermissions?.[currentModuleId]
-                          )
-                          : row[c.field]}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
+                      className={cn(
+                        onRowClick ? "cursor-pointer" : "",
+                        "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
+                      )}
+                    >
+                      {hasRowDetails && (
+                        <td
+                          className={cn(
+                            compactDensity ? "px-1 py-0.5" : "px-1.5 py-1",
+                            "border-b border-border text-sm text-foreground min-w-[32px] w-[32px]"
+                          )}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={cn(compactDensity ? "size-6" : "size-7")}
+                            onClick={() => toggleRowExpand(rowKey)}
+                            aria-label={isExpanded ? "Collapse row details" : "Expand row details"}
+                          >
+                            {isExpanded ? <IconChevronDown className="size-4" /> : <IconChevronRight className="size-4" />}
+                          </Button>
+                        </td>
+                      )}
+                      {columns.map((c, colIndex) => {
+                        const isActionColumn = c.isActionColumn || c.field === "actions" || c.field === "action";
+                        const isLastColumn = colIndex === columns.length - 1;
+                        const sl = leftStickyInfo[colIndex];
+                        const isRightSticky = isLastColumn && isActionColumn;
+                        const configuredWidth = getConfiguredColumnWidth(c, isActionColumn ? 120 : 96);
+                        const isStickyCell = Boolean(sl) || isRightSticky;
+                        return (
+                          <td
+                            key={(c.field || c.label) + rowKey}
+                            className={cn(
+                              compactDensity ? "px-1 py-0.5 text-xs" : "px-1.5 py-1 text-sm",
+                              "border-b border-border text-foreground",
+                              isActionColumn && "overflow-visible whitespace-normal",
+                              !isActionColumn &&
+                                !c.wrap &&
+                                "overflow-hidden text-ellipsis whitespace-nowrap",
+                              !isActionColumn && c.wrap && "max-w-[220px] overflow-visible whitespace-normal break-words",
+                              isStickyCell &&
+                                cn(
+                                  "sticky bg-card [background-clip:padding-box]",
+                                  STICKY_ROW_HOVER_BG,
+                                  sl?.shadow && "shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)]",
+                                  isRightSticky && "right-0 shadow-[-2px_0_4px_-2px_rgba(0,0,0,0.06)]"
+                                ),
+                              !isStickyCell &&
+                                isActionColumn &&
+                                "bg-card group-hover:bg-[#00823b]/5"
+                            )}
+                            style={{
+                              ...(sl
+                                ? { left: sl.left, zIndex: Z_BODY_STICKY_BASE + sl.zIndex, minWidth: sl.width, width: sl.width }
+                                : {}),
+                              ...(isRightSticky
+                                ? { right: 0, zIndex: Z_BODY_STICKY_BASE + 1, ...(sl ? {} : { minWidth: configuredWidth, width: configuredWidth }) }
+                                : {}),
+                              ...(typeof c.width === "number" ? { width: c.width } : {}),
+                              ...(typeof c.minWidth === "number" ? { minWidth: c.minWidth } : {}),
+                              maxWidth: !isActionColumn && c.maxWidth ? c.maxWidth : undefined,
+                            }}
+                          >
+                            {c.render
+                              ? c.render(
+                                row,
+                                reload,
+                                resolvedPerms ?? modulePermissions?.[currentModuleId]
+                              )
+                              : row[c.field]}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                    {hasRowDetails && isExpanded && (
+                      <tr className="bg-muted/30 border-b border-border">
+                        <td colSpan={columns.length + 1} className={compactDensity ? "px-2 py-1" : "px-3 py-2"}>
+                          {rowDetailsRender(row)}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <tr>
-                <td colSpan={columns.length} className="text-center py-6 text-muted-foreground bg-card">
+                <td colSpan={columns.length + (hasRowDetails ? 1 : 0)} className="text-center py-6 text-muted-foreground bg-card">
                   No records found
                 </td>
               </tr>
