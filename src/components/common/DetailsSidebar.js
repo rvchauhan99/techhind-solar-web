@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { Z_INDEX_LAYERS } from "@/utils/zIndexLayers";
 
 /**
  * Reusable right-hand details panel. Use for view-details-on-click from listing rows.
@@ -24,7 +25,8 @@ export default function DetailsSidebar({ open, onClose, title, headerActions, cl
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[2px]"
+        className="fixed inset-0 bg-black/10 backdrop-blur-[2px]"
+        style={{ zIndex: Z_INDEX_LAYERS.drawerBackdrop }}
         onClick={handleBackdropClick}
         onKeyDown={handleBackdropKeyDown}
         role={handleBackdropClick ? "button" : "presentation"}
@@ -33,11 +35,12 @@ export default function DetailsSidebar({ open, onClose, title, headerActions, cl
       />
       <aside
         className={cn(
-          "fixed top-0 right-0 z-50 h-full w-full sm:max-w-[672px] md:max-w-[768px] max-w-full",
+          "fixed top-0 right-0 h-full w-full sm:max-w-[672px] md:max-w-[768px] max-w-full",
           "bg-background border-border border-l shadow-xl",
           "flex flex-col transition-transform duration-200 ease-out",
           open ? "translate-x-0" : "translate-x-full"
         )}
+        style={{ zIndex: Z_INDEX_LAYERS.drawerPanel }}
       >
         <div className="flex items-center justify-between gap-2 px-4 lg:px-6 py-4 border-b border-border flex-shrink-0">
           {title && (

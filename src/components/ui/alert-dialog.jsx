@@ -3,6 +3,7 @@
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Z_INDEX_LAYERS } from "@/utils/zIndexLayers";
 
 export function AlertDialog(props) {
   return (
@@ -33,9 +34,10 @@ export function AlertDialogOverlay({ className, ...props }) {
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs",
+        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 isolate bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs",
         className
       )}
+      style={{ zIndex: Z_INDEX_LAYERS.modalBackdrop }}
       {...props}
     />
   );
@@ -53,7 +55,7 @@ export function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 bg-background ring-foreground/10 group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid max-h-[90vh] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl p-4 ring-1 duration-100 outline-none",
+          "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 bg-background ring-foreground/10 group/alert-dialog-content fixed top-1/2 left-1/2 grid max-h-[90vh] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl p-4 ring-1 duration-100 outline-none",
           "data-[size=sm]:max-w-xs data-[size=sm]:sm:max-w-sm",
           "data-[size=default]:max-w-xs data-[size=default]:sm:max-w-sm data-[size=default]:md:max-w-md",
           "data-[size=lg]:max-w-sm data-[size=lg]:sm:max-w-md data-[size=lg]:md:max-w-lg data-[size=lg]:lg:max-w-xl",
@@ -62,6 +64,7 @@ export function AlertDialogContent({
           "data-[size=3xl]:max-w-xl data-[size=3xl]:sm:max-w-2xl data-[size=3xl]:md:max-w-3xl data-[size=3xl]:lg:max-w-4xl data-[size=3xl]:xl:max-w-5xl",
           className
         )}
+        style={{ zIndex: Z_INDEX_LAYERS.modalContent }}
         {...props}
       />
     </AlertDialogPortal>
