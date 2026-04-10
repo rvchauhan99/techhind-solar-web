@@ -58,6 +58,14 @@ const resolveOrderDocTypeLabel = (docType, masterTypes = []) => {
     return LEGACY_ORDER_DOC_TYPE_LABELS[str] || str;
 };
 
+const getValidationStatusMeta = (status) => {
+    const s = String(status || "").toLowerCase();
+    if (s === "approved") return { label: "Approved", color: "success" };
+    if (s === "rejected") return { label: "Rejected", color: "error" };
+    if (s === "pending") return { label: "Pending", color: "warning" };
+    return { label: "-", color: "default" };
+};
+
 function TabPanel({ children, value, index }) {
     return (
         <div hidden={value !== index} style={{ padding: "20px 0" }}>
@@ -821,7 +829,12 @@ function RemarksForm({ orderData, orderId }) {
     );
 }
 
-function UploadDocumentsForm({ orderId, orderDocumentTypes = [], loadingDocumentTypes = false }) {
+function UploadDocumentsForm({
+    orderId,
+    orderData = null,
+    orderDocumentTypes = [],
+    loadingDocumentTypes = false,
+}) {
     const [formData, setFormData] = useState({
         doc_type: "",
         remarks: "",
@@ -831,6 +844,7 @@ function UploadDocumentsForm({ orderId, orderDocumentTypes = [], loadingDocument
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
+    const isPdcPaymentType = String(orderData?.payment_type || "").toLowerCase().includes("pdc");
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -862,13 +876,29 @@ function UploadDocumentsForm({ orderId, orderDocumentTypes = [], loadingDocument
                 return;
             }
 
+            const selectedDocType = String(formData.doc_type || "").trim();
+            if (isPdcPaymentType && selectedDocType.toLowerCase() !== "pdc") {
+                setErrors({ doc_type: "For PDC payment type, document type must be PDC." });
+                setLoading(false);
+                return;
+            }
+
+            const normalizedDocType = selectedDocType.toLowerCase() === "pdc" ? "PDC" : selectedDocType;
+
             const uploadFormData = new FormData();
             uploadFormData.append('document', documentFile);
             uploadFormData.append('order_id', orderId);
-            uploadFormData.append('doc_type', formData.doc_type);
+            uploadFormData.append('doc_type', normalizedDocType);
             uploadFormData.append('remarks', formData.remarks);
 
             await orderDocumentsService.createOrderDocument(uploadFormData);
+            if (isPdcPaymentType && normalizedDocType === "PDC") {
+                await orderService.updateOrder(orderId, {
+                    pdc_validation_status: "pending",
+                    pdc_validated_at: null,
+                    pdc_validated_by: null,
+                });
+            }
 
             setSuccess(true);
             toastSuccess("Document uploaded successfully");
@@ -1024,8 +1054,8 @@ function OrderViewPageContent() {
         const fetchOrder = async () => {
             try {
                 setLoading(true);
-                const response = await orderService.getOrderById(orderId);
-                setOrderData(response?.result || response);
+                const orderResponse = await orderService.getOrderById(orderId);
+                setOrderData(orderResponse?.result || orderResponse);
                 setError(null);
             } catch (err) {
                 console.error("Failed to fetch order:", err);
@@ -1106,7 +1136,6 @@ function OrderViewPageContent() {
         refreshPaymentTotal();
         setPaymentsDocumentsRefreshKey((k) => k + 1);
     };
-
     const fetchDocuments = async (params) => {
         const result = await orderDocumentsService.getOrderDocuments({
             ...params,
@@ -1142,6 +1171,16 @@ function OrderViewPageContent() {
             id: "uploaded_by",
             label: "Uploaded By",
             render: (row) => row?.updated_by_name || "System",
+        },
+        {
+            id: "validation_status",
+            label: "Validation Status",
+            field: "validation_status",
+            render: (row) => {
+                const meta = getValidationStatusMeta(row?.validation_status);
+                if (meta.label === "-") return "-";
+                return <Chip label={meta.label} color={meta.color} size="small" />;
+            },
         },
         {
             id: "actions",
@@ -1489,6 +1528,7 @@ function OrderViewPageContent() {
                                 {visitedTabs.has(5) && (
                                     <UploadDocumentsForm
                                         orderId={orderId}
+                                        orderData={orderData}
                                         orderDocumentTypes={orderDocumentTypes}
                                         loadingDocumentTypes={loadingOrderDocumentTypes}
                                     />

@@ -28,6 +28,8 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
+    const isPdcRequired = String(orderData?.payment_type || "").toLowerCase().includes("pdc");
+    const pdcDocument = (orderDocuments || []).find((d) => String(d?.doc_type || "").toUpperCase() === "PDC");
 
     // Load existing data
     useEffect(() => {
@@ -90,6 +92,9 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
 
             if (!document && !existingDocument) {
                 newFieldErrors.document = "Document is required";
+            }
+            if (isPdcRequired && !pdcDocument) {
+                newFieldErrors.pdc_document = "Upload PDC is mandatory before proceeding.";
             }
 
             if (Object.keys(newFieldErrors).length > 0) {
@@ -228,6 +233,11 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
 
                 {/* Error/Success Messages */}
                 <Grid item size={12}>
+                    {fieldErrors.pdc_document && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            {fieldErrors.pdc_document}
+                        </Alert>
+                    )}
                     {error && (
                         <Alert severity="error" sx={{ mb: 2 }}>
                             {error}
