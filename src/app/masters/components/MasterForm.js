@@ -21,6 +21,10 @@ const PLATFORM_CONFIG_VALUE_TYPE_OPTIONS = [
   { value: "boolean", label: "Boolean" },
   { value: "json", label: "JSON" },
 ];
+const YES_NO_OPTIONS = [
+  { value: true, label: "Yes" },
+  { value: false, label: "No" },
+];
 
 export default function MasterForm({ 
   fields = [], 
@@ -293,6 +297,24 @@ export default function MasterForm({
 
     switch (field.type) {
       case 'BOOLEAN':
+        if (fieldName === "require_pdc_validation") {
+          return (
+            <AutocompleteField
+              key={fieldName}
+              name={fieldName}
+              label={displayLabel}
+              options={YES_NO_OPTIONS}
+              getOptionLabel={(o) => o?.label ?? ""}
+              value={YES_NO_OPTIONS.find((o) => o.value === Boolean(fieldValue)) || YES_NO_OPTIONS[1]}
+              onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: Boolean(newValue?.value) } })}
+              disabled={viewMode}
+              required={isRequired && !viewMode}
+              error={hasError}
+              helperText={hasError ? errors[fieldName] : null}
+              placeholder="Select..."
+            />
+          );
+        }
         return (
           <Checkbox
             key={fieldName}
