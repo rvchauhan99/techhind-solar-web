@@ -29,7 +29,20 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
     const isPdcRequired = String(orderData?.payment_type || "").toLowerCase().includes("pdc");
-    const pdcDocument = (orderDocuments || []).find((d) => String(d?.doc_type || "").toUpperCase() === "PDC");
+    const pdcDocuments = (orderDocuments || []).filter(
+        (d) => String(d?.doc_type || "").toUpperCase() === "PDC"
+    );
+    const pdcDocument = [...pdcDocuments].sort((a, b) => {
+        const aTs = new Date(a?.created_at || 0).getTime();
+        const bTs = new Date(b?.created_at || 0).getTime();
+        return bTs - aTs;
+    })[0] || null;
+    const isPdcUploaded = Boolean(pdcDocument);
+    const isPdcApproved = String(pdcDocument?.validation_status || "").toLowerCase() === "approved";
+    const shouldBlockForm = isPdcRequired && (!isPdcUploaded || !isPdcApproved);
+    const pdcBlockMessage = !isPdcUploaded
+        ? "Upload PDC Document is mandatory before proceeding."
+        : "PDC Document is not validated. Kindly Approve before proceeding.";
 
     // Load existing data
     useEffect(() => {
@@ -156,6 +169,16 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
 
     const isCompleted = orderData?.stages?.netmeter_apply === "completed";
     const isReadOnly = readOnly;
+
+    if (shouldBlockForm) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Alert severity="warning">
+                    {pdcBlockMessage}
+                </Alert>
+            </Box>
+        );
+    }
 
     return (
         <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
