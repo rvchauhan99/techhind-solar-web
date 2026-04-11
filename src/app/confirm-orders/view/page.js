@@ -58,6 +58,14 @@ import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import CloseIcon from "@mui/icons-material/Close";
 
+const getValidationStatusMeta = (status) => {
+    const s = String(status || "").toLowerCase();
+    if (s === "approved") return { label: "Approved", color: "success" };
+    if (s === "rejected") return { label: "Rejected", color: "error" };
+    if (s === "pending") return { label: "Pending", color: "warning" };
+    return { label: "-", color: "default" };
+};
+
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
 
@@ -79,6 +87,16 @@ async function fetchOrderDataRaw(orderId) {
     );
     const docs = docsRes?.result?.data || docsRes?.data || [];
     return { data, totalReceivedAmount, docs };
+}
+
+function resolveOrderDocTypeLabel(docType, masterTypes = []) {
+    if (!docType) return "";
+    const str = String(docType);
+    const found = Array.isArray(masterTypes)
+        ? masterTypes.find((t) => String(t?.type || "") === str)
+        : null;
+    if (found?.type) return found.type;
+    return str;
 }
 
 // --- Constants ---
@@ -232,7 +250,6 @@ function ConfirmedOrderViewPageContent() {
             setLoading(false);
         }
     }, [orderId]);
-
     useEffect(() => {
         mountedRef.current = true;
         if (!orderId) {
@@ -521,6 +538,42 @@ function ConfirmedOrderViewPageContent() {
                 >
                     Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
                 </Typography>
+            </Box>
+
+            <Divider sx={{ my: 1 }} />
+            <div className={COMPACT_SECTION_HEADER_CLASS}>Uploaded Documents</div>
+            <Box mt={1} mb={1} sx={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
+                    <thead>
+                        <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
+                            <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                            <th style={{ textAlign: "left", padding: "4px 6px" }}>Status</th>
+                            <th style={{ textAlign: "left", padding: "4px 6px" }}>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {(orderDocuments || []).length === 0 ? (
+                            <tr>
+                                <td style={{ padding: "4px 6px" }} colSpan={3}>No documents</td>
+                            </tr>
+                        ) : (
+                            (orderDocuments || []).slice(0, 10).map((doc) => {
+                                const meta = getValidationStatusMeta(doc?.validation_status);
+                                return (
+                                    <tr key={doc.id} style={{ borderBottom: "1px solid #eee" }}>
+                                        <td style={{ padding: "4px 6px" }}>{resolveOrderDocTypeLabel(doc?.doc_type)}</td>
+                                        <td style={{ padding: "4px 6px" }}>
+                                            {meta.label === "-" ? "-" : <Chip size="small" label={meta.label} color={meta.color} />}
+                                        </td>
+                                        <td style={{ padding: "4px 6px" }}>
+                                            {doc?.created_at ? moment(doc.created_at).format("DD-MM-YYYY") : "-"}
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
             </Box>
         </Paper>
     );
