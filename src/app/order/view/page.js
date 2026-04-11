@@ -877,11 +877,6 @@ function UploadDocumentsForm({
             }
 
             const selectedDocType = String(formData.doc_type || "").trim();
-            if (isPdcPaymentType && selectedDocType.toLowerCase() !== "pdc") {
-                setErrors({ doc_type: "For PDC payment type, document type must be PDC." });
-                setLoading(false);
-                return;
-            }
 
             const normalizedDocType = selectedDocType.toLowerCase() === "pdc" ? "PDC" : selectedDocType;
 
