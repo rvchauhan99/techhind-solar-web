@@ -28,6 +28,21 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
+    const isPdcRequired = orderData?.pdc_validation_required === true;
+    const pdcDocuments = (orderDocuments || []).filter(
+        (d) => String(d?.doc_type || "").toUpperCase() === "PDC"
+    );
+    const pdcDocument = [...pdcDocuments].sort((a, b) => {
+        const aTs = new Date(a?.created_at || 0).getTime();
+        const bTs = new Date(b?.created_at || 0).getTime();
+        return bTs - aTs;
+    })[0] || null;
+    const isPdcUploaded = Boolean(pdcDocument);
+    const isPdcApproved = String(pdcDocument?.validation_status || "").toLowerCase() === "approved";
+    const shouldBlockForm = isPdcRequired && (!isPdcUploaded || !isPdcApproved);
+    const pdcBlockMessage = !isPdcUploaded
+        ? "Upload PDC Document is mandatory before proceeding."
+        : "PDC Document is not validated. Kindly Approve before proceeding.";
 
     // Load existing data
     useEffect(() => {
@@ -91,6 +106,9 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
             if (!document && !existingDocument) {
                 newFieldErrors.document = "Document is required";
             }
+            if (isPdcRequired && !pdcDocument) {
+                newFieldErrors.pdc_document = "Upload PDC is mandatory before proceeding.";
+            }
 
             if (Object.keys(newFieldErrors).length > 0) {
                 setFieldErrors(newFieldErrors);
@@ -151,6 +169,16 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
 
     const isCompleted = orderData?.stages?.netmeter_apply === "completed";
     const isReadOnly = readOnly;
+
+    if (shouldBlockForm) {
+        return (
+            <Box sx={{ p: 2 }}>
+                <Alert severity="warning">
+                    {pdcBlockMessage}
+                </Alert>
+            </Box>
+        );
+    }
 
     return (
         <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
@@ -228,6 +256,11 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
 
                 {/* Error/Success Messages */}
                 <Grid item size={12}>
+                    {fieldErrors.pdc_document && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            {fieldErrors.pdc_document}
+                        </Alert>
+                    )}
                     {error && (
                         <Alert severity="error" sx={{ mb: 2 }}>
                             {error}

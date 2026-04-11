@@ -84,6 +84,18 @@ function WebhookBadge({ subscribed }) {
   );
 }
 
+function StatusPill({ ok, label }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        ok ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
 // ─── FormRow ──────────────────────────────────────────────────────────────────
 
 function FormRow({ form }) {
@@ -145,6 +157,8 @@ function PageRow({ page, onChanged }) {
   const [formsLoading, setFormsLoading] = useState(false);
   const [formsSyncing, setFormsSyncing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [readiness, setReadiness] = useState(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   const loadForms = useCallback(async () => {
     setFormsLoading(true);
@@ -158,8 +172,22 @@ function PageRow({ page, onChanged }) {
     }
   }, [page.id]);
 
+  const loadReadiness = useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      const data = await metaService.pageReadiness(page.id);
+      setReadiness(data);
+    } catch (err) {
+      setReadiness(null);
+      toastError(err?.response?.data?.message || "Failed to load readiness diagnostics");
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, [page.id]);
+
   const handleExpand = () => {
     if (!expanded && forms.length === 0) loadForms();
+    if (!expanded && !readiness) loadReadiness();
     setExpanded((v) => !v);
   };
 
@@ -169,6 +197,7 @@ function PageRow({ page, onChanged }) {
       const res = await metaService.syncForms(page.id);
       toastSuccess(res?.message || "Forms synced from Facebook");
       loadForms();
+      loadReadiness();
       if (!expanded) setExpanded(true);
     } catch (err) {
       toastError(err?.response?.data?.message || "Failed to sync forms");
@@ -188,6 +217,7 @@ function PageRow({ page, onChanged }) {
         toastSuccess("Webhook subscribed — real-time leads enabled!");
       }
       onChanged?.();
+      loadReadiness();
     } catch (err) {
       toastError(err?.response?.data?.message || "Webhook action failed");
     } finally {
@@ -247,6 +277,27 @@ function PageRow({ page, onChanged }) {
       {/* Forms section */}
       {expanded && (
         <div className="border-t border-border bg-muted/20 px-4 pb-4 pt-3 space-y-2">
+          {readinessLoading ? (
+            <p className="text-xs text-muted-foreground">Checking diagnostics…</p>
+          ) : readiness ? (
+            <div className="rounded-md border border-border bg-background p-2 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusPill ok={!!readiness?.checks?.permission_checks?.ok} label="Permissions" />
+                <StatusPill ok={!!readiness?.checks?.page_task_checks?.ok} label="Page Tasks" />
+                <StatusPill ok={!!readiness?.checks?.subscription_checks?.ok} label="Webhook" />
+                <StatusPill ok={!!readiness?.checks?.ready_for_auto_sync} label="Auto Sync Ready" />
+              </div>
+              {Array.isArray(readiness?.missing_scopes) && readiness.missing_scopes.length > 0 && (
+                <p className="text-xs text-orange-700">
+                  Missing scopes: {readiness.missing_scopes.join(", ")}. Reconnect account to grant these.
+                </p>
+              )}
+              {Array.isArray(readiness?.recommendations) && readiness.recommendations.length > 0 && (
+                <p className="text-xs text-muted-foreground">{readiness.recommendations[0]}</p>
+              )}
+            </div>
+          ) : null}
+
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
             Lead Forms
           </p>
@@ -482,6 +533,15 @@ export default function MetaSetupPage() {
               <span className="font-medium">4. Pull Leads</span> — Import past leads from any form instantly.
             </li>
           </ol>
+        </div>
+
+        <div className="mb-5 shrink-0 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-800">Meta prerequisites</p>
+          <ul className="space-y-0.5 text-xs text-amber-700">
+            <li>Webhook in Meta app must subscribe to Page object with leadgen field.</li>
+            <li>Callback/verify token must match backend env values.</li>
+            <li>If scopes are missing in diagnostics, reconnect account and approve all requested permissions.</li>
+          </ul>
         </div>
 
         {/* ── Error ── */}
