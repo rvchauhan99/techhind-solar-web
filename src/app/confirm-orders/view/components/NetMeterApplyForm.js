@@ -28,7 +28,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     const [error, setError] = useState(null);
     const [fieldErrors, setFieldErrors] = useState({});
     const [successMsg, setSuccessMsg] = useState(null);
-    const isPdcRequired = String(orderData?.payment_type || "").toLowerCase().includes("pdc");
+    const isPdcRequired = orderData?.pdc_validation_required === true;
     const pdcDocuments = (orderDocuments || []).filter(
         (d) => String(d?.doc_type || "").toUpperCase() === "PDC"
     );
