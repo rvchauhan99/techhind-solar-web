@@ -25,6 +25,9 @@ export const syncForms = (pageId) =>
 export const listForms = (pageId) =>
   apiClient.get(`/meta/pages/${pageId}/forms`).then((r) => r.data?.data ?? []);
 
+export const pageReadiness = (pageId) =>
+  apiClient.get(`/meta/pages/${pageId}/readiness`).then((r) => r.data?.data ?? null);
+
 export const subscribePage = (pageId) =>
   apiClient.post(`/meta/pages/${pageId}/subscribe`).then((r) => r.data);
 
@@ -44,6 +47,7 @@ const metaService = {
   listPages,
   syncForms,
   listForms,
+  pageReadiness,
   subscribePage,
   unsubscribePage,
   syncLeads,
