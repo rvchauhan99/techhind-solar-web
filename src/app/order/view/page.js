@@ -844,7 +844,7 @@ function UploadDocumentsForm({
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState(false);
-    const isPdcPaymentType = String(orderData?.payment_type || "").toLowerCase().includes("pdc");
+    const isPdcPaymentType = orderData?.pdc_validation_required === true;
 
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
