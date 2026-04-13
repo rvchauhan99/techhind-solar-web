@@ -456,6 +456,10 @@ export default function QuotationDetail() {
         quotation?.total_project_value ??
         0;
     const headerTotalPayable = Math.round(Number(headerTotalPayableRaw) || 0);
+    const customerState = quotation?.state?.name || quotation?.customer?.state?.name || "";
+    const customerCity = quotation?.customer?.city?.name || "";
+    const customerTaluka = quotation?.customer?.taluka || "";
+    const customerPincode = quotation?.customer?.pin_code || "";
 
     if (loading) {
         return (
@@ -694,6 +698,30 @@ export default function QuotationDetail() {
                                 <Typography variant="body2" sx={{ color: "#666", fontSize: "0.85rem", lineHeight: 1.4 }}>
                                     {quotation?.address || "-"}
                                 </Typography>
+                                {customerState ? (
+                                    <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                                        <Box component="span" sx={{ fontWeight: 600 }}>State:</Box>{" "}
+                                        {customerState}
+                                    </Typography>
+                                ) : null}
+                                {customerTaluka ? (
+                                    <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                                        <Box component="span" sx={{ fontWeight: 600 }}>Taluka:</Box>{" "}
+                                        {customerTaluka}
+                                    </Typography>
+                                ) : null}
+                                {customerCity ? (
+                                    <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                                        <Box component="span" sx={{ fontWeight: 600 }}>City:</Box>{" "}
+                                        {customerCity}
+                                    </Typography>
+                                ) : null}
+                                {customerPincode ? (
+                                    <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
+                                        <Box component="span" sx={{ fontWeight: 600 }}>Pincode:</Box>{" "}
+                                        {customerPincode}
+                                    </Typography>
+                                ) : null}
                                 <Typography variant="body2" sx={{ fontSize: "0.85rem" }}>
                                     <Box component="span" sx={{ fontWeight: 600 }}>Email:</Box>{" "}
                                     {quotation?.email || "-"}
