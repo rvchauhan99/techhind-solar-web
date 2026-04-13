@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import {
   IconCurrencyRupee, IconFilter, IconChevronDown, IconChevronUp,
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
+import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import PaymentAuditTable from "./components/PaymentAuditTable";
 
@@ -72,6 +73,9 @@ export default function PaymentAuditPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
   const [activeStatusTab, setActiveStatusTab] = useState(null); // null = All
+  const [quickSearch, setQuickSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const searchFeedbackTimerRef = useRef(null);
 
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
   const activeCount = countActive(appliedFilters);
@@ -109,6 +113,21 @@ export default function PaymentAuditPage() {
     apply(next);
   };
 
+  const handleQuickSearchChange = (value) => {
+    const nextSearch = value ?? "";
+    setQuickSearch(nextSearch);
+    setIsSearching(true);
+    if (searchFeedbackTimerRef.current) clearTimeout(searchFeedbackTimerRef.current);
+    searchFeedbackTimerRef.current = setTimeout(() => setIsSearching(false), 500);
+
+    setFilters((prev) => {
+      const next = { ...prev, search: nextSearch };
+      setAppliedFilters(next);
+      setRefreshKey((k) => k + 1);
+      return next;
+    });
+  };
+
   const removeChip = (key) => {
     const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
     setFilters(next);
@@ -117,6 +136,16 @@ export default function PaymentAuditPage() {
     if (key === "start_date" || key === "end_date") setActivePreset(null);
     setRefreshKey((k) => k + 1);
   };
+
+  useEffect(() => {
+    setQuickSearch(filters.search || "");
+  }, [filters.search]);
+
+  useEffect(() => {
+    return () => {
+      if (searchFeedbackTimerRef.current) clearTimeout(searchFeedbackTimerRef.current);
+    };
+  }, []);
 
   return (
     <ProtectedRoute>
@@ -188,20 +217,29 @@ export default function PaymentAuditPage() {
 
           {/* ── Collapsible Advanced Filters ────────────────────────────────── */}
           <div className="rounded-xl shadow-sm border border-slate-200 bg-white overflow-visible">
-            <button
-              onClick={() => setFiltersOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-50 transition-colors rounded-xl"
-            >
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <IconFilter size={12} /> Advanced Filters
-                {activeCount > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-4 px-1">{activeCount}</Badge>
-                )}
-              </span>
-              {filtersOpen
-                ? <IconChevronUp size={13} className="text-slate-400" />
-                : <IconChevronDown size={13} className="text-slate-400" />}
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5">
+              <button
+                onClick={() => setFiltersOpen((o) => !o)}
+                className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors rounded-lg border border-slate-200 focus:outline-none shrink-0 w-full sm:w-auto"
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                  <IconFilter size={12} /> Advanced Filters
+                  {activeCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1">{activeCount}</Badge>
+                  )}
+                </span>
+                {filtersOpen
+                  ? <IconChevronUp size={13} className="text-slate-400" />
+                  : <IconChevronDown size={13} className="text-slate-400" />}
+              </button>
+              <OrderListQuickSearch
+                value={quickSearch}
+                onValueChange={handleQuickSearchChange}
+                isSearching={isSearching}
+                placeholder="Quick Search (Order/Receipt/Customer/Keyword)"
+                className="w-full sm:w-[320px] sm:ml-auto"
+              />
+            </div>
 
             {filtersOpen && (
               <div className="border-t border-slate-100 px-2.5 py-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
