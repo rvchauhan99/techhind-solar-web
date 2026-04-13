@@ -166,7 +166,7 @@ export default function QuotationForm({
     }, [patchForm]);
 
     useEffect(() => {
-        if (!formData.project_scheme_id || !formData.state_id) {
+        if (!formData.project_scheme_id || !formData.state_id || !formData.order_type_id) {
             setOptions((prev) => ({ ...prev, projectPrices: [] }));
             if (formData.project_price_id) {
                 patchForm({ project_price_id: "" });
@@ -175,7 +175,7 @@ export default function QuotationForm({
             return;
         }
         let cancelled = false;
-        quotationService.getAllProjectPrices(formData.project_scheme_id, formData.state_id).then((r) => {
+        quotationService.getAllProjectPrices(formData.project_scheme_id, formData.state_id, formData.order_type_id).then((r) => {
             if (cancelled) return;
             const projectPrices = r?.result ?? [];
             setOptions((prev) => ({ ...prev, projectPrices }));
@@ -187,7 +187,7 @@ export default function QuotationForm({
             if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
         });
         return () => { cancelled = true; };
-    }, [formData.project_scheme_id, formData.state_id, formData.project_price_id, patchForm, handleProjectPriceChange]);
+    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, formData.project_price_id, patchForm, handleProjectPriceChange]);
 
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
@@ -458,7 +458,7 @@ export default function QuotationForm({
                                 handleProjectPriceChange(newValue?.id ?? "");
                             }}
                             placeholder="Type to search..."
-                            disabled={!formData.project_scheme_id || !formData.state_id || loadingOptions}
+                            disabled={!formData.project_scheme_id || !formData.state_id || !formData.order_type_id || loadingOptions}
                         />
                     </Grid>
                 </Grid>
