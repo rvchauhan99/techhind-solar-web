@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const COLUMN_FILTER_KEYS = [
   "quotation_number",
@@ -48,12 +49,18 @@ const COLUMN_FILTER_KEYS = [
   "mobile_number_op",
   "branch_name",
   "branch_name_op",
+  "approval_status",
   "created_at_from",
   "created_at_to",
   "created_at_op",
 ];
 
 const PENDING_APPROVAL_STATUS = "Pending Approval";
+const APPROVED_STATUS = "Approved";
+const REJECTED_STATUS = "Rejected";
+const TAB_PENDING = "pending";
+const TAB_HISTORY = "history";
+const HISTORY_APPROVAL_STATUSES = [APPROVED_STATUS, REJECTED_STATUS];
 
 export default function QuotationManagerApprovalPage() {
   const router = useRouter();
@@ -76,6 +83,7 @@ export default function QuotationManagerApprovalPage() {
   } = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [activeTab, setActiveTab] = useState(TAB_PENDING);
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -223,11 +231,33 @@ export default function QuotationManagerApprovalPage() {
     setLoadingQuotation(false);
   }, []);
 
+  const handleTabChange = useCallback(
+    (value) => {
+      setActiveTab(value);
+      setFilter("approval_status", "");
+      setPage(1);
+    },
+    [setFilter, setPage]
+  );
+
+  const approvalParams = useMemo(() => {
+    if (activeTab === TAB_HISTORY) {
+      if (filters?.approval_status === APPROVED_STATUS) {
+        return { approval_status: APPROVED_STATUS };
+      }
+      if (filters?.approval_status === REJECTED_STATUS) {
+        return { approval_status: REJECTED_STATUS };
+      }
+      return { approval_statuses: HISTORY_APPROVAL_STATUSES };
+    }
+    return { approval_status: PENDING_APPROVAL_STATUS };
+  }, [activeTab, filters?.approval_status]);
+
   const fetcher = useMemo(
     () => async (params) => {
       const response = await quotationService.getQuotations({
         ...params,
-        approval_status: PENDING_APPROVAL_STATUS,
+        ...approvalParams,
         include_converted: true,
       });
       const result = response?.result ?? response;
@@ -241,21 +271,24 @@ export default function QuotationManagerApprovalPage() {
         },
       };
     },
-    [reloadTrigger]
+    [approvalParams, reloadTrigger]
   );
 
   const filterParams = useMemo(
     () => ({
       q: undefined,
-      approval_status: PENDING_APPROVAL_STATUS,
+      ...approvalParams,
       include_converted: true,
       ...Object.fromEntries(
         Object.entries(filters || {}).filter(
-          ([, v]) => v != null && String(v).trim() !== ""
+          ([k, v]) =>
+            k !== "approval_status" &&
+            v != null &&
+            String(v).trim() !== ""
         )
       ),
     }),
-    [filters]
+    [approvalParams, filters]
   );
 
   const rowDetailsRender = useCallback(
@@ -372,6 +405,15 @@ export default function QuotationManagerApprovalPage() {
         stickyWidth: 120,
         width: 120,
         minWidth: 110,
+        filterType: "select",
+        filterKey: "approval_status",
+        filterOptions:
+          activeTab === TAB_HISTORY
+            ? [
+                { value: APPROVED_STATUS, label: APPROVED_STATUS },
+                { value: REJECTED_STATUS, label: REJECTED_STATUS },
+              ]
+            : [{ value: PENDING_APPROVAL_STATUS, label: PENDING_APPROVAL_STATUS }],
         render: (row) => (
           <Badge variant="secondary" className="text-xs">
             {row.approval_status || PENDING_APPROVAL_STATUS}
@@ -397,36 +439,45 @@ export default function QuotationManagerApprovalPage() {
             >
               <IconFileDescription className="size-4" />
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-8 w-8 shrink-0">
-                <IconDotsVertical className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {row.is_manager_for_branch && row.approval_status === PENDING_APPROVAL_STATUS && (
-                  <DropdownMenuItem
-                    onClick={() => openManagerApproveDialog(row.id)}
-                    disabled={actionId === row.id}
-                  >
-                    <IconCheck className="size-4 mr-2" />
-                    Manager Approve
-                  </DropdownMenuItem>
-                )}
-                {row.is_manager_for_branch && row.approval_status === PENDING_APPROVAL_STATUS && (
-                  <DropdownMenuItem
-                    onClick={() => openManagerRejectDialog(row.id)}
-                    disabled={actionId === row.id}
-                  >
-                    <IconX className="size-4 mr-2" />
-                    Manager Reject
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {activeTab === TAB_PENDING && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground h-8 w-8 shrink-0">
+                  <IconDotsVertical className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {row.is_manager_for_branch && row.approval_status === PENDING_APPROVAL_STATUS && (
+                    <DropdownMenuItem
+                      onClick={() => openManagerApproveDialog(row.id)}
+                      disabled={actionId === row.id}
+                    >
+                      <IconCheck className="size-4 mr-2" />
+                      Manager Approve
+                    </DropdownMenuItem>
+                  )}
+                  {row.is_manager_for_branch && row.approval_status === PENDING_APPROVAL_STATUS && (
+                    <DropdownMenuItem
+                      onClick={() => openManagerRejectDialog(row.id)}
+                      disabled={actionId === row.id}
+                    >
+                      <IconX className="size-4 mr-2" />
+                      Manager Reject
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         ),
       },
     ],
-    [actionId, openManagerApproveDialog, openManagerRejectDialog, handleOpenSidebar, router]
+    [
+      actionId,
+      activeTab,
+      openManagerApproveDialog,
+      openManagerRejectDialog,
+      handleOpenSidebar,
+      router,
+    ]
   );
 
   const calculatePaginatedTableHeight = () => "calc(100vh - 140px)";
@@ -440,14 +491,26 @@ export default function QuotationManagerApprovalPage() {
               Branch Manager Approvals
             </h1>
             <p className="text-[11px] text-slate-500">
-              Review pending quotations and approve/reject from this queue.
+              {activeTab === TAB_PENDING
+                ? "Review pending quotations and approve/reject from this queue."
+                : "View approved and rejected quotation history records."}
             </p>
           </div>
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-auto">
+            <TabsList className="h-8 bg-white border border-slate-200 rounded-lg px-1 py-0">
+              <TabsTrigger value={TAB_PENDING} className="text-[11px] font-semibold px-2 py-1">
+                Pending Approval
+              </TabsTrigger>
+              <TabsTrigger value={TAB_HISTORY} className="text-[11px] font-semibold px-2 py-1">
+                History
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <div className="flex flex-col flex-1 min-h-0 gap-1.5">
           <PaginatedTable
-            key={reloadTrigger}
+            key={`${activeTab}-${reloadTrigger}`}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}

@@ -50,7 +50,12 @@ import {
 const COLUMNS = [
   { key: "pending", title: "Pending", headerBg: "#dc2626", chipBg: "#b91c1c" },
   { key: "partial", title: "Partial Delivered", headerBg: "#eab308", chipBg: "#ca8a04" },
-  { key: "complete", title: "Completed", headerBg: "#16a34a", chipBg: "#15803d" },
+  {
+    key: "team_assignment_pending",
+    title: "Team Assignment Pending",
+    headerBg: "#7c3aed",
+    chipBg: "#6d28d9",
+  },
 ];
 
 const deliveryStatusColor = (status) => {
@@ -75,9 +80,11 @@ const toDateTime = (value, fallback) => {
 
 const sortOrdersForColumn = (list, key) => {
   const rows = [...(list || [])];
-  if (key === "complete") {
+  if (key === "team_assignment_pending") {
     return rows.sort(
-      (a, b) => toDateTime(b.last_challan_date, 0) - toDateTime(a.last_challan_date, 0)
+      (a, b) =>
+        toDateTime(b.last_challan_date, toDateTime(b.planned_delivery_date, 0)) -
+        toDateTime(a.last_challan_date, toDateTime(a.planned_delivery_date, 0))
     );
   }
   return rows.sort(
@@ -109,6 +116,12 @@ const buildFilterParams = (filters) =>
       return str !== "" && str.toLowerCase() !== "all";
     })
   );
+
+const isTeamAssignmentPending = (order) => {
+  const stageKey = String(order?.current_stage_key || "").toLowerCase();
+  const deliveryStatus = String(order?.delivery_status || "").toLowerCase();
+  return stageKey === "assign_fabricator_and_installer" && deliveryStatus === "complete";
+};
 
 export default function DeliveryExecutionPage() {
   const [loading, setLoading] = useState(true);
@@ -239,6 +252,10 @@ export default function DeliveryExecutionPage() {
   }, {});
 
   orders.forEach((o) => {
+    if (isTeamAssignmentPending(o)) {
+      grouped.team_assignment_pending.push(o);
+      return;
+    }
     const key = o.kanban_status || "pending";
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(o);
@@ -341,24 +358,24 @@ export default function DeliveryExecutionPage() {
   };
 
   const menuStatus = menuOrder?.kanban_status || menuOrder?.delivery_status || "pending";
-  const showAssignTeam = menuStatus === "partial" || menuStatus === "complete";
+  const showAssignTeam = isTeamAssignmentPending(menuOrder) || menuStatus === "partial";
   const showNewChallan = menuStatus === "pending" || menuStatus === "partial";
   const showForceComplete = menuStatus === "partial";
 
   return (
     <Box
       sx={{
-        p: 2,
+        p: 1.25,
         display: "flex",
         flexDirection: "column",
-        gap: 2,
+        gap: 1.25,
         height: "calc(100dvh)",
         minHeight: 0,
         overflow: "hidden",
       }}
     >
       <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
-        <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5">
+        <div className="flex flex-col sm:flex-row items-center gap-1.5 px-2 py-1.5">
           <h1 className="text-base font-bold text-slate-900 whitespace-nowrap shrink-0">
             Delivery Execution & Team Planning
           </h1>
@@ -413,7 +430,7 @@ export default function DeliveryExecutionPage() {
             flex: 1,
             minHeight: 0,
             display: "flex",
-            gap: 2,
+            gap: 1.25,
             overflowX: "auto",
             overflowY: "hidden",
             pb: 1,
@@ -428,9 +445,9 @@ export default function DeliveryExecutionPage() {
               <Paper
                 key={col.key}
                 sx={{
-                  minWidth: 360,
-                  maxWidth: 420,
-                  flex: "1 0 360px",
+                  minWidth: 340,
+                  maxWidth: 400,
+                  flex: "1 0 340px",
                   height: "100%",
                   bgcolor: "#f8fafc",
                   border: "1px solid",
@@ -444,8 +461,8 @@ export default function DeliveryExecutionPage() {
                   sx={{
                     bgcolor: col.headerBg,
                     color: "#fff",
-                    px: 1.5,
-                    py: 1,
+                    px: 1.25,
+                    py: 0.85,
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
@@ -474,10 +491,10 @@ export default function DeliveryExecutionPage() {
 
                 <Box
                   sx={{
-                    p: 1.25,
+                    p: 1,
                     display: "flex",
                     flexDirection: "column",
-                    gap: 1,
+                    gap: 0.75,
                     flex: 1,
                     minHeight: 0,
                     overflowY: "auto",
@@ -496,17 +513,17 @@ export default function DeliveryExecutionPage() {
                       key={o.id}
                       variant="outlined"
                       sx={{
-                        p: 1.25,
+                        p: 1,
                         display: "flex",
                         flexDirection: "column",
-                        gap: 0.75,
+                        gap: 0.6,
                         borderLeft: "4px solid",
                         borderLeftColor:
                           col.key === "pending"
                             ? "#0ea5e9"
                             : col.key === "partial"
                               ? "#f59e0b"
-                              : "#ef4444",
+                              : "#7c3aed",
                       }}
                     >
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
@@ -591,7 +608,7 @@ export default function DeliveryExecutionPage() {
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                           Shipped {o.total_shipped || 0} / {o.total_required || 0} (Pending {o.total_pending || 0})
                         </Typography>
-                        {col.key === "complete" && (
+                        {col.key === "team_assignment_pending" && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
                             Last Challan: {formatDate(o.last_challan_date)} • Count: {o.challan_count || 0}
                           </Typography>
