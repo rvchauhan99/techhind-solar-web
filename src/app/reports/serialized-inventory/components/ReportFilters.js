@@ -5,6 +5,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import companyService from "@/services/companyService";
 
 const SERIAL_STATUSES = [
@@ -115,7 +116,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         name="product_id"
         label="Product"
         asyncLoadOptions={loadProductOptions}
-        getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+        getOptionLabel={(o) => formatProductAutocompleteLabel(o) || o?.product_name || o?.name || ""}
         value={filters.product_id ? { id: filters.product_id } : null}
         onChange={(e, v) => {
           const updates = { product_id: v?.id ?? "" };

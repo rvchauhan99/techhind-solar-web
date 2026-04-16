@@ -15,6 +15,7 @@ import DateField from "@/components/common/DateField";
 import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
 
@@ -52,12 +53,7 @@ async function searchProductsByTypeCi(q, productTypeCi) {
   });
   const payload = res?.result ?? res?.data ?? res;
   const rows = Array.isArray(payload?.data) ? payload.data : [];
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.product_name,
-    label: row.product_name,
-    product_name: row.product_name,
-  }));
+  return rows.map((row) => mapProductRowForOrderFilter(row));
 }
 
 export default function OrderListFilterDialog({
@@ -291,13 +287,13 @@ export default function OrderListFilterDialog({
             name="solar_panel_id"
             label="Solar panel"
             asyncLoadOptions={(q) => searchProductsByTypeCi(q, "panel")}
-            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            getOptionLabel={(o) => o?.label ?? o?.name ?? formatProductAutocompleteLabel(o) ?? ""}
             resolveOptionById={async (id) => {
               try {
                 const res = await productService.getProductById(id);
                 const p = res?.result ?? res?.data ?? res;
                 if (!p?.id) return null;
-                return { id: p.id, product_name: p.product_name, label: p.product_name };
+                return mapProductRowForOrderFilter(p);
               } catch {
                 return null;
               }
@@ -315,13 +311,13 @@ export default function OrderListFilterDialog({
             name="inverter_id"
             label="Inverter"
             asyncLoadOptions={(q) => searchProductsByTypeCi(q, "inverter")}
-            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            getOptionLabel={(o) => o?.label ?? o?.name ?? formatProductAutocompleteLabel(o) ?? ""}
             resolveOptionById={async (id) => {
               try {
                 const res = await productService.getProductById(id);
                 const p = res?.result ?? res?.data ?? res;
                 if (!p?.id) return null;
-                return { id: p.id, product_name: p.product_name, label: p.product_name };
+                return mapProductRowForOrderFilter(p);
               } catch {
                 return null;
               }
