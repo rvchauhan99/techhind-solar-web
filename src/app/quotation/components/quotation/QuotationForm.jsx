@@ -500,8 +500,6 @@ export default function QuotationForm({
                                         }}
                                         multiline
                                         rows={1}
-                                        disabled={projectPriceDisabled}
-                                        sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined}
                                     />
                                 </Grid>
                             </Grid>
