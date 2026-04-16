@@ -26,6 +26,7 @@ import companyService from "@/services/companyService";
 import quotationService from "@/services/quotationService";
 import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { useAuth } from "@/hooks/useAuth";
@@ -1621,7 +1622,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 <AutocompleteField
                                     label="Product"
                                     options={productsForBom}
-                                    getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+                                    getOptionLabel={(o) => formatProductAutocompleteLabel(o)}
                                     value={addBomProduct}
                                     onChange={(e, newVal) => setAddBomProduct(newVal)}
                                     disabled={loadingProducts}

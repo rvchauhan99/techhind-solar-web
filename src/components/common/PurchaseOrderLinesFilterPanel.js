@@ -19,6 +19,7 @@ import supplierService from "@/services/supplierService";
 import productService from "@/services/productService";
 import companyService from "@/services/companyService";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 
 export const PO_LINES_FILTER_KEYS = [
   "status",
@@ -141,7 +142,7 @@ export default function PurchaseOrderLinesFilterPanel({
       .then((p) => {
         if (ignore) return;
         const row = p?.result ?? p;
-        setSelectedProductName(row?.product_name || "");
+        setSelectedProductName(formatProductAutocompleteLabel(row) || row?.product_name || "");
       })
       .catch(() => {
         if (!ignore) setSelectedProductName("");
@@ -495,7 +496,7 @@ export default function PurchaseOrderLinesFilterPanel({
             size="small"
             options={[]}
             asyncLoadOptions={loadProductOptions}
-            getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+            getOptionLabel={(o) => formatProductAutocompleteLabel(o) || o?.product_name || o?.name || ""}
             value={
               localValues.product_id
                 ? {
@@ -511,7 +512,7 @@ export default function PurchaseOrderLinesFilterPanel({
                 if (v?.product_type_id) next.product_type_id = String(v.product_type_id);
                 if (v?.product_make_id) next.product_make_id = String(v.product_make_id);
                 setLocalValues(next);
-                setSelectedProductName(v?.product_name ?? v?.name ?? "");
+                setSelectedProductName(formatProductAutocompleteLabel(v) || v?.product_name || v?.name || "");
               } else {
                 setLocalBatch({ product_id: "" });
                 setSelectedProductName("");

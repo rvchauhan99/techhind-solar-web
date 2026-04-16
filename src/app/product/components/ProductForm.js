@@ -49,6 +49,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         product_type_id: "",
         product_make_id: "",
         product_name: "",
+        model_number: "",
         product_description: "",
         hsn_ssn_code: "",
         measurement_unit_id: "",
@@ -157,6 +158,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 product_type_id: defaultValues.product_type_id ?? "",
                 product_make_id: defaultValues.product_make_id ?? "",
                 product_name: defaultValues.product_name ?? "",
+                model_number: defaultValues.model_number ?? "",
                 product_description: defaultValues.product_description ?? "",
                 hsn_ssn_code: defaultValues.hsn_ssn_code ?? "",
                 measurement_unit_id: defaultValues.measurement_unit_id ?? "",
@@ -597,6 +599,18 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                             required
                             error={!!errors.product_name}
                             helperText={errors.product_name}
+                        />
+                    </Grid>
+
+                    {/* Model number */}
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input
+                            name="model_number"
+                            label="Model number"
+                            value={formData.model_number}
+                            onChange={handleChange}
+                            error={!!errors.model_number}
+                            helperText={errors.model_number}
                         />
                     </Grid>
 
