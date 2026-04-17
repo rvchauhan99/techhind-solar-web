@@ -39,12 +39,13 @@ function getDocumentUrlById(id) {
     return orderDocumentsService.getDocumentUrl(id);
 }
 
-export default function Fabrication({ orderId, orderData, onSuccess, splitLayout = false }) {
+export default function Fabrication({ orderId, orderData, onSuccess, splitLayout = false, amendMode = false }) {
     const pathname = usePathname();
     const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
-    const isCompleted = orderData?.stages?.fabrication === "completed";
-    const canComplete = orderData?.stages?.planner === "completed" && !isCompleted && !isReadOnly;
+    const isStageCompleted = orderData?.stages?.fabrication === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
+    const canComplete = orderData?.stages?.planner === "completed" && !isStageCompleted && !isReadOnly;
 
     const [canPerform, setCanPerform] = useState(false);
     const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
@@ -576,7 +577,7 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
                     </Button>
                 )}
             </div>
-            {!canComplete && orderData?.stages?.planner !== "completed" && !isCompleted && (
+            {!canComplete && orderData?.stages?.planner !== "completed" && !isStageCompleted && (
                 <Typography variant="caption" color="text.secondary">
                     Complete the Planner stage to unlock Fabrication.
                 </Typography>

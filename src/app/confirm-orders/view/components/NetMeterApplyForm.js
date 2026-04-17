@@ -17,7 +17,7 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, onSuccess, readOnly = false }) {
+export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, onSuccess, readOnly = false, amendMode = false }) {
     const [formData, setFormData] = useState({
         netmeter_applied_on: "",
         netmeter_apply_remarks: "",
@@ -167,7 +167,8 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
         }
     };
 
-    const isCompleted = orderData?.stages?.netmeter_apply === "completed";
+    const isStageCompleted = orderData?.stages?.netmeter_apply === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
     const isReadOnly = readOnly;
 
     if (shouldBlockForm) {
@@ -278,7 +279,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
                         loading={submitting}
                         disabled={isCompleted || isReadOnly}
                     >
-                        {isCompleted ? "Update" : "Save"}
+                        {isStageCompleted ? "Update" : "Save"}
                     </LoadingButton>
                 </Grid>
             </Grid>

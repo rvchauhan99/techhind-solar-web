@@ -83,6 +83,12 @@ export const getLatestPurchasePrices = (productIds = []) =>
 export const getOrderCostAmendments = (id) =>
     apiClient.get(`/order/${id}/cost-amendments`).then((r) => r.data);
 
+export const amendOrder = (id, payload) =>
+    apiClient.post(`/order/${id}/amend`, payload).then((r) => r.data);
+
+export const getOrderAmendments = (id) =>
+    apiClient.get(`/order/${id}/amendments`).then((r) => r.data);
+
 export default {
     getOrders,
     exportOrders,
@@ -106,4 +112,6 @@ export default {
     cancelOrder,
     getLatestPurchasePrices,
     getOrderCostAmendments,
+    amendOrder,
+    getOrderAmendments,
 };

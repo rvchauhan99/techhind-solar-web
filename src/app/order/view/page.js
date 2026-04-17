@@ -37,6 +37,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
+import { useAuth } from "@/hooks/useAuth";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -998,6 +999,7 @@ export default function OrderViewPage() {
 function OrderViewPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { user } = useAuth();
     const orderId = searchParams.get("id");
     const initialTab = parseInt(searchParams.get("tab")) || null; // Get tab from URL or default to 0
 
@@ -1037,6 +1039,8 @@ function OrderViewPageContent() {
     };
     const visibleTabs = getVisibleTabs();
     const maxPaymentAmount = Math.max(0, Number(orderData?.project_cost ?? 0) - totalReceivedAmount);
+    const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
     console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {
@@ -1306,6 +1310,15 @@ function OrderViewPageContent() {
                         >
                             Quotation
                         </Button>
+                        {canAmendOrder && (
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => router.push(`/order/amend?id=${orderId}`)}
+                            >
+                                Amend (BA)
+                            </Button>
+                        )}
                         {canCancelOrder() && (
                             <Button
                                 variant="outlined"

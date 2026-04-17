@@ -74,12 +74,13 @@ function getDocumentUrlById(id) {
     return orderDocumentsService.getDocumentUrl(id);
 }
 
-export default function Installation({ orderId, orderData, onSuccess }) {
+export default function Installation({ orderId, orderData, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
-    const isCompleted = orderData?.stages?.installation === "completed";
-    const canComplete = orderData?.stages?.fabrication === "completed" && !isCompleted && !isReadOnly;
+    const isStageCompleted = orderData?.stages?.installation === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
+    const canComplete = orderData?.stages?.fabrication === "completed" && !isStageCompleted && !isReadOnly;
 
     const [canPerform, setCanPerform] = useState(false);
     const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
@@ -1001,7 +1002,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
     const disabled = isCompleted || isReadOnly || (!isReadOnly && !canPerform);
 
     useEffect(() => {
-        if (loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) {
+        if (amendMode || loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) {
             if (autoSaveTimerRef.current) {
                 clearTimeout(autoSaveTimerRef.current);
                 autoSaveTimerRef.current = null;
@@ -1026,7 +1027,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(async () => {
             autoSaveTimerRef.current = null;
-            if (loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) return;
+            if (amendMode || loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) return;
             if (autoSavingRef.current) return;
             autoSavingRef.current = true;
             try {
@@ -1077,6 +1078,7 @@ export default function Installation({ orderId, orderData, onSuccess }) {
         isReadOnly,
         canPerform,
         isCompleted,
+        amendMode,
         orderId,
         formData,
         checklist,

@@ -14,7 +14,7 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import moment from "moment";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
+export default function SubsidyDisbursed({ orderId, orderData, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
@@ -88,7 +88,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
                 current_stage_key: "order_completed",
                 subsidy_disbursed_completed_at: new Date().toISOString(),
             };
-            if (orderData?.stages?.["subsidy_disbursed"] === "completed") {
+            if (isStageCompleted) {
                 delete payload.stages;
                 delete payload.current_stage_key;
             }
@@ -108,7 +108,8 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
         }
     };
 
-    const isCompleted = orderData?.stages?.subsidy_disbursed === "completed";
+    const isStageCompleted = orderData?.stages?.subsidy_disbursed === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
 
     return (
         <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-2 sm:p-3 overflow-y-auto max-w-3xl">
@@ -166,7 +167,7 @@ export default function SubsidyDisbursed({ orderId, orderData, onSuccess }) {
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
                 <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>
-                    {isCompleted ? "Update" : "Save"}
+                    {isStageCompleted ? "Update" : "Save"}
                 </Button>
             </div>
         </Box>
