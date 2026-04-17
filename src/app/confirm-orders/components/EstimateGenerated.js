@@ -23,7 +23,7 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import { FIELD_HEIGHT_CLASS_SMALL, FIELD_TEXT_SMALL } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
+export default function EstimateGenerated({ orderId, orderData, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const isReadOnlyRoute = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const estimateAmountRef = useRef(null);
@@ -97,7 +97,7 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
                 estimate_completed_at: new Date().toISOString(),
                 current_stage_key: "estimate_paid",
             };
-            if (orderData?.stages?.["estimate_generated"] === "completed") {
+            if (isStageCompleted) {
                 delete payload.stages;
                 delete payload.current_stage_key;
             }
@@ -117,7 +117,8 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
         }
     };
 
-    const isCompleted = orderData?.stages?.estimate_generated === "completed";
+    const isStageCompleted = orderData?.stages?.estimate_generated === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
     const isZeroAmountOrder = orderData?.zero_amount_estimate === true;
     const estimateAmountValue = orderData?.estimate_amount ?? formData.estimate_amount ?? "";
     const hasZeroAmount = isZeroAmountOrder || Number(estimateAmountValue) === 0;
@@ -261,7 +262,7 @@ export default function EstimateGenerated({ orderId, orderData, onSuccess }) {
                 <div className="flex gap-2">
                     {!isCompleted ? (
                         <Button type="submit" size="sm" loading={submitting} disabled={isReadOnly}>
-                            Save
+                            {isStageCompleted ? "Update" : "Save"}
                         </Button>
                     ) : (
                         <Button size="sm" variant="secondary" disabled>

@@ -312,7 +312,7 @@ function computeBomCapacityPreviewKw(bomPlan) {
     return Math.round((totalW / 1000 + Number.EPSILON) * 100) / 100;
 }
 
-export default function Planner({ orderId, orderData, onSuccess }) {
+export default function Planner({ orderId, orderData, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const { user } = useAuth();
@@ -778,7 +778,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const completedAt = orderData?.planner_completed_at ? moment(orderData.planner_completed_at) : null;
     const withinEditableWindow =
         isCompleted && completedAt && moment().diff(completedAt, "days") < PLANNER_EDITABLE_DAYS;
-    const isPlannerLocked = isCompleted && !withinEditableWindow;
+    const isPlannerLocked = !amendMode && isCompleted && !withinEditableWindow;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
     const showImportFromProject = isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked;
