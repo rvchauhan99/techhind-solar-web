@@ -779,9 +779,13 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const withinEditableWindow =
         isCompleted && completedAt && moment().diff(completedAt, "days") < PLANNER_EDITABLE_DAYS;
     const isPlannerLocked = !amendMode && isCompleted && !withinEditableWindow;
+    const warehouseSelected = Boolean(formData?.planned_warehouse_id);
+    const warehouseLocked = Boolean(orderData?.planned_warehouse_id);
+    const isBomEditingBlocked = !warehouseLocked;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
-    const showImportFromProject = isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked;
+    const showImportFromProject =
+        isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked && !isBomEditingBlocked;
 
     useEffect(() => {
         if (showImportFromProject && projectPricesWithBom.length === 0 && !loadingProjectPrices) {
@@ -819,6 +823,11 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     };
 
     useEffect(() => {
+        if (!warehouseSelected) {
+            setPurchasePriceByProductId({});
+            setLoadingPrices(false);
+            return;
+        }
         const plannedProductIds = (bomPlan || []).map((line) => Number(line.product_id));
         const removedProductIds = (removedLineAdjustments || []).map((line) => Number(line.product_id));
         const uniqueProductIds = [...new Set([...plannedProductIds, ...removedProductIds].filter((id) => Number.isFinite(id) && id > 0))];
@@ -830,7 +839,9 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         const run = async () => {
             setLoadingPrices(true);
             try {
-                const res = await orderService.getLatestPurchasePrices(uniqueProductIds);
+                const res = await orderService.getLatestPurchasePrices(uniqueProductIds, {
+                    warehouse_id: formData.planned_warehouse_id,
+                });
                 const data = res?.result ?? res?.data ?? res ?? [];
                 if (cancelled) return;
                 const next = {};
@@ -851,7 +862,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         return () => {
             cancelled = true;
         };
-    }, [bomPlan, removedLineAdjustments]);
+    }, [bomPlan, removedLineAdjustments, formData.planned_warehouse_id, warehouseSelected]);
 
     useEffect(() => {
         if (activeTab !== "activity" || !orderId) return;
@@ -911,6 +922,10 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     };
 
     const handleAddBomOpen = () => {
+        if (isBomEditingBlocked) {
+            toastError("Lock warehouse first to start BOM planning.");
+            return;
+        }
         setAddBomProduct(null);
         setAddBomQty(1);
         setAddBomOpen(true);
@@ -1213,9 +1228,14 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                 getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
                                 value={warehouses.find((w) => w.id === formData.planned_warehouse_id) || (formData.planned_warehouse_id ? { id: formData.planned_warehouse_id } : null)}
                                 onChange={(e, newValue) => handleInputChange({ target: { name: "planned_warehouse_id", value: newValue?.id ?? "" } })}
-                                disabled={isPlannerLocked || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly || warehouseLocked}
                                 error={!!fieldErrors.planned_warehouse_id}
-                                helperText={fieldErrors.planned_warehouse_id}
+                                helperText={
+                                    fieldErrors.planned_warehouse_id
+                                    || (warehouseLocked
+                                        ? "Warehouse is locked after first planner save."
+                                        : "Save once after selecting warehouse to lock it and enable BOM planning.")
+                                }
                                 required
                             />
                         </FormGrid>
@@ -1299,10 +1319,10 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                             setManualFinalPayable(e.target.value);
                                             setIsManualOverride(true);
                                         }}
-                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin}
+                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin || isBomEditingBlocked}
                                         className="w-full border border-input rounded px-1 py-0.5 bg-background disabled:opacity-60"
                                     />
-                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && (
+                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && !isBomEditingBlocked && (
                                         <button
                                             type="button"
                                             className="px-2 py-0.5 text-[11px] border rounded hover:bg-muted"
@@ -1317,6 +1337,8 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                 <div className="text-[11px] text-muted-foreground mt-1">
                                     {!isSuperAdmin
                                         ? "Only superadmin can set manual override."
+                                        : isBomEditingBlocked
+                                          ? "Lock warehouse first to enable planner cost amendments."
                                         : isManualOverride
                                           ? "Manual override active"
                                           : "Auto-calculated"}
@@ -1384,8 +1406,13 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                 </div>
                             </div>
                         )}
+                        {isBomEditingBlocked && (
+                            <Alert severity="info" sx={{ mb: 1 }}>
+                                Select warehouse and save planner once to lock warehouse before BOM planning and amendments.
+                            </Alert>
+                        )}
                         <div className="flex items-center justify-end gap-2 mb-2">
-                            {!isReadOnly && !isPlannerLocked && (
+                            {!isReadOnly && !isPlannerLocked && !isBomEditingBlocked && (
                                 <Button
                                     type="button"
                                     size="sm"
@@ -1466,7 +1493,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                 label=""
                                                                 checked={!!line.planned}
                                                                 onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
-                                                                disabled={isPlannerLocked || isReadOnly || isFullyShipped || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || isFullyShipped || !canEditRow}
                                                                 className="w-auto"
                                                             />
                                                         </td>
@@ -1493,7 +1520,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                         )
                                                                     )
                                                                 }
-                                                                disabled={isPlannerLocked || isReadOnly || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || !canEditRow}
                                                                 className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                             />
                                                         </td>
@@ -1508,7 +1535,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                             <select
                                                                 value={adjustment.gst_mode || "INCLUDING_GST"}
                                                                 onChange={(e) => updateLineAdjustment(line.__rowKey, { gst_mode: e.target.value })}
-                                                                disabled={isPlannerLocked || isReadOnly || adjQty === 0 || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0 || !canEditRow}
                                                                 className="w-28 border border-input rounded px-1 py-0.5 bg-background text-xs"
                                                             >
                                                                 <option value="INCLUDING_GST">Including GST</option>
@@ -1530,7 +1557,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                             gstRate
                                                                         )
                                                                     }
-                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
                                                                     className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                                 />
                                                             ) : (
@@ -1552,7 +1579,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                             gstRate
                                                                         )
                                                                     }
-                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
                                                                     className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                                 />
                                                             ) : (
@@ -1561,7 +1588,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                         </td>
                                                         <td className="p-2 text-right align-middle">{canEditRow ? amountExcl.toFixed(2) : "—"}</td>
                                                         <td className="p-2 text-right align-middle">{canEditRow ? amountIncl.toFixed(2) : "—"}</td>
-                                                        {!isReadOnly && !isPlannerLocked && (
+                                                        {!isReadOnly && !isPlannerLocked && !isBomEditingBlocked && (
                                                             <td className="p-2 text-center align-middle">
                                                                 {canRemove && canEditRow ? (
                                                                     <button
@@ -1586,7 +1613,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                 {fieldErrors.bomPlan && (
                                     <p className="mt-1 text-xs text-destructive">{fieldErrors.bomPlan}</p>
                                 )}
-                                {loadingPrices && <p className="mt-1 text-xs text-muted-foreground">Loading latest purchase prices...</p>}
+                                {loadingPrices && <p className="mt-1 text-xs text-muted-foreground">Loading warehouse-wise purchase prices...</p>}
                             </>
                         ) : (
                             <Alert severity="info" sx={{ mt: 1 }}>
