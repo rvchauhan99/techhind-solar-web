@@ -35,6 +35,10 @@ import mastersService from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import { toastSuccess, toastError } from "@/utils/toast";
+import {
+    getOrderOutstandingAmount,
+    getOrderReceivedAmount,
+} from "@/utils/orderPaymentSummary";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
@@ -1008,7 +1012,6 @@ function OrderViewPageContent() {
     const [orderData, setOrderData] = useState(null);
     const [tabValue, setTabValue] = useState(initialTab || 0); // Use initialTab from URL
     const [visitedTabs, setVisitedTabs] = useState(new Set([initialTab || 0])); // Track visited tabs, start with initialTab
-    const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
     const [orderDocumentTypes, setOrderDocumentTypes] = useState([]);
     const [loadingOrderDocumentTypes, setLoadingOrderDocumentTypes] = useState(false);
@@ -1038,7 +1041,9 @@ function OrderViewPageContent() {
         }
     };
     const visibleTabs = getVisibleTabs();
-    const maxPaymentAmount = Math.max(0, Number(orderData?.project_cost ?? 0) - totalReceivedAmount);
+    const totalReceivedAmount = getOrderReceivedAmount(orderData);
+    const outstandingAmount = getOrderOutstandingAmount(orderData);
+    const maxPaymentAmount = Math.max(0, outstandingAmount);
     const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
     console.warn('visibleTabs', visibleTabs);
@@ -1066,25 +1071,7 @@ function OrderViewPageContent() {
             }
         };
 
-        const fetchTotalReceivedAmount = async () => {
-            try {
-                const response = await orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 });
-                const payments = response?.result || [];
-                const paidPayments = payments.filter(
-                    (p) => p.status === "approved" || p.status === "pending_approval"
-                );
-                const total = paidPayments.reduce(
-                    (sum, payment) => sum + parseFloat(payment.payment_amount || 0),
-                    0
-                );
-                setTotalReceivedAmount(total);
-            } catch (err) {
-                console.error("Failed to fetch payment total:", err);
-            }
-        };
-
         fetchOrder();
-        fetchTotalReceivedAmount();
     }, [orderId]);
 
     useEffect(() => {
@@ -1115,17 +1102,10 @@ function OrderViewPageContent() {
     };
 
     const refreshPaymentTotal = async () => {
+        if (!orderId) return;
         try {
-            const response = await orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 });
-            const payments = response?.result || [];
-            const paidPayments = payments.filter(
-                (p) => p.status === "approved" || p.status === "pending_approval"
-            );
-            const total = paidPayments.reduce(
-                (sum, payment) => sum + parseFloat(payment.payment_amount || 0),
-                0
-            );
-            setTotalReceivedAmount(total);
+            const orderResponse = await orderService.getOrderById(orderId);
+            setOrderData(orderResponse?.result || orderResponse);
         } catch (err) {
             console.error("Failed to refresh payment total:", err);
         }
@@ -1469,7 +1449,7 @@ function OrderViewPageContent() {
                                     borderRadius={0.5}
                                     mt={1}
                                 >
-                                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
+                                    Rs. {outstandingAmount.toLocaleString()}
                                 </Typography>
                             </Box>
                         </Paper>
