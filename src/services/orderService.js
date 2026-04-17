@@ -73,10 +73,13 @@ export const forceCompleteDelivery = (id, payload = {}) =>
 export const cancelOrder = (id, payload = {}) =>
     apiClient.post(`/order/${id}/cancel`, payload).then((r) => r.data);
 
-export const getLatestPurchasePrices = (productIds = []) =>
+export const getLatestPurchasePrices = (productIds = [], options = {}) =>
     apiClient
         .get("/order/latest-purchase-prices", {
-            params: { product_ids: productIds.join(",") },
+            params: {
+                product_ids: productIds.join(","),
+                warehouse_id: options?.warehouse_id ?? undefined,
+            },
         })
         .then((r) => r.data);
 

@@ -435,6 +435,24 @@ export default function StockPage() {
           ),
       },
       {
+        field: "last_purchase_price_excl_gst",
+        label: "Last Purchase Excl GST",
+        sortable: false,
+        render: (row) =>
+          row.last_purchase_price != null ? formatCurrency(row.last_purchase_price) : "-",
+      },
+      {
+        field: "last_purchase_price_incl_gst",
+        label: "Last Purchase Incl GST",
+        sortable: false,
+        render: (row) => {
+          if (row.last_purchase_price == null) return "-";
+          const last = toNum(row.last_purchase_price);
+          const gst = toNum(row.gst_percent);
+          return formatCurrency(last * (1 + gst / 100));
+        },
+      },
+      {
         field: "avg_price_excl_gst",
         label: "Avg Price Excl GST",
         sortable: false,
