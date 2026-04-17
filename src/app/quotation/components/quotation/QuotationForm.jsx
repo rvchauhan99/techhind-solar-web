@@ -371,6 +371,9 @@ export default function QuotationForm({
                             value={formData.branch_id ? { id: formData.branch_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "branch_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            required
+                            error={!!errors.branch_id}
+                            helperText={errors.branch_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
