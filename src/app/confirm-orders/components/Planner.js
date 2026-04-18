@@ -369,6 +369,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
     const [saveConfirmPayload, setSaveConfirmPayload] = useState(null);
     const [saveConfirmSummary, setSaveConfirmSummary] = useState(null);
+    const [lockingWarehouse, setLockingWarehouse] = useState(false);
     /** After BOM import from project, skip one planner save of cost amendments / override so project_cost stays as on order. */
     const skipNextPlannerCostEffectsRef = useRef(false);
 
@@ -507,9 +508,41 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         }
     };
 
+    const handleLockWarehouse = async () => {
+        if (isReadOnly || isPlannerLocked || lockingWarehouse || warehouseLocked) return;
+
+        const newFieldErrors = {};
+        if (!formData.planned_delivery_date) newFieldErrors.planned_delivery_date = "Required";
+        if (!formData.planned_priority) newFieldErrors.planned_priority = "Required";
+        if (!formData.planned_warehouse_id) newFieldErrors.planned_warehouse_id = "Required";
+        if (Object.keys(newFieldErrors).length > 0) {
+            setFieldErrors((prev) => ({ ...prev, ...newFieldErrors }));
+            return;
+        }
+
+        setLockingWarehouse(true);
+        setError(null);
+        try {
+            await orderService.updateOrder(orderId, {
+                planned_delivery_date: formData.planned_delivery_date,
+                planned_priority: formData.planned_priority,
+                planned_warehouse_id: formData.planned_warehouse_id,
+                planned_remarks: formData.planned_remarks,
+            });
+            toastSuccess("Warehouse locked. BOM planning is now enabled.");
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to lock warehouse";
+            setError(errMsg);
+            toastError(errMsg);
+        } finally {
+            setLockingWarehouse(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isReadOnly || isPlannerLocked || submitting) return;
+        if (isReadOnly || isPlannerLocked || isBomEditingBlocked || submitting) return;
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -823,7 +856,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     };
 
     useEffect(() => {
-        if (!warehouseSelected) {
+        if (!warehouseLocked || !warehouseSelected) {
             setPurchasePriceByProductId({});
             setLoadingPrices(false);
             return;
@@ -862,7 +895,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         return () => {
             cancelled = true;
         };
-    }, [bomPlan, removedLineAdjustments, formData.planned_warehouse_id, warehouseSelected]);
+    }, [bomPlan, removedLineAdjustments, formData.planned_warehouse_id, warehouseLocked, warehouseSelected]);
 
     useEffect(() => {
         if (activeTab !== "activity" || !orderId) return;
@@ -1234,11 +1267,29 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                     fieldErrors.planned_warehouse_id
                                     || (warehouseLocked
                                         ? "Warehouse is locked after first planner save."
-                                        : "Save once after selecting warehouse to lock it and enable BOM planning.")
+                                        : "Select warehouse and click Lock Warehouse to enable BOM planning.")
                                 }
                                 required
                             />
                         </FormGrid>
+                        {!isReadOnly && !isPlannerLocked && (
+                            <div className="mt-2 flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleLockWarehouse}
+                                    disabled={warehouseLocked || !warehouseSelected || lockingWarehouse}
+                                    className="bg-slate-700 hover:bg-slate-800 text-white border-0"
+                                >
+                                    {warehouseLocked ? "Warehouse Locked" : "Lock Warehouse"}
+                                </Button>
+                                {!warehouseLocked && (
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Lock warehouse first, then BOM planning and amendments are enabled.
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         <div className="mt-3">
                             <Input
@@ -1408,7 +1459,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                         )}
                         {isBomEditingBlocked && (
                             <Alert severity="info" sx={{ mb: 1 }}>
-                                Select warehouse and save planner once to lock warehouse before BOM planning and amendments.
+                                Select warehouse and click Lock Warehouse before BOM planning and amendments.
                             </Alert>
                         )}
                         <div className="flex items-center justify-end gap-2 mb-2">
@@ -1626,7 +1677,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                     <div className="mt-4 flex flex-col gap-2">
                         {error && <Alert severity="error">{error}</Alert>}
                         {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly}>
+                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked}>
                             {isCompleted ? "Update Details" : "Save"}
                         </Button>
                     </div>
