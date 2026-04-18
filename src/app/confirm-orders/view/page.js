@@ -339,7 +339,7 @@ function ConfirmedOrderViewPageContent() {
         const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
         if (status !== "pending" && status !== "confirmed") return false;
         if (status === "cancelled" || status === "completed") return false;
-        if (deliveryStatus === "partial" || deliveryStatus === "complete") return false;
+        if (deliveryStatus !== "pending") return false;
         return true;
     };
 
