@@ -39,6 +39,7 @@ import {
     getOrderOutstandingAmount,
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
+import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
@@ -1215,15 +1216,7 @@ function OrderViewPageContent() {
         return `calc(100vh - 85px)`;
     };
 
-    const canCancelOrder = () => {
-        if (!orderData) return false;
-        const status = String(orderData.status || "").toLowerCase();
-        const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
-        if (status !== "pending" && status !== "confirmed") return false;
-        if (status === "cancelled" || status === "completed") return false;
-        if (deliveryStatus === "partial" || deliveryStatus === "complete") return false;
-        return true;
-    };
+    const cancelEligibility = getOrderCancelEligibility(orderData);
 
     const handleOpenCancelDialog = async () => {
         setCancelReasonId("");
@@ -1299,7 +1292,7 @@ function OrderViewPageContent() {
                                 Amend (BA)
                             </Button>
                         )}
-                        {canCancelOrder() && (
+                        {cancelEligibility.canCancel && (
                             <Button
                                 variant="outlined"
                                 color="error"

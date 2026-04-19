@@ -60,6 +60,7 @@ import {
     getOrderOutstandingAmount,
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
+import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 
 const getValidationStatusMeta = (status) => {
     const s = String(status || "").toLowerCase();
@@ -333,15 +334,7 @@ function ConfirmedOrderViewPageContent() {
         return `calc(100dvh - 108px)`;
     };
 
-    const canCancelOrder = () => {
-        if (!orderData) return false;
-        const status = String(orderData.status || "").toLowerCase();
-        const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
-        if (status !== "pending" && status !== "confirmed") return false;
-        if (status === "cancelled" || status === "completed") return false;
-        if (deliveryStatus !== "pending") return false;
-        return true;
-    };
+    const cancelEligibility = getOrderCancelEligibility(orderData);
 
     const handleOpenCancelDialog = async () => {
         setCancelReasonId("");
@@ -608,7 +601,7 @@ function ConfirmedOrderViewPageContent() {
                             Change Handled By
                         </Button>
                     )}
-                    {canCancelOrder() && (
+                    {cancelEligibility.canCancel && (
                         <Button
                             variant="outlined"
                             color="error"
