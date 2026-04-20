@@ -85,8 +85,14 @@ const AutocompleteField = forwardRef(function AutocompleteField(
   const filterOptions = isAsyncMode
     ? displayOptions
     : options.filter((opt) => {
-        const lbl = getOptionLabel(opt);
-        return String(lbl).toLowerCase().includes(String(inputValue).toLowerCase());
+        const q = String(inputValue).toLowerCase();
+        if (!q) return true;
+        const lbl = String(getOptionLabel(opt)).toLowerCase();
+        if (lbl.includes(q)) return true;
+        if (opt && typeof opt === "object" && opt.model_number != null && String(opt.model_number).trim() !== "") {
+          return String(opt.model_number).toLowerCase().includes(q);
+        }
+        return false;
       });
 
   // Reset active index when list changes or opens

@@ -4,6 +4,7 @@ import { Grid, Button } from "@mui/material";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import MakeAutocomplete from "./MakeAutocomplete";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 
 const COMPACT_FORM_SPACING = 0.5;
 
@@ -101,7 +102,7 @@ export default function TechnicalSection({
                                     name={`${namePrefix}_${idx}_product`}
                                     label={idx === 0 ? labelBase : `${labelBase} ${idx + 1}`}
                                     options={typeProducts}
-                                    getOptionLabel={(p) => p?.product_name ?? ""}
+                                    getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                                     value={typeProducts.find((p) => p.id == productId) || (productId ? { id: productId } : null)}
                                     onChange={(e, newValue) => {
                                         const next = [...showItems];
@@ -241,7 +242,7 @@ export default function TechnicalSection({
                             name="panel_product"
                             label="Product"
                             options={getProducts(products, "panel")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "panel").find((p) => p.id == formData.panel_product) || (formData.panel_product ? { id: formData.panel_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -343,7 +344,7 @@ export default function TechnicalSection({
                             name="inverter_product"
                             label="Product"
                             options={getProducts(products, "inverter")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "inverter").find((p) => p.id == formData.inverter_product) || (formData.inverter_product ? { id: formData.inverter_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -414,7 +415,7 @@ export default function TechnicalSection({
                             name="battery_product"
                             label="Product"
                             options={getProducts(products, "battery")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "battery").find((p) => p.id == formData.battery_product) || (formData.battery_product ? { id: formData.battery_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -512,7 +513,7 @@ export default function TechnicalSection({
                             name="hybrid_inverter_product"
                             label="Product"
                             options={getProducts(products, "hybrid inverter")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "hybrid inverter").find((p) => p.id == formData.hybrid_inverter_product) || (formData.hybrid_inverter_product ? { id: formData.hybrid_inverter_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -584,7 +585,7 @@ export default function TechnicalSection({
                             name="acdb_product"
                             label="Product"
                             options={getProducts(products, "acdb")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "acdb").find((p) => p.id == formData.acdb_product) || (formData.acdb_product ? { id: formData.acdb_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -635,7 +636,7 @@ export default function TechnicalSection({
                             name="dcdb_product"
                             label="Product"
                             options={getProducts(products, "dcdb")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "dcdb").find((p) => p.id == formData.dcdb_product) || (formData.dcdb_product ? { id: formData.dcdb_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -761,7 +762,7 @@ export default function TechnicalSection({
                             name="earthing_product"
                             label="Product"
                             options={getProducts(products, "earthing")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "earthing").find((p) => p.id == formData.earthing_product) || (formData.earthing_product ? { id: formData.earthing_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
@@ -837,7 +838,7 @@ export default function TechnicalSection({
                             name="la_product"
                             label="Product"
                             options={getProducts(products, "la")}
-                            getOptionLabel={(p) => p?.product_name ?? ""}
+                            getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
                             value={getProducts(products, "la").find((p) => p.id == formData.la_product) || (formData.la_product ? { id: formData.la_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;

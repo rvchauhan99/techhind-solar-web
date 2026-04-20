@@ -15,6 +15,10 @@ import {
     getPrimaryPhone,
 } from "@/utils/orderFormatters";
 import { buildOrderedStages } from "@/utils/orderStageUtils";
+import {
+    getOrderOutstandingAmount,
+    getOrderReceivedAmount,
+} from "@/utils/orderPaymentSummary";
 
 const DetailRow = ({ label, value }) => (
     <div className="py-0.5">
@@ -86,6 +90,8 @@ export default function OrderDetailsDrawer({
     );
 
     const bomLines = Array.isArray(resolvedOrder?.bom_snapshot) ? resolvedOrder.bom_snapshot : [];
+    const totalPaidAmount = getOrderReceivedAmount(resolvedOrder);
+    const outstandingAmount = getOrderOutstandingAmount(resolvedOrder);
 
     const handlePrint = async () => {
         if (!resolvedOrder?.id || !onPrint) return;
@@ -206,10 +212,10 @@ export default function OrderDetailsDrawer({
                     </div>
                     <div className="mt-1 border-t border-dashed border-border pt-1 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
                         <DetailRow label="Total Payable" value={formatCurrency(resolvedOrder?.project_cost)} />
-                        <DetailRow label="Total Paid" value={formatCurrency(resolvedOrder?.total_paid)} />
+                        <DetailRow label="Total Paid" value={formatCurrency(totalPaidAmount)} />
                         <DetailRow
                             label="Outstanding Balance"
-                            value={formatCurrency(Number(resolvedOrder?.project_cost || 0) - Number(resolvedOrder?.total_paid || 0))}
+                            value={formatCurrency(outstandingAmount)}
                         />
                     </div>
 

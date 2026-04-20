@@ -55,6 +55,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { IconBolt, IconChartBar, IconTopologyRing3 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import {
+    getOrderOutstandingAmount,
+    getOrderProjectCostAmount,
+    getOrderReceivedAmount,
+} from "@/utils/orderPaymentSummary";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -323,7 +328,9 @@ export default function ListView() {
 
     const renderOrderItem = (row, reload) => {
         const stages = row.stages || {};
-        const outstanding = Number(row.project_cost || 0) - Number(row.total_paid || 0);
+        const totalPayable = getOrderProjectCostAmount(row);
+        const totalReceived = getOrderReceivedAmount(row);
+        const outstanding = getOrderOutstandingAmount(row);
         const fullyCompleted = isOrderFullyCompleted(row);
 
         return (
@@ -443,8 +450,8 @@ export default function ListView() {
                         </Grid>
                         <Grid item size={3}>
                             {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
-                            {renderOrderDetail("Total Payable", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
-                            {renderOrderDetail("Payment Received", `Rs. ${Number(row.total_paid || 0).toLocaleString()}`)}
+                            {renderOrderDetail("Total Payable", `Rs. ${totalPayable.toLocaleString()}`)}
+                            {renderOrderDetail("Payment Received", `Rs. ${totalReceived.toLocaleString()}`)}
                             <Box mb={0.4}>
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}>
                                     Outstanding:

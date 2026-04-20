@@ -21,6 +21,7 @@ export default function AssignFabricatorAndInstaller({
     orderId,
     orderData,
     onSuccess,
+    amendMode = false,
     currentStage = "assign_fabricator_and_installer",
     nextStage = "fabrication",
     completedAtField = "assign_fabricator_installer_completed_at",
@@ -235,7 +236,7 @@ export default function AssignFabricatorAndInstaller({
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isReadOnly) return;
-        if (!canAssign) {
+        if (!canAssign && !amendMode) {
             toastError(
                 "Only warehouse managers of the planned warehouse can perform this assignment. Please contact your administrator if you need access."
             );
@@ -300,7 +301,8 @@ export default function AssignFabricatorAndInstaller({
         }
     };
 
-    const isCompleted = orderData?.stages?.[currentStage] === "completed";
+    const isStageCompleted = orderData?.stages?.[currentStage] === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
 
     if (managerCheckLoading) {
         return (
@@ -310,7 +312,7 @@ export default function AssignFabricatorAndInstaller({
         );
     }
 
-    if (!isReadOnly && !canAssign) {
+    if (!isReadOnly && !canAssign && !amendMode) {
         return (
             <Box className="p-4">
                 <Alert severity="warning" sx={{ mt: 1 }}>
@@ -463,7 +465,7 @@ export default function AssignFabricatorAndInstaller({
                 {error && <Alert severity="error">{error}</Alert>}
                 {successMsg && <Alert severity="success">{successMsg}</Alert>}
                 <Button type="submit" size="sm" loading={submitting} disabled={isCompleted || isReadOnly}>
-                    {isCompleted ? "Update" : "Save"}
+                    {isStageCompleted ? "Update" : "Save"}
                 </Button>
             </div>
         </Box>

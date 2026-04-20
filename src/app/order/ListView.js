@@ -29,12 +29,14 @@ import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
 import { toastError } from "@/utils/toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusVariantMap = {
   pending: "secondary",
@@ -73,12 +75,7 @@ async function searchProductsByTypeCi(q, productTypeCi) {
   });
   const payload = res?.result ?? res?.data ?? res;
   const rows = Array.isArray(payload?.data) ? payload.data : [];
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.product_name,
-    label: row.product_name,
-    product_name: row.product_name,
-  }));
+  return rows.map((row) => mapProductRowForOrderFilter(row));
 }
 
 const STATUS_OPTIONS = [
@@ -99,6 +96,7 @@ export default function ListView({
   onHomeClick,
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const listingState = useListingQueryState({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -118,6 +116,8 @@ export default function ListView({
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
 
   const getStatusVariant = (status) => statusVariantMap[status] || "secondary";
+  const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
 
   const filterParams = useMemo(() => {
     const entries = Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "");
@@ -387,13 +387,19 @@ export default function ListView({
                   <IconEdit className="size-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
+                {canAmendOrder && (
+                  <DropdownMenuItem onClick={() => router.push(`/order/amend?id=${row.id}`)}>
+                    <IconEdit className="size-4 mr-2" />
+                    Amend (BA)
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ),
       },
     ],
-    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant]
+    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant, canAmendOrder]
   );
 
   const tableHeight = "calc(100vh - 150px)";
@@ -433,13 +439,13 @@ export default function ListView({
             label="Solar panel"
             variant="minimal"
             asyncLoadOptions={(q) => searchProductsByTypeCi(q, "panel")}
-            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            getOptionLabel={(o) => o?.label ?? o?.name ?? formatProductAutocompleteLabel(o) ?? ""}
             resolveOptionById={async (id) => {
               try {
                 const res = await productService.getProductById(id);
                 const p = res?.result ?? res?.data ?? res;
                 if (!p?.id) return null;
-                return { id: p.id, product_name: p.product_name, label: p.product_name };
+                return mapProductRowForOrderFilter(p);
               } catch {
                 return null;
               }
@@ -461,13 +467,13 @@ export default function ListView({
             label="Inverter"
             variant="minimal"
             asyncLoadOptions={(q) => searchProductsByTypeCi(q, "inverter")}
-            getOptionLabel={(o) => o?.product_name ?? o?.label ?? o?.name ?? ""}
+            getOptionLabel={(o) => o?.label ?? o?.name ?? formatProductAutocompleteLabel(o) ?? ""}
             resolveOptionById={async (id) => {
               try {
                 const res = await productService.getProductById(id);
                 const p = res?.result ?? res?.data ?? res;
                 if (!p?.id) return null;
-                return { id: p.id, product_name: p.product_name, label: p.product_name };
+                return mapProductRowForOrderFilter(p);
               } catch {
                 return null;
               }

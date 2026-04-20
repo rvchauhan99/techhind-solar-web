@@ -22,6 +22,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import GetAppIcon from "@mui/icons-material/GetApp";
 import mastersService from "@/services/mastersService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import supplierService from "@/services/supplierService";
 import companyService from "@/services/companyService";
 import purchaseOrderService from "@/services/purchaseOrderService";
@@ -711,13 +712,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             ? {
                                                 id: row.id,
                                                 product_name: row.product_name,
+                                                model_number: row.model_number ?? null,
                                                 hsn_ssn_code: row.hsn_ssn_code,
                                                 gst_percent: row.gst_percent,
                                                 measurement_unit_name: row.measurement_unit_name || null,
                                             }
                                             : null;
                                     }}
-                                    getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
+                                    getOptionLabel={(p) => formatProductAutocompleteLabel(p) || String(p?.id ?? "")}
                                     value={currentItem.product_id ? { id: currentItem.product_id } : null}
                                     onChange={(e, newValue) => {
                                         handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });

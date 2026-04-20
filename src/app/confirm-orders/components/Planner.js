@@ -26,6 +26,7 @@ import companyService from "@/services/companyService";
 import quotationService from "@/services/quotationService";
 import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { useAuth } from "@/hooks/useAuth";
@@ -38,7 +39,280 @@ const normalizeRoleName = (s) =>
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "");
 
-export default function Planner({ orderId, orderData, onSuccess }) {
+const normalizeProductTypeName = (s) => (s || "").toLowerCase().trim().replace(/\s+/g, "_");
+
+const productTypeNameToBarKey = (normalized) => {
+    if (!normalized) return null;
+    switch (normalized) {
+        case "structure":
+            return "structure";
+        case "panel":
+        case "solar_panel":
+            return "solar_panel";
+        case "inverter":
+            return "inverter";
+        case "acdb":
+            return "acdb";
+        case "dcdb":
+            return "dcdb";
+        case "earthing":
+        case "earthing_kit":
+            return "earthing_kit";
+        case "cable":
+        case "cables":
+        case "dc_cable":
+        case "ac_cable":
+            return "cables";
+        default:
+            return null;
+    }
+};
+
+function mergeRowAdjustmentsIntoSurvivor(surv, dup) {
+    const s = surv || {};
+    const d = dup || {};
+    if (s.gst_mode && d.gst_mode && s.gst_mode !== d.gst_mode) {
+        return { error: "Conflicting GST mode on duplicate BOM rows for the same product.", merged: null };
+    }
+    const numPos = (v) => {
+        if (v === "" || v == null) return null;
+        const n = Number(v);
+        return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const sEx = numPos(s.manual_unit_price_excluding_gst);
+    const dEx = numPos(d.manual_unit_price_excluding_gst);
+    const sIn = numPos(s.manual_unit_price_including_gst);
+    const dIn = numPos(d.manual_unit_price_including_gst);
+    if (sEx != null && dEx != null && Math.abs(sEx - dEx) > 0.001) {
+        return { error: "Conflicting manual unit prices on duplicate BOM rows for the same product.", merged: null };
+    }
+    if (sIn != null && dIn != null && Math.abs(sIn - dIn) > 0.001) {
+        return { error: "Conflicting manual unit prices on duplicate BOM rows for the same product.", merged: null };
+    }
+    const merged = {
+        gst_mode: s.gst_mode || d.gst_mode || "INCLUDING_GST",
+        note: [s.note, d.note].filter((x) => x && String(x).trim()).join(" | ") || "",
+        manual_unit_price_excluding_gst:
+            sEx != null ? s.manual_unit_price_excluding_gst : (d.manual_unit_price_excluding_gst ?? ""),
+        manual_unit_price_including_gst:
+            sIn != null ? s.manual_unit_price_including_gst : (d.manual_unit_price_including_gst ?? ""),
+    };
+    return { merged, error: null };
+}
+
+/**
+ * Merge duplicate BOM plan rows by product_id (matches API mergeBomSnapshotLinesByProductId).
+ */
+function mergeBomPlanByProductId(bomPlan, adjustmentByRow) {
+    if (!Array.isArray(bomPlan) || bomPlan.length === 0) {
+        return {
+            mergedPlan: bomPlan || [],
+            mergedAdjustmentByRow: { ...(adjustmentByRow || {}) },
+            error: null,
+        };
+    }
+    const qty = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+    const plannedOf = (line) => {
+        const pq = line?.planned_qty;
+        if (pq != null && pq !== "" && !Number.isNaN(Number(pq))) return Number(pq);
+        return qty(line?.quantity);
+    };
+
+    const mergedPlan = [];
+    const indexByProductId = new Map();
+    const nextAdj = { ...(adjustmentByRow || {}) };
+
+    for (const line of bomPlan) {
+        const pid = Number(line?.product_id);
+        if (!Number.isInteger(pid) || pid <= 0) {
+            mergedPlan.push(line);
+            continue;
+        }
+        if (!indexByProductId.has(pid)) {
+            indexByProductId.set(pid, mergedPlan.length);
+            mergedPlan.push(line);
+            continue;
+        }
+        const idx = indexByProductId.get(pid);
+        const canon = mergedPlan[idx];
+        const survivorKey = canon.__rowKey;
+        const absorbedKey = line.__rowKey;
+
+        const r = mergeRowAdjustmentsIntoSurvivor(nextAdj[survivorKey], nextAdj[absorbedKey]);
+        if (r.error) {
+            return { mergedPlan: null, mergedAdjustmentByRow: null, error: r.error };
+        }
+        nextAdj[survivorKey] = r.merged;
+        delete nextAdj[absorbedKey];
+
+        const merged = {
+            ...canon,
+            quantity: qty(canon.quantity) + qty(line.quantity),
+            planned_qty: plannedOf(canon) + plannedOf(line),
+            shipped_qty: Math.max(qty(canon.shipped_qty), qty(line.shipped_qty)),
+            returned_qty: Math.max(qty(canon.returned_qty), qty(line.returned_qty)),
+            planner_added: !!canon.planner_added,
+        };
+        const baseCanon = canon.baseline_planned_qty;
+        const baseLine = line.baseline_planned_qty;
+        if (baseCanon != null || baseLine != null) {
+            merged.baseline_planned_qty = qty(baseCanon) + qty(baseLine);
+        }
+        if (line.planned === true || canon.planned === true) {
+            merged.planned = true;
+        } else if (line.planned === false && canon.planned === false) {
+            merged.planned = false;
+        }
+        mergedPlan[idx] = merged;
+    }
+
+    return { mergedPlan, mergedAdjustmentByRow: nextAdj, error: null };
+}
+
+function computePlannerCostPreviewFromInputs({
+    projectCost,
+    bomPlan,
+    adjustmentByRow,
+    purchasePriceByProductId,
+    removedLineAdjustments,
+    manualFinalPayable,
+    isManualOverride,
+    isSuperAdmin,
+}) {
+    const baseProjectCost = Number(projectCost) || 0;
+    const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+    const activeLines = (bomPlan || []).map((line) => {
+        const adjustment = (adjustmentByRow || {})[line.__rowKey] || {};
+        const editedPlannedQty = qtyNum(line.planned_qty ?? line.quantity);
+        const baselinePlannedQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
+        const qtyDelta = editedPlannedQty - baselinePlannedQty;
+        const gstMode = adjustment.gst_mode || "INCLUDING_GST";
+        const price = purchasePriceByProductId[line.product_id] || null;
+        const gstRate = Number(price?.gst_rate) || 0;
+        const hasPriceFromPo = !price?.missing_price &&
+            Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
+            Number(price?.unit_price_excluding_gst) > 0;
+        const manualExclRaw = Number(adjustment?.manual_unit_price_excluding_gst);
+        const manualInclRaw = Number(adjustment?.manual_unit_price_including_gst);
+        const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
+        const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
+        let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+        let unitIncl = Number(price?.unit_price_including_gst) || 0;
+        let priceSource = "LATEST_PURCHASE";
+        if (!hasPriceFromPo) {
+            priceSource = "MANUAL_FALLBACK";
+            if (hasManualExcl && hasManualIncl) {
+                unitExcl = manualExclRaw;
+                unitIncl = manualInclRaw;
+            } else if (hasManualExcl) {
+                unitExcl = manualExclRaw;
+                unitIncl = unitExcl * (1 + gstRate / 100);
+            } else if (hasManualIncl) {
+                unitIncl = manualInclRaw;
+                unitExcl = unitIncl / (1 + gstRate / 100);
+            } else {
+                unitExcl = 0;
+                unitIncl = 0;
+            }
+        }
+        const amountExcl = qtyDelta * unitExcl;
+        const amountIncl = qtyDelta * unitIncl;
+        const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
+        return {
+            rowKey: line.__rowKey,
+            qtyDelta,
+            gstMode,
+            product_id: line.product_id,
+            price,
+            gstRate,
+            unitExcl,
+            unitIncl,
+            priceSource,
+            amountExcl,
+            amountIncl,
+            deltaCost,
+        };
+    });
+    const removedLines = (removedLineAdjustments || []).map((line) => {
+        const qtyDelta = qtyNum(line.qtyDelta);
+        const gstMode = line.gstMode || "INCLUDING_GST";
+        const price = purchasePriceByProductId[line.product_id] || null;
+        const gstRate = Number(price?.gst_rate) || 0;
+        const hasPriceFromPo = !price?.missing_price &&
+            Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
+            Number(price?.unit_price_excluding_gst) > 0;
+        const manualExclRaw = Number(line?.manual_unit_price_excluding_gst);
+        const manualInclRaw = Number(line?.manual_unit_price_including_gst);
+        const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
+        const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
+        let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
+        let unitIncl = Number(price?.unit_price_including_gst) || 0;
+        let priceSource = "LATEST_PURCHASE";
+        if (!hasPriceFromPo) {
+            priceSource = "MANUAL_FALLBACK";
+            if (hasManualExcl && hasManualIncl) {
+                unitExcl = manualExclRaw;
+                unitIncl = manualInclRaw;
+            } else if (hasManualExcl) {
+                unitExcl = manualExclRaw;
+                unitIncl = unitExcl * (1 + gstRate / 100);
+            } else if (hasManualIncl) {
+                unitIncl = manualInclRaw;
+                unitExcl = unitIncl / (1 + gstRate / 100);
+            } else {
+                unitExcl = 0;
+                unitIncl = 0;
+            }
+        }
+        const amountExcl = qtyDelta * unitExcl;
+        const amountIncl = qtyDelta * unitIncl;
+        const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
+        return {
+            rowKey: line.rowKey,
+            qtyDelta,
+            gstMode,
+            product_id: line.product_id,
+            price,
+            gstRate,
+            unitExcl,
+            unitIncl,
+            priceSource,
+            amountExcl,
+            amountIncl,
+            deltaCost,
+        };
+    });
+    const lines = [...activeLines, ...removedLines];
+    const autoProjectCost = baseProjectCost + lines.reduce((sum, line) => sum + line.deltaCost, 0);
+    const manual = manualFinalPayable === "" ? null : Number(manualFinalPayable);
+    const finalProjectCost =
+        isSuperAdmin && isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
+    return {
+        baseProjectCost,
+        autoProjectCost,
+        finalProjectCost,
+        lines,
+    };
+}
+
+function computeBomCapacityPreviewKw(bomPlan) {
+    const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
+    let totalW = 0;
+    let sawPanel = false;
+    for (const line of bomPlan || []) {
+        const p = line.product_snapshot || line;
+        const key = productTypeNameToBarKey(normalizeProductTypeName(p?.product_type_name ?? ""));
+        if (key !== "solar_panel") continue;
+        sawPanel = true;
+        const w = qtyNum(p?.capacity);
+        const q = qtyNum(line.planned_qty ?? line.quantity);
+        totalW += w * q;
+    }
+    if (!sawPanel) return null;
+    return Math.round((totalW / 1000 + Number.EPSILON) * 100) / 100;
+}
+
+export default function Planner({ orderId, orderData, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const { user } = useAuth();
@@ -95,6 +369,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const [saveConfirmOpen, setSaveConfirmOpen] = useState(false);
     const [saveConfirmPayload, setSaveConfirmPayload] = useState(null);
     const [saveConfirmSummary, setSaveConfirmSummary] = useState(null);
+    const [lockingWarehouse, setLockingWarehouse] = useState(false);
     /** After BOM import from project, skip one planner save of cost amendments / override so project_cost stays as on order. */
     const skipNextPlannerCostEffectsRef = useRef(false);
 
@@ -233,9 +508,41 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         }
     };
 
+    const handleLockWarehouse = async () => {
+        if (isReadOnly || isPlannerLocked || lockingWarehouse || warehouseLocked) return;
+
+        const newFieldErrors = {};
+        if (!formData.planned_delivery_date) newFieldErrors.planned_delivery_date = "Required";
+        if (!formData.planned_priority) newFieldErrors.planned_priority = "Required";
+        if (!formData.planned_warehouse_id) newFieldErrors.planned_warehouse_id = "Required";
+        if (Object.keys(newFieldErrors).length > 0) {
+            setFieldErrors((prev) => ({ ...prev, ...newFieldErrors }));
+            return;
+        }
+
+        setLockingWarehouse(true);
+        setError(null);
+        try {
+            await orderService.updateOrder(orderId, {
+                planned_delivery_date: formData.planned_delivery_date,
+                planned_priority: formData.planned_priority,
+                planned_warehouse_id: formData.planned_warehouse_id,
+                planned_remarks: formData.planned_remarks,
+            });
+            toastSuccess("Warehouse locked. BOM planning is now enabled.");
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            const errMsg = err?.response?.data?.message || err?.message || "Failed to lock warehouse";
+            setError(errMsg);
+            toastError(errMsg);
+        } finally {
+            setLockingWarehouse(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (isReadOnly || isPlannerLocked || submitting) return;
+        if (isReadOnly || isPlannerLocked || isBomEditingBlocked || submitting) return;
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -260,10 +567,31 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 return;
             }
 
-            // Build updated BOM snapshot from bomPlan (includes new lines from Add item)
+            const bomMerge = mergeBomPlanByProductId(bomPlan, adjustmentByRow);
+            if (bomMerge.error) {
+                setError(bomMerge.error);
+                setSubmitting(false);
+                return;
+            }
+            const planForSave = bomMerge.mergedPlan;
+            const adjForSave = bomMerge.mergedAdjustmentByRow;
+
+            const costForSave = computePlannerCostPreviewFromInputs({
+                projectCost: orderData?.project_cost,
+                bomPlan: planForSave,
+                adjustmentByRow: adjForSave,
+                purchasePriceByProductId,
+                removedLineAdjustments,
+                manualFinalPayable,
+                isManualOverride,
+                isSuperAdmin,
+            });
+            const previewCapacityKwForSave = computeBomCapacityPreviewKw(planForSave);
+
+            // Build updated BOM snapshot from merged plan (includes new lines from Add item)
             let updatedBomSnapshot = Array.isArray(orderData?.bom_snapshot) ? orderData.bom_snapshot : [];
-            if (Array.isArray(bomPlan) && bomPlan.length > 0) {
-                updatedBomSnapshot = bomPlan.map((line) => {
+            if (Array.isArray(planForSave) && planForSave.length > 0) {
+                updatedBomSnapshot = planForSave.map((line) => {
                     const { __rowKey, planned, planner_added, ...rest } = line;
                     const qty = (n, fallback) => {
                         if (n === "" || n == null) return fallback;
@@ -293,24 +621,24 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 delivery: "pending",
             };
 
-            const payloadBarState = deriveBarStateFromBomPlan(bomPlan);
+            const payloadBarState = deriveBarStateFromBomPlan(planForSave);
             const skipCostEffectsOnce = skipNextPlannerCostEffectsRef.current;
             const costAdjustments = skipCostEffectsOnce
                 ? []
-                : costPreview.lines
+                : costForSave.lines
                     .filter((line) => line.qtyDelta !== 0)
                     .map((line) => ({
                         product_id: line.product_id,
                         qty_delta: line.qtyDelta,
                         gst_mode: line.gstMode,
-                        note: (adjustmentByRow[line.rowKey]?.note || "").trim() || null,
+                        note: (adjForSave[line.rowKey]?.note || "").trim() || null,
                         manual_unit_price_excluding_gst:
                             line.priceSource === "MANUAL_FALLBACK" ? line.unitExcl : undefined,
                     manual_unit_price_including_gst:
                         line.priceSource === "MANUAL_FALLBACK" ? line.unitIncl : undefined,
                     price_source: line.priceSource || "LATEST_PURCHASE",
                     metadata: {
-                        planner_added: !!(bomPlan || []).find((bp) => bp.__rowKey === line.rowKey)?.planner_added,
+                        planner_added: !!(planForSave || []).find((bp) => bp.__rowKey === line.rowKey)?.planner_added,
                     },
                 }));
             const hasMissingManualPrice = costAdjustments.some((line) =>
@@ -341,7 +669,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 isManualOverride &&
                 manualFinalPayable !== "" &&
                 Number.isFinite(parsedManualOverride) &&
-                Math.abs(parsedManualOverride - costPreview.autoProjectCost) > 0.009;
+                Math.abs(parsedManualOverride - costForSave.autoProjectCost) > 0.009;
             if (hasManualOverrideValue) {
                 payload.manual_project_cost_override = parsedManualOverride;
             }
@@ -351,23 +679,23 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 delete payload.current_stage_key;
             }
 
-            const previousProjectCost = Number(costPreview.baseProjectCost) || 0;
+            const previousProjectCost = Number(costForSave.baseProjectCost) || 0;
             const finalProjectCost = skipCostEffectsOnce
                 ? previousProjectCost
-                : (Number(costPreview.finalProjectCost) || 0);
+                : (Number(costForSave.finalProjectCost) || 0);
             const autoProjectCost = skipCostEffectsOnce
                 ? previousProjectCost
-                : (Number(costPreview.autoProjectCost) || 0);
+                : (Number(costForSave.autoProjectCost) || 0);
             const discount = Number(orderData?.discount) || 0;
             const totalPaid = Number(orderData?.total_paid) || 0;
             const payableAmount = Math.max(finalProjectCost - discount, 0);
             const outstandingAmount = Math.max(payableAmount - totalPaid, 0);
             const amendmentItems = skipCostEffectsOnce
                 ? []
-                : costPreview.lines
+                : costForSave.lines
                 .filter((line) => line.qtyDelta !== 0)
                 .map((line) => {
-                    const rowInPlan = (bomPlan || []).find((bomLine) => bomLine.__rowKey === line.rowKey);
+                    const rowInPlan = (planForSave || []).find((bomLine) => bomLine.__rowKey === line.rowKey);
                     const fallbackRemoved = (removedLineAdjustments || []).find((removed) => removed.rowKey === line.rowKey);
                     const productName =
                         rowInPlan?.product_snapshot?.product_name ||
@@ -401,7 +729,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                 adjustmentCount: amendmentItems.length,
                 amendmentItems,
                 previousCapacityKw: Number(orderData?.capacity) || 0,
-                previewCapacityKw: bomCapacityPreviewKw,
+                previewCapacityKw: previewCapacityKwForSave,
             });
             setSaveConfirmPayload(payload);
             setSaveConfirmOpen(true);
@@ -483,10 +811,14 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const completedAt = orderData?.planner_completed_at ? moment(orderData.planner_completed_at) : null;
     const withinEditableWindow =
         isCompleted && completedAt && moment().diff(completedAt, "days") < PLANNER_EDITABLE_DAYS;
-    const isPlannerLocked = isCompleted && !withinEditableWindow;
+    const isPlannerLocked = !amendMode && isCompleted && !withinEditableWindow;
+    const warehouseSelected = Boolean(formData?.planned_warehouse_id);
+    const warehouseLocked = Boolean(orderData?.planned_warehouse_id);
+    const isBomEditingBlocked = !warehouseLocked;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
-    const showImportFromProject = isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked;
+    const showImportFromProject =
+        isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked && !isBomEditingBlocked;
 
     useEffect(() => {
         if (showImportFromProject && projectPricesWithBom.length === 0 && !loadingProjectPrices) {
@@ -524,6 +856,11 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     useEffect(() => {
+        if (!warehouseLocked || !warehouseSelected) {
+            setPurchasePriceByProductId({});
+            setLoadingPrices(false);
+            return;
+        }
         const plannedProductIds = (bomPlan || []).map((line) => Number(line.product_id));
         const removedProductIds = (removedLineAdjustments || []).map((line) => Number(line.product_id));
         const uniqueProductIds = [...new Set([...plannedProductIds, ...removedProductIds].filter((id) => Number.isFinite(id) && id > 0))];
@@ -535,7 +872,9 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         const run = async () => {
             setLoadingPrices(true);
             try {
-                const res = await orderService.getLatestPurchasePrices(uniqueProductIds);
+                const res = await orderService.getLatestPurchasePrices(uniqueProductIds, {
+                    warehouse_id: formData.planned_warehouse_id,
+                });
                 const data = res?.result ?? res?.data ?? res ?? [];
                 if (cancelled) return;
                 const next = {};
@@ -556,7 +895,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         return () => {
             cancelled = true;
         };
-    }, [bomPlan, removedLineAdjustments]);
+    }, [bomPlan, removedLineAdjustments, formData.planned_warehouse_id, warehouseLocked, warehouseSelected]);
 
     useEffect(() => {
         if (activeTab !== "activity" || !orderId) return;
@@ -616,6 +955,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     };
 
     const handleAddBomOpen = () => {
+        if (isBomEditingBlocked) {
+            toastError("Lock warehouse first to start BOM planning.");
+            return;
+        }
         setAddBomProduct(null);
         setAddBomQty(1);
         setAddBomOpen(true);
@@ -768,40 +1111,6 @@ export default function Planner({ orderId, orderData, onSuccess }) {
         }
     };
 
-    /** Normalize product type name for mapping (lowercase, spaces to underscore). */
-    const normalizeProductTypeName = (s) => (s || "").toLowerCase().trim().replace(/\s+/g, "_");
-
-    /**
-     * Map normalized product_type_name to one of the seven bar category keys.
-     * Returns null if the type does not match any category.
-     */
-    const productTypeNameToBarKey = (normalized) => {
-        if (!normalized) return null;
-        switch (normalized) {
-            case "structure":
-                return "structure";
-            case "panel":
-            case "solar_panel":
-                return "solar_panel";
-            case "inverter":
-                return "inverter";
-            case "acdb":
-                return "acdb";
-            case "dcdb":
-                return "dcdb";
-            case "earthing":
-            case "earthing_kit":
-                return "earthing_kit";
-            case "cable":
-            case "cables":
-            case "dc_cable":
-            case "ac_cable":
-                return "cables";
-            default:
-                return null;
-        }
-    };
-
     /**
      * Derive the seven planned_has_* flags from current bomPlan.
      * Only planned lines (line.planned === true) contribute; product_type_name from product_snapshot or line.
@@ -831,149 +1140,31 @@ export default function Planner({ orderId, orderData, onSuccess }) {
     const barState = deriveBarStateFromBomPlan(bomPlan);
 
     /** Preview kW from BOM (product W × planned qty ÷ 1000). Snapshot capacity; server uses product master. */
-    const bomCapacityPreviewKw = useMemo(() => {
-        const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
-        let totalW = 0;
-        let sawPanel = false;
-        for (const line of bomPlan || []) {
-            const p = line.product_snapshot || line;
-            const key = productTypeNameToBarKey(normalizeProductTypeName(p?.product_type_name ?? ""));
-            if (key !== "solar_panel") continue;
-            sawPanel = true;
-            const w = qtyNum(p?.capacity);
-            const q = qtyNum(line.planned_qty ?? line.quantity);
-            totalW += w * q;
-        }
-        if (!sawPanel) return null;
-        return Math.round((totalW / 1000 + Number.EPSILON) * 100) / 100;
-    }, [bomPlan]);
+    const bomCapacityPreviewKw = useMemo(() => computeBomCapacityPreviewKw(bomPlan), [bomPlan]);
 
-    const costPreview = useMemo(() => {
-        const baseProjectCost = Number(orderData?.project_cost) || 0;
-        const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
-        const activeLines = (bomPlan || []).map((line) => {
-            const adjustment = adjustmentByRow[line.__rowKey] || {};
-            const editedPlannedQty = qtyNum(line.planned_qty ?? line.quantity);
-            const baselinePlannedQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
-            const qtyDelta = editedPlannedQty - baselinePlannedQty;
-            const gstMode = adjustment.gst_mode || "INCLUDING_GST";
-            const price = purchasePriceByProductId[line.product_id] || null;
-            const gstRate = Number(price?.gst_rate) || 0;
-            const hasPriceFromPo = !price?.missing_price &&
-                Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
-                Number(price?.unit_price_excluding_gst) > 0;
-            const manualExclRaw = Number(adjustment?.manual_unit_price_excluding_gst);
-            const manualInclRaw = Number(adjustment?.manual_unit_price_including_gst);
-            const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
-            const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
-            let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
-            let unitIncl = Number(price?.unit_price_including_gst) || 0;
-            let priceSource = "LATEST_PURCHASE";
-            if (!hasPriceFromPo) {
-                priceSource = "MANUAL_FALLBACK";
-                if (hasManualExcl && hasManualIncl) {
-                    unitExcl = manualExclRaw;
-                    unitIncl = manualInclRaw;
-                } else if (hasManualExcl) {
-                    unitExcl = manualExclRaw;
-                    unitIncl = unitExcl * (1 + gstRate / 100);
-                } else if (hasManualIncl) {
-                    unitIncl = manualInclRaw;
-                    unitExcl = unitIncl / (1 + gstRate / 100);
-                } else {
-                    unitExcl = 0;
-                    unitIncl = 0;
-                }
-            }
-            const amountExcl = qtyDelta * unitExcl;
-            const amountIncl = qtyDelta * unitIncl;
-            const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
-            return {
-                rowKey: line.__rowKey,
-                qtyDelta,
-                gstMode,
-                product_id: line.product_id,
-                price,
-                gstRate,
-                unitExcl,
-                unitIncl,
-                priceSource,
-                amountExcl,
-                amountIncl,
-                deltaCost,
-            };
-        });
-        const removedLines = (removedLineAdjustments || []).map((line) => {
-            const qtyDelta = qtyNum(line.qtyDelta);
-            const gstMode = line.gstMode || "INCLUDING_GST";
-            const price = purchasePriceByProductId[line.product_id] || null;
-            const gstRate = Number(price?.gst_rate) || 0;
-            const hasPriceFromPo = !price?.missing_price &&
-                Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
-                Number(price?.unit_price_excluding_gst) > 0;
-            const manualExclRaw = Number(line?.manual_unit_price_excluding_gst);
-            const manualInclRaw = Number(line?.manual_unit_price_including_gst);
-            const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
-            const hasManualIncl = Number.isFinite(manualInclRaw) && manualInclRaw > 0;
-            let unitExcl = Number(price?.unit_price_excluding_gst) || 0;
-            let unitIncl = Number(price?.unit_price_including_gst) || 0;
-            let priceSource = "LATEST_PURCHASE";
-            if (!hasPriceFromPo) {
-                priceSource = "MANUAL_FALLBACK";
-                if (hasManualExcl && hasManualIncl) {
-                    unitExcl = manualExclRaw;
-                    unitIncl = manualInclRaw;
-                } else if (hasManualExcl) {
-                    unitExcl = manualExclRaw;
-                    unitIncl = unitExcl * (1 + gstRate / 100);
-                } else if (hasManualIncl) {
-                    unitIncl = manualInclRaw;
-                    unitExcl = unitIncl / (1 + gstRate / 100);
-                } else {
-                    unitExcl = 0;
-                    unitIncl = 0;
-                }
-            }
-            const amountExcl = qtyDelta * unitExcl;
-            const amountIncl = qtyDelta * unitIncl;
-            const deltaCost = gstMode === "EXCLUDING_GST" ? amountExcl : amountIncl;
-            return {
-                rowKey: line.rowKey,
-                qtyDelta,
-                gstMode,
-                product_id: line.product_id,
-                price,
-                gstRate,
-                unitExcl,
-                unitIncl,
-                priceSource,
-                amountExcl,
-                amountIncl,
-                deltaCost,
-            };
-        });
-        const lines = [...activeLines, ...removedLines];
-        const autoProjectCost = baseProjectCost + lines.reduce((sum, line) => sum + line.deltaCost, 0);
-        const manual = manualFinalPayable === "" ? null : Number(manualFinalPayable);
-        const finalProjectCost =
-            isSuperAdmin && isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
-        return {
-            baseProjectCost,
-            autoProjectCost,
-            finalProjectCost,
-            lines,
-        };
-    }, [
-        orderData?.project_cost,
-        orderData?.discount,
-        bomPlan,
-        removedLineAdjustments,
-        adjustmentByRow,
-        purchasePriceByProductId,
-        manualFinalPayable,
-        isManualOverride,
-        isSuperAdmin,
-    ]);
+    const costPreview = useMemo(
+        () =>
+            computePlannerCostPreviewFromInputs({
+                projectCost: orderData?.project_cost,
+                bomPlan,
+                adjustmentByRow,
+                purchasePriceByProductId,
+                removedLineAdjustments,
+                manualFinalPayable,
+                isManualOverride,
+                isSuperAdmin,
+            }),
+        [
+            orderData?.project_cost,
+            bomPlan,
+            removedLineAdjustments,
+            adjustmentByRow,
+            purchasePriceByProductId,
+            manualFinalPayable,
+            isManualOverride,
+            isSuperAdmin,
+        ]
+    );
 
     useEffect(() => {
         if (!isManualOverride) {
@@ -1070,12 +1261,35 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
                                 value={warehouses.find((w) => w.id === formData.planned_warehouse_id) || (formData.planned_warehouse_id ? { id: formData.planned_warehouse_id } : null)}
                                 onChange={(e, newValue) => handleInputChange({ target: { name: "planned_warehouse_id", value: newValue?.id ?? "" } })}
-                                disabled={isPlannerLocked || isReadOnly}
+                                disabled={isPlannerLocked || isReadOnly || warehouseLocked}
                                 error={!!fieldErrors.planned_warehouse_id}
-                                helperText={fieldErrors.planned_warehouse_id}
+                                helperText={
+                                    fieldErrors.planned_warehouse_id
+                                    || (warehouseLocked
+                                        ? "Warehouse is locked after first planner save."
+                                        : "Select warehouse and click Lock Warehouse to enable BOM planning.")
+                                }
                                 required
                             />
                         </FormGrid>
+                        {!isReadOnly && !isPlannerLocked && (
+                            <div className="mt-2 flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={handleLockWarehouse}
+                                    disabled={warehouseLocked || !warehouseSelected || lockingWarehouse}
+                                    className="bg-slate-700 hover:bg-slate-800 text-white border-0"
+                                >
+                                    {warehouseLocked ? "Warehouse Locked" : "Lock Warehouse"}
+                                </Button>
+                                {!warehouseLocked && (
+                                    <span className="text-[11px] text-muted-foreground">
+                                        Lock warehouse first, then BOM planning and amendments are enabled.
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         <div className="mt-3">
                             <Input
@@ -1156,10 +1370,10 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                             setManualFinalPayable(e.target.value);
                                             setIsManualOverride(true);
                                         }}
-                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin}
+                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin || isBomEditingBlocked}
                                         className="w-full border border-input rounded px-1 py-0.5 bg-background disabled:opacity-60"
                                     />
-                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && (
+                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && !isBomEditingBlocked && (
                                         <button
                                             type="button"
                                             className="px-2 py-0.5 text-[11px] border rounded hover:bg-muted"
@@ -1174,6 +1388,8 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 <div className="text-[11px] text-muted-foreground mt-1">
                                     {!isSuperAdmin
                                         ? "Only superadmin can set manual override."
+                                        : isBomEditingBlocked
+                                          ? "Lock warehouse first to enable planner cost amendments."
                                         : isManualOverride
                                           ? "Manual override active"
                                           : "Auto-calculated"}
@@ -1241,8 +1457,13 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 </div>
                             </div>
                         )}
+                        {isBomEditingBlocked && (
+                            <Alert severity="info" sx={{ mb: 1 }}>
+                                Select warehouse and click Lock Warehouse before BOM planning and amendments.
+                            </Alert>
+                        )}
                         <div className="flex items-center justify-end gap-2 mb-2">
-                            {!isReadOnly && !isPlannerLocked && (
+                            {!isReadOnly && !isPlannerLocked && !isBomEditingBlocked && (
                                 <Button
                                     type="button"
                                     size="sm"
@@ -1323,7 +1544,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                 label=""
                                                                 checked={!!line.planned}
                                                                 onChange={(e) => handleBomToggle(line.__rowKey, e.target.checked)}
-                                                                disabled={isPlannerLocked || isReadOnly || isFullyShipped || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || isFullyShipped || !canEditRow}
                                                                 className="w-auto"
                                                             />
                                                         </td>
@@ -1350,7 +1571,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                         )
                                                                     )
                                                                 }
-                                                                disabled={isPlannerLocked || isReadOnly || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || !canEditRow}
                                                                 className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                             />
                                                         </td>
@@ -1365,7 +1586,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                             <select
                                                                 value={adjustment.gst_mode || "INCLUDING_GST"}
                                                                 onChange={(e) => updateLineAdjustment(line.__rowKey, { gst_mode: e.target.value })}
-                                                                disabled={isPlannerLocked || isReadOnly || adjQty === 0 || !canEditRow}
+                                                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0 || !canEditRow}
                                                                 className="w-28 border border-input rounded px-1 py-0.5 bg-background text-xs"
                                                             >
                                                                 <option value="INCLUDING_GST">Including GST</option>
@@ -1387,7 +1608,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                             gstRate
                                                                         )
                                                                     }
-                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
                                                                     className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                                 />
                                                             ) : (
@@ -1409,7 +1630,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                                             gstRate
                                                                         )
                                                                     }
-                                                                    disabled={isPlannerLocked || isReadOnly || adjQty === 0}
+                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
                                                                     className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                                 />
                                                             ) : (
@@ -1418,7 +1639,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                                         </td>
                                                         <td className="p-2 text-right align-middle">{canEditRow ? amountExcl.toFixed(2) : "—"}</td>
                                                         <td className="p-2 text-right align-middle">{canEditRow ? amountIncl.toFixed(2) : "—"}</td>
-                                                        {!isReadOnly && !isPlannerLocked && (
+                                                        {!isReadOnly && !isPlannerLocked && !isBomEditingBlocked && (
                                                             <td className="p-2 text-center align-middle">
                                                                 {canRemove && canEditRow ? (
                                                                     <button
@@ -1443,7 +1664,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 {fieldErrors.bomPlan && (
                                     <p className="mt-1 text-xs text-destructive">{fieldErrors.bomPlan}</p>
                                 )}
-                                {loadingPrices && <p className="mt-1 text-xs text-muted-foreground">Loading latest purchase prices...</p>}
+                                {loadingPrices && <p className="mt-1 text-xs text-muted-foreground">Loading warehouse-wise purchase prices...</p>}
                             </>
                         ) : (
                             <Alert severity="info" sx={{ mt: 1 }}>
@@ -1456,7 +1677,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                     <div className="mt-4 flex flex-col gap-2">
                         {error && <Alert severity="error">{error}</Alert>}
                         {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly}>
+                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked}>
                             {isCompleted ? "Update Details" : "Save"}
                         </Button>
                     </div>
@@ -1621,7 +1842,7 @@ export default function Planner({ orderId, orderData, onSuccess }) {
                                 <AutocompleteField
                                     label="Product"
                                     options={productsForBom}
-                                    getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+                                    getOptionLabel={(o) => formatProductAutocompleteLabel(o)}
                                     value={addBomProduct}
                                     onChange={(e, newVal) => setAddBomProduct(newVal)}
                                     disabled={loadingProducts}

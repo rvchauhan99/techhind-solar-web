@@ -16,7 +16,7 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuccess }) {
+export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuccess, amendMode = false }) {
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const [formData, setFormData] = useState({
@@ -101,7 +101,8 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
         }
     };
 
-    const isCompleted = orderData?.stages?.estimate_paid === "completed";
+    const isStageCompleted = orderData?.stages?.estimate_paid === "completed";
+    const isCompleted = isStageCompleted && !amendMode;
     const receiptDoc = orderDocuments?.find(d => d.doc_type === "estimation_paid_receipt");
 
     return (
@@ -193,7 +194,7 @@ export default function EstimatePaid({ orderId, orderData, orderDocuments, onSuc
                         loading={submitting}
                         disabled={isCompleted || isReadOnly}
                     >
-                        {isCompleted ? "Paid" : "Mark As Paid"}
+                        {isStageCompleted ? "Update" : "Mark As Paid"}
                     </Button>
                 </div>
             </div>

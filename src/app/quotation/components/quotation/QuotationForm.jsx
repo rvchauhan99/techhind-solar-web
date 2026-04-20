@@ -371,6 +371,9 @@ export default function QuotationForm({
                             value={formData.branch_id ? { id: formData.branch_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "branch_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            required
+                            error={!!errors.branch_id}
+                            helperText={errors.branch_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -483,6 +486,26 @@ export default function QuotationForm({
                                 handleAutocompleteChange={handleAutocompleteChange}
                                 patchForm={patchForm}
                             />
+                            <Grid container spacing={COMPACT_FORM_SPACING} sx={{ mt: 0.5 }}>
+                                <Grid item size={{ xs: 12, md: 4 }}>
+                                    <Input
+                                        fullWidth
+                                        label={`${section.title} Remarks`}
+                                        name={`technical_remarks_${section.key}`}
+                                        value={formData.technical_remarks?.[section.key] ?? ""}
+                                        onChange={(e) => {
+                                            patchForm({
+                                                technical_remarks: {
+                                                    ...(formData.technical_remarks || {}),
+                                                    [section.key]: e.target.value ?? "",
+                                                },
+                                            });
+                                        }}
+                                        multiline
+                                        rows={1}
+                                    />
+                                </Grid>
+                            </Grid>
                         </AccordionDetails>
                     </Accordion>
                 ))}

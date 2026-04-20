@@ -19,6 +19,23 @@ export const TECHNICAL_SECTIONS = [
     { key: "additionalDescriptions", typeNames: [], title: "Additional Descriptions" },
 ];
 
+export const TECHNICAL_REMARK_SECTION_KEYS = TECHNICAL_SECTIONS.map((section) => section.key);
+
+export function getInitialTechnicalRemarks(overrides = {}) {
+    const next = {};
+    TECHNICAL_REMARK_SECTION_KEYS.forEach((key) => {
+        next[key] = "";
+    });
+    if (overrides && typeof overrides === "object") {
+        Object.entries(overrides).forEach(([key, value]) => {
+            if (TECHNICAL_REMARK_SECTION_KEYS.includes(key)) {
+                next[key] = value == null ? "" : String(value);
+            }
+        });
+    }
+    return next;
+}
+
 /** Default accordion expanded state by section key */
 export const DEFAULT_EXPANDED_ACCORDIONS = {
     structure: true,
@@ -134,6 +151,7 @@ export function getInitialFormData(user, overrides = {}) {
         lightening_arrester_description_text: "",
         mis_description: "",
         battery_description_text: "",
+        technical_remarks: getInitialTechnicalRemarks(),
         system_warranty_years: "",
         payment_terms: "",
         remarks: "",

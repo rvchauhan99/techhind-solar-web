@@ -30,6 +30,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import stockService from "@/services/stockService";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import companyService from "@/services/companyService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -434,6 +435,24 @@ export default function StockPage() {
           ),
       },
       {
+        field: "last_purchase_price_excl_gst",
+        label: "Last Purchase Excl GST",
+        sortable: false,
+        render: (row) =>
+          row.last_purchase_price != null ? formatCurrency(row.last_purchase_price) : "-",
+      },
+      {
+        field: "last_purchase_price_incl_gst",
+        label: "Last Purchase Incl GST",
+        sortable: false,
+        render: (row) => {
+          if (row.last_purchase_price == null) return "-";
+          const last = toNum(row.last_purchase_price);
+          const gst = toNum(row.gst_percent);
+          return formatCurrency(last * (1 + gst / 100));
+        },
+      },
+      {
         field: "avg_price_excl_gst",
         label: "Avg Price Excl GST",
         sortable: false,
@@ -705,7 +724,7 @@ export default function StockPage() {
                   label="Product"
                   size="small"
                   asyncLoadOptions={loadProductOptions}
-                  getOptionLabel={(o) => o?.product_name ?? o?.name ?? ""}
+                  getOptionLabel={(o) => formatProductAutocompleteLabel(o) || o?.product_name || o?.name || ""}
                   value={
                     filters.product_id
                       ? {
@@ -721,7 +740,7 @@ export default function StockPage() {
                       if (v?.product_type_id) next.product_type_id = String(v.product_type_id);
                       if (v?.product_make_id) next.product_make_id = String(v.product_make_id);
                       setFilters(next, true, false);
-                      setSelectedProductName(v?.product_name ?? v?.name ?? "");
+                      setSelectedProductName(formatProductAutocompleteLabel(v) || v?.product_name || v?.name || "");
                     } else {
                       setFilters({ ...filters, product_id: "" }, true, false);
                       setSelectedProductName("");

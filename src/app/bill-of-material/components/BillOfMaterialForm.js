@@ -5,6 +5,7 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -119,7 +120,7 @@ export default function BillOfMaterialForm({
   const getProductName = (productTypeId, productId) => {
     const products = options.products[productTypeId] || [];
     const product = products.find((p) => String(p.id) === String(productId));
-    return product ? product.product_name : "Loading...";
+    return product ? formatProductAutocompleteLabel(product) : "Loading...";
   };
 
   const loadProductsForType = (productTypeId) => {
@@ -402,7 +403,7 @@ export default function BillOfMaterialForm({
               label="Product"
               required
               options={options.products[currentDetail.product_type_id] || []}
-              getOptionLabel={(p) => p?.product_name ?? p?.name ?? ""}
+              getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
               value={(options.products[currentDetail.product_type_id] || []).find((p) => p.id === currentDetail.product_id) || (currentDetail.product_id ? { id: currentDetail.product_id } : null)}
               onChange={(e, newValue) => handleCurrentDetailChange("product_id", newValue?.id ?? "")}
               placeholder="Type to search..."

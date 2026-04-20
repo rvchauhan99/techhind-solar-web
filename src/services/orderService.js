@@ -73,15 +73,24 @@ export const forceCompleteDelivery = (id, payload = {}) =>
 export const cancelOrder = (id, payload = {}) =>
     apiClient.post(`/order/${id}/cancel`, payload).then((r) => r.data);
 
-export const getLatestPurchasePrices = (productIds = []) =>
+export const getLatestPurchasePrices = (productIds = [], options = {}) =>
     apiClient
         .get("/order/latest-purchase-prices", {
-            params: { product_ids: productIds.join(",") },
+            params: {
+                product_ids: productIds.join(","),
+                warehouse_id: options?.warehouse_id ?? undefined,
+            },
         })
         .then((r) => r.data);
 
 export const getOrderCostAmendments = (id) =>
     apiClient.get(`/order/${id}/cost-amendments`).then((r) => r.data);
+
+export const amendOrder = (id, payload) =>
+    apiClient.post(`/order/${id}/amend`, payload).then((r) => r.data);
+
+export const getOrderAmendments = (id) =>
+    apiClient.get(`/order/${id}/amendments`).then((r) => r.data);
 
 export default {
     getOrders,
@@ -106,4 +115,6 @@ export default {
     cancelOrder,
     getLatestPurchasePrices,
     getOrderCostAmendments,
+    amendOrder,
+    getOrderAmendments,
 };
