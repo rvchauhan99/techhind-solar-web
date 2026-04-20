@@ -30,6 +30,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
@@ -562,7 +563,7 @@ export default function B2bSalesQuoteForm({
                                             const data = res?.result?.data ?? res?.data ?? [];
                                             return data.map((p) => ({
                                                 id: p.id,
-                                                label: `${p.product_code || p.id} – ${p.product_name || p.name}`,
+                                                label: `${p.product_code || p.id} – ${formatProductAutocompleteLabel(p)}`,
                                                 hsn_code: p.hsn_ssn_code || p.hsn_code || "",
                                                 gst_percent: p.gst_percent ?? "",
                                                 measurement_unit: p.measurement_unit_name || "",

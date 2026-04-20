@@ -58,7 +58,17 @@ export function isPathAllowedByRoutes(pathname, allowedRoutes) {
   const hasOrderChildAccess = allowedRoutes.some(
     (r) => r === "/confirm-orders" || r === "/closed-orders"
   );
-  if (hasOrderChildAccess && (path === "/order/view" || path.startsWith("/order/view/") || path === "/order/edit" || path.startsWith("/order/edit/"))) {
+  if (
+    hasOrderChildAccess &&
+    (
+      path === "/order/view" ||
+      path.startsWith("/order/view/") ||
+      path === "/order/edit" ||
+      path.startsWith("/order/edit/") ||
+      path === "/order/amend" ||
+      path.startsWith("/order/amend/")
+    )
+  ) {
     return true;
   }
   return allowedRoutes.some(

@@ -14,7 +14,7 @@ function TabPanel({ children, value, index }) {
     );
 }
 
-export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, onRefresh }) {
+export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, onRefresh, amendMode = false }) {
     const [tabValue, setTabValue] = useState(0);
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
@@ -39,6 +39,7 @@ export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, 
                     orderDocuments={orderDocuments}
                     onSuccess={onRefresh}
                     readOnly={isReadOnly}
+                    amendMode={amendMode}
                 />
             </TabPanel>
 

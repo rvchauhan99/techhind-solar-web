@@ -13,6 +13,7 @@ export function validateQuotation(formData) {
     if (!formData.quotation_date) errors.quotation_date = "Quotation Date is required";
     if (!formData.valid_till) errors.valid_till = "Valid Till is required";
     if (!formData.user_id) errors.user_id = "Quotation By (User) is required";
+    if (!formData.branch_id) errors.branch_id = "Branch is required";
     if (!formData.customer_name) errors.customer_name = "Customer Name is required";
 
     if (!formData.mobile_number) {

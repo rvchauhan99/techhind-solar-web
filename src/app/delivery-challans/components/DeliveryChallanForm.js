@@ -42,6 +42,7 @@ import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import orderService from "@/services/orderService";
 import stockService from "@/services/stockService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import challanService from "@/services/challanService";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -1729,7 +1730,7 @@ export default function DeliveryChallanForm({
                                                         "&:hover": inLines ? {} : { bgcolor: selected ? "primary.dark" : "action.hover" },
                                                     }}
                                                 >
-                                                    <TableCell sx={compactCellSx}>{p.product_name || ""}</TableCell>
+                                                    <TableCell sx={compactCellSx}>{formatProductAutocompleteLabel(p)}</TableCell>
                                                     <TableCell sx={compactCellSx}>{p.product_type_name || ""}</TableCell>
                                                     <TableCell sx={compactCellSx}>{p.product_make_name || ""}</TableCell>
                                                     <TableCell sx={compactCellSx} align="right">{qty}</TableCell>

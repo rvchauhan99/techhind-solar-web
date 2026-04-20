@@ -31,7 +31,6 @@ import HelpIcon from "@mui/icons-material/Help";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import confirmOrdersService from "@/services/confirmOrdersService";
 import orderDocumentsService from "@/services/orderDocumentsService";
-import orderPaymentsService from "@/services/orderPaymentsService";
 import moment from "moment";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -57,6 +56,11 @@ import userMasterService from "@/services/userMasterService";
 import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import CloseIcon from "@mui/icons-material/Close";
+import {
+    getOrderOutstandingAmount,
+    getOrderReceivedAmount,
+} from "@/utils/orderPaymentSummary";
+import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 
 const getValidationStatusMeta = (status) => {
     const s = String(status || "").toLowerCase();
@@ -69,24 +73,15 @@ const getValidationStatusMeta = (status) => {
 // In-flight fetch cache: reuse same promise when effect runs twice (e.g. React Strict Mode)
 const inFlightFetchByOrderId = new Map();
 
-/** Pure fetch: returns { data, totalReceivedAmount, docs } or throws. No React state. */
+/** Pure fetch: returns { data, docs } or throws. No React state. */
 async function fetchOrderDataRaw(orderId) {
-    const [orderRes, paymentsRes, docsRes] = await Promise.all([
+    const [orderRes, docsRes] = await Promise.all([
         confirmOrdersService.getOrderById(orderId),
-        orderPaymentsService.getPayments({ order_id: orderId, limit: 1000 }),
         orderDocumentsService.getOrderDocuments({ order_id: orderId, limit: 1000 })
     ]);
     const data = orderRes?.result || orderRes;
-    const payments = paymentsRes?.result || [];
-    const paidPayments = payments.filter(
-        (p) => p.status === "approved" || p.status === "pending_approval"
-    );
-    const totalReceivedAmount = paidPayments.reduce(
-        (sum, p) => sum + parseFloat(p.payment_amount || 0),
-        0
-    );
     const docs = docsRes?.result?.data || docsRes?.data || [];
-    return { data, totalReceivedAmount, docs };
+    return { data, docs };
 }
 
 function resolveOrderDocTypeLabel(docType, masterTypes = []) {
@@ -202,7 +197,6 @@ function ConfirmedOrderViewPageContent() {
     const [error, setError] = useState(null);
     const [orderData, setOrderData] = useState(null);
     const [orderDocuments, setOrderDocuments] = useState([]);
-    const [totalReceivedAmount, setTotalReceivedAmount] = useState(0);
     const [tabValue, setTabValue] = useState(0);
     const mountedRef = useRef(true);
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -238,7 +232,6 @@ function ConfirmedOrderViewPageContent() {
         try {
             const result = await fetchOrderDataRaw(orderId);
             setOrderData(result.data);
-            setTotalReceivedAmount(result.totalReceivedAmount);
             setOrderDocuments(result.docs);
             setError(null);
         } catch (err) {
@@ -269,7 +262,6 @@ function ConfirmedOrderViewPageContent() {
             .then((result) => {
                 if (mountedRef.current) {
                     setOrderData(result.data);
-                    setTotalReceivedAmount(result.totalReceivedAmount);
                     setOrderDocuments(result.docs);
                     setError(null);
                 }
@@ -342,15 +334,7 @@ function ConfirmedOrderViewPageContent() {
         return `calc(100dvh - 108px)`;
     };
 
-    const canCancelOrder = () => {
-        if (!orderData) return false;
-        const status = String(orderData.status || "").toLowerCase();
-        const deliveryStatus = String(orderData.delivery_status || "").toLowerCase();
-        if (status !== "pending" && status !== "confirmed") return false;
-        if (status === "cancelled" || status === "completed") return false;
-        if (deliveryStatus === "partial" || deliveryStatus === "complete") return false;
-        return true;
-    };
+    const cancelEligibility = getOrderCancelEligibility(orderData);
 
     const handleOpenCancelDialog = async () => {
         setCancelReasonId("");
@@ -464,6 +448,8 @@ function ConfirmedOrderViewPageContent() {
     };
 
     const currentStageKey = orderData?.current_stage_key;
+    const totalReceivedAmount = getOrderReceivedAmount(orderData);
+    const outstandingAmount = getOrderOutstandingAmount(orderData);
     const renderOrderDetailsSidebar = () => (
         <Paper sx={{ p: 1.5, height: "100%", overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
             <CustomerProjectDetails orderData={orderData} />
@@ -536,7 +522,7 @@ function ConfirmedOrderViewPageContent() {
                     borderRadius={0.5}
                     mt={1}
                 >
-                    Rs. {orderData?.project_cost ? (Number(orderData.project_cost) - totalReceivedAmount).toLocaleString() : "0"}
+                    Rs. {outstandingAmount.toLocaleString()}
                 </Typography>
             </Box>
 
@@ -615,7 +601,7 @@ function ConfirmedOrderViewPageContent() {
                             Change Handled By
                         </Button>
                     )}
-                    {canCancelOrder() && (
+                    {cancelEligibility.canCancel && (
                         <Button
                             variant="outlined"
                             color="error"

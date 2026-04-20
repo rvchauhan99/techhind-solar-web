@@ -30,6 +30,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import stockService from "@/services/stockService";
 import companyService from "@/services/companyService";
 import productService from "@/services/productService";
+import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -617,13 +618,14 @@ export default function StockAdjustmentForm({
                                         ? {
                                             id: row.id,
                                             product_name: row.product_name,
+                                            model_number: row.model_number ?? null,
                                             serial_required: row.serial_required,
                                             product_type_id: row.product_type_id ?? null,
                                             measurement_unit_name: row.measurement_unit_name ?? null,
                                         }
                                         : null;
                                 }}
-                                getOptionLabel={(p) => p?.product_name ?? String(p?.id ?? "")}
+                                getOptionLabel={(p) => formatProductAutocompleteLabel(p) || String(p?.id ?? "")}
                                 value={currentItem.product_id ? { id: currentItem.product_id } : null}
                                 onChange={(e, newValue) => {
                                     handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });

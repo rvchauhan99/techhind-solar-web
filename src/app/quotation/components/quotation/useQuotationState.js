@@ -2,12 +2,31 @@
  * Quotation form state: formData, updates, normalization, validation.
  */
 import { useState, useEffect, useCallback } from "react";
-import { getInitialFormData } from "./quotationConfig";
+import { getInitialFormData, getInitialTechnicalRemarks } from "./quotationConfig";
 import { validateQuotation } from "./quotationValidation";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
 
 const toNumber = (v) =>
     v === "" || v === null || v === undefined ? null : Number(v);
+
+const extractTechnicalRemarks = (defaultValues = {}) => {
+    const explicitRemarks = defaultValues?.technical_remarks;
+    if (explicitRemarks && typeof explicitRemarks === "object" && !Array.isArray(explicitRemarks)) {
+        return getInitialTechnicalRemarks(explicitRemarks);
+    }
+    const bomSnapshot = Array.isArray(defaultValues?.bom_snapshot) ? defaultValues.bom_snapshot : [];
+    const metaRemarks = bomSnapshot.find((line) => line?.entry_type === "meta" && line?.section_remarks)?.section_remarks;
+    if (metaRemarks && typeof metaRemarks === "object" && !Array.isArray(metaRemarks)) {
+        return getInitialTechnicalRemarks(metaRemarks);
+    }
+    const sectionRemarks = {};
+    bomSnapshot.forEach((line) => {
+        if (!line?.section_key || line?.section_remark == null) return;
+        if (sectionRemarks[line.section_key]) return;
+        sectionRemarks[line.section_key] = String(line.section_remark);
+    });
+    return getInitialTechnicalRemarks(sectionRemarks);
+};
 
 /**
  * @param {{ user: { id?: string } | null; defaultValues?: Record<string, unknown> }}
@@ -37,6 +56,7 @@ export function useQuotationState({ user, defaultValues = {} }) {
                 value === null || value === undefined ? "" : value,
             ])
         );
+        cleanedValues.technical_remarks = extractTechnicalRemarks(defaultValues);
         setFormData((prev) => ({ ...prev, ...cleanedValues }));
     }, [defaultValues]);
 
@@ -101,8 +121,10 @@ export function useQuotationState({ user, defaultValues = {} }) {
     }, [formData]);
 
     const buildPayload = useCallback(() => {
+        const technicalRemarks = getInitialTechnicalRemarks(formData.technical_remarks);
         return {
             ...formData,
+            technical_remarks: technicalRemarks,
             user_id: toNumber(formData.user_id),
             branch_id: toNumber(formData.branch_id),
             inquiry_id: toNumber(formData.inquiry_id),
