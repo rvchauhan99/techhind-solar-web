@@ -223,7 +223,7 @@ export default function ListView() {
     }, [reassigning]);
 
     const handleEdit = () => {
-        router.push(`/order/edit?id=${menuOrderId}`);
+        router.push(`/order/edit?id=${menuOrderId}&returnTo=${encodeURIComponent("/confirm-orders")}`);
         handleMenuClose();
     };
 

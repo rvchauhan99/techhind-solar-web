@@ -24,6 +24,17 @@ function EditOrderPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
+    const returnToRaw = searchParams.get("returnTo");
+
+    const getSafeReturnPath = (value) => {
+        if (!value) return "/order";
+        const decoded = decodeURIComponent(value);
+        if (!decoded.startsWith("/")) return "/order";
+        if (decoded.startsWith("//")) return "/order";
+        if (decoded.includes("://")) return "/order";
+        return decoded;
+    };
+    const returnPath = getSafeReturnPath(returnToRaw);
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -97,6 +108,27 @@ function EditOrderPageContent() {
             const orderUpdates = { ...formData };
             delete orderUpdates.documentIds; // not sent to API
             const filesToUpload = [];
+            const plannerOnlyKeys = [
+                "bom_snapshot",
+                "cost_adjustments",
+                "project_price_id",
+                "manual_project_cost_override",
+                "planned_delivery_date",
+                "planned_priority",
+                "planned_remarks",
+                "planner_completed_at",
+                "planned_has_structure",
+                "planned_has_solar_panel",
+                "planned_has_inverter",
+                "planned_has_acdb",
+                "planned_has_dcdb",
+                "planned_has_earthing_kit",
+                "planned_has_cables",
+                "planned_warehouse_id",
+            ];
+            plannerOnlyKeys.forEach((key) => {
+                delete orderUpdates[key];
+            });
 
             documentTypes.forEach(doc => {
                 if (formData[doc.key] instanceof File) {
@@ -130,7 +162,7 @@ function EditOrderPageContent() {
             }
 
             toastSuccess("Order updated successfully");
-            router.push("/order");
+            router.push(returnPath);
         } catch (err) {
             console.error("Failed to update order:", err);
             toastError(err?.response?.data?.message || err?.message || "Failed to update order");
@@ -144,7 +176,7 @@ function EditOrderPageContent() {
 
     if (loading) {
         return (
-            <AddEditPageShell title="Edit Order" listHref="/order" listLabel="Order">
+            <AddEditPageShell title="Edit Order" listHref={returnPath} listLabel="Order">
                 <div className="flex justify-center items-center min-h-[60vh]">
                     <Loader />
                 </div>
@@ -154,7 +186,7 @@ function EditOrderPageContent() {
 
     if (error) {
         return (
-            <AddEditPageShell title="Edit Order" listHref="/order" listLabel="Order">
+            <AddEditPageShell title="Edit Order" listHref={returnPath} listLabel="Order">
                 <div className="p-4 text-destructive text-sm" role="alert">
                     {error}
                 </div>
@@ -163,10 +195,11 @@ function EditOrderPageContent() {
     }
 
     return (
-        <AddEditPageShell title={title} listHref="/order" listLabel="Order">
+        <AddEditPageShell title={title} listHref={returnPath} listLabel="Order">
             <OrderForm
                 defaultValues={orderData}
                 onSubmit={handleSubmit}
+                onCancel={() => router.push(returnPath)}
                 isEditMode={true}
                 loading={submitting}
             />

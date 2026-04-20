@@ -64,6 +64,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         tracking_type: "LOT",
         serial_required: false,
         serial_number_length: "",
+        show_qty_in_quote: true,
         material: "",
         // panel_size: "",
         panel_type: "",
@@ -173,6 +174,7 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 tracking_type: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() : "LOT",
                 serial_required: defaultValues.tracking_type ? defaultValues.tracking_type.toUpperCase() === "SERIAL" : false,
                 serial_number_length: defaultValues.serial_number_length ?? "",
+                show_qty_in_quote: defaultValues.show_qty_in_quote !== undefined ? defaultValues.show_qty_in_quote : true,
                 material: properties?.structure?.material ?? "",
                 // panel_size: properties?.panel?.size ?? "",
                 panel_type: properties?.panel?.type ?? "",
@@ -710,6 +712,20 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 />
                             }
                             label="Is Active"
+                        />
+                    </Grid>
+
+                    {/* Show Quantity In Quote */}
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    name="show_qty_in_quote"
+                                    checked={formData.show_qty_in_quote}
+                                    onChange={handleChange}
+                                />
+                            }
+                            label="Show Qty In Quote"
                         />
                     </Grid>
 
