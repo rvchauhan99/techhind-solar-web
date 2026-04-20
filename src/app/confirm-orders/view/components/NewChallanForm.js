@@ -40,7 +40,9 @@ export default function NewChallanForm({ orderId }) {
 
     const handleCreateClick = () => {
         if (!orderId) return;
-        router.push(`/delivery-challans/new?order_id=${orderId}`);
+        router.push(
+            `/delivery-challans/new?order_id=${orderId}&returnTo=${encodeURIComponent(`/confirm-orders/view?id=${orderId}`)}`
+        );
     };
 
     const handlePrintLatest = async () => {

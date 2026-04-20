@@ -13,8 +13,19 @@ function NewDeliveryChallanContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderIdParam = searchParams.get("order_id");
+    const returnToRaw = searchParams.get("returnTo");
     const [loading, setLoading] = useState(false);
     const [serverError, setServerError] = useState(null);
+
+    const getSafeReturnPath = (value) => {
+        if (!value) return "/delivery-challans";
+        const decoded = decodeURIComponent(value);
+        if (!decoded.startsWith("/")) return "/delivery-challans";
+        if (decoded.startsWith("//")) return "/delivery-challans";
+        if (decoded.includes("://")) return "/delivery-challans";
+        return decoded;
+    };
+    const returnPath = getSafeReturnPath(returnToRaw);
 
     const handleSubmit = async (payload) => {
         setLoading(true);
@@ -23,11 +34,8 @@ function NewDeliveryChallanContent() {
         try {
             const apiResponse = await challanService.createChallan(payload);
             const created = apiResponse?.result ?? apiResponse;
-            const createdId = created?.id ?? created?.challan_id ?? null;
             toast.success("Delivery challan created successfully");
-            // Navigate to delivery challans list after creation and refresh it
-            // so the new row becomes visible immediately.
-            router.push(createdId ? `/delivery-challans?created_id=${createdId}` : "/delivery-challans");
+            router.push(returnPath);
             setTimeout(() => {
                 router.refresh();
             }, 300);
@@ -46,7 +54,7 @@ function NewDeliveryChallanContent() {
     return (
         <AddEditPageShell
             title="New Delivery Challan"
-            listHref="/delivery-challans"
+            listHref={returnPath}
             listLabel="Delivery Challans"
             className="gap-2"
         >
@@ -56,7 +64,7 @@ function NewDeliveryChallanContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.back()}
+                onCancel={() => router.push(returnPath)}
             />
         </AddEditPageShell>
     );

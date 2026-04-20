@@ -110,6 +110,10 @@ export default function OrderForm({
         inverters: [],
     });
     const [paymentTypeOptions, setPaymentTypeOptions] = useState([]);
+    const [locationOptions, setLocationOptions] = useState({
+        states: [],
+        cities: [],
+    });
     const hasLoaded = useRef(false);
 
     const getOptionLabel = (opt) =>
@@ -121,14 +125,20 @@ export default function OrderForm({
             if (hasLoaded.current) return;
             hasLoaded.current = true;
             try {
-                const [constantsRes, solarPanelsRes, invertersRes] = await Promise.all([
+                const [constantsRes, solarPanelsRes, invertersRes, statesRes, citiesRes] = await Promise.all([
                     mastersService.getConstants(),
                     orderService.getSolarPanels(),
                     orderService.getInverters(),
+                    mastersService.getReferenceOptions("state.model"),
+                    mastersService.getReferenceOptions("city.model"),
                 ]);
                 setDropdowns({
                     solarPanels: Array.isArray(solarPanelsRes?.result) ? solarPanelsRes.result : [],
                     inverters: Array.isArray(invertersRes?.result) ? invertersRes.result : [],
+                });
+                setLocationOptions({
+                    states: Array.isArray(statesRes?.result) ? statesRes.result : [],
+                    cities: Array.isArray(citiesRes?.result) ? citiesRes.result : [],
                 });
                 const payload = constantsRes?.result || constantsRes;
                 setPaymentTypeOptions(payload?.paymentTypes || []);
@@ -224,7 +234,11 @@ export default function OrderForm({
     }, [quotationData, formData.quotation_id]);
 
     const handleChange = (field, value) => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
+        if (field === "state_id") {
+            setFormData((prev) => ({ ...prev, state_id: value, city_id: "" }));
+        } else {
+            setFormData((prev) => ({ ...prev, [field]: value }));
+        }
         if (errors[field]) {
             setErrors((prev) => {
                 const newErrors = { ...prev };
@@ -518,17 +532,37 @@ export default function OrderForm({
                             helperText={errors.pin_code}
                             required
                         />
-                        <Input
+                        <AutocompleteField
                             name="state_id"
                             label="State"
-                            value={formData.state_id ?? ""}
-                            onChange={handleChangeEvent}
+                            options={locationOptions.states}
+                            getOptionLabel={(s) => s?.name ?? s?.label ?? ""}
+                            value={locationOptions.states.find((s) => s.id == formData.state_id) || (formData.state_id ? { id: formData.state_id } : null)}
+                            onChange={(e, newValue) => handleChange("state_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
                         />
-                        <Input
+                        <AutocompleteField
                             name="city_id"
                             label="City"
-                            value={formData.city_id ?? ""}
-                            onChange={handleChangeEvent}
+                            options={locationOptions.cities.filter((c) => {
+                                if (!formData.state_id) return false;
+                                const cityStateId = typeof c.state_id === "string" ? parseInt(c.state_id, 10) : c.state_id;
+                                const selectedStateId = typeof formData.state_id === "string" ? parseInt(formData.state_id, 10) : formData.state_id;
+                                return cityStateId === selectedStateId;
+                            })}
+                            getOptionLabel={(c) => c?.name ?? c?.label ?? ""}
+                            value={(() => {
+                                const filtered = locationOptions.cities.filter((c) => {
+                                    if (!formData.state_id) return false;
+                                    const cityStateId = typeof c.state_id === "string" ? parseInt(c.state_id, 10) : c.state_id;
+                                    const selectedStateId = typeof formData.state_id === "string" ? parseInt(formData.state_id, 10) : formData.state_id;
+                                    return cityStateId === selectedStateId;
+                                });
+                                return filtered.find((c) => c.id == formData.city_id) || (formData.city_id ? { id: formData.city_id } : null);
+                            })()}
+                            onChange={(e, newValue) => handleChange("city_id", newValue?.id ?? "")}
+                            placeholder="Type to search..."
+                            disabled={!formData.state_id}
                         />
                         <Input
                             name="address"
