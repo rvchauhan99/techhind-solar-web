@@ -383,7 +383,7 @@ export default function ListView({
                   <IconUpload className="size-4 mr-2" />
                   Upload Documents
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/order/edit?id=${row.id}`)}>
+                <DropdownMenuItem onClick={() => router.push(`/order/edit?id=${row.id}&returnTo=${encodeURIComponent("/order")}`)}>
                   <IconEdit className="size-4 mr-2" />
                   Edit
                 </DropdownMenuItem>

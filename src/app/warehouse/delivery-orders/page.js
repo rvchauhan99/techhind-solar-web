@@ -75,7 +75,9 @@ export default function WarehouseDeliveryOrdersPage() {
     };
 
     const handleCreateChallan = (orderId) => {
-        router.push(`/delivery-challans/new?order_id=${orderId}`);
+        router.push(
+            `/delivery-challans/new?order_id=${orderId}&returnTo=${encodeURIComponent("/warehouse/delivery-orders")}`
+        );
     };
 
     const handleOpenDetails = (order) => {
