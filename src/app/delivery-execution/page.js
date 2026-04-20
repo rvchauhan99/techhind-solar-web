@@ -262,7 +262,9 @@ export default function DeliveryExecutionPage() {
   });
 
   const handleCreateChallan = (orderId) => {
-    router.push(`/delivery-challans/new?order_id=${orderId}`);
+    router.push(
+      `/delivery-challans/new?order_id=${orderId}&returnTo=${encodeURIComponent("/delivery-execution")}`
+    );
   };
 
   const handleOpenDetails = (order) => {
