@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import productService from "@/services/productService";
+import billOfMaterialService from "@/services/billOfMaterialService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
@@ -45,6 +47,8 @@ export default function BillOfMaterialForm({
   });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [optionsReady, setOptionsReady] = useState(false);
+  const [copySourceBOM, setCopySourceBOM] = useState(null);
+  const [copyingFromBOM, setCopyingFromBOM] = useState(false);
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -325,6 +329,100 @@ export default function BillOfMaterialForm({
     onSubmit(payload);
   };
 
+  const loadBillOfMaterialOptions = async (q) => {
+    const rows = await billOfMaterialService.searchBillOfMaterials({ q, limit: 20, visibility: "active" });
+    return (rows || [])
+      .filter((row) => !defaultValues?.id || Number(row.id) !== Number(defaultValues.id))
+      .map((row) => ({
+        id: row.id,
+        name: row.name || "",
+        code: row.code || "",
+        label: row.code ? `${row.code} - ${row.name || ""}` : row.name || "",
+      }));
+  };
+
+  const handleCopyFromOldBOM = async (selectedBOM) => {
+    setCopySourceBOM(selectedBOM);
+    if (!selectedBOM?.id) return;
+
+    setCopyingFromBOM(true);
+    try {
+      const response = await billOfMaterialService.getBillOfMaterialById(selectedBOM.id);
+      const source = response?.result || response;
+      const sourceRows = Array.isArray(source?.bom_detail) ? source.bom_detail : [];
+
+      if (!sourceRows.length) {
+        toast.info("Selected BOM has no detail rows to copy");
+        setCopySourceBOM(null);
+        return;
+      }
+
+      const productMap = {};
+      (options.allProducts || []).forEach((product) => {
+        productMap[Number(product.id)] = product;
+      });
+
+      const existingProductIds = new Set(
+        (formData.bom_detail || []).map((detail) => Number(detail.product_id)).filter(Number.isFinite)
+      );
+
+      const rowsToAppend = [];
+      let skippedCount = 0;
+      sourceRows.forEach((detail) => {
+        const productId = Number(detail?.product_id);
+        const quantity = Number(detail?.quantity);
+        if (!Number.isFinite(productId) || !Number.isFinite(quantity) || quantity <= 0) {
+          skippedCount += 1;
+          return;
+        }
+        if (existingProductIds.has(productId)) {
+          skippedCount += 1;
+          return;
+        }
+
+        const product = productMap[productId];
+        rowsToAppend.push({
+          product_id: productId,
+          quantity,
+          description: detail?.description || null,
+          product_name: product?.product_name || "",
+          product_type_id: product?.product_type_id != null ? Number(product.product_type_id) : null,
+        });
+        existingProductIds.add(productId);
+      });
+
+      if (!rowsToAppend.length) {
+        toast.info("No new BOM detail rows were copied (all were duplicates or invalid)");
+        setCopySourceBOM(null);
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        bom_detail: [...(prev.bom_detail || []), ...rowsToAppend],
+      }));
+
+      setErrors((prev) => {
+        if (!prev?.bom_detail) return prev;
+        const next = { ...prev };
+        delete next.bom_detail;
+        return next;
+      });
+
+      toast.success(`Copied ${rowsToAppend.length} BOM detail row${rowsToAppend.length > 1 ? "s" : ""}`);
+      if (skippedCount > 0) {
+        toast.info(`Skipped ${skippedCount} duplicate/invalid row${skippedCount > 1 ? "s" : ""}`);
+      }
+      setCopySourceBOM(null);
+    } catch (error) {
+      const errorMessage =
+        error?.response?.data?.message || error?.message || "Failed to copy BOM details";
+      toast.error(errorMessage);
+    } finally {
+      setCopyingFromBOM(false);
+    }
+  };
+
   if (loadingOptions) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
@@ -354,6 +452,18 @@ export default function BillOfMaterialForm({
         )}
 
         <FormGrid cols={3}>
+          <AutocompleteField
+            name="copy_bom_source"
+            label="Copy BOM Details From"
+            asyncLoadOptions={loadBillOfMaterialOptions}
+            getOptionLabel={(o) => o?.label || o?.name || ""}
+            value={copySourceBOM}
+            onChange={(e, newValue) => handleCopyFromOldBOM(newValue)}
+            placeholder="Search existing BOM..."
+            disabled={loading || loadingOptions || copyingFromBOM}
+            loading={copyingFromBOM}
+            helperText="Header fields stay manual; selected BOM detail rows are appended."
+          />
           <Input
             name="bom_code"
             label="BOM Code"
