@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Container from "@/components/container";
 import { Button } from "@/components/ui/button";
@@ -82,10 +82,15 @@ export default function MarketingLeadsAssignPage() {
     return result;
   }, []);
 
+  const apiFilters = useMemo(
+    () => buildApiFilters(filters),
+    [filters, buildApiFilters]
+  );
+
   const fetcher = useCallback(async (params) => {
     const res = await marketingLeadsService.getMarketingLeads({
       ...params,
-      ...buildApiFilters(filters),
+      ...apiFilters,
       not_status: "converted"
     });
     const payload = res?.result || res?.data || res;
@@ -98,7 +103,7 @@ export default function MarketingLeadsAssignPage() {
       setSelectedIds((prev) => Array.from(new Set([...prev, ...idsOnPage])));
     }
     return payload;
-  }, [filters, buildApiFilters]); // Re-fetch on filter change
+  }, [apiFilters]); // Re-fetch on filter change
 
   const handleToggleRow = (id) => {
     setSelectedIds((prev) =>
@@ -177,6 +182,11 @@ export default function MarketingLeadsAssignPage() {
       field: "mobile_number",
       label: "Mobile",
       render: (row) => <span className="text-xs">{row.mobile_number}</span>,
+    },
+    {
+      field: "assigned_to_name",
+      label: "Current Assigned To",
+      render: (row) => row.assigned_to_name || "-",
     },
     {
       field: "status",
@@ -300,6 +310,7 @@ export default function MarketingLeadsAssignPage() {
             <PaginatedTable
               columns={columns}
               fetcher={fetcher}
+              filterParams={apiFilters}
               height="100%"
               showSearch={false}
             />
