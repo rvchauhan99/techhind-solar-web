@@ -6,6 +6,7 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import ClearIcon from "@mui/icons-material/Clear";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -194,6 +195,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
     }, [loadInstallation]);
 
     const [pendingPreviewUrls, setPendingPreviewUrls] = useState({});
+    const [photoPreview, setPhotoPreview] = useState(null);
     useEffect(() => {
         const next = {};
         Object.entries(pendingImages).forEach(([k, f]) => {
@@ -1000,6 +1002,151 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
     };
 
     const disabled = isCompleted || isReadOnly || (!isReadOnly && !canPerform);
+    const requiredInstallationImageKeys = useMemo(
+        () => INSTALLATION_IMAGE_KEYS.filter((k) => k.required),
+        []
+    );
+    const optionalInstallationImageKeys = useMemo(
+        () => INSTALLATION_IMAGE_KEYS.filter((k) => !k.required),
+        []
+    );
+
+    const renderInstallationPhotoField = useCallback(
+        ({ key, label, required }) => {
+            const hasPending = !!pendingImages[key];
+            const hasSaved = !!images[key];
+            const previewUrl = pendingPreviewUrls[key];
+            return (
+                <Box 
+                    key={key} 
+                    sx={{ 
+                        border: 1, 
+                        borderColor: fieldErrors[`image_${key}`] ? "error.main" : "divider", 
+                        borderRadius: 2, 
+                        p: 1.5, 
+                        bgcolor: "background.paper",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 1,
+                        height: "100%",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                    }}
+                >
+                    <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: "text.primary", display: "inline-block", mb: 0.5, lineHeight: 1.2 }}>
+                            {label}
+                            {required && <span className="text-destructive ml-0.5">*</span>}
+                        </Typography>
+                    </Box>
+                    {(hasPending || hasSaved) ? (
+                        <Box className="flex flex-col gap-1.5">
+                            {hasPending && previewUrl ? (
+                                <Box
+                                    component="img"
+                                    src={previewUrl}
+                                    alt={label}
+                                    sx={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}
+                                />
+                            ) : hasPending ? (
+                                <Box sx={{ fontSize: "0.85rem", color: "text.secondary", height: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover', borderRadius: 1.5 }}>Loading…</Box>
+                            ) : hasSaved ? (
+                                <BucketImage
+                                    path={images[key]}
+                                    getUrl={getDocumentUrlById}
+                                    alt={label}
+                                    sx={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}
+                                />
+                            ) : null}
+                                <Box className="flex items-center justify-between mt-0.5 px-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPhotoPreview({ isPending: hasPending, src: hasPending ? previewUrl : images[key], title: label })}
+                                        className="text-[0.7rem] text-primary font-medium hover:underline underline-offset-2 transition-colors cursor-pointer"
+                                    >
+                                        View Full
+                                    </button>
+                                    {!disabled && (
+                                        <Box className="flex items-center gap-3">
+                                            <label className="text-[0.7rem] text-muted-foreground cursor-pointer inline-flex items-center hover:text-foreground transition-colors">
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const f = e.target.files?.[0];
+                                                        if (f) handleImageSelect(key, f);
+                                                        e.target.value = "";
+                                                    }}
+                                                />
+                                                <span className="font-medium underline decoration-slate-300 underline-offset-2">Replace</span>
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleImageRemove(key)}
+                                                className="text-[0.7rem] text-destructive font-medium hover:underline underline-offset-2 transition-colors cursor-pointer"
+                                            >
+                                                Remove
+                                            </button>
+                                        </Box>
+                                    )}
+                                </Box>
+                        </Box>
+                    ) : (
+                        <Box sx={{ mt: 'auto' }}>
+                            {!disabled && (
+                                <label className="block w-full cursor-pointer group">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) handleImageSelect(key, f);
+                                            e.target.value = "";
+                                        }}
+                                    />
+                                    <Box 
+                                        sx={{ 
+                                            display: "flex", 
+                                            alignItems: "center", 
+                                            justifyContent: "center", 
+                                            height: 100,
+                                            border: "1px dashed",
+                                            borderColor: "var(--border)",
+                                            borderRadius: 1.5,
+                                            bgcolor: "slate.50",
+                                            color: "text.secondary",
+                                            transition: "all 0.2s",
+                                            ".group:hover &": {
+                                                borderColor: "primary.main",
+                                                color: "primary.main",
+                                                bgcolor: "primary.50"
+                                            }
+                                        }}
+                                        className="touch-manipulation"
+                                    >
+                                        <Box sx={{ textAlign: "center" }}>
+                                            <CloudUploadIcon sx={{ fontSize: 24, mb: 0.5, opacity: 0.6 }} />
+                                            <Typography variant="caption" display="block" fontWeight={500}>Take photo</Typography>
+                                            <Typography variant="caption" display="block" fontSize="0.65rem" opacity={0.7} mt="-2px">or upload file</Typography>
+                                        </Box>
+                                    </Box>
+                                </label>
+                            )}
+                        </Box>
+                    )}
+                    {fieldErrors[`image_${key}`] && (
+                        <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block", fontWeight: 500 }}>
+                            {fieldErrors[`image_${key}`]}
+                        </Typography>
+                    )}
+                </Box>
+            );
+        },
+        [pendingImages, images, pendingPreviewUrls, disabled, fieldErrors]
+    );
 
     useEffect(() => {
         if (amendMode || loading || submitting || isReadOnly || !canPerform || isCompleted || !orderId) {
@@ -1152,11 +1299,13 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 <Box key={pid} sx={{ mb: 0.75 }}>
                                     <Box
                                         sx={{
-                                            p: 1,
-                                            borderRadius: 1,
+                                            p: { xs: 1.5, sm: 2 },
+                                            borderRadius: 2,
                                             border: 1,
                                             borderColor: fieldErrors[`scans_${pid}`] ? "error.main" : "divider",
                                             bgcolor: "background.paper",
+                                            boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)",
+                                            transition: "border-color 0.2s"
                                         }}
                                     >
                                         <Box
@@ -1257,19 +1406,19 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                         </Typography>
                                     )}
                                     <Box sx={{ pt: 0.75 }}>
-                                        <Box className="flex flex-wrap items-end gap-1">
+                                        <Box className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2.5">
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
                                                 disabled={disabled}
-                                                className={`inline-flex shrink-0 touch-manipulation items-center justify-center gap-1.5 px-3 ${FIELD_HEIGHT_CLASS_SMALL}`}
+                                                className="inline-flex shrink-0 w-full sm:w-auto touch-manipulation items-center justify-center gap-2 px-4 shadow-sm active:scale-[0.98] transition-transform min-h-[44px] sm:min-h-[36px] border-slate-300"
                                                 onClick={() => openScannerForProduct(pid)}
                                             >
-                                                <QrCodeScannerIcon sx={{ fontSize: 20 }} />
-                                                Scan Barcode / QR Code
+                                                <QrCodeScannerIcon sx={{ fontSize: 22 }} />
+                                                <span className="font-medium text-[15px] sm:text-sm">Scan Barcode / QR</span>
                                             </Button>
-                                            <Box className="min-w-[200px] flex-1">
+                                            <Box className="w-full sm:min-w-[220px] flex-1">
                                                 <Input
                                                     ref={(el) => {
                                                         gunScanInputRefs.current[pid] = el;
@@ -1286,10 +1435,11 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                                     disabled={disabled}
                                                     size="small"
                                                     fullWidth
+                                                    className="[&_.MuiInputBase-root]:min-h-[44px] sm:[&_.MuiInputBase-root]:min-h-[36px]"
                                                 />
                                             </Box>
                                         </Box>
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, lineHeight: 1.3 }}>
                                             Gun: type and press Enter or Tab away to fill slots (invalid serials are cleared).
                                         </Typography>
                                         <Divider sx={{ my: 0.75 }}>
@@ -1535,112 +1685,13 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                     </Box>
                 )}
 
-                <FormGrid cols={4} className="gap-1.5">
-                    <DateField
-                        name="installation_start_date"
-                        label="Installation Start Date"
-                        value={formData.installation_start_date}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <DateField
-                        name="installation_end_date"
-                        label="Installation End Date"
-                        value={formData.installation_end_date}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="inverter_installation_location"
-                        label="Inverter Installation Location"
-                        options={INSTALLATION_INVERTER_LOCATIONS}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.inverter_installation_location || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "inverter_installation_location", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="earthing_type"
-                        label="Earthing Type"
-                        options={INSTALLATION_EARTHING_TYPES}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.earthing_type || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "earthing_type", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="wiring_type"
-                        label="Wiring Type"
-                        options={INSTALLATION_WIRING_TYPES}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.wiring_type || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "wiring_type", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="acdb_dcdb_make"
-                        label="ACDB / DCDB Make"
-                        options={INSTALLATION_ACDB_DCDB_MAKES}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.acdb_dcdb_make || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "acdb_dcdb_make", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="panel_mounting_type"
-                        label="Panel Mounting Type"
-                        options={INSTALLATION_PANEL_MOUNTING_TYPES}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.panel_mounting_type || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "panel_mounting_type", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <AutocompleteField
-                        name="netmeter_readiness_status"
-                        label="Netmeter Readiness Status"
-                        options={INSTALLATION_NETMETER_READINESS}
-                        getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
-                        value={formData.netmeter_readiness_status || null}
-                        onChange={(e, newValue) => handleInputChange({ target: { name: "netmeter_readiness_status", value: newValue ?? "" } })}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <Input
-                        name="total_panels_installed"
-                        label="Total Panels Installed"
-                        type="number"
-                        value={formData.total_panels_installed}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <Input
-                        name="earthing_resistance"
-                        label="Earthing Resistance"
-                        value={formData.earthing_resistance}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                    <Input
-                        name="initial_generation"
-                        label="Initial Generation"
-                        value={formData.initial_generation}
-                        onChange={handleInputChange}
-                        fullWidth
-                        disabled={disabled}
-                    />
-                </FormGrid>
+                <div className={COMPACT_SECTION_HEADER_CLASS}>Required Photos</div>
+                <Box className="mt-1 mb-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {requiredInstallationImageKeys.map((config) => renderInstallationPhotoField(config))}
+                </Box>
 
                 <div className={COMPACT_SECTION_HEADER_CLASS}>Checklist</div>
-                <Box className="mt-0.5 mb-1 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0">
+                <Box className="mt-0.5 mb-3 grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0">
                     {checklist.map((item) => (
                         <Checkbox
                             key={item.id}
@@ -1653,155 +1704,192 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                     ))}
                 </Box>
 
-                <div className={COMPACT_SECTION_HEADER_CLASS}>Photos</div>
-                <Box className="mt-0.5 mb-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1">
-                    {INSTALLATION_IMAGE_KEYS.map(({ key, label, required }) => {
-                        const hasPending = !!pendingImages[key];
-                        const hasSaved = !!images[key];
-                        const previewUrl = pendingPreviewUrls[key];
-                        return (
-                            <Box key={key}>
-                                <Typography variant="caption" className="mb-0.5 block leading-tight">
-                                    {label}
-                                    {required && <span className="text-destructive ml-0.5">*</span>}
-                                </Typography>
-                                {(hasPending || hasSaved) ? (
-                                    <Box className="flex items-center gap-2 flex-wrap">
-                                        {hasPending && previewUrl ? (
-                                            <Box
-                                                component="img"
-                                                src={previewUrl}
-                                                alt={label}
-                                                sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
-                                            />
-                                        ) : hasPending ? (
-                                            <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>
-                                        ) : hasSaved ? (
-                                            <BucketImage
-                                                path={images[key]}
-                                                getUrl={getDocumentUrlById}
-                                                alt={label}
-                                                sx={{ width: 80, height: 80, objectFit: "cover", borderRadius: 1, border: "1px solid", borderColor: "divider" }}
-                                            />
-                                        ) : null}
-                                        {!disabled && (
-                                            <>
-                                                <label className="text-xs text-muted-foreground cursor-pointer inline-flex items-center min-h-9">
-                                                    Replace:{" "}
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        capture="environment"
-                                                        className="hidden"
-                                                        onChange={(e) => {
-                                                            const f = e.target.files?.[0];
-                                                            if (f) handleImageSelect(key, f);
-                                                            e.target.value = "";
-                                                        }}
-                                                    />
-                                                    <span className="underline">Take photo or choose file</span>
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleImageRemove(key)}
-                                                    className="text-xs text-destructive underline cursor-pointer"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </>
-                                        )}
-                                    </Box>
-                                ) : (
-                                    !disabled && (
-                                        <label className="inline-block">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                capture="environment"
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                    const f = e.target.files?.[0];
-                                                    if (f) handleImageSelect(key, f);
-                                                    e.target.value = "";
-                                                }}
-                                            />
-                                            <span className="inline-flex items-center min-h-9 px-2 py-1 rounded-md border border-input bg-background text-xs cursor-pointer hover:bg-accent touch-manipulation">
-                                                Take photo or upload
-                                            </span>
-                                        </label>
-                                    )
-                                )}
-                                {fieldErrors[`image_${key}`] && (
-                                    <p className="text-xs text-destructive mt-0.5">{fieldErrors[`image_${key}`]}</p>
-                                )}
+                <details className="mt-1 mb-2 rounded-lg border border-slate-200 bg-slate-50 overflow-hidden shadow-sm">
+                    <summary className="cursor-pointer select-none list-none px-3 py-2.5 text-sm font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border-b border-slate-200 flex items-center justify-between transition-colors">
+                        Optional Details
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'normal' }}>(Expand to fill optional data)</Typography>
+                    </summary>
+                    <div className="p-3 flex flex-col gap-4">
+                        <Box>
+                            <Typography variant="caption" className="mb-1.5 block font-semibold text-slate-700">Optional Photos</Typography>
+                            <Box className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+                                {optionalInstallationImageKeys.map((config) => renderInstallationPhotoField(config))}
                             </Box>
-                        );
-                    })}
+                        </Box>
+                        <Divider />
+                        <FormGrid cols={4} className="gap-2">
+                            <DateField
+                                name="installation_start_date"
+                                label="Installation Start Date"
+                                value={formData.installation_start_date}
+                                onChange={handleInputChange}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <DateField
+                                name="installation_end_date"
+                                label="Installation End Date"
+                                value={formData.installation_end_date}
+                                onChange={handleInputChange}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="inverter_installation_location"
+                                label="Inverter Installation Location"
+                                options={INSTALLATION_INVERTER_LOCATIONS}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.inverter_installation_location || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "inverter_installation_location", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="earthing_type"
+                                label="Earthing Type"
+                                options={INSTALLATION_EARTHING_TYPES}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.earthing_type || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "earthing_type", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="wiring_type"
+                                label="Wiring Type"
+                                options={INSTALLATION_WIRING_TYPES}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.wiring_type || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "wiring_type", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="acdb_dcdb_make"
+                                label="ACDB / DCDB Make"
+                                options={INSTALLATION_ACDB_DCDB_MAKES}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.acdb_dcdb_make || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "acdb_dcdb_make", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="panel_mounting_type"
+                                label="Panel Mounting Type"
+                                options={INSTALLATION_PANEL_MOUNTING_TYPES}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.panel_mounting_type || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "panel_mounting_type", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <AutocompleteField
+                                name="netmeter_readiness_status"
+                                label="Netmeter Readiness Status"
+                                options={INSTALLATION_NETMETER_READINESS}
+                                getOptionLabel={(o) => (typeof o === "string" ? o : o?.label ?? "")}
+                                value={formData.netmeter_readiness_status || null}
+                                onChange={(e, newValue) => handleInputChange({ target: { name: "netmeter_readiness_status", value: newValue ?? "" } })}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <Input
+                                name="total_panels_installed"
+                                label="Total Panels Installed"
+                                type="number"
+                                value={formData.total_panels_installed}
+                                onChange={handleInputChange}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <Input
+                                name="earthing_resistance"
+                                label="Earthing Resistance"
+                                value={formData.earthing_resistance}
+                                onChange={handleInputChange}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                            <Input
+                                name="initial_generation"
+                                label="Initial Generation"
+                                value={formData.initial_generation}
+                                onChange={handleInputChange}
+                                fullWidth
+                                disabled={disabled}
+                            />
+                        </FormGrid>
+                        <Input
+                            name="remarks"
+                            label="Remarks"
+                            multiline
+                            rows={2}
+                            value={formData.remarks}
+                            onChange={handleInputChange}
+                            fullWidth
+                            disabled={disabled}
+                        />
+                    </div>
+                </details>
+
+                <div className="bg-transparent flex flex-col gap-2 mt-2 px-0">
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
+                    <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
+                        <Button
+                            type="submit"
+                            size="sm"
+                            variant="default"
+                            className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-transparent transition-all active:scale-[0.98]"
+                            loading={submitting}
+                            disabled={disabled}
+                        >
+                            Save Progress
+                        </Button>
+                        {canComplete && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="default"
+                                className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow hover:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white border-transparent transition-all active:scale-[0.98]"
+                                loading={submitting}
+                                disabled={disabled || !allInstallationSerialsFilled}
+                                onClick={(e) => handleSubmit(e, true)}
+                            >
+                                Complete Installation
+                            </Button>
+                        )}
+                    </div>
+                    <div className="text-center sm:text-right">
+                        {canComplete && !allInstallationSerialsFilled && Object.keys(deliveredSerialsMap).length > 0 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+                                Enter every delivered serial to complete.
+                            </Typography>
+                        )}
+                        {!canComplete && orderData?.stages?.fabrication !== "completed" && !isCompleted && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+                                Complete Fabrication to unlock Installation.
+                            </Typography>
+                        )}
+                    </div>
                 </Box>
-
-                <Input
-                    name="remarks"
-                    label="Remarks"
-                    multiline
-                    rows={2}
-                    value={formData.remarks}
-                    onChange={handleInputChange}
-                    fullWidth
-                    disabled={disabled}
-                />
-            </div>
-
-            <div className="mt-2 flex flex-col gap-1.5">
-                {error && <Alert severity="error">{error}</Alert>}
+                {error && <Alert severity="error" sx={{ py: 0, '& .MuiAlert-message': { py: 1 } }}>{error}</Alert>}
+                {successMsg && <Alert severity="success" sx={{ py: 0, '& .MuiAlert-message': { py: 1 } }}>{successMsg}</Alert>}
                 {mismatchData && (
-                    <Alert severity="warning">
+                    <Alert severity="warning" sx={{ mt: 1 }}>
                         <Typography variant="body2" fontWeight={600}>
                             Serial Mismatch Detected
                         </Typography>
                         {mismatchData.mismatches.map((m, i) => (
-                            <div key={i}>
+                            <div key={i} className="text-xs mt-1">
                                 Product #{m.product_id}: Scanned {m.missing_serials.join(", ")} but expected {m.expected_serials.join(", ")}
                             </div>
                         ))}
                     </Alert>
                 )}
-                {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                <div className="flex gap-2 flex-wrap">
-                    <Button
-                        type="submit"
-                        size="sm"
-                        className="min-h-9 touch-manipulation"
-                        loading={submitting}
-                        disabled={disabled}
-                    >
-                        Save
-                    </Button>
-                    {canComplete && (
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="default"
-                            className="min-h-9 touch-manipulation"
-                            loading={submitting}
-                            disabled={disabled || !allInstallationSerialsFilled}
-                            onClick={(e) => handleSubmit(e, true)}
-                        >
-                            Complete Installation
-                        </Button>
-                    )}
-                </div>
-                {canComplete && !allInstallationSerialsFilled && Object.keys(deliveredSerialsMap).length > 0 && (
-                    <Typography variant="caption" color="text.secondary">
-                        Enter every delivered serial (one per unit) to complete installation.
-                    </Typography>
-                )}
-                {!canComplete && orderData?.stages?.fabrication !== "completed" && !isCompleted && (
-                    <Typography variant="caption" color="text.secondary">
-                        Complete the Fabrication stage to unlock Installation.
-                    </Typography>
-                )}
             </div>
-            {/* ─── Barcode / QR Scanner modal ─────────────────────── */}
+        </div>
+        {/* ─── Barcode / QR Scanner modal ─────────────────────── */}
             <BarcodeScanner
                 open={scannerOpen}
                 onScan={handleScanResult}
@@ -1926,6 +2014,32 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                             Confirm Force Adjust
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!photoPreview} onOpenChange={(open) => !open && setPhotoPreview(null)}>
+                <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-black/95 border-none">
+                    <DialogHeader className="p-4 absolute top-0 w-full pointer-events-none bg-gradient-to-b from-black/80 to-transparent">
+                        <DialogTitle className="text-white text-sm font-medium pr-8 pointer-events-auto">
+                            {photoPreview?.title}
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="relative w-full h-[60vh] sm:h-[80vh] flex items-center justify-center p-4 pt-14">
+                        {photoPreview?.isPending ? (
+                            <img 
+                                src={photoPreview.src} 
+                                alt={photoPreview.title}
+                                className="max-w-full max-h-full object-contain"
+                            />
+                        ) : photoPreview?.src ? (
+                            <BucketImage
+                                path={photoPreview.src}
+                                getUrl={getDocumentUrlById}
+                                alt={photoPreview.title}
+                                sx={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 0 }}
+                            />
+                        ) : null}
+                    </div>
                 </DialogContent>
             </Dialog>
         </Box>
