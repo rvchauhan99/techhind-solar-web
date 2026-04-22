@@ -130,6 +130,7 @@ export function useQuotationState({ user, defaultValues = {} }) {
             inquiry_id: toNumber(formData.inquiry_id),
             customer_id: toNumber(formData.customer_id),
             state_id: toNumber(formData.state_id),
+            city_id: toNumber(formData.city_id),
             order_type_id: toNumber(formData.order_type_id),
             project_scheme_id: toNumber(formData.project_scheme_id),
             project_price_id: toNumber(formData.project_price_id),
