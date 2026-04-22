@@ -415,6 +415,40 @@ export default function QuotationForm({
                     <Grid item size={{ xs: 12, md: 6 }}>
                         <Input fullWidth label="Address" name="address" value={formData.address} onChange={handleChange} multiline rows={1} />
                     </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <AutocompleteField
+                            name="city_id"
+                            label="City"
+                            asyncLoadOptions={(q) =>
+                                getReferenceOptionsSearch("city.model", {
+                                    q,
+                                    limit: 20,
+                                    ...(formData.state_id ? { state_id: formData.state_id } : {}),
+                                })
+                            }
+                            referenceModel="city.model"
+                            getOptionLabel={getOptionLabel}
+                            value={formData.city_id ? { id: formData.city_id } : null}
+                            onChange={(e, newValue) => handleChange({ target: { name: "city_id", value: newValue?.id ?? "" } })}
+                            placeholder="Type to search..."
+                            disabled={!formData.state_id}
+                            required
+                            error={!!errors.city_id}
+                            helperText={errors.city_id}
+                        />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input fullWidth label="Landmark Area" name="landmark_area" value={formData.landmark_area} onChange={handleChange} />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input fullWidth label="Pin Code" name="pin_code" value={formData.pin_code} onChange={handleChange} required error={!!errors.pin_code} helperText={errors.pin_code} />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input fullWidth label="Taluka" name="taluka" value={formData.taluka} onChange={handleChange} required error={!!errors.taluka} helperText={errors.taluka} />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <Input fullWidth label="District" name="district" value={formData.district} onChange={handleChange} />
+                    </Grid>
                 </Grid>
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>

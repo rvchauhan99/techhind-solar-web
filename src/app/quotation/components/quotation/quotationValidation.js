@@ -29,6 +29,13 @@ export function validateQuotation(formData) {
     }
 
     if (!formData.state_id) errors.state_id = "State is required";
+    if (!formData.city_id) errors.city_id = "City is required";
+    if (!formData.pin_code || String(formData.pin_code).trim() === "") {
+        errors.pin_code = "Pin Code is required";
+    }
+    if (!formData.taluka || String(formData.taluka).trim() === "") {
+        errors.taluka = "Taluka is required";
+    }
     if (!formData.project_capacity) errors.project_capacity = "Project Capacity is required";
     if (!formData.price_per_kw) errors.price_per_kw = "Price Per KW is required";
     if (!formData.total_project_value) errors.total_project_value = "Total Project Value is required";
