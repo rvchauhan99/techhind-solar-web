@@ -54,11 +54,11 @@ export const FABRICATION_LABOUR_CATEGORIES = [
     "Contractor Based",
 ];
 
-/** Fabrication image keys per spec; minimum required: full_structure_front, anchoring_closeup */
+/** Fabrication image keys per spec; minimum required: full_structure_front */
 export const FABRICATION_IMAGE_KEYS = [
     { key: "before_site_photo", label: "Before Site Photo" },
     { key: "raw_material_photo", label: "Raw Material Photo" },
-    { key: "anchoring_closeup", label: "Anchoring Closeup", required: true },
+    { key: "anchoring_closeup", label: "Anchoring Closeup" },
     { key: "full_structure_front", label: "Full Structure Front", required: true },
     { key: "side_view", label: "Side View" },
     { key: "tilt_angle_photo", label: "Tilt Angle Photo" },
@@ -115,11 +115,11 @@ export const INSTALLATION_NETMETER_READINESS = [
 /** Installation image keys per spec; minimum required: full_plant_view, inverter_closeup, generation_display_photo */
 export const INSTALLATION_IMAGE_KEYS = [
     { key: "full_plant_view", label: "Full Plant View", required: true },
-    { key: "inverter_closeup", label: "Inverter Closeup", required: true },
+    { key: "inverter_closeup", label: "Inverter + ACDB + DCDB Photo", required: true },
     { key: "acdb_photo", label: "ACDB Photo" },
     { key: "dcdb_photo", label: "DCDB Photo" },
-    { key: "earthing_photo", label: "Earthing Photo" },
+    { key: "earthing_photo", label: "Earthing Photo", required: true },
     { key: "panel_serial_photo", label: "Panel Serial Photo" },
-    { key: "generation_display_photo", label: "Generation Display Photo", required: true },
+    { key: "generation_display_photo", label: "Inverter Generation Display Photo", required: true },
     { key: "customer_handover_photo", label: "Customer Handover Photo" },
 ];
