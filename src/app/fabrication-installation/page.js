@@ -35,25 +35,25 @@ const COLUMNS = [
     {
         key: "pending_fabrication",
         title: "Pending Fabrication",
-        headerBg: "#dc2626",
-        chipBg: "#b91c1c",
-        accentColor: "#0ea5e9",
+        headerStyle: { background: "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)" },
+        chipBg: "rgba(0,0,0,0.2)",
+        accentColor: "#ef4444",
         emptyMessage: "No pending fabrication orders assigned to you.",
     },
     {
         key: "pending_installation",
         title: "Pending Installation",
-        headerBg: "#eab308",
-        chipBg: "#ca8a04",
+        headerStyle: { background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" },
+        chipBg: "rgba(0,0,0,0.2)",
         accentColor: "#f59e0b",
         emptyMessage: "No pending installation orders assigned to you.",
     },
     {
         key: "completed_installation_15d",
         title: "Completed Fabrication and Installation",
-        headerBg: "#15803d",
-        chipBg: "#166534",
-        accentColor: "#22c55e",
+        headerStyle: { background: "linear-gradient(135deg, #10b981 0%, #059669 100%)" },
+        chipBg: "rgba(0,0,0,0.2)",
+        accentColor: "#10b981",
         emptyMessage: "No completed fabrication and installation in the last 15 days.",
     },
 ];
@@ -333,10 +333,10 @@ function FabricationInstallationPageContent() {
                             >
                                 <Box
                                     sx={{
-                                        bgcolor: col.headerBg,
+                                        ...col.headerStyle,
                                         color: "#fff",
                                         px: 1.5,
-                                        py: 1,
+                                        py: 1.25,
                                         display: "flex",
                                         justifyContent: "space-between",
                                         alignItems: "center",
@@ -391,6 +391,12 @@ function FabricationInstallationPageContent() {
                                                 gap: 0.75,
                                                 borderLeft: "4px solid",
                                                 borderLeftColor: col.accentColor,
+                                                transition: "all 0.2s ease-in-out",
+                                                "&:hover": {
+                                                    transform: "translateY(-2px)",
+                                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                                                    borderColor: col.accentColor,
+                                                }
                                             }}
                                         >
                                             <Box
