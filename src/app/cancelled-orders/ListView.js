@@ -40,6 +40,11 @@ const STAGES = [
   { key: "payment_outstanding", label: "Order Completed but payment pending" },
 ];
 
+const STAGE_LABEL_BY_KEY = STAGES.reduce((acc, stage) => {
+  acc[stage.key] = stage.label;
+  return acc;
+}, {});
+
 export default function ListView({ filters }) {
   const router = useRouter();
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -199,7 +204,7 @@ export default function ListView({ filters }) {
             />
           )}
           <Chip
-            label={row.cancelled_at_stage_key || "None"}
+            label={STAGE_LABEL_BY_KEY[row.cancelled_at_stage_key] || row.cancelled_at_stage_key || "None"}
             size="small"
             sx={{
               bgcolor: row.cancelled_at_stage_key ? "#fef3c7" : "#e5e7eb",
@@ -362,7 +367,7 @@ export default function ListView({ filters }) {
                   </div>
                   {sortedSummaryStages.map((row) => {
                     const label =
-                      STAGES.find((s) => s.key === row.current_stage_key)?.label ||
+                      STAGE_LABEL_BY_KEY[row.current_stage_key] ||
                       row.current_stage_key ||
                       "-";
                     const shortLabel = `${label}: ${row.count} · ${Number(

@@ -75,10 +75,27 @@ const STAGES = [
     { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
 ];
 
+const SUBSIDY_STAGE_KEYS = new Set(["subsidy_claim", "subsidy_disbursed"]);
+const STAGE_LABEL_BY_KEY = STAGES.reduce((acc, stage) => {
+    acc[stage.key] = stage.label;
+    return acc;
+}, {});
+
+const getVisibleStages = (stagesStatus) => {
+    const hasStagesObject = stagesStatus && typeof stagesStatus === "object" && !Array.isArray(stagesStatus);
+    if (!hasStagesObject) return STAGES;
+    const hasSubsidyStages =
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_claim") ||
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_disbursed");
+    if (hasSubsidyStages) return STAGES;
+    return STAGES.filter((stage) => !SUBSIDY_STAGE_KEYS.has(stage.key));
+};
+
 const isOrderFullyCompleted = (row) => {
     if (row.current_stage_key === "order_completed") return true;
     const stages = row.stages || {};
-    return STAGES.every((s) => stages[s.key] === "completed");
+    const visibleStages = getVisibleStages(stages);
+    return visibleStages.every((s) => stages[s.key] === "completed");
 };
 
 export default function ListView() {
@@ -328,6 +345,7 @@ export default function ListView() {
 
     const renderOrderItem = (row, reload) => {
         const stages = row.stages || {};
+        const visibleStages = getVisibleStages(stages);
         const totalPayable = getOrderProjectCostAmount(row);
         const totalReceived = getOrderReceivedAmount(row);
         const outstanding = getOrderOutstandingAmount(row);
@@ -469,10 +487,10 @@ export default function ListView() {
                 {/* Pipeline Footer */}
                 <Box sx={{ bgcolor: "#f9f9f9", borderTop: "1px solid #f0f0f0", py: 0.6 }}>
                     <Grid container sx={{ textAlign: "center" }}>
-                        {STAGES.map((stage, idx) => {
+                        {visibleStages.map((stage, idx) => {
                             const status = stages[stage.key] || (idx === 0 ? "pending" : "locked");
                             const isActive = !fullyCompleted && row.current_stage_key === stage.key;
-                            const isLastStage = idx === STAGES.length - 1;
+                            const isLastStage = idx === visibleStages.length - 1;
 
                             return (
                                 <Grid item key={stage.key} sx={{ flex: 1, px: 0.1 }}>
@@ -562,7 +580,7 @@ export default function ListView() {
                             </div>
                             {sortedSummaryStages.map((row) => {
                                 const label =
-                                    STAGES.find((s) => s.key === row.current_stage_key)?.label ||
+                                    STAGE_LABEL_BY_KEY[row.current_stage_key] ||
                                     row.current_stage_key ||
                                     "-";
                                 const stageKey = row.current_stage_key;
