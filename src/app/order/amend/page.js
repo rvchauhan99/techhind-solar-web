@@ -31,8 +31,12 @@ const normalizeRoleName = (value) =>
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "");
 
-const STAGES = [
+const STATIC_STAGE_TABS = Object.freeze([
     { key: "basic", label: "Basic Details" },
+    { key: "history", label: "Amendment History" },
+]);
+
+const PIPELINE_STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
     { key: "estimate_paid", label: "Estimate Paid" },
     { key: "planner", label: "Planner" },
@@ -44,8 +48,19 @@ const STAGES = [
     { key: "netmeter_installed", label: "Netmeter Installed" },
     { key: "subsidy_claim", label: "Subsidy Claim" },
     { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
-    { key: "history", label: "Amendment History" },
 ];
+
+const SUBSIDY_STAGE_KEYS = new Set(["subsidy_claim", "subsidy_disbursed"]);
+
+const getVisiblePipelineStages = (stagesStatus) => {
+    const hasStagesObject = stagesStatus && typeof stagesStatus === "object" && !Array.isArray(stagesStatus);
+    if (!hasStagesObject) return PIPELINE_STAGES;
+    const hasSubsidyStages =
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_claim") ||
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_disbursed");
+    if (hasSubsidyStages) return PIPELINE_STAGES;
+    return PIPELINE_STAGES.filter((stage) => !SUBSIDY_STAGE_KEYS.has(stage.key));
+};
 
 const DOCUMENT_TYPES = [
     { key: "electricity_bill", label: "Electricity Bill" },
@@ -93,6 +108,25 @@ function AmendOrderPageContent() {
         [modulePermissions, currentModuleId]
     );
     const hasUpdatePermission = currentPerm ? currentPerm.can_update === true : true;
+    const isSuperAdmin = roleName === "superadmin";
+    const visiblePipelineStages = useMemo(
+        () => getVisiblePipelineStages(orderData?.stages),
+        [orderData?.stages]
+    );
+    const stageTabs = useMemo(
+        () => [STATIC_STAGE_TABS[0], ...visiblePipelineStages, STATIC_STAGE_TABS[1]],
+        [visiblePipelineStages]
+    );
+    const activeStage = stageTabs[tabValue] || stageTabs[0];
+    const activeStageKey = activeStage?.key || "basic";
+    const isPipelineStage = visiblePipelineStages.some((stage) => stage.key === activeStageKey);
+    const activeStageStatus = isPipelineStage
+        ? (orderData?.stages?.[activeStageKey] || "locked")
+        : null;
+    const canMarkComplete =
+        isSuperAdmin &&
+        isPipelineStage &&
+        activeStageStatus !== "completed";
 
     const fetchOrderData = async () => {
         if (!orderId) {
@@ -139,6 +173,22 @@ function AmendOrderPageContent() {
         fetchHistory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderId]);
+
+    useEffect(() => {
+        if (!stageTabs.length) return;
+        const currentStageKey = orderData?.current_stage_key;
+        if (!currentStageKey) return;
+        const idx = stageTabs.findIndex((stage) => stage.key === currentStageKey);
+        if (idx >= 0) {
+            setTabValue(idx);
+        }
+    }, [orderData?.current_stage_key, stageTabs]);
+
+    useEffect(() => {
+        if (tabValue >= stageTabs.length) {
+            setTabValue(0);
+        }
+    }, [tabValue, stageTabs.length]);
 
     const requestStepUpConfirmation = ({ execute }) =>
         new Promise((resolve, reject) => {
@@ -267,6 +317,25 @@ function AmendOrderPageContent() {
         }
     };
 
+    const handleMarkStageComplete = async () => {
+        if (!orderId || !activeStageKey || !canMarkComplete) return;
+        try {
+            await requestStepUpConfirmation({
+                execute: ({ reason, password }) =>
+                    orderService.amendOrderStage(orderId, {
+                        stage_key: activeStageKey,
+                        status: "completed",
+                        amendment_reason: reason,
+                        current_password: password,
+                    }),
+            });
+        } catch (err) {
+            if (err?.cancelled) return;
+            const msg = err?.response?.data?.message || err?.message || "Failed to mark stage complete";
+            toastError(msg);
+        }
+    };
+
     const title = orderData?.order_number ? `Order Amend - ${orderData.order_number}` : "Order Amend";
 
     if (loading) {
@@ -310,19 +379,33 @@ function AmendOrderPageContent() {
                     scrollButtons="auto"
                     sx={{ ".MuiTab-root": { textTransform: "none", minHeight: 36, py: 0.5 } }}
                 >
-                    {STAGES.map((stage) => (
+                    {stageTabs.map((stage) => (
                         <Tab key={stage.key} label={stage.label} />
                     ))}
                 </Tabs>
             </Paper>
 
-            {tabValue === 0 && <OrderForm defaultValues={orderData || {}} onSubmit={handleBasicSubmit} />}
-            {tabValue === 1 && <EstimateGenerated orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 2 && (
+            {isPipelineStage && (
+                <Box sx={{ mb: 1, display: "flex", justifyContent: "flex-end" }}>
+                    <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={handleMarkStageComplete}
+                        disabled={!canMarkComplete}
+                    >
+                        {activeStageStatus === "completed" ? "Stage Completed" : "Mark Stage Complete"}
+                    </Button>
+                </Box>
+            )}
+
+            {activeStageKey === "basic" && <OrderForm defaultValues={orderData || {}} onSubmit={handleBasicSubmit} />}
+            {activeStageKey === "estimate_generated" && <EstimateGenerated orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "estimate_paid" && (
                 <EstimatePaid orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} amendMode />
             )}
-            {tabValue === 3 && <Planner orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 4 && (
+            {activeStageKey === "planner" && <Planner orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "delivery" && (
                 <ChallanTabs
                     orderId={orderId}
                     orderData={orderData}
@@ -332,16 +415,20 @@ function AmendOrderPageContent() {
                     onRefresh={fetchOrderData}
                 />
             )}
-            {tabValue === 5 && <AssignFabricatorAndInstaller orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 6 && <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 7 && <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 8 && <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} amendMode />}
-            {tabValue === 9 && (
+            {activeStageKey === "assign_fabricator_and_installer" && (
+                <AssignFabricatorAndInstaller orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />
+            )}
+            {activeStageKey === "fabrication" && <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "installation" && <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "netmeter_apply" && (
+                <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} amendMode />
+            )}
+            {activeStageKey === "netmeter_installed" && (
                 <NetMeterInstalled orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} amendMode />
             )}
-            {tabValue === 10 && <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 11 && <SubsidyDisbursed orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
-            {tabValue === 12 && (
+            {activeStageKey === "subsidy_claim" && <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "subsidy_disbursed" && <SubsidyDisbursed orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
+            {activeStageKey === "history" && (
                 <Paper elevation={0} sx={{ p: 1, border: "1px solid", borderColor: "divider", borderRadius: 1 }}>
                     <Typography variant="subtitle2" sx={{ mb: 1 }}>
                         Amendment History
