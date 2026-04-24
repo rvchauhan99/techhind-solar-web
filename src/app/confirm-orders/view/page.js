@@ -440,12 +440,13 @@ function ConfirmedOrderViewPageContent() {
         const currentIndex = visibleStages.findIndex((s) => s.key === currentStageKey);
         if (currentIndex !== -1) {
             setTabValue(currentIndex);
-            return;
         }
-        if (tabValue >= visibleStages.length) {
-            setTabValue(0);
-        }
-    }, [currentStageKey, visibleStages, tabValue]);
+    }, [currentStageKey, visibleStages]);
+
+    useEffect(() => {
+        if (!visibleStages.length) return;
+        setTabValue((prev) => (prev >= visibleStages.length ? 0 : prev));
+    }, [visibleStages.length]);
 
     if (loading) {
         return (
