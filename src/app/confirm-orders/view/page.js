@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
     Box,
@@ -110,10 +110,35 @@ const STAGES = [
     { key: "subsidy_disbursed", label: "Subsidy Disbursed" },
 ];
 
+const STAGE_WITHOUT_SUBSIDY_KEYS = new Set(["subsidy_claim", "subsidy_disbursed"]);
+const DEFAULT_STAGE_STATUS = {
+    estimate_generated: "pending",
+    estimate_paid: "locked",
+    planner: "locked",
+    delivery: "locked",
+    assign_fabricator_and_installer: "locked",
+    fabrication: "locked",
+    installation: "locked",
+    netmeter_apply: "locked",
+    netmeter_installed: "locked",
+    subsidy_claim: "locked",
+    subsidy_disbursed: "locked",
+};
+
+const getVisibleStages = (stagesStatus) => {
+    const hasStagesObject = stagesStatus && typeof stagesStatus === "object" && !Array.isArray(stagesStatus);
+    if (!hasStagesObject) return STAGES;
+    const hasSubsidyStages =
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_claim") ||
+        Object.prototype.hasOwnProperty.call(stagesStatus, "subsidy_disbursed");
+    if (hasSubsidyStages) return STAGES;
+    return STAGES.filter((stage) => !STAGE_WITHOUT_SUBSIDY_KEYS.has(stage.key));
+};
+
 // --- Components ---
 
-function TabPanel({ children, value, index }) {
-    const noTabPadding = index === 3 || index === 6;
+function TabPanel({ children, value, index, stageKey }) {
+    const noTabPadding = stageKey === "delivery" || stageKey === "installation";
     return (
         <div hidden={value !== index} style={{ padding: noTabPadding ? "0" : "10px 0" }}>
             {value === index && children}
@@ -121,9 +146,7 @@ function TabPanel({ children, value, index }) {
     );
 }
 
-const PipelineStages = ({ currentStageKey, stagesStatus = {}, onStageClick }) => {
-    const stages = STAGES;
-
+const PipelineStages = ({ currentStageKey, stages = STAGES, stagesStatus = {}, onStageClick }) => {
     const getIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" />;
         if (status === "pending") return <EventIcon color="error" />;
@@ -283,15 +306,6 @@ function ConfirmedOrderViewPageContent() {
     }, [orderId]);
 
     useEffect(() => {
-        if (orderData?.current_stage_key) {
-            const index = STAGES.findIndex(s => s.key === orderData.current_stage_key);
-            if (index !== -1) {
-                setTabValue(index);
-            }
-        }
-    }, [orderData?.current_stage_key]);
-
-    useEffect(() => {
         if (!isSuperAdmin) return;
         let mounted = true;
         const loadUsers = async () => {
@@ -418,6 +432,21 @@ function ConfirmedOrderViewPageContent() {
         }
     }, [orderData, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, fetchOrderData]);
 
+    const pipelineStages = useMemo(() => orderData?.stages || DEFAULT_STAGE_STATUS, [orderData?.stages]);
+    const visibleStages = useMemo(() => getVisibleStages(pipelineStages), [pipelineStages]);
+    const currentStageKey = orderData?.current_stage_key;
+    useEffect(() => {
+        if (!visibleStages.length) return;
+        const currentIndex = visibleStages.findIndex((s) => s.key === currentStageKey);
+        if (currentIndex !== -1) {
+            setTabValue(currentIndex);
+            return;
+        }
+        if (tabValue >= visibleStages.length) {
+            setTabValue(0);
+        }
+    }, [currentStageKey, visibleStages, tabValue]);
+
     if (loading) {
         return (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -432,22 +461,6 @@ function ConfirmedOrderViewPageContent() {
         );
     }
 
-    // Default status for stages if not present in data
-    const pipelineStages = orderData?.stages || {
-        estimate_generated: "pending",
-        estimate_paid: "locked",
-        planner: "locked",
-        delivery: "locked",
-        assign_fabricator_and_installer: "locked",
-        fabrication: "locked",
-        installation: "locked",
-        netmeter_apply: "locked",
-        netmeter_installed: "locked",
-        subsidy_claim: "locked",
-        subsidy_disbursed: "locked",
-    };
-
-    const currentStageKey = orderData?.current_stage_key;
     const totalReceivedAmount = getOrderReceivedAmount(orderData);
     const outstandingAmount = getOrderOutstandingAmount(orderData);
     const renderOrderDetailsSidebar = () => (
@@ -564,6 +577,58 @@ function ConfirmedOrderViewPageContent() {
         </Paper>
     );
 
+    const renderStagePanel = (stageKey) => {
+        switch (stageKey) {
+            case "estimate_generated":
+                return (
+                    <EstimateGenerated
+                        orderId={orderId}
+                        orderData={orderData}
+                        orderDocuments={orderDocuments}
+                        onSuccess={fetchOrderData}
+                    />
+                );
+            case "estimate_paid":
+                return (
+                    <EstimatePaid
+                        orderId={orderId}
+                        orderData={orderData}
+                        orderDocuments={orderDocuments}
+                        onSuccess={fetchOrderData}
+                    />
+                );
+            case "planner":
+                return <Planner orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            case "delivery":
+                return (
+                    <ChallanTabs
+                        orderId={orderId}
+                        orderData={orderData}
+                        NewChallanComponent={NewChallanForm}
+                        PreviousChallansComponent={PreviousChallans}
+                        onTabChange={setTabValue}
+                        onRefresh={fetchOrderData}
+                    />
+                );
+            case "assign_fabricator_and_installer":
+                return <AssignFabricatorAndInstaller orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            case "fabrication":
+                return <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            case "installation":
+                return <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            case "netmeter_apply":
+                return <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} />;
+            case "netmeter_installed":
+                return <NetMeterInstalled orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} />;
+            case "subsidy_claim":
+                return <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            case "subsidy_disbursed":
+                return <SubsidyDisbursed orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />;
+            default:
+                return null;
+        }
+    };
+
     return (
         <Box>
             <Box px={1} py={0.5} display="flex" justifyContent="space-between" alignItems="center">
@@ -616,6 +681,7 @@ function ConfirmedOrderViewPageContent() {
             {/* Pipeline Top Bar */}
             <PipelineStages
                 currentStageKey={currentStageKey}
+                stages={visibleStages}
                 stagesStatus={pipelineStages}
                 onStageClick={(index) => setTabValue(index)}
             />
@@ -631,9 +697,9 @@ function ConfirmedOrderViewPageContent() {
                             scrollButtons="auto"
                             sx={{ borderBottom: 1, borderColor: "divider", flexShrink: 0 }}
                         >
-                            {STAGES.map((stage, idx) => {
+                            {visibleStages.map((stage, idx) => {
                                 const status = pipelineStages[stage.key] || (idx === 0 ? "pending" : "locked");
-                                const currentStageIndex = STAGES.findIndex(s => s.key === currentStageKey);
+                                const currentStageIndex = visibleStages.findIndex((s) => s.key === currentStageKey);
                                 const isLocked = status === "locked" && idx > currentStageIndex;
                                 return (
                                     <Tab
@@ -650,70 +716,11 @@ function ConfirmedOrderViewPageContent() {
                         </Tabs>
 
                         <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-                            <TabPanel value={tabValue} index={0}>
-                                <Box>
-                                    <EstimateGenerated
-                                        orderId={orderId}
-                                        orderData={orderData}
-                                        orderDocuments={orderDocuments}
-                                        onSuccess={fetchOrderData}
-                                    />
-                                </Box>
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={1}>
-                                <Box>
-                                    <EstimatePaid
-                                        orderId={orderId}
-                                        orderData={orderData}
-                                        orderDocuments={orderDocuments}
-                                        onSuccess={fetchOrderData}
-                                    />
-                                </Box>
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={2}>
-                                <Box>
-                                    <Planner
-                                        orderId={orderId}
-                                        orderData={orderData}
-                                        onSuccess={fetchOrderData}
-                                    />
-                                </Box>
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={3}>
-                                <Box>
-                                    <ChallanTabs
-                                        orderId={orderId}
-                                        orderData={orderData}
-                                        NewChallanComponent={NewChallanForm}
-                                        PreviousChallansComponent={PreviousChallans}
-                                        onTabChange={setTabValue}
-                                        onRefresh={fetchOrderData}
-                                    />
-                                </Box>
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={4}>
-                                <AssignFabricatorAndInstaller orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={5}>
-                                <Fabrication orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={6}>
-                                <Installation orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={7}>
-                                <NetMeterApplyTabs orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onRefresh={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={8}>
-                                <NetMeterInstalled orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={9}>
-                                <SubsidyClaim orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
-                            </TabPanel>
-                            <TabPanel value={tabValue} index={10}>
-                                <SubsidyDisbursed orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} />
-                            </TabPanel>
+                            {visibleStages.map((stage, idx) => (
+                                <TabPanel key={stage.key} value={tabValue} index={idx} stageKey={stage.key}>
+                                    {renderStagePanel(stage.key)}
+                                </TabPanel>
+                            ))}
                         </div>
                     </Paper>
                 </Grid>
