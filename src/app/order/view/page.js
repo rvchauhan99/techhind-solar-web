@@ -40,6 +40,7 @@ import {
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
+import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
@@ -1322,14 +1323,14 @@ function OrderViewPageContent() {
                                     {orderData?.customer_name || "N/A"}
                                 </Typography>
 
-                                <Typography variant="body2" color="text.secondary" mt={2}>Mobile No:</Typography>
+                                <Typography variant="body2" color="text.secondary" mt={2}>Contact No:</Typography>
                                 <Typography variant="body1" display="flex" alignItems="center" gap={0.5}>
                                     <PhoneIcon fontSize="small" color="primary" />
-                                    {orderData?.mobile_number || "N/A"}
+                                    {getPrimaryPhone(orderData || {})}
                                 </Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Address:</Typography>
-                                <Typography variant="body1">{orderData?.address || "N/A"}</Typography>
+                                <Typography variant="body1">{getFullOrderAddress(orderData || {})}</Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Reference:</Typography>
                                 <Typography variant="body1">{orderData?.reference_from || "N/A"}</Typography>
