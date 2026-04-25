@@ -29,16 +29,20 @@ export const formatKw = (value) => {
 
 export const getPrimaryPhone = (order) => order?.mobile_number || order?.phone_no || "-";
 
-export const compactAddress = (order) => {
+export const getFullOrderAddress = (order) => {
     const parts = [
         order?.address,
         order?.landmark_area,
         order?.taluka,
         order?.district,
+        order?.city_name,
+        order?.state_name,
         order?.pin_code,
     ].filter((v) => v && String(v).trim() !== "");
     return parts.length ? parts.join(", ") : "-";
 };
+
+export const compactAddress = (order) => getFullOrderAddress(order);
 
 export const safeValue = (value) => {
     if (value == null) return "-";

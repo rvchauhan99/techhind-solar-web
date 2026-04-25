@@ -173,7 +173,7 @@ export default function OrderDetailsDrawer({
                     <SectionTitle>Customer Profile</SectionTitle>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
                         <DetailRow label="Name" value={safeValue(resolvedOrder?.customer_name)} />
-                        <DetailRow label="Contact" value={safeValue(getPrimaryPhone(resolvedOrder || {}))} />
+                        <DetailRow label="Contact No" value={safeValue(getPrimaryPhone(resolvedOrder || {}))} />
                         <div className="sm:col-span-2">
                             <DetailRow label="Address" value={safeValue(resolvedOrder ? compactAddress(resolvedOrder) : "-")} />
                         </div>
