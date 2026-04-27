@@ -420,6 +420,36 @@ export default function QuotationManagerApprovalPage() {
           </Badge>
         ),
       },
+      ...(activeTab === TAB_HISTORY
+        ? [
+            {
+              field: "approved_by_name",
+              label: "Approved By",
+              width: 160,
+              minWidth: 140,
+              render: (row) =>
+                row.approved_by_name ||
+                row.rejected_by_name ||
+                row.approved_by ||
+                row.rejected_by ||
+                "-",
+            },
+            {
+              field: "approval_remarks",
+              label: "Approval Reason",
+              width: 190,
+              minWidth: 170,
+              render: (row) => row.approval_remarks || "-",
+            },
+            {
+              field: "rejection_reason",
+              label: "Rejection Reason",
+              width: 190,
+              minWidth: 170,
+              render: (row) => row.rejection_reason || "-",
+            },
+          ]
+        : []),
       {
         field: "actions",
         label: "Actions",

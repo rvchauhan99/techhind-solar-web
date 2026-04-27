@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import {
   IconChecklist,
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import DateField from "@/components/common/DateField";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
+import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import DocumentAuditTable from "./components/DocumentAuditTable";
 
@@ -70,6 +71,9 @@ export default function DocumentAuditPage() {
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const searchFeedbackTimerRef = useRef(null);
 
   const activeCount = countActive(appliedFilters);
   const chips = getChips(appliedFilters);
@@ -85,12 +89,36 @@ export default function DocumentAuditPage() {
     setAppliedFilters(INITIAL_FILTERS);
     setRefreshKey((k) => k + 1);
   };
+  const handleQuickSearchChange = (value) => {
+    const nextSearch = value ?? "";
+    setQuickSearch(nextSearch);
+    setIsSearching(true);
+    if (searchFeedbackTimerRef.current) clearTimeout(searchFeedbackTimerRef.current);
+    searchFeedbackTimerRef.current = setTimeout(() => setIsSearching(false), 500);
+
+    setFilters((prev) => {
+      const next = { ...prev, search: nextSearch };
+      setAppliedFilters(next);
+      setRefreshKey((k) => k + 1);
+      return next;
+    });
+  };
   const removeChip = (key) => {
     const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
     setFilters(next);
     setAppliedFilters(next);
     setRefreshKey((k) => k + 1);
   };
+
+  useEffect(() => {
+    setQuickSearch(filters.search || "");
+  }, [filters.search]);
+
+  useEffect(() => {
+    return () => {
+      if (searchFeedbackTimerRef.current) clearTimeout(searchFeedbackTimerRef.current);
+    };
+  }, []);
 
   return (
     <ProtectedRoute>
@@ -120,24 +148,33 @@ export default function DocumentAuditPage() {
           </div>
 
           <div className="rounded-xl shadow-sm border border-slate-200 bg-white overflow-visible">
-            <button
-              onClick={() => setFiltersOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-50 transition-colors rounded-xl"
-            >
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                <IconFilter size={12} /> Advanced Filters
-                {activeCount > 0 && (
-                  <Badge variant="secondary" className="text-[10px] h-4 px-1">
-                    {activeCount}
-                  </Badge>
+            <div className="flex flex-col sm:flex-row items-center gap-2 px-2.5 py-1.5">
+              <button
+                onClick={() => setFiltersOpen((o) => !o)}
+                className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-slate-50 transition-colors rounded-lg border border-slate-200 focus:outline-none shrink-0 w-full sm:w-auto"
+              >
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                  <IconFilter size={12} /> Advanced Filters
+                  {activeCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1">
+                      {activeCount}
+                    </Badge>
+                  )}
+                </span>
+                {filtersOpen ? (
+                  <IconChevronUp size={13} className="text-slate-400" />
+                ) : (
+                  <IconChevronDown size={13} className="text-slate-400" />
                 )}
-              </span>
-              {filtersOpen ? (
-                <IconChevronUp size={13} className="text-slate-400" />
-              ) : (
-                <IconChevronDown size={13} className="text-slate-400" />
-              )}
-            </button>
+              </button>
+              <OrderListQuickSearch
+                value={quickSearch}
+                onValueChange={handleQuickSearchChange}
+                isSearching={isSearching}
+                placeholder="Quick Search (Order/Customer/Doc Type/Keyword)"
+                className="w-full sm:w-[320px] sm:ml-auto"
+              />
+            </div>
 
             {filtersOpen && (
               <div className="border-t border-slate-100 px-2.5 py-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">

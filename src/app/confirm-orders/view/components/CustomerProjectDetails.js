@@ -4,6 +4,7 @@ import { Box, Chip, Grid, Typography } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
 import moment from "moment";
 import { COMPACT_SECTION_HEADER_CLASS } from "@/utils/formConstants";
+import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
 
 export default function CustomerProjectDetails({ orderData }) {
   return (
@@ -46,17 +47,17 @@ export default function CustomerProjectDetails({ orderData }) {
         </Typography>
 
         <Typography variant="body2" color="text.secondary" mt={2}>
-          Mobile No:
+          Contact No:
         </Typography>
         <Typography variant="body1" display="flex" alignItems="center" gap={0.5}>
           <PhoneIcon fontSize="small" color="primary" />
-          {orderData?.mobile_number || "N/A"}
+          {getPrimaryPhone(orderData || {})}
         </Typography>
 
         <Typography variant="body2" color="text.secondary" mt={2}>
           Address:
         </Typography>
-        <Typography variant="body1">{orderData?.address || "N/A"}</Typography>
+        <Typography variant="body1">{getFullOrderAddress(orderData || {})}</Typography>
 
         <Typography variant="body2" color="text.secondary" mt={2}>
           Reference:
