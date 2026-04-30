@@ -1,21 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Box, Typography, Paper, Grid, Tooltip, IconButton, Drawer, Chip } from "@mui/material";
+import { Alert, Box, Typography, Paper, Grid, Tooltip, IconButton, Drawer, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Container from "@/components/container";
 import orderService from "@/services/orderService";
@@ -32,6 +22,13 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import EventIcon from "@mui/icons-material/Event";
 import CancelIcon from "@mui/icons-material/Cancel";
 import HelpIcon from "@mui/icons-material/Help";
+import PhoneIcon from "@mui/icons-material/Phone";
+import moment from "moment";
+import {
+    getOrderOutstandingAmount,
+    getOrderProjectCostAmount,
+    getOrderReceivedAmount,
+} from "@/utils/orderPaymentSummary";
 
 const TAB_PENDING = "pending";
 const TAB_HISTORY = "history";
@@ -249,18 +246,43 @@ export default function InstallationManagerApprovalPage() {
 
                 <Box sx={{ p: 2 }}>
                     <Grid container spacing={1}>
-                        <Grid item xs={3}>
-                            {renderOrderDetail("Manager Action Required", isApprovalPending ? "Yes" : "No")}
-                            {renderOrderDetail("Reason/Remarks", row.installation_rejection_reason || row.installation_approval_remarks || row.installation_rejection_remarks || "-")}
+                        <Grid item size={3}>
+                            {renderOrderDetail("Order Date", row.order_date ? moment(row.order_date).format("DD-MM-YYYY") : "-")}
+                            {renderOrderDetail("Capacity", row.capacity ? `${row.capacity} kW` : "-")}
+                            {renderOrderDetail("Consumer No", row.consumer_no)}
+                            {renderOrderDetail("Application", row.application_no)}
+                            {renderOrderDetail("Tags", row.tags)}
                         </Grid>
-                        <Grid item xs={3}>
-                            {renderOrderDetail("Installer", row.installer_name || "-")}
-                            {renderOrderDetail("Fabricator", row.fabricator_name || "-")}
-                        </Grid>
-                        <Grid item xs={3}>
+                        <Grid item size={3}>
+                            <Box mb={0.4}>
+                                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}>
+                                    Mobile No:
+                                </Typography>
+                                <Typography variant="body2" color="primary" fontWeight="bold" sx={{ fontSize: "0.78rem", display: "flex", alignItems: "center", gap: 0.5 }}>
+                                    <PhoneIcon sx={{ fontSize: 12 }} /> {row.mobile_number}
+                                </Typography>
+                            </Box>
                             {renderOrderDetail("Address", row.address)}
+                            {renderOrderDetail("Scheme", row.project_scheme_name)}
+                            {renderOrderDetail("Discom", row.discom_name)}
                         </Grid>
-                        <Grid item xs={3}>
+                        <Grid item size={3}>
+                            {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
+                            {renderOrderDetail("Total Payable", `Rs. ${getOrderProjectCostAmount(row).toLocaleString()}`)}
+                            {renderOrderDetail("Payment Received", `Rs. ${getOrderReceivedAmount(row).toLocaleString()}`)}
+                            <Box mb={0.4}>
+                                <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}>
+                                    Outstanding:
+                                </Typography>
+                                <Typography variant="body2" component="span" sx={{ bgcolor: "#f44336", color: "#fff", px: 0.8, py: 0.1, borderRadius: 0.5, fontWeight: "bold", fontSize: "0.78rem" }}>
+                                    Rs. {getOrderOutstandingAmount(row).toLocaleString()}
+                                </Typography>
+                            </Box>
+                        </Grid>
+                        <Grid item size={3}>
+                            {renderOrderDetail("Manager Action", isApprovalPending ? "Required" : row.installation_approval_status || "-")}
+                            {renderOrderDetail("Remarks", row.installation_rejection_reason || row.installation_approval_remarks || row.installation_rejection_remarks || "-")}
+                            {renderOrderDetail("Installer / Fabricator", `${row.installer_name || "-"} / ${row.fabricator_name || "-"}`)}
                             {renderOrderDetail("Installation Completed At", row.installation_completed_at ? new Date(row.installation_completed_at).toLocaleString() : "-")}
                             {renderOrderDetail("Requested At", row.installation_approval_requested_at ? new Date(row.installation_approval_requested_at).toLocaleString() : "-")}
                         </Grid>
@@ -412,30 +434,24 @@ export default function InstallationManagerApprovalPage() {
                     )}
                 </Drawer>
 
-                <AlertDialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Approve Installation</AlertDialogTitle>
-                            <AlertDialogDescription>Add remarks if needed.</AlertDialogDescription>
-                        </AlertDialogHeader>
+                <Dialog fullWidth maxWidth="sm" open={approveDialogOpen} onClose={() => !actionId && setApproveDialogOpen(false)}>
+                    <DialogTitle>Approve Installation</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText sx={{ mb: 2 }}>Add remarks if needed.</DialogContentText>
                         <Textarea value={approveRemarks} onChange={(e) => setApproveRemarks(e.target.value)} rows={4} />
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleApprove} disabled={!!actionId} loading={!!actionId}>
-                                Approve
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button variant="outline" disabled={!!actionId} onClick={() => setApproveDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleApprove} disabled={!!actionId} loading={!!actionId}>Approve</Button>
+                    </DialogActions>
+                </Dialog>
 
-                <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Reject Installation</AlertDialogTitle>
-                            <AlertDialogDescription>Select rejection reason.</AlertDialogDescription>
-                        </AlertDialogHeader>
+                <Dialog fullWidth maxWidth="sm" open={rejectDialogOpen} onClose={() => !actionId && setRejectDialogOpen(false)}>
+                    <DialogTitle>Reject Installation</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText sx={{ mb: 2 }}>Select rejection reason.</DialogContentText>
                         <select
-                            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm mb-4"
                             value={rejectReasonId}
                             onChange={(e) => setRejectReasonId(e.target.value)}
                         >
@@ -447,18 +463,12 @@ export default function InstallationManagerApprovalPage() {
                             ))}
                         </select>
                         <Textarea value={rejectRemarks} onChange={(e) => setRejectRemarks(e.target.value)} rows={3} />
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={!!actionId}>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={handleReject}
-                                disabled={!!actionId || !rejectReasonId}
-                                loading={!!actionId}
-                            >
-                                Reject
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+                    </DialogContent>
+                    <DialogActions sx={{ p: 2 }}>
+                        <Button variant="outline" disabled={!!actionId} onClick={() => setRejectDialogOpen(false)}>Cancel</Button>
+                        <Button variant="destructive" onClick={handleReject} disabled={!!actionId || !rejectReasonId} loading={!!actionId}>Reject</Button>
+                    </DialogActions>
+                </Dialog>
             </Container>
         </ProtectedRoute>
     );
