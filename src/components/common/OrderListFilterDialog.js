@@ -30,6 +30,7 @@ const FILTER_KEYS = [
   "inquiry_source_id",
   "project_scheme_id",
   "handled_by",
+  "channel_partner_id",
   "order_number",
   "order_date_from",
   "order_date_to",
