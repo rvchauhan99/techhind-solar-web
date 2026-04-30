@@ -134,6 +134,8 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
             // Validate required fields
             const newErrors = {};
             if (!formData.discom_id) newErrors.discom_id = "Discom is required";
+            if (!formData.division_id) newErrors.division_id = "Division is required";
+            if (!formData.sub_division_id) newErrors.sub_division_id = "Sub Division is required";
             if (!formData.date_of_registration_gov) newErrors.date_of_registration_gov = "Date of Registration is required";
             if (!formData.application_no) newErrors.application_no = "Application No is required";
             if (!formData.feasibility_date) newErrors.feasibility_date = "Date of Feasibility is required";
@@ -201,12 +203,15 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
                     <AutocompleteField
                         name="division_id"
                         label="Division"
+                        required
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("division.model", { q, limit: 20 })}
                         referenceModel="division.model"
                         getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                         value={formData.division_id ? { id: formData.division_id } : null}
                         onChange={(e, newValue) => handleChange("division_id", newValue?.id ?? "")}
                         placeholder="Type to search..."
+                        error={!!errors.division_id}
+                        helperText={errors.division_id}
                     />
                 </Grid>
 
@@ -214,12 +219,15 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
                     <AutocompleteField
                         name="sub_division_id"
                         label="Sub Division"
+                        required
                         asyncLoadOptions={(q) => getReferenceOptionsSearch("sub_division.model", { q, limit: 20 })}
                         referenceModel="sub_division.model"
                         getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                         value={formData.sub_division_id ? { id: formData.sub_division_id } : null}
                         onChange={(e, newValue) => handleChange("sub_division_id", newValue?.id ?? "")}
                         placeholder="Type to search..."
+                        error={!!errors.sub_division_id}
+                        helperText={errors.sub_division_id}
                     />
                 </Grid>
 
