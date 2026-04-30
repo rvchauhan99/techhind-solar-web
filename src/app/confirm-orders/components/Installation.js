@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import companyService from "@/services/companyService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import { toastSuccess, toastError, toastWarning, toastInfo } from "@/utils/toast";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
@@ -80,11 +81,20 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
     const { user } = useAuth();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const isStageCompleted = orderData?.stages?.installation === "completed";
+    const installationApprovalStatus = String(orderData?.installation_approval_status || "").toLowerCase();
+    const isApprovalPending = installationApprovalStatus === "pending_approval";
+    const isApprovalRejected = installationApprovalStatus === "rejected";
+    const isApprovalApproved = installationApprovalStatus === "approved";
     const isCompleted = isStageCompleted && !amendMode;
-    const canComplete = orderData?.stages?.fabrication === "completed" && !isStageCompleted && !isReadOnly;
+    const canComplete =
+        orderData?.stages?.fabrication === "completed" &&
+        !isStageCompleted &&
+        !isReadOnly &&
+        !isApprovalPending;
 
     const [canPerform, setCanPerform] = useState(false);
     const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
+    const [approvalRequiredConfig, setApprovalRequiredConfig] = useState(false);
     const [formData, setFormData] = useState({
         installation_start_date: "",
         installation_end_date: "",
@@ -255,6 +265,42 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
         orderData?.fabricator_installer_are_same,
         user?.id,
     ]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const parseConfigRow = (rows) => {
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const raw = row?.config_value ?? row?.value ?? row?.label ?? "";
+            const parsed = String(raw).trim().toLowerCase();
+            return parsed === "true" || parsed === "1" || parsed === "yes";
+        };
+        getReferenceOptionsSearch("platform_config.model", {
+            config_key: "enable_installation_approval",
+            is_active: true,
+            limit: 1,
+        })
+            .then((rows) => {
+                if (cancelled) return;
+                if (Array.isArray(rows) && rows.length > 0) {
+                    setApprovalRequiredConfig(parseConfigRow(rows));
+                    return;
+                }
+                return getReferenceOptionsSearch("platform_config.model", {
+                    config_key: "enableInstallationApproval",
+                    is_active: true,
+                    limit: 1,
+                }).then((legacyRows) => {
+                    if (cancelled) return;
+                    setApprovalRequiredConfig(parseConfigRow(legacyRows));
+                });
+            })
+            .catch(() => {
+                if (!cancelled) setApprovalRequiredConfig(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -977,8 +1023,11 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
             };
             await orderService.saveInstallation(orderId, payload);
             setImages(finalImages);
-            setSuccessMsg(complete ? "Installation stage completed successfully!" : "Installation saved.");
-            toastSuccess(complete ? "Installation stage completed successfully!" : "Saved.");
+            const completeSuccessMsg = approvalRequiredConfig
+                ? "Installation submitted for manager approval."
+                : "Installation stage completed successfully!";
+            setSuccessMsg(complete ? completeSuccessMsg : "Installation saved.");
+            toastSuccess(complete ? completeSuccessMsg : "Saved.");
             setMismatchData(null);
             setForceAdjustDialogOpen(false);
             setForceAdjustReason("");
@@ -1001,7 +1050,12 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
         }
     };
 
-    const disabled = isCompleted || isReadOnly || (!isReadOnly && !canPerform);
+    const disabled =
+        isReadOnly ||
+        (!isReadOnly && !canPerform) ||
+        isApprovalPending ||
+        isApprovalApproved ||
+        (isCompleted && !isApprovalRejected);
     const requiredInstallationImageKeys = useMemo(
         () => INSTALLATION_IMAGE_KEYS.filter((k) => k.required),
         []
@@ -1856,7 +1910,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 disabled={disabled || !allInstallationSerialsFilled}
                                 onClick={(e) => handleSubmit(e, true)}
                             >
-                                Complete Installation
+                                {approvalRequiredConfig ? "Submit for Approval" : "Complete Installation"}
                             </Button>
                         )}
                     </div>
@@ -1871,10 +1925,22 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 Complete Fabrication to unlock Installation.
                             </Typography>
                         )}
+                        {isApprovalPending && (
+                            <Typography variant="caption" color="warning.main" sx={{ display: "block", lineHeight: 1.2 }}>
+                                Submitted for warehouse manager approval. Editing is locked until decision.
+                            </Typography>
+                        )}
                     </div>
                 </Box>
                 {error && <Alert severity="error" sx={{ py: 0, '& .MuiAlert-message': { py: 1 } }}>{error}</Alert>}
                 {successMsg && <Alert severity="success" sx={{ py: 0, '& .MuiAlert-message': { py: 1 } }}>{successMsg}</Alert>}
+                {isApprovalRejected && (
+                    <Alert severity="warning" sx={{ py: 0, '& .MuiAlert-message': { py: 1 } }}>
+                        Rejected by manager
+                        {orderData?.installation_rejection_reason ? `: ${orderData.installation_rejection_reason}` : ""}.
+                        Please correct and resubmit.
+                    </Alert>
+                )}
                 {mismatchData && (
                     <Alert severity="warning" sx={{ mt: 1 }}>
                         <Typography variant="body2" fontWeight={600}>
