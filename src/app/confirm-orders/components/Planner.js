@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import Loader from "@/components/common/Loader";
 import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
-import quotationService from "@/services/quotationService";
+import productService from "@/services/productService";
 import projectPriceService from "@/services/projectPriceService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
@@ -588,10 +588,12 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
             });
             const previewCapacityKwForSave = computeBomCapacityPreviewKw(planForSave);
 
-            // Build updated BOM snapshot from merged plan (includes new lines from Add item)
+            // Build updated BOM snapshot from raw plan rows (not merged-by-product).
+            // This preserves additive planner_added rows so backend non-superadmin guard
+            // treats "same product add" as append, not existing-line quantity mutation.
             let updatedBomSnapshot = Array.isArray(orderData?.bom_snapshot) ? orderData.bom_snapshot : [];
-            if (Array.isArray(planForSave) && planForSave.length > 0) {
-                updatedBomSnapshot = planForSave.map((line) => {
+            if (Array.isArray(bomPlan) && bomPlan.length > 0) {
+                updatedBomSnapshot = bomPlan.map((line) => {
                     const { __rowKey, planned, planner_added, ...rest } = line;
                     const qty = (n, fallback) => {
                         if (n === "" || n == null) return fallback;
@@ -942,8 +944,15 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const fetchProductsForBom = async () => {
         setLoadingProducts(true);
         try {
-            const res = await quotationService.getAllProducts();
-            const data = res?.result ?? res?.data ?? res ?? [];
+            // Use product reference API so planner under /confirm-orders does not require /quotation module access.
+            const res = await productService.getProducts({ page: 1, limit: 10000, visibility: "active" });
+            const data =
+                res?.result?.data ??
+                res?.data?.data ??
+                res?.result ??
+                res?.data ??
+                res ??
+                [];
             setProductsForBom(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to fetch products:", err);
