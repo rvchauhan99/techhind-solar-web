@@ -1,5 +1,16 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## AI Context (Read First)
+
+Before planning or implementing frontend tasks, read:
+- `ai-context/architecture.md`
+- `ai-context/modules.md`
+- `ai-context/flows.md`
+- `ai-context/rules.md`
+- `ai-context/entry-points.md`
+
+When frontend behavior, routes, or functionality changes, update the relevant `ai-context` file(s) in the same change.
+
 ## Getting Started
 
 First, run the development server:
