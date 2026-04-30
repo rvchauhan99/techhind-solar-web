@@ -32,6 +32,7 @@ const FILTER_KEYS = [
   "inquiry_source_id",
   "project_scheme_id",
   "handled_by",
+  "channel_partner_id",
   "order_number",
   "order_date_from",
   "order_date_to",
@@ -78,6 +79,12 @@ const CANCELLED_STAGE_OPTIONS = [
   { value: "before_confirmation", label: "Before Confirmation" },
   { value: "after_confirmation", label: "After Confirmation" },
 ];
+const CHANNEL_PARTNER_NA_VALUE = "__na__";
+const CHANNEL_PARTNER_NA_OPTION = {
+  id: CHANNEL_PARTNER_NA_VALUE,
+  name: "NA (Not Available)",
+  label: "NA (Not Available)",
+};
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
 
@@ -227,6 +234,7 @@ export default function OrderListFilterPanel({
       inquiry_source_id: "Source",
       project_scheme_id: "Project Scheme",
       handled_by: "User",
+      channel_partner_id: "Channel Partner",
       current_stage_key: "Stage",
       order_number: "Order No",
       order_date_from: "Date From",
@@ -374,6 +382,35 @@ export default function OrderListFilterPanel({
             value={localValues.handled_by ? { id: localValues.handled_by } : null}
             onChange={(e, v) => handleChange("handled_by", v?.id ? String(v.id) : "")}
             placeholder="Search user…"
+          />
+          <AutocompleteField
+            usePortal={true}
+            name="channel_partner_id"
+            label="Channel Partner"
+            asyncLoadOptions={async (q) => {
+              const rows = await getReferenceOptionsSearch("user.model", {
+                q,
+                limit: 20,
+                status_in: "active,inactive",
+              });
+              const options = Array.isArray(rows) ? rows : [];
+              return [CHANNEL_PARTNER_NA_OPTION, ...options];
+            }}
+            referenceModel="user.model"
+            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            resolveOptionById={async (id) => {
+              const resolvedId = String(id ?? "").trim();
+              if (!resolvedId) return null;
+              if (resolvedId === CHANNEL_PARTNER_NA_VALUE) return CHANNEL_PARTNER_NA_OPTION;
+              try {
+                return await mastersService.getReferenceOptionById("user.model", resolvedId);
+              } catch {
+                return null;
+              }
+            }}
+            value={localValues.channel_partner_id ? { id: localValues.channel_partner_id } : null}
+            onChange={(e, v) => handleChange("channel_partner_id", v?.id ? String(v.id) : "")}
+            placeholder="Search partner…"
           />
           {variant !== "cancelled" && (
             <Select name="current_stage_key" label="Order Stage" value={localValues.current_stage_key} onChange={(e) => handleChange("current_stage_key", e.target.value)}>
