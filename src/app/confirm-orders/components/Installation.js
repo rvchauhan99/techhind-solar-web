@@ -76,10 +76,10 @@ function getDocumentUrlById(id) {
     return orderDocumentsService.getDocumentUrl(id);
 }
 
-export default function Installation({ orderId, orderData, onSuccess, amendMode = false }) {
+export default function Installation({ orderId, orderData, onSuccess, amendMode = false, forceReadOnly = false }) {
     const pathname = usePathname();
     const { user } = useAuth();
-    const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
+    const isReadOnly = forceReadOnly || pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const isStageCompleted = orderData?.stages?.installation === "completed";
     const installationApprovalStatus = String(orderData?.installation_approval_status || "").toLowerCase();
     const isApprovalPending = installationApprovalStatus === "pending_approval";
