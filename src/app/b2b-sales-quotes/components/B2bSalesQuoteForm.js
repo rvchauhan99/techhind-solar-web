@@ -559,7 +559,7 @@ export default function B2bSalesQuoteForm({
                                 <div>
                                     <AutocompleteField
                                         asyncLoadOptions={async (q) => {
-                                            const res = await productService.getProducts({ q, limit: 20 });
+                                            const res = await productService.getProducts({ q, limit: 20, visibility: "active" });
                                             const data = res?.result?.data ?? res?.data ?? [];
                                             return data.map((p) => ({
                                                 id: p.id,

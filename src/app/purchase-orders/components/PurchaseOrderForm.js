@@ -700,7 +700,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     placeholder="Search and select product"
                                     options={[]}
                                     asyncLoadOptions={async (q) => {
-                                        const res = await productService.getProducts({ q: q || undefined, limit: 20 });
+                                        const res = await productService.getProducts({ q: q || undefined, limit: 20, visibility: "active" });
                                         const data = res?.result?.data ?? res?.data ?? [];
                                         return Array.isArray(data) ? data : [];
                                     }}

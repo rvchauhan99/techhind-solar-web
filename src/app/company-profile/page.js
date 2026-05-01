@@ -31,7 +31,7 @@ import { DIALOG_FORM_SMALL, DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import companyService from "@/services/companyService";
 import userMasterService from "@/services/userMasterService";
 import quotationTemplateService from "@/services/quotationTemplateService";
-import { getDefaultState } from "@/services/mastersService";
+import { getDefaultState, getDefaultBranch } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
@@ -733,13 +733,8 @@ export default function CompanyProfilePage() {
     // Warehouse Handlers
     const handleWarehouseInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        // Convert IDs to number for Select/Autocomplete components
         let processedValue = value;
-        if ((name === "state_id" || name === "branch_id") && value !== "") {
-            processedValue = Number(value);
-        } else if (type === "checkbox") {
-            processedValue = checked;
-        }
+        if (type === "checkbox") processedValue = checked;
 
         setWarehouseFormData((prev) => ({
             ...prev,
@@ -885,6 +880,7 @@ export default function CompanyProfilePage() {
             email: warehouse.email || "",
             phone_no: warehouse.phone_no || "",
             address: warehouse.address || "",
+            branch_id: warehouse.branch_id ?? warehouse.branch?.id ?? null,
             is_active: warehouse.is_active !== undefined ? warehouse.is_active : true,
         });
         setWarehouseErrors({});
@@ -1047,6 +1043,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            branch_id: null,
             is_active: true,
         };
 
@@ -1060,6 +1057,18 @@ export default function CompanyProfilePage() {
         } catch (err) {
             console.error("Failed to load default state:", err);
             // Continue without default state
+        }
+
+        // Try to load default branch (same behavior as quotation branch field)
+        try {
+            const defaultBranchRes = await getDefaultBranch();
+            const defaultBranch = defaultBranchRes?.result || defaultBranchRes?.data || defaultBranchRes;
+            if (defaultBranch?.id) {
+                initialFormData.branch_id = defaultBranch.id;
+            }
+        } catch (err) {
+            console.error("Failed to load default branch:", err);
+            // Continue without default branch
         }
 
         setWarehouseFormData(initialFormData);
@@ -1078,6 +1087,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            branch_id: null,
             is_active: true,
         });
         setWarehouseErrors({});
@@ -2331,7 +2341,7 @@ export default function CompanyProfilePage() {
                             }}
                             onKeyDown={preventEnterSubmit}
                         >
-                            <div className="flex-1 min-h-0 overflow-y-auto pt-2">
+                            <div className="flex-1 min-h-0 overflow-visible pt-2">
                                 <FormSection title="">
                                     <FormGrid>
                                         <Input
@@ -2648,7 +2658,11 @@ export default function CompanyProfilePage() {
                                             referenceModel="state.model"
                                             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                                             value={warehouseFormData.state_id ? { id: warehouseFormData.state_id } : null}
-                                            onChange={(e, newValue) => handleWarehouseInputChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+                                            onChange={(e, newValue) =>
+                                                handleWarehouseInputChange({
+                                                    target: { name: "state_id", value: newValue?.id ?? newValue?.value ?? "" },
+                                                })
+                                            }
                                             placeholder="Type to search..."
                                             required
                                             error={!!warehouseErrors.state_id}
@@ -2694,10 +2708,11 @@ export default function CompanyProfilePage() {
                                             value={warehouseFormData.branch_id ? { id: warehouseFormData.branch_id } : null}
                                             onChange={(e, newValue) =>
                                                 handleWarehouseInputChange({
-                                                    target: { name: "branch_id", value: newValue?.id ?? "" },
+                                                    target: { name: "branch_id", value: newValue?.id ?? newValue?.value ?? "" },
                                                 })
                                             }
                                             placeholder="Type to search..."
+                                            dropdownPlacement="top"
                                             required
                                             error={!!warehouseErrors.branch_id}
                                             helperText={warehouseErrors.branch_id || ""}
