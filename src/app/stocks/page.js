@@ -264,6 +264,7 @@ export default function StockPage() {
         limit: 50,
         product_type_id: filters.product_type_id || undefined,
         product_make_id: filters.product_make_id || undefined,
+        visibility: "all",
       });
       const data = res?.result?.data || res?.data || [];
       const list = Array.isArray(data) ? data : [];

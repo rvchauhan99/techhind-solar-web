@@ -182,6 +182,7 @@ export default function PurchaseOrderLinesFilterPanel({
         limit: 50,
         product_type_id: localValues.product_type_id || undefined,
         product_make_id: localValues.product_make_id || undefined,
+        visibility: "all",
       });
       const data = res?.result?.data || res?.data || [];
       const list = Array.isArray(data) ? data : [];

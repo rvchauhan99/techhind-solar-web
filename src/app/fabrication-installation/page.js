@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
     Alert,
     Box,
     Chip,
     CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
     Drawer,
     Paper,
     Typography,
@@ -14,14 +19,16 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { IconFilter } from "@tabler/icons-react";
+import { IconFilter, IconClipboardCheck } from "@tabler/icons-react";
 import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import Input from "@/components/common/Input";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
-import { toastError } from "@/utils/toast";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { Textarea } from "@/components/ui/textarea";
+import { toastError, toastSuccess } from "@/utils/toast";
 import {
     compactAddress,
     formatCurrency,
@@ -86,6 +93,22 @@ const priorityColor = (priority) => {
     return "default";
 };
 
+/** Order is waiting on warehouse manager installation approval (see order.installation_approval_*). */
+function isInstallationApprovalPending(order) {
+    if (!order?.installation_approval_required) return false;
+    return String(order.installation_approval_status || "").toLowerCase() === "pending_approval";
+}
+
+const RETURN_TO_FABRICATION_INSTALLATION = "/fabrication-installation";
+
+/** Manager approval URL with safe returnTo so user can be routed back to the fabrication board. */
+function hrefInstallationManagerApproval(orderId) {
+    const p = new URLSearchParams();
+    p.set("returnTo", RETURN_TO_FABRICATION_INSTALLATION);
+    if (orderId != null && orderId !== "") p.set("orderId", String(orderId));
+    return `/installation/manager-approval?${p.toString()}`;
+}
+
 const initialFilters = {
     order_number: "",
     customer_name: "",
@@ -118,6 +141,35 @@ function FabricationInstallationPageContent() {
     const [isSearching, setIsSearching] = useState(false);
     const debounceRef = useRef(null);
     const searchFeedbackRef = useRef(null);
+    const [listReloadTick, setListReloadTick] = useState(0);
+    const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+    const [targetOrderId, setTargetOrderId] = useState(null);
+    const [approveRemarks, setApproveRemarks] = useState("");
+    const [rejectReasonId, setRejectReasonId] = useState("");
+    const [rejectRemarks, setRejectRemarks] = useState("");
+    const [rejectionReasonOptions, setRejectionReasonOptions] = useState([]);
+    const [actionId, setActionId] = useState(null);
+
+    useEffect(() => {
+        let mounted = true;
+        getReferenceOptionsSearch("reason.model", {
+            reason_type: "installation_rejection",
+            is_active: true,
+            limit: 200,
+        })
+            .then((options) => {
+                if (!mounted) return;
+                setRejectionReasonOptions(Array.isArray(options) ? options : []);
+            })
+            .catch(() => {
+                if (!mounted) return;
+                setRejectionReasonOptions([]);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     const handleQuickSearchChange = useCallback((val) => {
         setQuickSearch(val);
@@ -164,7 +216,12 @@ function FabricationInstallationPageContent() {
         };
 
         fetchData();
-    }, [appliedQ, appliedDrawerFilters]);
+    }, [appliedQ, appliedDrawerFilters, listReloadTick]);
+
+    const pendingApprovalCount = useMemo(() => {
+        const list = groupedOrders.pending_installation || [];
+        return list.filter(isInstallationApprovalPending).length;
+    }, [groupedOrders]);
 
     const handleFilterChange = (event) => {
         const { name, value } = event.target;
@@ -204,6 +261,56 @@ function FabricationInstallationPageContent() {
         router.push(`/fabrication-installation/installation/view?id=${orderId}`);
     };
 
+    const reloadLists = () => setListReloadTick((t) => t + 1);
+
+    const openApproveDialog = (orderId) => {
+        setTargetOrderId(orderId);
+        setApproveRemarks("");
+        setApproveDialogOpen(true);
+    };
+
+    const openRejectDialog = (orderId) => {
+        setTargetOrderId(orderId);
+        setRejectReasonId("");
+        setRejectRemarks("");
+        setRejectDialogOpen(true);
+    };
+
+    const handleApprove = async () => {
+        if (!targetOrderId) return;
+        setActionId(targetOrderId);
+        try {
+            await orderService.managerApproveInstallation(targetOrderId, { remarks: approveRemarks || "" });
+            toastSuccess("Installation approved.");
+            setApproveDialogOpen(false);
+            setTargetOrderId(null);
+            reloadLists();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Approval failed.");
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleReject = async () => {
+        if (!targetOrderId || !rejectReasonId) return;
+        setActionId(targetOrderId);
+        try {
+            await orderService.managerRejectInstallation(targetOrderId, {
+                reason_id: Number(rejectReasonId),
+                remarks: rejectRemarks || "",
+            });
+            toastSuccess("Installation rejected.");
+            setRejectDialogOpen(false);
+            setTargetOrderId(null);
+            reloadLists();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Rejection failed.");
+        } finally {
+            setActionId(null);
+        }
+    };
+
     const handlePrintOrder = async (resolvedOrder) => {
         try {
             const file = await orderService.downloadOrderPDF(resolvedOrder?.id);
@@ -238,10 +345,24 @@ function FabricationInstallationPageContent() {
             );
         }
         if (statusKey === "pending_installation") {
+            const approvalPendingRow = isInstallationApprovalPending(order);
             return (
-                <Button size="sm" onClick={() => handleActionInstallation(order.id)}>
-                    Action
-                </Button>
+                <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", alignItems: "center" }}>
+                    {approvalPendingRow ? (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] px-2"
+                            onClick={() => router.push(hrefInstallationManagerApproval(order.id))}
+                        >
+                            View And Approve
+                        </Button>
+                    ) : null}
+                    <Button size="sm" className="h-7 text-[11px] px-2" onClick={() => handleActionInstallation(order.id)}>
+                        Action
+                    </Button>
+                   
+                </Box>
             );
         }
         return null;
@@ -260,7 +381,24 @@ function FabricationInstallationPageContent() {
                         isSearching={isSearching}
                         className="flex-1 min-w-[180px] max-w-[340px] w-full sm:w-80"
                     />
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-center">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(hrefInstallationManagerApproval())}
+                            className="h-8 text-xs gap-1.5 px-2.5"
+                        >
+                            <IconClipboardCheck size={14} />
+                            Installation approvals
+                            {pendingApprovalCount > 0 && (
+                                <Badge
+                                    variant="secondary"
+                                    className="text-[10px] h-4 px-1 leading-none bg-amber-100 text-amber-900 border-amber-200"
+                                >
+                                    {pendingApprovalCount}
+                                </Badge>
+                            )}
+                        </Button>
                         <Button
                             size="sm"
                             variant="outline"
@@ -380,7 +518,10 @@ function FabricationInstallationPageContent() {
                                             </Typography>
                                         </Paper>
                                     )}
-                                    {list.map((o) => (
+                                    {list.map((o) => {
+                                        const approvalPending =
+                                            col.key === "pending_installation" && isInstallationApprovalPending(o);
+                                        return (
                                         <Paper
                                             key={o.id}
                                             variant="outlined"
@@ -390,13 +531,24 @@ function FabricationInstallationPageContent() {
                                                 flexDirection: "column",
                                                 gap: 0.75,
                                                 borderLeft: "4px solid",
-                                                borderLeftColor: col.accentColor,
+                                                borderLeftColor: approvalPending ? "#5b21b6" : col.accentColor,
+                                                ...(approvalPending
+                                                    ? {
+                                                          border: "1px solid #7c3aed",
+                                                          bgcolor: "#f5f3ff",
+                                                          boxShadow: "inset 0 0 0 1px rgba(124, 58, 237, 0.12)",
+                                                      }
+                                                    : {
+                                                          bgcolor: "transparent",
+                                                      }),
                                                 transition: "all 0.2s ease-in-out",
                                                 "&:hover": {
                                                     transform: "translateY(-2px)",
-                                                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
-                                                    borderColor: col.accentColor,
-                                                }
+                                                    boxShadow: approvalPending
+                                                        ? "0 4px 12px rgba(91, 33, 182, 0.2)"
+                                                        : "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                                                    borderColor: approvalPending ? "#6d28d9" : col.accentColor,
+                                                },
                                             }}
                                         >
                                             <Box
@@ -411,7 +563,20 @@ function FabricationInstallationPageContent() {
                                                     value={o.order_number || "-"}
                                                     onClick={() => handleOpenDetails(o)}
                                                 />
-                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                                                    {approvalPending && (
+                                                        <Chip
+                                                            size="small"
+                                                            label="Pending manager approval"
+                                                            sx={{
+                                                                height: 20,
+                                                                fontSize: "0.62rem",
+                                                                bgcolor: "#ede9fe",
+                                                                color: "#5b21b6",
+                                                                fontWeight: 700,
+                                                            }}
+                                                        />
+                                                    )}
                                                     <Chip
                                                         size="small"
                                                         label={o.planned_priority || "No Priority"}
@@ -483,7 +648,8 @@ function FabricationInstallationPageContent() {
                                                 {renderActions(col.key, o)}
                                             </Box>
                                         </Paper>
-                                    ))}
+                                    );
+                                    })}
                                 </Box>
                             </Paper>
                         );
@@ -555,6 +721,55 @@ function FabricationInstallationPageContent() {
                     </div>
                 </div>
             </Drawer>
+
+            <Dialog fullWidth maxWidth="sm" open={approveDialogOpen} onClose={() => !actionId && setApproveDialogOpen(false)}>
+                <DialogTitle>Approve Installation</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ mb: 2 }}>Add remarks if needed.</DialogContentText>
+                    <Textarea value={approveRemarks} onChange={(e) => setApproveRemarks(e.target.value)} rows={4} />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outline" disabled={!!actionId} onClick={() => setApproveDialogOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button onClick={handleApprove} disabled={!!actionId} loading={!!actionId}>
+                        Approve
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog fullWidth maxWidth="sm" open={rejectDialogOpen} onClose={() => !actionId && setRejectDialogOpen(false)}>
+                <DialogTitle>Reject Installation</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ mb: 2 }}>Select rejection reason.</DialogContentText>
+                    <select
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm mb-4"
+                        value={rejectReasonId}
+                        onChange={(e) => setRejectReasonId(e.target.value)}
+                    >
+                        <option value="">Select reason</option>
+                        {rejectionReasonOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                                {opt.label || opt.reason || opt.value}
+                            </option>
+                        ))}
+                    </select>
+                    <Textarea value={rejectRemarks} onChange={(e) => setRejectRemarks(e.target.value)} rows={3} />
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button variant="outline" disabled={!!actionId} onClick={() => setRejectDialogOpen(false)}>
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        onClick={handleReject}
+                        disabled={!!actionId || !rejectReasonId}
+                        loading={!!actionId}
+                    >
+                        Reject
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             <OrderDetailsDrawer
                 open={detailsOpen}

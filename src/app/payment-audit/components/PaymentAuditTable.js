@@ -248,7 +248,18 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       id: "payment_amount",
       label: "Payment Amount",
       field: "payment_amount",
-      render: (row) => `₹${Number(row.payment_amount).toLocaleString()}`,
+      render: (row) => {
+        const n = Number(row.payment_amount);
+        const isRev = Number.isFinite(n) && n < 0;
+        return (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+            <Box component="span" sx={{ fontSize: "0.75rem", color: isRev ? "warning.main" : "inherit" }}>
+              ₹{n.toLocaleString("en-IN")}
+            </Box>
+            {isRev && <Chip label="REV" size="small" color="warning" />}
+          </Box>
+        );
+      },
     },
     {
       id: "status",

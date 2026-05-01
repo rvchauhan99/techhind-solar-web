@@ -107,7 +107,8 @@ export default function CompanyProfilePage() {
         bank_account_branch: "",
         upi_id: "",
         is_active: true,
-        is_default: false,
+        is_default_b2c: false,
+        is_default_b2b: false,
     });
     const [branchFormData, setBranchFormData] = useState({
         name: "",
@@ -377,9 +378,11 @@ export default function CompanyProfilePage() {
             setError("");
             setSuccess("");
 
-            // Validation: Cannot set inactive account as default
-            if (bankFormData.is_default === true && bankFormData.is_active === false) {
-                setError("You must activate the account first before setting it as default");
+            if (
+                (bankFormData.is_default_b2c === true || bankFormData.is_default_b2b === true) &&
+                bankFormData.is_active === false
+            ) {
+                setError("You must activate the account before setting it as default for B2C or B2B");
                 setSaving(false);
                 return;
             }
@@ -406,7 +409,8 @@ export default function CompanyProfilePage() {
                 bank_account_branch: "",
                 upi_id: "",
                 is_active: true,
-                is_default: false,
+                is_default_b2c: false,
+                is_default_b2b: false,
             });
             await loadBankAccounts();
             setTimeout(() => setSuccess(""), 3000);
@@ -431,7 +435,8 @@ export default function CompanyProfilePage() {
             bank_account_branch: account.bank_account_branch || "",
             upi_id: account.upi_id || "",
             is_active: account.is_active !== undefined ? account.is_active : true,
-            is_default: account.is_default !== undefined ? account.is_default : false,
+            is_default_b2c: Boolean(account.is_default_b2c ?? account.is_default),
+            is_default_b2b: Boolean(account.is_default_b2b),
         });
         setBankDialogOpen(true);
     };
@@ -440,9 +445,13 @@ export default function CompanyProfilePage() {
         // Find the account to check if it's default
         const account = bankAccounts.find((acc) => acc.id === id);
 
-        // Validation: Cannot delete default account
-        if (account && account.is_default === true) {
-            setError("Cannot deactivate the default bank account. Please set another account as default first.");
+        if (
+            account &&
+            (account.is_default === true || account.is_default_b2c === true || account.is_default_b2b === true)
+        ) {
+            setError(
+                "Cannot deactivate a default bank account. Clear B2C/B2B default on another account first."
+            );
             return;
         }
 
@@ -473,7 +482,8 @@ export default function CompanyProfilePage() {
             bank_account_branch: "",
             upi_id: "",
             is_active: true,
-            is_default: false,
+            is_default_b2c: false,
+            is_default_b2b: false,
         });
         setBankDialogOpen(true);
     };
@@ -490,7 +500,8 @@ export default function CompanyProfilePage() {
             bank_account_branch: "",
             upi_id: "",
             is_active: true,
-            is_default: false,
+            is_default_b2c: false,
+            is_default_b2b: false,
         });
     };
 
@@ -1415,7 +1426,7 @@ export default function CompanyProfilePage() {
                                                         <th className="px-4 py-3">Bank branch</th>
                                                         <th className="px-4 py-3">UPI ID</th>
                                                         <th className="px-4 py-3">Active</th>
-                                                        <th className="px-4 py-3">Default</th>
+                                                        <th className="px-4 py-3">Defaults</th>
                                                         <th className="px-4 py-3 text-right">Actions</th>
                                                     </tr>
                                                 </thead>
@@ -1442,16 +1453,35 @@ export default function CompanyProfilePage() {
                                                                     </Badge>
                                                                 </td>
                                                                 <td className="px-4 py-3">
-                                                                    {account.is_default ? (
-                                                                        <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-xs shadow-none">
-                                                                            Default
-                                                                        </Badge>
-                                                                    ) : "-"}
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {(account.is_default_b2c || account.is_default) && (
+                                                                            <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                B2C
+                                                                            </Badge>
+                                                                        )}
+                                                                        {account.is_default_b2b && (
+                                                                            <Badge variant="primary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                B2B
+                                                                            </Badge>
+                                                                        )}
+                                                                        {!account.is_default_b2c && !account.is_default_b2b && !account.is_default && "-"}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="px-4 py-3 text-right">
                                                                     <div className="flex justify-end gap-2">
                                                                         <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
-                                                                        <Button size="xs" variant="destructive-outline" onClick={() => handleDeleteBankAccount(account.id)} disabled={account.is_default === true}>Delete</Button>
+                                                                        <Button
+                                                                            size="xs"
+                                                                            variant="destructive-outline"
+                                                                            onClick={() => handleDeleteBankAccount(account.id)}
+                                                                            disabled={
+                                                                                account.is_default === true ||
+                                                                                account.is_default_b2c === true ||
+                                                                                account.is_default_b2b === true
+                                                                            }
+                                                                        >
+                                                                            Delete
+                                                                        </Button>
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -2378,25 +2408,39 @@ export default function CompanyProfilePage() {
                                                 setBankFormData((prev) => ({
                                                     ...prev,
                                                     is_active: !!e.target.checked,
-                                                    is_default: e.target.checked ? prev.is_default : false,
+                                                    is_default_b2c: e.target.checked ? prev.is_default_b2c : false,
+                                                    is_default_b2b: e.target.checked ? prev.is_default_b2b : false,
                                                 }))
                                             }
                                         />
                                         <Checkbox
-                                            name="is_default"
-                                            label="Set as Default Account"
-                                            checked={bankFormData.is_default}
+                                            name="is_default_b2c"
+                                            label="Default for B2C (quotations, receipts)"
+                                            checked={bankFormData.is_default_b2c}
                                             onChange={(e) =>
                                                 setBankFormData((prev) => ({
                                                     ...prev,
-                                                    is_default: !!e.target.checked,
+                                                    is_default_b2c: !!e.target.checked,
                                                 }))
                                             }
                                             disabled={!bankFormData.is_active}
                                         />
-                                        {!bankFormData.is_active && bankFormData.is_default && (
+                                        <Checkbox
+                                            name="is_default_b2b"
+                                            label="Default for B2B (quotes, orders)"
+                                            checked={bankFormData.is_default_b2b}
+                                            onChange={(e) =>
+                                                setBankFormData((prev) => ({
+                                                    ...prev,
+                                                    is_default_b2b: !!e.target.checked,
+                                                }))
+                                            }
+                                            disabled={!bankFormData.is_active}
+                                        />
+                                        {!bankFormData.is_active &&
+                                            (bankFormData.is_default_b2c || bankFormData.is_default_b2b) && (
                                             <p className="col-span-full text-xs text-destructive -mt-1 mb-1">
-                                                You must activate the account first before setting it as default
+                                                Activate the account before using it as a default
                                             </p>
                                         )}
                                     </FormGrid>
