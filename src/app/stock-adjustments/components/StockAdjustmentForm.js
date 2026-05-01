@@ -116,7 +116,7 @@ export default function StockAdjustmentForm({
             try {
                 const [companyProfileRes, productsRes] = await Promise.all([
                     companyService.getCompanyProfile(),
-                    productService.getProducts(),
+                    productService.getProducts({ visibility: "active" }),
                 ]);
                 const companyProfile = companyProfileRes?.result || companyProfileRes?.data || companyProfileRes;
                 const companies = companyProfile ? [companyProfile] : [];
@@ -606,7 +606,7 @@ export default function StockAdjustmentForm({
                                 disabled={!warehouseSelected}
                                 usePortal
                                 asyncLoadOptions={async (q) => {
-                                    const res = await productService.getProducts({ q: q || undefined, limit: 20 });
+                                    const res = await productService.getProducts({ q: q || undefined, limit: 20, visibility: "active" });
                                     const data = res?.result?.data ?? res?.data ?? [];
                                     return Array.isArray(data) ? data : [];
                                 }}

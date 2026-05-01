@@ -340,7 +340,7 @@ export default function DeliveryChallanForm({
         const t = setTimeout(async () => {
             setDialogSearchLoading(true);
             try {
-                const res = await productService.getProducts({ q, limit: 20 });
+                const res = await productService.getProducts({ q, limit: 20, visibility: "active" });
                 const data = res?.result?.data || res?.data || [];
                 setDialogSearchResults(Array.isArray(data) ? data : []);
             } catch (err) {

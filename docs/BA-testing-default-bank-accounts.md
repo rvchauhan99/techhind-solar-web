@@ -23,28 +23,30 @@ Short checklist for acceptance testing. No technical detail—only setup and wha
 | 2 | **Mark B2B default only** | Another account: B2B on, B2C off. List shows **B2B** on that row. |
 | 3 | **Same account, both defaults** | One account has both B2C and B2B on. Both badges appear; no error. |
 | 4 | **Defaults per branch** | Two branches, different banks linked to each branch, each with its own B2C (and/or B2B) default. Changing branch on a bank row only affects defaults **for that branch’s group**, not the other branch. |
-| 5 | **Cannot deactivate a default** | Try to deactivate/delete a row that still has B2C or B2B default. System should **refuse** until another account is set as default for that channel (and scope). |
-| 6 | **Inactive bank** | Turn **Active** off while a default checkbox is on — save should be **blocked** until you either activate the account or clear the defaults. |
+| 5 | **Duplicate B2C default blocked (same branch)** | In one branch group, set Bank A as B2C default; then try setting Bank B also as B2C default in the same branch. Save should be **blocked** with a branch-scoped default conflict message. |
+| 6 | **Duplicate B2B default blocked (same branch)** | In one branch group, set Bank A as B2B default; then try setting Bank B also as B2B default in the same branch. Save should be **blocked** with a branch-scoped default conflict message. |
+| 7 | **Cannot deactivate a default** | Try to deactivate/delete a row that still has B2C or B2B default. System should **refuse** until another account is set as default for that channel (and scope). |
+| 8 | **Inactive bank** | Turn **Active** off while a default checkbox is on — save should be **blocked** until you either activate the account or clear the defaults. |
 
 ### Customer / quotation side (B2C)
 
 | # | Scenario | What to check |
 |---|----------|----------------|
 | 7 | **Quotation PDF** | Open or download a quotation PDF. Bank block should match the **B2C default** for that quotation’s branch (or company-wide default when branch has no suitable bank). If no B2C default was ever set, you should still see **some** bank details when banks exist (fallback behaviour). |
-| 8 | **Payment receipt** (if your team uses it) | Approved payment receipt PDF shows bank details consistent with **B2C** default rules for that order’s branch context. |
+| 9 | **Payment receipt** (if your team uses it) | Approved payment receipt PDF shows bank details consistent with **B2C** default rules for that order’s branch context. |
 
 ### B2B side
 
 | # | Scenario | What to check |
 |---|----------|----------------|
-| 9 | **B2B sales quote PDF** | PDF includes a **Bank details** section when the company has a resolvable B2B default (or fallback). Fields (bank name, account, IFSC, etc.) match the expected account. |
-| 10 | **B2B sales order PDF** | Bank section matches the **B2B default** for the order’s branch context (via warehouse / branch rules your operations already use). |
+| 10 | **B2B sales quote PDF** | PDF includes a **Bank details** section when the company has a resolvable B2B default (or fallback). Fields (bank name, account, IFSC, etc.) match the expected account. |
+| 11 | **B2B sales order PDF** | Bank section matches the **B2B default** for the order’s branch context (via warehouse / branch rules your operations already use). |
 
 ### After upgrade (existing customers)
 
 | # | Scenario | What to check |
 |---|----------|----------------|
-| 11 | **Legacy default** | On an old tenant that had a single “default” bank before this change, that bank should still behave as default for **both** B2C and B2B until someone edits bank details and splits the flags. |
+| 12 | **Legacy default** | On an old tenant that had a single “default” bank before this change, that bank should still behave as default for **both** B2C and B2B until someone edits bank details and splits the flags. |
 
 ---
 
@@ -53,6 +55,7 @@ Short checklist for acceptance testing. No technical detail—only setup and wha
 Use this as a quick gate before release sign-off:
 
 - [ ] Bank form: B2C and B2B default checkboxes save and reload correctly.  
+- [ ] Same-branch duplicate defaults are blocked for both B2C and B2B.  
 - [ ] Table: badges show **B2C** / **B2B** (and legacy default still shows as B2C where applicable).  
 - [ ] At least one **quotation PDF** verified.  
 - [ ] At least one **B2B quote PDF** and one **B2B order PDF** verified.  
