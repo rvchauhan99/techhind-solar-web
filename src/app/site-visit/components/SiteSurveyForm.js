@@ -189,7 +189,7 @@ export default function SiteSurveyForm({
     const fetchProducts = async () => {
         setLoadingProducts(true);
         try {
-            const response = await productService.getProducts();
+            const response = await productService.getProducts({ visibility: "active" });
             const data = response?.data || response?.result?.data || response?.rows || [];
             setProducts(Array.isArray(data) ? data : []);
 

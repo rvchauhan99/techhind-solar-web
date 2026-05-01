@@ -31,7 +31,7 @@ import { DIALOG_FORM_SMALL, DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import companyService from "@/services/companyService";
 import userMasterService from "@/services/userMasterService";
 import quotationTemplateService from "@/services/quotationTemplateService";
-import { getDefaultState } from "@/services/mastersService";
+import { getDefaultState, getDefaultBranch } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
@@ -131,6 +131,24 @@ export default function CompanyProfilePage() {
         branch_id: null,
         is_active: true,
     });
+
+    const getBankDefaultFlags = (account = {}) => {
+        const hasB2cFlag = account?.is_default_b2c !== undefined && account?.is_default_b2c !== null;
+        const hasB2bFlag = account?.is_default_b2b !== undefined && account?.is_default_b2b !== null;
+        const showB2c = account?.is_default_b2c === true;
+        const showB2b = account?.is_default_b2b === true;
+
+        // Legacy fallback: only treat legacy is_default as B2C when channel flags are absent.
+        if (!hasB2cFlag && !hasB2bFlag && account?.is_default === true) {
+            return { showB2c: true, showB2b: false, anyDefault: true };
+        }
+
+        return {
+            showB2c,
+            showB2b,
+            anyDefault: showB2c || showB2b,
+        };
+    };
 
     useEffect(() => {
         loadCompanyProfile();
@@ -416,7 +434,24 @@ export default function CompanyProfilePage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error saving bank account:", err);
-            const msg = err.response?.data?.message || "Failed to save bank account";
+            const apiMsg = err.response?.data?.message || "";
+            const selectedBranchId = bankFormData.branch_id != null ? Number(bankFormData.branch_id) : null;
+            const selectedBranch = selectedBranchId
+                ? branches.find((b) => Number(b.id) === selectedBranchId)
+                : null;
+            const scopeLabel = selectedBranch ? selectedBranch.name : "Company-wide";
+            const fallbackConflictMsg =
+                bankFormData.is_default_b2c && bankFormData.is_default_b2b
+                    ? `Only one default bank is allowed for B2C and one for B2B in ${scopeLabel}.`
+                    : bankFormData.is_default_b2c
+                        ? `Only one B2C default bank is allowed in ${scopeLabel}.`
+                        : bankFormData.is_default_b2b
+                            ? `Only one B2B default bank is allowed in ${scopeLabel}.`
+                            : "";
+            const msg =
+                apiMsg ||
+                fallbackConflictMsg ||
+                "Failed to save bank account";
             setError(msg);
             toastError(msg);
         } finally {
@@ -425,6 +460,7 @@ export default function CompanyProfilePage() {
     };
 
     const handleEditBankAccount = (account) => {
+        const defaultFlags = getBankDefaultFlags(account);
         setEditingBankAccount(account);
         setBankFormData({
             branch_id: account.branch_id ?? account.branch?.id ?? null,
@@ -435,8 +471,8 @@ export default function CompanyProfilePage() {
             bank_account_branch: account.bank_account_branch || "",
             upi_id: account.upi_id || "",
             is_active: account.is_active !== undefined ? account.is_active : true,
-            is_default_b2c: Boolean(account.is_default_b2c ?? account.is_default),
-            is_default_b2b: Boolean(account.is_default_b2b),
+            is_default_b2c: defaultFlags.showB2c,
+            is_default_b2b: defaultFlags.showB2b,
         });
         setBankDialogOpen(true);
     };
@@ -444,10 +480,11 @@ export default function CompanyProfilePage() {
     const handleDeleteBankAccount = async (id) => {
         // Find the account to check if it's default
         const account = bankAccounts.find((acc) => acc.id === id);
+        const defaultFlags = account ? getBankDefaultFlags(account) : { anyDefault: false };
 
         if (
             account &&
-            (account.is_default === true || account.is_default_b2c === true || account.is_default_b2b === true)
+            defaultFlags.anyDefault
         ) {
             setError(
                 "Cannot deactivate a default bank account. Clear B2C/B2B default on another account first."
@@ -733,13 +770,8 @@ export default function CompanyProfilePage() {
     // Warehouse Handlers
     const handleWarehouseInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        // Convert IDs to number for Select/Autocomplete components
         let processedValue = value;
-        if ((name === "state_id" || name === "branch_id") && value !== "") {
-            processedValue = Number(value);
-        } else if (type === "checkbox") {
-            processedValue = checked;
-        }
+        if (type === "checkbox") processedValue = checked;
 
         setWarehouseFormData((prev) => ({
             ...prev,
@@ -885,6 +917,7 @@ export default function CompanyProfilePage() {
             email: warehouse.email || "",
             phone_no: warehouse.phone_no || "",
             address: warehouse.address || "",
+            branch_id: warehouse.branch_id ?? warehouse.branch?.id ?? null,
             is_active: warehouse.is_active !== undefined ? warehouse.is_active : true,
         });
         setWarehouseErrors({});
@@ -1047,6 +1080,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            branch_id: null,
             is_active: true,
         };
 
@@ -1060,6 +1094,18 @@ export default function CompanyProfilePage() {
         } catch (err) {
             console.error("Failed to load default state:", err);
             // Continue without default state
+        }
+
+        // Try to load default branch (same behavior as quotation branch field)
+        try {
+            const defaultBranchRes = await getDefaultBranch();
+            const defaultBranch = defaultBranchRes?.result || defaultBranchRes?.data || defaultBranchRes;
+            if (defaultBranch?.id) {
+                initialFormData.branch_id = defaultBranch.id;
+            }
+        } catch (err) {
+            console.error("Failed to load default branch:", err);
+            // Continue without default branch
         }
 
         setWarehouseFormData(initialFormData);
@@ -1078,6 +1124,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            branch_id: null,
             is_active: true,
         });
         setWarehouseErrors({});
@@ -1438,54 +1485,53 @@ export default function CompanyProfilePage() {
                                                             </td>
                                                         </tr>
                                                     ) : (
-                                                        bankAccounts.map((account) => (
-                                                            <tr key={account.id} className="hover:bg-gray-50 transition-colors">
-                                                                <td className="px-4 py-3 font-medium text-gray-900">{account.bank_name}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_name}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_number}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
-                                                                <td className="px-4 py-3">{account.branch?.name ?? "—"}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
-                                                                <td className="px-4 py-3">{account.upi_id || "-"}</td>
-                                                                <td className="px-4 py-3">
-                                                                    <Badge variant={account.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
-                                                                        {account.is_active ? "Active" : "Inactive"}
-                                                                    </Badge>
-                                                                </td>
-                                                                <td className="px-4 py-3">
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {(account.is_default_b2c || account.is_default) && (
-                                                                            <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
-                                                                                B2C
-                                                                            </Badge>
-                                                                        )}
-                                                                        {account.is_default_b2b && (
-                                                                            <Badge variant="primary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
-                                                                                B2B
-                                                                            </Badge>
-                                                                        )}
-                                                                        {!account.is_default_b2c && !account.is_default_b2b && !account.is_default && "-"}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-right">
-                                                                    <div className="flex justify-end gap-2">
-                                                                        <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
-                                                                        <Button
-                                                                            size="xs"
-                                                                            variant="destructive-outline"
-                                                                            onClick={() => handleDeleteBankAccount(account.id)}
-                                                                            disabled={
-                                                                                account.is_default === true ||
-                                                                                account.is_default_b2c === true ||
-                                                                                account.is_default_b2b === true
-                                                                            }
-                                                                        >
-                                                                            Delete
-                                                                        </Button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))
+                                                        bankAccounts.map((account) => {
+                                                            const defaultFlags = getBankDefaultFlags(account);
+                                                            return (
+                                                                <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+                                                                    <td className="px-4 py-3 font-medium text-gray-900">{account.bank_name}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_name}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_number}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
+                                                                    <td className="px-4 py-3">{account.branch?.name ?? "—"}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
+                                                                    <td className="px-4 py-3">{account.upi_id || "-"}</td>
+                                                                    <td className="px-4 py-3">
+                                                                        <Badge variant={account.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
+                                                                            {account.is_active ? "Active" : "Inactive"}
+                                                                        </Badge>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {defaultFlags.showB2c && (
+                                                                                <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                    B2C
+                                                                                </Badge>
+                                                                            )}
+                                                                            {defaultFlags.showB2b && (
+                                                                                <Badge variant="primary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                    B2B
+                                                                                </Badge>
+                                                                            )}
+                                                                            {!defaultFlags.showB2c && !defaultFlags.showB2b && "-"}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
+                                                                            <Button
+                                                                                size="xs"
+                                                                                variant="destructive-outline"
+                                                                                onClick={() => handleDeleteBankAccount(account.id)}
+                                                                                disabled={defaultFlags.anyDefault}
+                                                                            >
+                                                                                Delete
+                                                                            </Button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
                                                     )}
                                                 </tbody>
                                             </table>
@@ -2331,7 +2377,7 @@ export default function CompanyProfilePage() {
                             }}
                             onKeyDown={preventEnterSubmit}
                         >
-                            <div className="flex-1 min-h-0 overflow-y-auto pt-2">
+                            <div className="flex-1 min-h-0 overflow-visible pt-2">
                                 <FormSection title="">
                                     <FormGrid>
                                         <Input
@@ -2648,7 +2694,11 @@ export default function CompanyProfilePage() {
                                             referenceModel="state.model"
                                             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                                             value={warehouseFormData.state_id ? { id: warehouseFormData.state_id } : null}
-                                            onChange={(e, newValue) => handleWarehouseInputChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
+                                            onChange={(e, newValue) =>
+                                                handleWarehouseInputChange({
+                                                    target: { name: "state_id", value: newValue?.id ?? newValue?.value ?? "" },
+                                                })
+                                            }
                                             placeholder="Type to search..."
                                             required
                                             error={!!warehouseErrors.state_id}
@@ -2694,10 +2744,11 @@ export default function CompanyProfilePage() {
                                             value={warehouseFormData.branch_id ? { id: warehouseFormData.branch_id } : null}
                                             onChange={(e, newValue) =>
                                                 handleWarehouseInputChange({
-                                                    target: { name: "branch_id", value: newValue?.id ?? "" },
+                                                    target: { name: "branch_id", value: newValue?.id ?? newValue?.value ?? "" },
                                                 })
                                             }
                                             placeholder="Type to search..."
+                                            dropdownPlacement="top"
                                             required
                                             error={!!warehouseErrors.branch_id}
                                             helperText={warehouseErrors.branch_id || ""}

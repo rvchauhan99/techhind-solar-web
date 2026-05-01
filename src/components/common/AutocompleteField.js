@@ -464,7 +464,10 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                       ? "bg-primary text-primary-foreground" 
                       : "hover:bg-primary hover:text-primary-foreground"
                   )}
-                  onClick={() => handleSelect(opt)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(opt);
+                  }}
                 >
                   {getOptionLabel(opt)}
                 </li>
@@ -567,7 +570,10 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                         ? "bg-primary text-primary-foreground" 
                         : "hover:bg-primary hover:text-primary-foreground"
                     )}
-                    onClick={() => handleSelect(opt)}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(opt);
+                    }}
                   >
                     {getOptionLabel(opt)}
                   </li>
@@ -601,6 +607,10 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                       ? "bg-primary text-primary-foreground" 
                       : "hover:bg-primary hover:text-primary-foreground"
                   )}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelect(opt);
+                  }}
                   onClick={() => handleSelect(opt)}
                 >
                   {getOptionLabel(opt)}
