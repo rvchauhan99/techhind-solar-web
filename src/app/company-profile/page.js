@@ -132,6 +132,24 @@ export default function CompanyProfilePage() {
         is_active: true,
     });
 
+    const getBankDefaultFlags = (account = {}) => {
+        const hasB2cFlag = account?.is_default_b2c !== undefined && account?.is_default_b2c !== null;
+        const hasB2bFlag = account?.is_default_b2b !== undefined && account?.is_default_b2b !== null;
+        const showB2c = account?.is_default_b2c === true;
+        const showB2b = account?.is_default_b2b === true;
+
+        // Legacy fallback: only treat legacy is_default as B2C when channel flags are absent.
+        if (!hasB2cFlag && !hasB2bFlag && account?.is_default === true) {
+            return { showB2c: true, showB2b: false, anyDefault: true };
+        }
+
+        return {
+            showB2c,
+            showB2b,
+            anyDefault: showB2c || showB2b,
+        };
+    };
+
     useEffect(() => {
         loadCompanyProfile();
         loadBankAccounts();
@@ -416,7 +434,24 @@ export default function CompanyProfilePage() {
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error("Error saving bank account:", err);
-            const msg = err.response?.data?.message || "Failed to save bank account";
+            const apiMsg = err.response?.data?.message || "";
+            const selectedBranchId = bankFormData.branch_id != null ? Number(bankFormData.branch_id) : null;
+            const selectedBranch = selectedBranchId
+                ? branches.find((b) => Number(b.id) === selectedBranchId)
+                : null;
+            const scopeLabel = selectedBranch ? selectedBranch.name : "Company-wide";
+            const fallbackConflictMsg =
+                bankFormData.is_default_b2c && bankFormData.is_default_b2b
+                    ? `Only one default bank is allowed for B2C and one for B2B in ${scopeLabel}.`
+                    : bankFormData.is_default_b2c
+                        ? `Only one B2C default bank is allowed in ${scopeLabel}.`
+                        : bankFormData.is_default_b2b
+                            ? `Only one B2B default bank is allowed in ${scopeLabel}.`
+                            : "";
+            const msg =
+                apiMsg ||
+                fallbackConflictMsg ||
+                "Failed to save bank account";
             setError(msg);
             toastError(msg);
         } finally {
@@ -425,6 +460,7 @@ export default function CompanyProfilePage() {
     };
 
     const handleEditBankAccount = (account) => {
+        const defaultFlags = getBankDefaultFlags(account);
         setEditingBankAccount(account);
         setBankFormData({
             branch_id: account.branch_id ?? account.branch?.id ?? null,
@@ -435,8 +471,8 @@ export default function CompanyProfilePage() {
             bank_account_branch: account.bank_account_branch || "",
             upi_id: account.upi_id || "",
             is_active: account.is_active !== undefined ? account.is_active : true,
-            is_default_b2c: Boolean(account.is_default_b2c ?? account.is_default),
-            is_default_b2b: Boolean(account.is_default_b2b),
+            is_default_b2c: defaultFlags.showB2c,
+            is_default_b2b: defaultFlags.showB2b,
         });
         setBankDialogOpen(true);
     };
@@ -444,10 +480,11 @@ export default function CompanyProfilePage() {
     const handleDeleteBankAccount = async (id) => {
         // Find the account to check if it's default
         const account = bankAccounts.find((acc) => acc.id === id);
+        const defaultFlags = account ? getBankDefaultFlags(account) : { anyDefault: false };
 
         if (
             account &&
-            (account.is_default === true || account.is_default_b2c === true || account.is_default_b2b === true)
+            defaultFlags.anyDefault
         ) {
             setError(
                 "Cannot deactivate a default bank account. Clear B2C/B2B default on another account first."
@@ -1448,54 +1485,53 @@ export default function CompanyProfilePage() {
                                                             </td>
                                                         </tr>
                                                     ) : (
-                                                        bankAccounts.map((account) => (
-                                                            <tr key={account.id} className="hover:bg-gray-50 transition-colors">
-                                                                <td className="px-4 py-3 font-medium text-gray-900">{account.bank_name}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_name}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_number}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
-                                                                <td className="px-4 py-3">{account.branch?.name ?? "—"}</td>
-                                                                <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
-                                                                <td className="px-4 py-3">{account.upi_id || "-"}</td>
-                                                                <td className="px-4 py-3">
-                                                                    <Badge variant={account.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
-                                                                        {account.is_active ? "Active" : "Inactive"}
-                                                                    </Badge>
-                                                                </td>
-                                                                <td className="px-4 py-3">
-                                                                    <div className="flex flex-wrap gap-1">
-                                                                        {(account.is_default_b2c || account.is_default) && (
-                                                                            <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
-                                                                                B2C
-                                                                            </Badge>
-                                                                        )}
-                                                                        {account.is_default_b2b && (
-                                                                            <Badge variant="primary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
-                                                                                B2B
-                                                                            </Badge>
-                                                                        )}
-                                                                        {!account.is_default_b2c && !account.is_default_b2b && !account.is_default && "-"}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-4 py-3 text-right">
-                                                                    <div className="flex justify-end gap-2">
-                                                                        <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
-                                                                        <Button
-                                                                            size="xs"
-                                                                            variant="destructive-outline"
-                                                                            onClick={() => handleDeleteBankAccount(account.id)}
-                                                                            disabled={
-                                                                                account.is_default === true ||
-                                                                                account.is_default_b2c === true ||
-                                                                                account.is_default_b2b === true
-                                                                            }
-                                                                        >
-                                                                            Delete
-                                                                        </Button>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        ))
+                                                        bankAccounts.map((account) => {
+                                                            const defaultFlags = getBankDefaultFlags(account);
+                                                            return (
+                                                                <tr key={account.id} className="hover:bg-gray-50 transition-colors">
+                                                                    <td className="px-4 py-3 font-medium text-gray-900">{account.bank_name}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_name}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_number}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_ifsc || "-"}</td>
+                                                                    <td className="px-4 py-3">{account.branch?.name ?? "—"}</td>
+                                                                    <td className="px-4 py-3">{account.bank_account_branch || "-"}</td>
+                                                                    <td className="px-4 py-3">{account.upi_id || "-"}</td>
+                                                                    <td className="px-4 py-3">
+                                                                        <Badge variant={account.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
+                                                                            {account.is_active ? "Active" : "Inactive"}
+                                                                        </Badge>
+                                                                    </td>
+                                                                    <td className="px-4 py-3">
+                                                                        <div className="flex flex-wrap gap-1">
+                                                                            {defaultFlags.showB2c && (
+                                                                                <Badge variant="primary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                    B2C
+                                                                                </Badge>
+                                                                            )}
+                                                                            {defaultFlags.showB2b && (
+                                                                                <Badge variant="primary" className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100 font-normal border-0 text-[10px] px-1.5 py-0 shadow-none">
+                                                                                    B2B
+                                                                                </Badge>
+                                                                            )}
+                                                                            {!defaultFlags.showB2c && !defaultFlags.showB2b && "-"}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-4 py-3 text-right">
+                                                                        <div className="flex justify-end gap-2">
+                                                                            <Button size="xs" variant="outline" onClick={() => handleEditBankAccount(account)}>Edit</Button>
+                                                                            <Button
+                                                                                size="xs"
+                                                                                variant="destructive-outline"
+                                                                                onClick={() => handleDeleteBankAccount(account.id)}
+                                                                                disabled={defaultFlags.anyDefault}
+                                                                            >
+                                                                                Delete
+                                                                            </Button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
                                                     )}
                                                 </tbody>
                                             </table>
