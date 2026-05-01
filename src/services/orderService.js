@@ -45,6 +45,16 @@ export const getInstallationByOrderId = (orderId) =>
 export const saveInstallation = (orderId, payload) =>
     apiClient.put(`/order/${orderId}/installation`, payload, { timeout: 120000 }).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
+export const managerApproveInstallation = (orderId, payload = {}) =>
+    apiClient
+        .put(`/order/${orderId}/installation/manager-approve`, payload)
+        .then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
+export const managerRejectInstallation = (orderId, payload = {}) =>
+    apiClient
+        .put(`/order/${orderId}/installation/manager-reject`, payload)
+        .then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
+
 export const getDeliveredSerials = (orderId) =>
     apiClient.get(`/order/${orderId}/delivered-serials`).then((r) => (r.data && "result" in r.data ? r.data.result : r.data));
 
@@ -111,6 +121,8 @@ export default {
     saveFabrication,
     getInstallationByOrderId,
     saveInstallation,
+    managerApproveInstallation,
+    managerRejectInstallation,
     getDeliveredSerials,
     validateInstallationSerial,
     downloadOrderPDF,
