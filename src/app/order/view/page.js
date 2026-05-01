@@ -38,6 +38,7 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import {
     getOrderOutstandingAmount,
     getOrderReceivedAmount,
+    getOrderProjectCostAmount,
 } from "@/utils/orderPaymentSummary";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
@@ -322,7 +323,14 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     );
 }
 
-function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentTypes = [], maxPaymentAmount = 0 }) {
+function ReceivePaymentForm({
+    orderId,
+    onPaymentSaved,
+    orderDocumentTypes = [],
+    maxPaymentAmount = 0,
+    totalReceivedAmount = 0,
+    projectCostAmount = 0,
+}) {
     const [formData, setFormData] = useState({
         order_id: orderId,
         date_of_payment: "",
@@ -392,12 +400,23 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
 
             // Validate required fields
             const newErrors = {};
+            const EPS = 1e-6;
             if (!formData.date_of_payment) newErrors.date_of_payment = "Date of Payment is required";
             const payAmount = parseFloat(String(formData.payment_amount || "").replace(/,/g, ""));
-            if (!formData.payment_amount || !Number.isFinite(payAmount) || payAmount <= 0) {
-                newErrors.payment_amount = "Payment Amount is required and must be greater than 0";
-            } else if (maxPaymentAmount > 0 && payAmount > maxPaymentAmount + 1e-6) {
+            if (!formData.payment_amount || !Number.isFinite(payAmount) || Math.abs(payAmount) < EPS) {
+                newErrors.payment_amount = "Payment Amount is required and must be non-zero";
+            } else if (payAmount > 0 && maxPaymentAmount > 0 && payAmount > maxPaymentAmount + EPS) {
                 newErrors.payment_amount = `Cannot exceed outstanding Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`;
+            } else {
+                const nextTotal = totalReceivedAmount + payAmount;
+                if (nextTotal < -EPS) {
+                    newErrors.payment_amount =
+                        "Adjustment cannot exceed recorded receipts (total cannot go below zero).";
+                } else if (nextTotal > projectCostAmount + EPS) {
+                    const cap = Math.round((projectCostAmount - totalReceivedAmount) * 100) / 100;
+                    newErrors.payment_amount =
+                        `Total receipts cannot exceed order value (max Rs. ${cap.toLocaleString("en-IN")} additional).`;
+                }
             }
             if (!formData.payment_mode_id) newErrors.payment_mode_id = "Payment Mode is required";
             if (!formData.company_bank_account_id) newErrors.company_bank_account_id = "Company Bank Account is required";
@@ -406,6 +425,16 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                 setErrors(newErrors);
                 setLoading(false);
                 return;
+            }
+
+            if (payAmount < 0) {
+                const ok = window.confirm(
+                    "Negative amount is a reversal/adjustment: it reduces recorded receipts for this order. Save anyway?"
+                );
+                if (!ok) {
+                    setLoading(false);
+                    return;
+                }
             }
 
             const formDataUpload = new FormData();
@@ -470,6 +499,10 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
         }
     };
 
+    const canRecordPayment = maxPaymentAmount > 0 || totalReceivedAmount > 0;
+    const minPaymentAmount = -totalReceivedAmount;
+    const maxPaymentField = projectCostAmount - totalReceivedAmount;
+
     return (
         <Box p={2}>
             <Grid container spacing={3}>
@@ -498,14 +531,14 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         error={!!errors.payment_amount}
                         helperText={
                             errors.payment_amount
-                            || (maxPaymentAmount > 0
-                                ? `Max Rs. ${maxPaymentAmount.toLocaleString("en-IN")} (outstanding)`
-                                : "No outstanding balance")
+                            || (canRecordPayment
+                                ? `Range Rs. ${minPaymentAmount.toLocaleString("en-IN")} to Rs. ${maxPaymentField.toLocaleString("en-IN")} (use negative to reverse)`
+                                : "No receipts to adjust and no outstanding")
                         }
                         inputProps={
-                            maxPaymentAmount > 0
-                                ? { max: maxPaymentAmount, min: 0, step: "any" }
-                                : { min: 0, step: "any" }
+                            canRecordPayment
+                                ? { min: minPaymentAmount, max: maxPaymentField, step: "any" }
+                                : { min: 0, max: 0, step: "any" }
                         }
                     />
                 </Grid>
@@ -603,7 +636,7 @@ function ReceivePaymentForm({ orderData, orderId, onPaymentSaved, orderDocumentT
                         variant="contained"
                         color="success"
                         onClick={handleSave}
-                        disabled={loading || maxPaymentAmount <= 0}
+                        disabled={loading || !canRecordPayment}
                         startIcon={loading ? <CircularProgress size={20} /> : null}
                     >
                         Save
@@ -656,7 +689,18 @@ function PreviousPaymentsTable({ orderId }) {
             id: "payment_amount",
             label: "Amount",
             field: "payment_amount",
-            render: (row) => `₹${Number(row.payment_amount).toLocaleString()}`,
+            render: (row) => {
+                const n = Number(row.payment_amount);
+                const isRev = Number.isFinite(n) && n < 0;
+                return (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexWrap: "wrap" }}>
+                        <Typography component="span" variant="body2" color={isRev ? "warning.main" : "inherit"}>
+                            ₹{n.toLocaleString("en-IN")}
+                        </Typography>
+                        {isRev && <Chip label="REV" size="small" color="warning" />}
+                    </Box>
+                );
+            },
         },
         {
             id: "payment_mode_name",
@@ -1054,6 +1098,7 @@ function OrderViewPageContent() {
     const totalReceivedAmount = getOrderReceivedAmount(orderData);
     const outstandingAmount = getOrderOutstandingAmount(orderData);
     const maxPaymentAmount = Math.max(0, outstandingAmount);
+    const projectCostAmount = getOrderProjectCostAmount(orderData);
     const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
     console.warn('visibleTabs', visibleTabs);
@@ -1451,8 +1496,13 @@ function OrderViewPageContent() {
                                     borderRadius={0.5}
                                     mt={1}
                                 >
-                                    Rs. {outstandingAmount.toLocaleString()}
+                                    Rs. {Math.max(0, outstandingAmount).toLocaleString()}
                                 </Typography>
+                                {outstandingAmount < 0 && (
+                                    <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
+                                        Over-recorded by Rs. {Math.abs(outstandingAmount).toLocaleString("en-IN")}
+                                    </Typography>
+                                )}
                             </Box>
                         </Paper>
                     </Grid>
@@ -1497,11 +1547,12 @@ function OrderViewPageContent() {
                             <TabPanel value={tabValue} index={2}>
                                 {visitedTabs.has(2) && (
                                     <ReceivePaymentForm
-                                        orderData={orderData}
                                         orderId={orderId}
                                         onPaymentSaved={handlePaymentSaved}
                                         orderDocumentTypes={orderDocumentTypes}
                                         maxPaymentAmount={maxPaymentAmount}
+                                        totalReceivedAmount={totalReceivedAmount}
+                                        projectCostAmount={projectCostAmount}
                                     />
                                 )}
                             </TabPanel>
