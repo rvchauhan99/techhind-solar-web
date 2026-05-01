@@ -1598,6 +1598,7 @@ export default function DeliveryChallanForm({
                             {order && (order.project_scheme_name || "").toLowerCase() === "commercial project" && (
                                 <Box sx={{ mt: 2, pt: 1, borderTop: 1, borderColor: "divider" }}>
                                     <Button
+                                        type="button"
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setAddProductDialogOpen(true)}
@@ -1744,6 +1745,7 @@ export default function DeliveryChallanForm({
                     </Box>
                     <DialogFooter showCloseButton={false} className="mt-2">
                         <Button
+                            type="button"
                             variant="outline"
                             onClick={() => {
                                 setAddProductDialogOpen(false);
@@ -1754,7 +1756,7 @@ export default function DeliveryChallanForm({
                         >
                             Cancel
                         </Button>
-                        <Button onClick={handleAddCustomProduct} disabled={!dialogSelectedProduct}>
+                        <Button type="button" onClick={handleAddCustomProduct} disabled={!dialogSelectedProduct}>
                             Add
                         </Button>
                     </DialogFooter>
