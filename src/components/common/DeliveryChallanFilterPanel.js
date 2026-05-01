@@ -99,7 +99,17 @@ export default function DeliveryChallanFilterPanel({
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
       const nextQ = val ?? "";
-      const nextValues = { ...localValues, q: nextQ };
+      // Keep quick search broad and predictable by clearing overlapping field filters
+      // that otherwise combine with q using AND conditions.
+      const nextValues = {
+        ...localValues,
+        challan_no: "",
+        order_number: "",
+        customer_name: "",
+        customer_mobile: "",
+        transporter: "",
+        q: nextQ,
+      };
       setLocalValues(nextValues);
 
       debounceTimerRef.current = setTimeout(() => {
@@ -211,7 +221,7 @@ export default function DeliveryChallanFilterPanel({
 
           <input
             type="text"
-            placeholder="Quick Search (Challan No / Transporter / Customer Name / Contact Number)"
+            placeholder="Quick Search (Order No / Customer Name / Challan No / Transporter / Contact Number)"
             className="w-full h-8 pl-8 pr-7 bg-white border-2 border-green-200/60 rounded-lg text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 placeholder:text-slate-400"
             value={quickSearch}
             onChange={(e) => handleQuickSearchChange(e.target.value)}

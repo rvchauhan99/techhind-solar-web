@@ -40,6 +40,7 @@ export default function DeliveryChallanListPage() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [selectedChallanId, setSelectedChallanId] = useState(null);
     const [selectedOrderStageKey, setSelectedOrderStageKey] = useState(null);
+    const [selectedOrderInstallationCompleted, setSelectedOrderInstallationCompleted] = useState(false);
     const [selectedIsReversed, setSelectedIsReversed] = useState(false);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     const [reversing, setReversing] = useState(false);
@@ -60,6 +61,13 @@ export default function DeliveryChallanListPage() {
             limit: result?.pagination?.limit ?? params?.limit,
         };
         return { data, meta };
+    };
+
+    const normalizeStageKey = (value) => String(value || "").toLowerCase();
+
+    const isInstallationCompletedForOrder = (order = {}) => {
+        const installationStage = normalizeStageKey(order?.stages?.installation);
+        return installationStage === "completed" || !!order?.installation_completed_at;
     };
 
     const deliveryStatusBadge = (status) => {
@@ -101,8 +109,9 @@ export default function DeliveryChallanListPage() {
             isActionColumn: true,
             maxWidth: 80,
             render: (row) => {
-                const stageKey = String(row?.order?.current_stage_key || "").toLowerCase();
+                const stageKey = normalizeStageKey(row?.order?.current_stage_key);
                 const isDraftRow = stageKey === "delivery";
+                const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
 
                 const isSuperAdminLocal = String(user?.role?.name || "")
                     .toLowerCase()
@@ -112,11 +121,13 @@ export default function DeliveryChallanListPage() {
                     "assign_fabricator_and_installer",
                     "fabrication",
                     "installation",
-                    "netmeter_apply",
                 ]);
 
                 const canReverseRow =
-                    isSuperAdminLocal && allowedStageKeysLocal.has(stageKey) && !row?.is_reversed;
+                    isSuperAdminLocal &&
+                    allowedStageKeysLocal.has(stageKey) &&
+                    !isInstallationCompleted &&
+                    !row?.is_reversed;
 
                 return (
                     <div className="flex items-center gap-0.5">
@@ -285,6 +296,7 @@ export default function DeliveryChallanListPage() {
         setSidebarOpen(true);
         setSelectedChallanId(row.id);
         setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
+        setSelectedOrderInstallationCompleted(isInstallationCompletedForOrder(row?.order));
         setSelectedIsReversed(!!row?.is_reversed);
     };
 
@@ -292,6 +304,7 @@ export default function DeliveryChallanListPage() {
         setSidebarOpen(false);
         setSelectedChallanId(null);
         setSelectedOrderStageKey(null);
+        setSelectedOrderInstallationCompleted(false);
         setSelectedIsReversed(false);
     };
 
@@ -305,14 +318,18 @@ export default function DeliveryChallanListPage() {
         "assign_fabricator_and_installer",
         "fabrication",
         "installation",
-        "netmeter_apply",
     ]);
 
     const isStageAllowed = allowedStageKeys.has(
-        String(selectedOrderStageKey || "").toLowerCase()
+        normalizeStageKey(selectedOrderStageKey)
     );
 
-    const isReverseAllowed = !!selectedChallanId && isSuperAdmin && isStageAllowed && !selectedIsReversed;
+    const isReverseAllowed =
+        !!selectedChallanId &&
+        isSuperAdmin &&
+        isStageAllowed &&
+        !selectedOrderInstallationCompleted &&
+        !selectedIsReversed;
 
     const openReverseDialog = () => {
         if (!isReverseAllowed) return;
@@ -328,12 +345,15 @@ export default function DeliveryChallanListPage() {
         const challanId = row?.id;
         if (!challanId) return;
 
-        const rowStageKey = String(row?.order?.current_stage_key || "").toLowerCase();
-        const canReverseRow = isSuperAdmin && allowedStageKeys.has(rowStageKey) && !row?.is_reversed;
+        const rowStageKey = normalizeStageKey(row?.order?.current_stage_key);
+        const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
+        const canReverseRow =
+            isSuperAdmin && allowedStageKeys.has(rowStageKey) && !isInstallationCompleted && !row?.is_reversed;
         if (!canReverseRow) return;
 
         setSelectedChallanId(challanId);
         setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
+        setSelectedOrderInstallationCompleted(isInstallationCompleted);
         setSelectedIsReversed(!!row?.is_reversed);
 
         setReverseReasonId("");
@@ -354,7 +374,7 @@ export default function DeliveryChallanListPage() {
         const challanId = row?.id;
         if (!challanId) return;
 
-        const rowStageKey = String(row?.order?.current_stage_key || "").toLowerCase();
+        const rowStageKey = normalizeStageKey(row?.order?.current_stage_key);
         const isDraftRow = rowStageKey === "delivery";
         if (!isDraftRow) return;
 
