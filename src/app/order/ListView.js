@@ -71,7 +71,7 @@ async function searchProductsByTypeCi(q, productTypeCi) {
     q: q?.trim() ? q.trim() : undefined,
     limit: 30,
     product_type_ci: productTypeCi,
-    visibility: "active",
+    visibility: "all",
   });
   const payload = res?.result ?? res?.data ?? res;
   const rows = Array.isArray(payload?.data) ? payload.data : [];

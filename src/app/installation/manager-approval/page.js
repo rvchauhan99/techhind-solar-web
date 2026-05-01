@@ -1,7 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Box, Typography, Paper, Grid, Tooltip, IconButton, Drawer, Chip, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from "@mui/material";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+    Alert,
+    Box,
+    Typography,
+    Paper,
+    Grid,
+    Tooltip,
+    IconButton,
+    Drawer,
+    Chip,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogContentText,
+    DialogActions,
+    CircularProgress,
+} from "@mui/material";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +50,14 @@ import {
 const TAB_PENDING = "pending";
 const TAB_HISTORY = "history";
 
+/** Only this path may be used with ?returnTo= (open-redirect guard). */
+const ALLOWED_MANAGER_APPROVAL_RETURN_TO = "/fabrication-installation";
+
+function sanitizeManagerApprovalReturnTo(raw) {
+    const s = raw != null ? String(raw).trim() : "";
+    return s === ALLOWED_MANAGER_APPROVAL_RETURN_TO ? s : null;
+}
+
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
     { key: "estimate_paid", label: "Estimate Paid" },
@@ -43,7 +68,10 @@ const STAGES = [
     { key: "installation", label: "Installation" },
 ];
 
-export default function InstallationManagerApprovalPage() {
+function InstallationManagerApprovalPageContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const returnToRef = useRef(null);
     const [activeTab, setActiveTab] = useState(TAB_PENDING);
     const listingState = useListingQueryState({
         defaultLimit: 25,
@@ -65,6 +93,54 @@ export default function InstallationManagerApprovalPage() {
     const [triggerReload, setTriggerReload] = useState(0);
 
     const reloadList = () => setTriggerReload((prev) => prev + 1);
+
+    useEffect(() => {
+        const safeReturn = sanitizeManagerApprovalReturnTo(searchParams.get("returnTo"));
+        returnToRef.current = safeReturn;
+    }, [searchParams]);
+
+    const replaceManagerUrlPreservingReturnTo = useCallback(() => {
+        const safe = sanitizeManagerApprovalReturnTo(searchParams.get("returnTo"));
+        const qs = new URLSearchParams();
+        if (safe) qs.set("returnTo", safe);
+        const q = qs.toString();
+        router.replace(q ? `/installation/manager-approval?${q}` : "/installation/manager-approval", { scroll: false });
+    }, [router, searchParams]);
+
+    useEffect(() => {
+        const raw = searchParams.get("orderId");
+        if (raw == null || String(raw).trim() === "") return;
+        const idNum = Number(raw);
+        if (!Number.isInteger(idNum) || idNum <= 0) {
+            replaceManagerUrlPreservingReturnTo();
+            return;
+        }
+        let cancelled = false;
+        setActiveTab(TAB_PENDING);
+        orderService
+            .getOrderById(idNum)
+            .then((res) => {
+                if (cancelled) return;
+                const row = res?.result ?? res?.data ?? res;
+                if (row?.id) {
+                    setSelectedOrder(row);
+                    setDrawerOpen(true);
+                }
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    toastError(err?.response?.data?.message || "Could not open order.");
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    replaceManagerUrlPreservingReturnTo();
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [searchParams, router, replaceManagerUrlPreservingReturnTo]);
 
     useEffect(() => {
         let mounted = true;
@@ -137,7 +213,13 @@ export default function InstallationManagerApprovalPage() {
             setApproveDialogOpen(false);
             setTargetOrderId(null);
             setDrawerOpen(false);
-            reloadList();
+            const back = returnToRef.current;
+            returnToRef.current = null;
+            if (back === ALLOWED_MANAGER_APPROVAL_RETURN_TO) {
+                router.push(back);
+            } else {
+                reloadList();
+            }
         } catch (err) {
             toastError(err?.response?.data?.message || "Approval failed.");
         } finally {
@@ -157,7 +239,13 @@ export default function InstallationManagerApprovalPage() {
             setRejectDialogOpen(false);
             setTargetOrderId(null);
             setDrawerOpen(false);
-            reloadList();
+            const back = returnToRef.current;
+            returnToRef.current = null;
+            if (back === ALLOWED_MANAGER_APPROVAL_RETURN_TO) {
+                router.push(back);
+            } else {
+                reloadList();
+            }
         } catch (err) {
             toastError(err?.response?.data?.message || "Rejection failed.");
         } finally {
@@ -471,5 +559,21 @@ export default function InstallationManagerApprovalPage() {
                 </Dialog>
             </Container>
         </ProtectedRoute>
+    );
+}
+
+export default function InstallationManagerApprovalPage() {
+    return (
+        <Suspense
+            fallback={
+                <ProtectedRoute>
+                    <Container className="py-6 flex justify-center items-center min-h-[40vh]">
+                        <CircularProgress size={28} />
+                    </Container>
+                </ProtectedRoute>
+            }
+        >
+            <InstallationManagerApprovalPageContent />
+        </Suspense>
     );
 }
