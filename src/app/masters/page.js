@@ -46,6 +46,28 @@ const MASTER_FIELD_LABEL_OVERRIDES = {
     allow_b2b_sales: "Allow B2B sales",
 };
 
+const TERMS_CONDITIONS_MODEL = "termsAndConditions.model";
+
+/** Ensure PDF clause ordering field exists even if API fields predate Sequelize model update */
+function ensureTermsSortOrderField(fields) {
+    const list = Array.isArray(fields) ? [...fields] : [];
+    if (list.some((f) => f.name === "sort_order")) return list;
+    const titleIdx = list.findIndex((f) => f.name === "title");
+    const synth = {
+        name: "sort_order",
+        type: "INTEGER",
+        allowNull: false,
+        primaryKey: false,
+        autoIncrement: false,
+        defaultValue: 0,
+        unique: false,
+        isFileUpload: false,
+    };
+    const insertAt = titleIdx >= 0 ? titleIdx + 1 : list.length;
+    list.splice(insertAt, 0, synth);
+    return list;
+}
+
 export default function MastersPage() {
     const { modulePermissions, currentModuleId } = useAuth();
     const [masters, setMastersList] = useState([]);
@@ -160,7 +182,11 @@ export default function MastersPage() {
                 const response = await mastersService.getList(selectedMaster.model_name, { page: 1, limit: 1 });
                 const result = response.result || response;
                 if (result.fields) {
-                    setFields(result.fields);
+                    const nextFields =
+                        selectedMaster.model_name === TERMS_CONDITIONS_MODEL
+                            ? ensureTermsSortOrderField(result.fields)
+                            : result.fields;
+                    setFields(nextFields);
                 }
             } catch (error) {
                 console.error('Error fetching fields:', error);

@@ -28,6 +28,7 @@ const YES_NO_OPTIONS = [
 
 const MASTER_FIELD_LABEL_OVERRIDES = {
   allow_b2b_sales: "Allow B2B sales",
+  sort_order: "Sort order",
 };
 
 export default function MasterForm({ 
@@ -235,6 +236,15 @@ export default function MasterForm({
         if (cleanedData[key] === '' || cleanedData[key] === null || cleanedData[key] === undefined) {
           cleanedData[key] = null;
         }
+      } else if (
+        field &&
+        !field.reference &&
+        ['INTEGER', 'BIGINT', 'DECIMAL', 'FLOAT'].includes(String(field.type || '').toUpperCase()) &&
+        (cleanedData[key] === '' || cleanedData[key] === null) &&
+        field.allowNull === false
+      ) {
+        cleanedData[key] =
+          field.defaultValue !== undefined && field.defaultValue !== null ? field.defaultValue : 0;
       } else if (cleanedData[key] === '' && !requiredFields.includes(key)) {
         // For non-required fields, remove empty strings if nullable
         if (field && field.allowNull) {
