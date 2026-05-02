@@ -26,6 +26,10 @@ const YES_NO_OPTIONS = [
   { value: false, label: "No" },
 ];
 
+const MASTER_FIELD_LABEL_OVERRIDES = {
+  allow_b2b_sales: "Allow B2B sales",
+};
+
 export default function MasterForm({ 
   fields = [], 
   defaultValues = null, 
@@ -263,7 +267,7 @@ export default function MasterForm({
     const hasError = errors[fieldName];
     
     // Use fieldLabel without asterisk (Material-UI will add it automatically with required prop)
-    const displayLabel = fieldLabel;
+    const displayLabel = MASTER_FIELD_LABEL_OVERRIDES[fieldName] ?? fieldLabel;
 
     // Skip internal fields
     if (['id', 'created_at', 'updated_at', 'deleted_at'].includes(fieldName)) {

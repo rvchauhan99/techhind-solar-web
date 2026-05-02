@@ -41,6 +41,11 @@ const BOOLEAN_OPTIONS = [
     { value: "false", label: "No" },
 ];
 
+/** Human-readable labels for specific master fields (otherwise derived from snake_case). */
+const MASTER_FIELD_LABEL_OVERRIDES = {
+    allow_b2b_sales: "Allow B2B sales",
+};
+
 export default function MastersPage() {
     const { modulePermissions, currentModuleId } = useAuth();
     const [masters, setMastersList] = useState([]);
@@ -250,7 +255,9 @@ export default function MastersPage() {
                         const type = (field.type || 'STRING').toUpperCase();
                         const col = {
                             field: field.name,
-                            label: field.name.charAt(0).toUpperCase() + field.name.slice(1).replace(/_/g, ' '),
+                            label:
+                                MASTER_FIELD_LABEL_OVERRIDES[field.name] ??
+                                field.name.charAt(0).toUpperCase() + field.name.slice(1).replace(/_/g, ' '),
                             sortable: false,
                             render: (row) => {
                                 const value = row[field.name];
