@@ -593,7 +593,12 @@ export default function B2bSalesOrderForm({
                 <div>
                   <AutocompleteField
                     asyncLoadOptions={async (q) => {
-                      const res = await productService.getProducts({ q, limit: 20, visibility: "active" });
+                      const res = await productService.getProducts({
+                        q,
+                        limit: 20,
+                        visibility: "active",
+                        allow_b2b_sales_only: true,
+                      });
                       const data = res?.result?.data ?? res?.data ?? [];
                       return data.map((p) => ({
                         id: p.id,
