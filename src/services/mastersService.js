@@ -114,6 +114,23 @@ export const downloadSampleCsv = async (model) => {
   return res.data; // Blob
 };
 
+/** Params align with masters list endpoint (visibility, q, column filters, sortBy, sortOrder). */
+export const exportMasterCsv = async (model, params = {}) => {
+  const qp = new URLSearchParams();
+  qp.set('model', model);
+  Object.entries(params).forEach(([k, v]) => {
+    if (v === '' || v === null || v === undefined) return;
+    qp.set(k, String(v));
+  });
+  const res = await apiClient.get(`/masters/export-csv?${qp.toString()}`, {
+    responseType: 'blob',
+  });
+  const truncated =
+    res.headers['x-export-truncated'] === 'true' ||
+    res.headers['X-Export-Truncated'] === 'true';
+  return { blob: res.data, truncated };
+};
+
 export const uploadMasterCsv = async (model, file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -159,4 +176,4 @@ export const getFileUrl = (model, id) =>
 export const removeMasterFile = (model, id, field) =>
   apiClient.delete(`/masters/${id}/file`, { params: { model, field } }).then((r) => r.data);
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, uploadMasterCsv, getFileUrl, removeMasterFile };
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, exportMasterCsv, uploadMasterCsv, getFileUrl, removeMasterFile };

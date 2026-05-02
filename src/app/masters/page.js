@@ -91,6 +91,7 @@ export default function MastersPage() {
 
     // Upload CSV state
     const [uploading, setUploading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const fileInputRef = useRef(null);
 
     const masterFilterKeys = useMemo(() => {
@@ -107,7 +108,7 @@ export default function MastersPage() {
         return keys;
     }, [fields]);
     const listingState = useListingQueryState({ defaultLimit: 20, filterKeys: masterFilterKeys });
-    const { page, limit, filters, setPage, setLimit, setFilter } = listingState;
+    const { page, limit, filters, q, sortBy, sortOrder, setPage, setLimit, setFilter, setQ, setSort } = listingState;
 
     // Delete confirmation
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -610,6 +611,53 @@ export default function MastersPage() {
                                         <ThemeButton
                                             size="sm"
                                             variant="outline"
+                                            disabled={exporting || uploading}
+                                            loading={exporting}
+                                            onClick={async () => {
+                                                if (!master.model_name) return;
+                                                setExporting(true);
+                                                try {
+                                                    const exportParams = {
+                                                        ...filters,
+                                                        visibility: filters?.visibility || 'active',
+                                                    };
+                                                    if (q) exportParams.q = q;
+                                                    if (sortBy) {
+                                                        exportParams.sortBy = sortBy;
+                                                        exportParams.sortOrder = sortOrder || 'desc';
+                                                    }
+                                                    const { blob: csvBlob, truncated } = await mastersService.exportMasterCsv(
+                                                        master.model_name,
+                                                        exportParams
+                                                    );
+                                                    const url = window.URL.createObjectURL(
+                                                        new Blob([csvBlob], { type: 'text/csv;charset=utf-8' })
+                                                    );
+                                                    const link = document.createElement('a');
+                                                    link.href = url;
+                                                    const base = `${master.model_name.replace(/\.model$/i, '')}-export.csv`;
+                                                    link.setAttribute('download', base);
+                                                    document.body.appendChild(link);
+                                                    link.click();
+                                                    link.parentNode?.removeChild(link);
+                                                    window.URL.revokeObjectURL(url);
+                                                    toastSuccess(
+                                                        truncated
+                                                            ? 'Exported CSV (max 25,000 rows — dataset may be larger).'
+                                                            : 'CSV exported'
+                                                    );
+                                                } catch (e) {
+                                                    toastError('Failed to export CSV');
+                                                } finally {
+                                                    setExporting(false);
+                                                }
+                                            }}
+                                        >
+                                            {exporting ? 'Exporting...' : 'Export CSV'}
+                                        </ThemeButton>
+                                        <ThemeButton
+                                            size="sm"
+                                            variant="outline"
                                             onClick={() => fileInputRef.current?.click()}
                                             disabled={uploading}
                                             loading={uploading}
@@ -686,6 +734,12 @@ export default function MastersPage() {
                                             onTotalChange={setTotalCount}
                                             page={page}
                                             limit={limit}
+                                            q={q}
+                                            onQChange={(val) => setQ(val ?? '', true)}
+                                            sortBy={sortBy || undefined}
+                                            sortOrder={sortOrder || 'desc'}
+                                            onSortChange={(field, ord) =>
+                                                setSort(field || '', ord || 'desc')}
                                             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
                                             onRowsPerPageChange={(newLimit) => { setLimit(newLimit); setPage(1); }}
                                             filterParams={filterParams}
