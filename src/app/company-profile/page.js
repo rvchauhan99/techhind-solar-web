@@ -116,6 +116,9 @@ export default function CompanyProfilePage() {
         email: "",
         contact_no: "",
         gst_number: "",
+        b2b_sales_contact_person: "",
+        b2b_sales_contact_number: "",
+        b2b_sales_contact_email: "",
         is_active: true,
         is_default: false,
         quotation_template_id: null,
@@ -580,6 +583,28 @@ export default function CompanyProfilePage() {
                     return newErrors;
                 });
             }
+        } else if (name === "b2b_sales_contact_number" && processedValue && processedValue.trim() !== "") {
+            const phoneValidation = validatePhone(processedValue);
+            if (!phoneValidation.isValid) {
+                setBranchErrors((prev) => ({ ...prev, [name]: phoneValidation.message }));
+            } else {
+                setBranchErrors((prev) => {
+                    const next = { ...prev };
+                    delete next[name];
+                    return next;
+                });
+            }
+        } else if (name === "b2b_sales_contact_email" && processedValue && processedValue.trim() !== "") {
+            const emailValidation = validateEmail(processedValue);
+            if (!emailValidation.isValid) {
+                setBranchErrors((prev) => ({ ...prev, [name]: emailValidation.message }));
+            } else {
+                setBranchErrors((prev) => {
+                    const next = { ...prev };
+                    delete next[name];
+                    return next;
+                });
+            }
         } else if (name === "gst_number" && processedValue && processedValue.trim() !== "") {
             const gstValidation = validateGSTIN(processedValue);
             if (!gstValidation.isValid) {
@@ -649,6 +674,19 @@ export default function CompanyProfilePage() {
                 }
             }
 
+            if (branchFormData.b2b_sales_contact_number && branchFormData.b2b_sales_contact_number.trim() !== "") {
+                const phoneValidation = validatePhone(branchFormData.b2b_sales_contact_number);
+                if (!phoneValidation.isValid) {
+                    validationErrors.b2b_sales_contact_number = phoneValidation.message;
+                }
+            }
+            if (branchFormData.b2b_sales_contact_email && branchFormData.b2b_sales_contact_email.trim() !== "") {
+                const emailValidation = validateEmail(branchFormData.b2b_sales_contact_email);
+                if (!emailValidation.isValid) {
+                    validationErrors.b2b_sales_contact_email = emailValidation.message;
+                }
+            }
+
             // If there are validation errors, set them and return
             if (Object.keys(validationErrors).length > 0) {
                 setBranchErrors(validationErrors);
@@ -678,6 +716,9 @@ export default function CompanyProfilePage() {
                 email: "",
                 contact_no: "",
                 gst_number: "",
+                b2b_sales_contact_person: "",
+                b2b_sales_contact_number: "",
+                b2b_sales_contact_email: "",
                 is_active: true,
                 is_default: false,
                 quotation_template_id: null,
@@ -702,6 +743,9 @@ export default function CompanyProfilePage() {
             email: branch.email || "",
             contact_no: branch.contact_no || "",
             gst_number: branch.gst_number || "",
+            b2b_sales_contact_person: branch.b2b_sales_contact_person ?? "",
+            b2b_sales_contact_number: branch.b2b_sales_contact_number ?? "",
+            b2b_sales_contact_email: branch.b2b_sales_contact_email ?? "",
             is_active: branch.is_active !== undefined ? branch.is_active : true,
             is_default: branch.is_default !== undefined ? branch.is_default : false,
             quotation_template_id: branch.quotation_template_id ?? branch.quotation_template?.id ?? null,
@@ -743,6 +787,9 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            b2b_sales_contact_person: "",
+            b2b_sales_contact_number: "",
+            b2b_sales_contact_email: "",
             is_active: true,
             is_default: false,
             quotation_template_id: null,
@@ -760,6 +807,9 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            b2b_sales_contact_person: "",
+            b2b_sales_contact_number: "",
+            b2b_sales_contact_email: "",
             is_active: true,
             is_default: false,
             quotation_template_id: null,
@@ -2622,6 +2672,41 @@ export default function CompanyProfilePage() {
                                                 </MenuItem>
                                             ))}
                                         </Select>
+                                        <div className="md:col-span-2 lg:col-span-3 space-y-2 pt-2 mt-1 border-t border-border/70">
+                                            <p className="text-xs font-semibold text-muted-foreground">
+                                                B2B sales order PDF contact (optional)
+                                            </p>
+                                            <div className="grid gap-2 sm:grid-cols-3">
+                                                <Input
+                                                    name="b2b_sales_contact_person"
+                                                    label="Contact person"
+                                                    value={branchFormData.b2b_sales_contact_person}
+                                                    onChange={handleBranchInputChange}
+                                                    fullWidth
+                                                    error={!!branchErrors.b2b_sales_contact_person}
+                                                    helperText={branchErrors.b2b_sales_contact_person || ""}
+                                                />
+                                                <Input
+                                                    name="b2b_sales_contact_number"
+                                                    label="Contact number"
+                                                    value={branchFormData.b2b_sales_contact_number}
+                                                    onChange={handleBranchInputChange}
+                                                    fullWidth
+                                                    error={!!branchErrors.b2b_sales_contact_number}
+                                                    helperText={branchErrors.b2b_sales_contact_number || ""}
+                                                />
+                                                <Input
+                                                    name="b2b_sales_contact_email"
+                                                    label="E-mail"
+                                                    type="email"
+                                                    value={branchFormData.b2b_sales_contact_email}
+                                                    onChange={handleBranchInputChange}
+                                                    fullWidth
+                                                    error={!!branchErrors.b2b_sales_contact_email}
+                                                    helperText={branchErrors.b2b_sales_contact_email || ""}
+                                                />
+                                            </div>
+                                        </div>
                                     </FormGrid>
                                 </FormSection>
                             </div>

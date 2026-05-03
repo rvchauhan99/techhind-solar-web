@@ -26,6 +26,11 @@ const YES_NO_OPTIONS = [
   { value: false, label: "No" },
 ];
 
+const MASTER_FIELD_LABEL_OVERRIDES = {
+  allow_b2b_sales: "Allow B2B sales",
+  sort_order: "Sort order",
+};
+
 export default function MasterForm({ 
   fields = [], 
   defaultValues = null, 
@@ -231,6 +236,15 @@ export default function MasterForm({
         if (cleanedData[key] === '' || cleanedData[key] === null || cleanedData[key] === undefined) {
           cleanedData[key] = null;
         }
+      } else if (
+        field &&
+        !field.reference &&
+        ['INTEGER', 'BIGINT', 'DECIMAL', 'FLOAT'].includes(String(field.type || '').toUpperCase()) &&
+        (cleanedData[key] === '' || cleanedData[key] === null) &&
+        field.allowNull === false
+      ) {
+        cleanedData[key] =
+          field.defaultValue !== undefined && field.defaultValue !== null ? field.defaultValue : 0;
       } else if (cleanedData[key] === '' && !requiredFields.includes(key)) {
         // For non-required fields, remove empty strings if nullable
         if (field && field.allowNull) {
@@ -263,7 +277,7 @@ export default function MasterForm({
     const hasError = errors[fieldName];
     
     // Use fieldLabel without asterisk (Material-UI will add it automatically with required prop)
-    const displayLabel = fieldLabel;
+    const displayLabel = MASTER_FIELD_LABEL_OVERRIDES[fieldName] ?? fieldLabel;
 
     // Skip internal fields
     if (['id', 'created_at', 'updated_at', 'deleted_at'].includes(fieldName)) {
