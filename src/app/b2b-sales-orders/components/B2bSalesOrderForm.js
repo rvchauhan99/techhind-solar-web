@@ -14,9 +14,11 @@ import {
   TableHead,
   TableRow,
   Paper,
+  Drawer,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import CloseIcon from "@mui/icons-material/Close";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
@@ -31,6 +33,7 @@ import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const emptyCurrentItem = () => ({
@@ -79,6 +82,29 @@ export default function B2bSalesOrderForm({
   const [shipTos, setShipTos] = useState([]);
   const [clientDetails, setClientDetails] = useState(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
+  const [pdfTermsClauses, setPdfTermsClauses] = useState([]);
+  const [pdfTermsDrawerOpen, setPdfTermsDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await getReferenceOptionsSearch("termsAndConditions.model", {
+          type: B2B_SALES_ORDER_PDF_CLAUSE,
+          is_active: "true",
+          limit: 100,
+        });
+        if (cancelled) return;
+        const list = Array.isArray(rows) ? rows.filter((r) => r?.is_active !== false) : [];
+        setPdfTermsClauses(list);
+      } catch {
+        if (!cancelled) setPdfTermsClauses([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     companyService
@@ -546,29 +572,73 @@ export default function B2bSalesOrderForm({
                   />
                 </div>
 
-                {/* Third row of grid: Remarks */}
-                <div className="lg:col-span-3">
-                  <Input
-                    name="terms_remarks"
-                    label="T&C Remarks"
-                    placeholder="Extra terms..."
-                    value={formData.terms_remarks}
-                    onChange={handleChange}
-                    multiline
-                    rows={2}
-                  />
-                </div>
-                <div className="lg:col-span-3">
-                  <Input
-                    name="order_remarks"
-                    label="Order Remarks"
-                    placeholder="Internal notes/remarks"
-                    value={formData.order_remarks}
-                    onChange={handleChange}
-                    multiline
-                    rows={2}
-                  />
-                </div>
+                {/* Third row: T&C + order remarks + PDF terms (single row when clauses exist) */}
+                {pdfTermsClauses.length > 0 ? (
+                  <>
+                    <div className="lg:col-span-2 [&_label]:mb-0.5">
+                      <Input
+                        name="terms_remarks"
+                        label="T&C Remarks"
+                        placeholder="Extra terms..."
+                        value={formData.terms_remarks}
+                        onChange={handleChange}
+                        multiline
+                        rows={2}
+                        className="min-h-[44px] py-1.5 text-xs leading-snug"
+                      />
+                    </div>
+                    <div className="lg:col-span-2 [&_label]:mb-0.5">
+                      <Input
+                        name="order_remarks"
+                        label="Order Remarks"
+                        placeholder="Internal notes/remarks"
+                        value={formData.order_remarks}
+                        onChange={handleChange}
+                        multiline
+                        rows={2}
+                        className="min-h-[44px] py-1.5 text-xs leading-snug"
+                      />
+                    </div>
+                    <div className="lg:col-span-2 flex flex-col justify-end pb-0.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs whitespace-nowrap w-full"
+                        onClick={() => setPdfTermsDrawerOpen(true)}
+                      >
+                        PDF terms ({pdfTermsClauses.length})
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="lg:col-span-3 [&_label]:mb-0.5">
+                      <Input
+                        name="terms_remarks"
+                        label="T&C Remarks"
+                        placeholder="Extra terms..."
+                        value={formData.terms_remarks}
+                        onChange={handleChange}
+                        multiline
+                        rows={2}
+                        className="min-h-[44px] py-1.5 text-xs leading-snug"
+                      />
+                    </div>
+                    <div className="lg:col-span-3 [&_label]:mb-0.5">
+                      <Input
+                        name="order_remarks"
+                        label="Order Remarks"
+                        placeholder="Internal notes/remarks"
+                        value={formData.order_remarks}
+                        onChange={handleChange}
+                        multiline
+                        rows={2}
+                        className="min-h-[44px] py-1.5 text-xs leading-snug"
+                      />
+                    </div>
+                  </>
+                )}
               </FormGrid>
             </Paper>
 
@@ -593,7 +663,12 @@ export default function B2bSalesOrderForm({
                 <div>
                   <AutocompleteField
                     asyncLoadOptions={async (q) => {
-                      const res = await productService.getProducts({ q, limit: 20, visibility: "active" });
+                      const res = await productService.getProducts({
+                        q,
+                        limit: 20,
+                        visibility: "active",
+                        allow_b2b_sales_only: true,
+                      });
                       const data = res?.result?.data ?? res?.data ?? [];
                       return data.map((p) => ({
                         id: p.id,
@@ -771,6 +846,46 @@ export default function B2bSalesOrderForm({
           </FormSection>
         </form>
       </FormContainer>
+
+      <Drawer
+        anchor="right"
+        open={pdfTermsDrawerOpen}
+        onClose={() => setPdfTermsDrawerOpen(false)}
+        PaperProps={{
+          sx: { width: { xs: "100%", sm: 440 }, maxWidth: "92vw", boxSizing: "border-box", display: "flex", flexDirection: "column", p: 0 },
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 0.5, borderBottom: 1, borderColor: "divider", flexShrink: 0 }}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            Terms (PDF)
+          </Typography>
+          <IconButton size="small" aria-label="Close" onClick={() => setPdfTermsDrawerOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </Box>
+        <Box sx={{ overflow: "auto", flex: 1, p: 0.75, minHeight: 0 }}>
+          <TableContainer>
+            <Table size="small" sx={{ "& td": { py: 0.5, px: 0.75, verticalAlign: "top", fontSize: 11 }, "& th": { py: 0.5, px: 0.75, fontSize: 11 } }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell width={36}>Sr</TableCell>
+                  <TableCell width="22%">Clause</TableCell>
+                  <TableCell>Description</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {pdfTermsClauses.map((row, idx) => (
+                  <TableRow key={row.id ?? idx}>
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>{row.title ?? row.label ?? "—"}</TableCell>
+                    <TableCell sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{row.content ?? ""}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      </Drawer>
 
       <div className="sticky bottom-0 z-20 bg-background border-t shadow-[0_-2px_8px_rgba(0,0,0,0.08)] px-4 py-3 flex gap-3 justify-end mt-2">
         {onCancel && (
