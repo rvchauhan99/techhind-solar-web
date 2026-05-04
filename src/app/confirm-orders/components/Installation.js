@@ -7,6 +7,8 @@ import ClearIcon from "@mui/icons-material/Clear";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleOutlineIcon from "@mui/icons-material/RemoveCircleOutline";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
@@ -205,7 +207,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
     }, [loadInstallation]);
 
     const [pendingPreviewUrls, setPendingPreviewUrls] = useState({});
-    const [photoPreview, setPhotoPreview] = useState(null);
+    const [photoGallery, setPhotoGallery] = useState(null);
     useEffect(() => {
         const next = {};
         Object.entries(pendingImages).forEach(([k, f]) => {
@@ -217,6 +219,28 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
         });
         return () => Object.values(next).forEach((u) => URL.revokeObjectURL(u));
     }, [pendingImages]);
+
+    const photoGalleryOpen = photoGallery != null;
+    useEffect(() => {
+        if (!photoGalleryOpen) return;
+        const onKeyDown = (e) => {
+            if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                setPhotoGallery((g) => {
+                    if (!g || g.index <= 0) return g;
+                    return { ...g, index: g.index - 1 };
+                });
+            } else if (e.key === "ArrowRight") {
+                e.preventDefault();
+                setPhotoGallery((g) => {
+                    if (!g || g.index >= g.slides.length - 1) return g;
+                    return { ...g, index: g.index + 1 };
+                });
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [photoGalleryOpen]);
 
     useEffect(() => {
         if (!orderData?.id || !user?.id) {
@@ -1065,6 +1089,32 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
         []
     );
 
+    const installationPhotoSlides = useMemo(() => {
+        const out = [];
+        for (const { key, label } of INSTALLATION_IMAGE_KEYS) {
+            const hasPending = !!pendingImages[key];
+            const hasSaved = !!images[key];
+            if (!hasPending && !hasSaved) continue;
+            if (hasPending) {
+                const src = pendingPreviewUrls[key];
+                if (!src) continue;
+                out.push({ key, label, isPending: true, src });
+            } else {
+                out.push({ key, label, isPending: false, src: images[key] });
+            }
+        }
+        return out;
+    }, [pendingImages, images, pendingPreviewUrls]);
+
+    const openInstallationPhotoGallery = useCallback(
+        (slotKey) => {
+            const idx = installationPhotoSlides.findIndex((s) => s.key === slotKey);
+            if (idx < 0) return;
+            setPhotoGallery({ slides: installationPhotoSlides, index: idx });
+        },
+        [installationPhotoSlides]
+    );
+
     const renderInstallationPhotoField = useCallback(
         ({ key, label, required }) => {
             const hasPending = !!pendingImages[key];
@@ -1114,7 +1164,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 <Box className="flex items-center justify-between mt-0.5 px-0.5">
                                     <button
                                         type="button"
-                                        onClick={() => setPhotoPreview({ isPending: hasPending, src: hasPending ? previewUrl : images[key], title: label })}
+                                        onClick={() => openInstallationPhotoGallery(key)}
                                         className="text-[0.7rem] text-primary font-medium hover:underline underline-offset-2 transition-colors cursor-pointer"
                                     >
                                         View Full
@@ -1199,7 +1249,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                 </Box>
             );
         },
-        [pendingImages, images, pendingPreviewUrls, disabled, fieldErrors]
+        [pendingImages, images, pendingPreviewUrls, disabled, fieldErrors, openInstallationPhotoGallery]
     );
 
     useEffect(() => {
@@ -2083,29 +2133,104 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!photoPreview} onOpenChange={(open) => !open && setPhotoPreview(null)}>
-                <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden bg-black/95 border-none">
-                    <DialogHeader className="p-4 absolute top-0 w-full pointer-events-none bg-gradient-to-b from-black/80 to-transparent">
-                        <DialogTitle className="text-white text-sm font-medium pr-8 pointer-events-auto">
-                            {photoPreview?.title}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="relative w-full h-[60vh] sm:h-[80vh] flex items-center justify-center p-4 pt-14">
-                        {photoPreview?.isPending ? (
-                            <img 
-                                src={photoPreview.src} 
-                                alt={photoPreview.title}
-                                className="max-w-full max-h-full object-contain"
-                            />
-                        ) : photoPreview?.src ? (
-                            <BucketImage
-                                path={photoPreview.src}
-                                getUrl={getDocumentUrlById}
-                                alt={photoPreview.title}
-                                sx={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 0 }}
-                            />
-                        ) : null}
-                    </div>
+            <Dialog open={!!photoGallery} onOpenChange={(open) => !open && setPhotoGallery(null)}>
+                <DialogContent className="!fixed !inset-0 !left-0 !top-0 !flex !h-[100dvh] !max-h-[100dvh] !w-full !max-w-none !translate-x-0 !translate-y-0 !rounded-none border-none bg-black/95 p-0 gap-0 flex-col overflow-hidden text-white ring-0">
+                    {(() => {
+                        const slide = photoGallery?.slides?.[photoGallery.index];
+                        const total = photoGallery?.slides?.length ?? 0;
+                        const idx = photoGallery?.index ?? 0;
+                        const canPrev = total > 0 && idx > 0;
+                        const canNext = total > 0 && idx < total - 1;
+                        return (
+                            <>
+                                <DialogHeader className="p-2 sm:p-3 shrink-0 flex-row items-center justify-between gap-2 border-b border-white/10 bg-black/60 space-y-0">
+                                    <DialogTitle className="text-white text-xs sm:text-sm font-medium pr-2 line-clamp-2">
+                                        {slide?.label}
+                                        {total > 0 ? (
+                                            <span className="text-white/60 font-normal ml-2 whitespace-nowrap">
+                                                {idx + 1} / {total}
+                                            </span>
+                                        ) : null}
+                                    </DialogTitle>
+                                </DialogHeader>
+                                <div className="relative flex-1 min-h-0 w-full flex items-center justify-center px-10 sm:px-14 py-2">
+                                    {canPrev && (
+                                        <IconButton
+                                            type="button"
+                                            aria-label="Previous photo"
+                                            onClick={() =>
+                                                setPhotoGallery((g) =>
+                                                    g && g.index > 0 ? { ...g, index: g.index - 1 } : g
+                                                )
+                                            }
+                                            sx={{
+                                                position: "absolute",
+                                                left: 4,
+                                                top: "50%",
+                                                transform: "translateY(-50%)",
+                                                zIndex: 2,
+                                                color: "#fff",
+                                                bgcolor: "rgba(255,255,255,0.12)",
+                                                "&:hover": { bgcolor: "rgba(255,255,255,0.22)" },
+                                            }}
+                                            size="large"
+                                        >
+                                            <ChevronLeftIcon sx={{ fontSize: 32 }} />
+                                        </IconButton>
+                                    )}
+                                    {canNext && (
+                                        <IconButton
+                                            type="button"
+                                            aria-label="Next photo"
+                                            onClick={() =>
+                                                setPhotoGallery((g) =>
+                                                    g && g.index < g.slides.length - 1
+                                                        ? { ...g, index: g.index + 1 }
+                                                        : g
+                                                )
+                                            }
+                                            sx={{
+                                                position: "absolute",
+                                                right: 4,
+                                                top: "50%",
+                                                transform: "translateY(-50%)",
+                                                zIndex: 2,
+                                                color: "#fff",
+                                                bgcolor: "rgba(255,255,255,0.12)",
+                                                "&:hover": { bgcolor: "rgba(255,255,255,0.22)" },
+                                            }}
+                                            size="large"
+                                        >
+                                            <ChevronRightIcon sx={{ fontSize: 32 }} />
+                                        </IconButton>
+                                    )}
+                                    <div className="relative w-full h-full max-h-full flex items-center justify-center">
+                                        {slide?.isPending ? (
+                                            <img
+                                                src={slide.src}
+                                                alt={slide.label}
+                                                className="max-w-full max-h-full w-auto h-auto object-contain"
+                                            />
+                                        ) : slide?.src ? (
+                                            <BucketImage
+                                                path={slide.src}
+                                                getUrl={getDocumentUrlById}
+                                                alt={slide.label}
+                                                sx={{
+                                                    maxWidth: "100%",
+                                                    maxHeight: "100%",
+                                                    width: "auto",
+                                                    height: "auto",
+                                                    objectFit: "contain",
+                                                    borderRadius: 0,
+                                                }}
+                                            />
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
         </Box>
