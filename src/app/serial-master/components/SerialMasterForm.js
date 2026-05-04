@@ -24,7 +24,10 @@ import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { Button } from "@/components/ui/button";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { SERIAL_MASTER_CODE_OPTIONS, isKnownSerialMasterCode } from "@/constants/serialMasterCodes";
 
 // ─── Configuration Maps ──────────────────────────────────────────────────────
 
@@ -157,11 +160,16 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
     },
     ref
 ) {
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState(() => ({
         code: "",
         is_active: true,
+        branch_id: "",
         ...defaultValues,
-    });
+        branch_id:
+            defaultValues?.branch_id ??
+            defaultValues?.branch?.id ??
+            "",
+    }));
 
     const [details, setDetails] = useState(() => {
         if (defaultValues?.details?.length) {
@@ -177,14 +185,27 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
     const [editingIndex, setEditingIndex] = useState(null); // index when editing existing row
     const [editorData, setEditorData] = useState(null); // row data in editor
     const [editorError, setEditorError] = useState(null); // validation error
+    const [formError, setFormError] = useState(null);
+    const [serialCodeError, setSerialCodeError] = useState(null);
     const formRef = useRef(null);
 
     useEffect(() => {
-        if (defaultValues?.id || Object.keys(defaultValues).length) {
-            setFormData({ code: "", is_active: true, ...defaultValues });
-            if (defaultValues.details?.length) {
+        if (!defaultValues?.id) setSerialCodeError(null);
+        const dv = defaultValues ?? {};
+        if (defaultValues?.id || Object.keys(dv).length > 0) {
+            setFormData({
+                code: "",
+                is_active: true,
+                branch_id: "",
+                ...dv,
+                branch_id:
+                    dv.branch_id ??
+                    dv.branch?.id ??
+                    "",
+            });
+            if (dv.details?.length) {
                 setDetails(
-                    defaultValues.details
+                    dv.details
                         .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
                         .map((d) => ({ ...makeEmptyRow(), ...d }))
                 );
@@ -192,9 +213,35 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
         }
     }, [defaultValues?.id]);
 
+    const isEdit = Boolean(defaultValues?.id);
+
+    /** Branch row from API when editing — used so the autocomplete shows a label immediately. */
+    const branchAsyncDefaults = useMemo(() => {
+        const b = defaultValues?.branch;
+        if (!b?.id) return [];
+        const name = b.name ?? b.label ?? "";
+        return [{ id: b.id, name, label: name, source_name: name }];
+    }, [defaultValues?.branch?.id, defaultValues?.branch?.name, defaultValues?.branch?.label]);
+
+    const branchFieldValue = useMemo(() => {
+        if (formData.branch_id === "" || formData.branch_id == null) return null;
+        const id = Number(formData.branch_id);
+        if (Number.isNaN(id)) return null;
+        const b = defaultValues?.branch;
+        if (b && Number(b.id) === id) {
+            const name = b.name ?? b.label ?? "";
+            return { id: b.id, name, label: name, source_name: name };
+        }
+        return { id };
+    }, [formData.branch_id, defaultValues?.branch]);
+
+    const getOptionLabel = (opt) =>
+        opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
+
     const handleFieldChange = (e) => {
         const { name, value } = e.target;
         if (serverError) onClearServerError();
+        if (name === "code") setSerialCodeError(null);
         setFormData((s) => ({ ...s, [name]: value }));
     };
 
@@ -307,20 +354,44 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
     const handleSubmit = (e) => {
         e.preventDefault();
         if (viewMode) return;
+        if (!isEdit) {
+            const c = String(formData.code || "").trim();
+            if (!c) {
+                setSerialCodeError("Serial code is required");
+                return;
+            }
+        }
+        setSerialCodeError(null);
+        const hasExplicitBranch =
+            formData.branch_id !== "" &&
+            formData.branch_id != null &&
+            !Number.isNaN(parseInt(String(formData.branch_id), 10));
+        const branchPayload = hasExplicitBranch ? parseInt(String(formData.branch_id), 10) : null;
+        setFormError(null);
         const payload = {
             code: formData.code,
             is_active: formData.is_active,
-            details: details.map((d, i) => ({
-                type: d.type,
-                sort_order: i,
-                fixed_char: d.type === "FIXED" || d.type === "SEQUENTIALCHARACTER" ? d.fixed_char || null : null,
-                date_format: d.type === "DATE" || d.type === "FINANCIAL_YEAR" ? d.date_format || null : null,
-                width: d.type === "SERIAL" ? parseInt(d.width, 10) || 4 : null,
-                start_value: d.type === "SERIAL" ? d.start_value || "0" : null,
-                next_value: d.type === "SERIAL" ? parseInt(d.next_value, 10) || 1 : null,
-                reset_value: d.type === "SERIAL" ? d.reset_value || null : null,
-                reset_interval: d.type === "SERIAL" && d.reset_interval ? d.reset_interval : null,
-            })),
+            branch_id: branchPayload,
+            details: details.map((d, i) => {
+                const row = {
+                    type: d.type,
+                    sort_order: i,
+                    fixed_char: d.type === "FIXED" || d.type === "SEQUENTIALCHARACTER" ? d.fixed_char || null : null,
+                    date_format: d.type === "DATE" || d.type === "FINANCIAL_YEAR" ? d.date_format || null : null,
+                    width: d.type === "SERIAL" ? parseInt(d.width, 10) || 4 : null,
+                    start_value: d.type === "SERIAL" ? d.start_value || "0" : null,
+                    next_value: d.type === "SERIAL" ? parseInt(d.next_value, 10) || 1 : null,
+                    reset_value: d.type === "SERIAL" ? d.reset_value || null : null,
+                    reset_interval: d.type === "SERIAL" && d.reset_interval ? d.reset_interval : null,
+                };
+                if (d.last_generated != null && String(d.last_generated).trim() !== "") {
+                    row.last_generated = String(d.last_generated);
+                }
+                if (d.last_reset_at != null && d.last_reset_at !== "") {
+                    row.last_reset_at = d.last_reset_at;
+                }
+                return row;
+            }),
         };
         onSubmit(payload);
     };
@@ -534,19 +605,43 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
             {serverError ? <Alert severity="error" sx={{ mb: 2 }}>{serverError}</Alert> : null}
 
             <Box component="form" ref={formRef} onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                <Box sx={{ display: "flex", gap: 2, mb: 2, pt: 1 }}>
-                    <Box sx={{ flex: 1 }}>
-                        <Input
-                            name="code"
-                            label="Serial Code"
-                            value={formData.code || ""}
-                            onChange={handleFieldChange}
-                            required={!viewMode}
-                            disabled={viewMode}
-                            placeholder="e.g. PO, SO, INV"
-                        />
+                <Box sx={{ display: "flex", gap: 1.5, mb: 1, pt: 1, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <Box sx={{ flex: "1 1 180px", minWidth: 160 }}>
+                        {!isEdit && !viewMode ? (
+                            <Select
+                                name="code"
+                                label="Serial Code"
+                                value={formData.code || ""}
+                                onChange={handleFieldChange}
+                                required
+                                clearable={false}
+                                placeholder="Select serial code..."
+                                error={Boolean(serialCodeError)}
+                                helperText={serialCodeError}
+                            >
+                                {SERIAL_MASTER_CODE_OPTIONS.map((opt) => (
+                                    <MenuItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        ) : (
+                            <Box sx={{ pb: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5, fontWeight: 600 }}>
+                                    Serial Code
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+                                    {formData.code || "—"}
+                                </Typography>
+                                {isEdit && !viewMode && !isKnownSerialMasterCode(formData.code) ? (
+                                    <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 0.5, maxWidth: 360 }}>
+                                        Legacy code — not in standard list. To use a standard code, add a new Serial Master.
+                                    </Typography>
+                                ) : null}
+                            </Box>
+                        )}
                     </Box>
-                    <Box sx={{ width: 160 }}>
+                    <Box sx={{ width: 140 }}>
                         <Select
                             name="is_active"
                             label="Status"
@@ -558,6 +653,32 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
                             <MenuItem value="false">Inactive</MenuItem>
                         </Select>
                     </Box>
+                </Box>
+                <Box sx={{ mb: 1.5 }}>
+                    <AutocompleteField
+                        name="branch_id"
+                        label="Branch"
+                        required={false}
+                        disabled={viewMode}
+                        error={Boolean(formError)}
+                        helperText={formError || undefined}
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                        asyncDefaultOptions={branchAsyncDefaults}
+                        referenceModel="company_branch.model"
+                        getOptionLabel={getOptionLabel}
+                        value={branchFieldValue}
+                        onChange={(e, newValue) => {
+                            if (serverError) onClearServerError();
+                            setFormError(null);
+                            setFormData((s) => ({
+                                ...s,
+                                branch_id: newValue?.id ?? "",
+                            }));
+                        }}
+                        placeholder="Search branch..."
+                        variant="minimal"
+                        size="small"
+                    />
                 </Box>
 
                 {/* Live Preview */}
