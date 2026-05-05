@@ -1002,9 +1002,9 @@ export default function PurchaseReturnForm({
                           return (
                             rows?.map((r) => ({
                               id: r.id,
-                              label: `${r.purchaseOrder?.po_number ?? r.id} - ${
-                                r.supplier?.supplier_name ?? ""
-                              }`,
+                              label: `${r.receipt_number ? `${r.receipt_number} | ` : ""}${
+                                r.purchaseOrder?.po_number ?? r.id
+                              } - ${r.supplier?.supplier_name ?? ""}`,
                             })) || []
                           );
                         })
@@ -1180,6 +1180,16 @@ export default function PurchaseReturnForm({
 
           {selectedInward && (
             <div className="mt-1.5 mb-1 rounded-md border border-border bg-card px-3 py-2 flex flex-wrap gap-3 items-start">
+              {selectedInward.receipt_number && (
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground font-medium">
+                    Receipt #
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {selectedInward.receipt_number}
+                  </p>
+                </div>
+              )}
               <div className="flex items-center gap-2 min-w-0">
                 <InventoryIcon sx={{ fontSize: 18, color: "text.secondary" }} />
                 <div>
