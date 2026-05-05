@@ -116,6 +116,7 @@ export default function CompanyProfilePage() {
         email: "",
         contact_no: "",
         gst_number: "",
+        billing_address_source: "branch",
         b2b_sales_contact_person: "",
         b2b_sales_contact_number: "",
         b2b_sales_contact_email: "",
@@ -743,6 +744,8 @@ export default function CompanyProfilePage() {
             email: branch.email || "",
             contact_no: branch.contact_no || "",
             gst_number: branch.gst_number || "",
+            billing_address_source:
+                branch.billing_address_source === "company" ? "company" : "branch",
             b2b_sales_contact_person: branch.b2b_sales_contact_person ?? "",
             b2b_sales_contact_number: branch.b2b_sales_contact_number ?? "",
             b2b_sales_contact_email: branch.b2b_sales_contact_email ?? "",
@@ -787,6 +790,7 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
             b2b_sales_contact_email: "",
@@ -807,6 +811,7 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
             b2b_sales_contact_email: "",
@@ -1602,6 +1607,7 @@ export default function CompanyProfilePage() {
                                                         <th className="px-4 py-3">Email</th>
                                                         <th className="px-4 py-3">Contact No</th>
                                                         <th className="px-4 py-3">GST Number</th>
+                                                        <th className="px-4 py-3">Billing</th>
                                                         <th className="px-4 py-3">Managers</th>
                                                         <th className="px-4 py-3">Quotation Template</th>
                                                         <th className="px-4 py-3">Active</th>
@@ -1612,7 +1618,7 @@ export default function CompanyProfilePage() {
                                                 <tbody className="divide-y divide-gray-200">
                                                     {branches.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                                            <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                                                                 No branches found
                                                             </td>
                                                         </tr>
@@ -1624,6 +1630,11 @@ export default function CompanyProfilePage() {
                                                                 <td className="px-4 py-3">{branch.email}</td>
                                                                 <td className="px-4 py-3">{branch.contact_no}</td>
                                                                 <td className="px-4 py-3">{branch.gst_number}</td>
+                                                                <td className="px-4 py-3 text-gray-600">
+                                                                    {branch.billing_address_source === "company"
+                                                                        ? "Company"
+                                                                        : "Branch"}
+                                                                </td>
                                                                 <td className="px-4 py-3 text-gray-700 max-w-[240px] truncate" title={(branch.manager_names || []).join(", ")}>
                                                                     {branch.manager_count > 0
                                                                         ? (branch.manager_names || []).join(", ")
@@ -2630,6 +2641,29 @@ export default function CompanyProfilePage() {
                                             error={!!branchErrors.gst_number}
                                             helperText={branchErrors.gst_number || ""}
                                         />
+                                        <div className="md:col-span-2 lg:col-span-3 space-y-1">
+                                            <Select
+                                                name="billing_address_source"
+                                                label="Billing / letterhead address"
+                                                value={branchFormData.billing_address_source ?? "branch"}
+                                                onChange={(e) =>
+                                                    setBranchFormData((prev) => ({
+                                                        ...prev,
+                                                        billing_address_source: e.target.value,
+                                                    }))
+                                                }
+                                                fullWidth
+                                                className="min-w-0"
+                                            >
+                                                <MenuItem value="branch">This branch</MenuItem>
+                                                <MenuItem value="company">Company (registered office)</MenuItem>
+                                            </Select>
+                                            {branchFormData.billing_address_source === "company" && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Uses address and contact from the Company tab (registered office) on quotations.
+                                                </p>
+                                            )}
+                                        </div>
                                         <Checkbox
                                             name="is_active"
                                             label="Active"
