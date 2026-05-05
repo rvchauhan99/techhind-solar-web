@@ -15,8 +15,13 @@ export const updateSerialMaster = (id, payload) =>
 export const deleteSerialMaster = (id) =>
     apiClient.delete(`/serial-master/${id}`).then((r) => r.data);
 
-export const generateSerial = (code) =>
-    apiClient.post('/serial-master/generate', { code }).then((r) => r.data);
+export const generateSerial = (code, branchId) =>
+    apiClient
+        .post('/serial-master/generate', {
+            code,
+            ...(branchId != null && branchId !== '' ? { branch_id: branchId } : {}),
+        })
+        .then((r) => r.data);
 
 export default {
     listSerialMasters,

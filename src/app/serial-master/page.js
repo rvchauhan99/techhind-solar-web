@@ -30,6 +30,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { Chip, Typography } from "@mui/material";
 import serialMasterService from "@/services/serialMasterService";
+import { getSerialMasterCodeLabel } from "@/constants/serialMasterCodes";
 import SerialMasterForm from "./components/SerialMasterForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
@@ -63,8 +64,8 @@ export default function SerialMasterListPage() {
     const [totalCount, setTotalCount] = useState(0);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [selectedRow, setSelectedRow] = useState(null);
-    const [generating, setGenerating] = useState(null); // code being generated
-    const [generatedSerial, setGeneratedSerial] = useState(null); // last generated
+    const [generating, setGenerating] = useState(null); // row id while generating
+    const [generatedSerial, setGeneratedSerial] = useState(null); // { code, branch_id, serial }
 
     const addFormRef = useRef(null);
     const editFormRef = useRef(null);
@@ -121,13 +122,14 @@ export default function SerialMasterListPage() {
 
     // ── Generate ──
 
-    const handleGenerate = useCallback(async (code) => {
-        setGenerating(code);
+    const handleGenerate = useCallback(async (row) => {
+        if (!row?.code) return;
+        setGenerating(row.id);
         try {
-            const res = await serialMasterService.generateSerial(code);
+            const res = await serialMasterService.generateSerial(row.code, row.branch_id);
             const serial = res?.result?.serial || res?.data?.serial || res?.serial;
             if (serial) {
-                setGeneratedSerial({ code, serial });
+                setGeneratedSerial({ code: row.code, branch_id: row.branch_id, serial });
                 toast.success(`Generated: ${serial}`);
             } else {
                 toast.error(res?.message || "Failed to generate serial");
@@ -188,6 +190,16 @@ export default function SerialMasterListPage() {
                 defaultFilterOperator: "contains",
                 render: (row) => (
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>{row.code}</Typography>
+                ),
+            },
+            {
+                field: "branch",
+                label: "Branch",
+                sortable: false,
+                render: (row) => (
+                    <Typography variant="body2" sx={{ fontSize: "0.8125rem" }}>
+                        {row.branch?.name ?? (row.branch_id != null ? `#${row.branch_id}` : "—")}
+                    </Typography>
                 ),
             },
             {
@@ -258,8 +270,8 @@ export default function SerialMasterListPage() {
                             size="icon"
                             variant="ghost"
                             className="size-8"
-                            onClick={() => handleGenerate(row.code)}
-                            disabled={generating === row.code || !row.is_active}
+                            onClick={() => handleGenerate(row)}
+                            disabled={generating === row.id || !row.is_active}
                             title="Generate Serial"
                         >
                             <IconSparkles className="size-4" />
@@ -335,12 +347,20 @@ export default function SerialMasterListPage() {
     const sidebarContent = useMemo(() => {
         if (!selectedRow) return null;
         const r = selectedRow;
+        const codeLabel = getSerialMasterCodeLabel(r.code);
         const details = (r.details || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
         return (
             <div className="pr-1 space-y-4">
                 <div>
                     <p className="text-xs font-semibold text-muted-foreground">Serial Code</p>
-                    <p className="text-sm font-bold">{r.code ?? "—"}</p>
+                    <p className="text-sm font-bold font-mono">{r.code ?? "—"}</p>
+                    {codeLabel ? (
+                        <p className="text-xs text-muted-foreground mt-0.5">{codeLabel}</p>
+                    ) : null}
+                </div>
+                <div>
+                    <p className="text-xs font-semibold text-muted-foreground">Branch</p>
+                    <p className="text-sm">{r.branch?.name ?? (r.branch_id != null ? `#${r.branch_id}` : "—")}</p>
                 </div>
                 <div>
                     <p className="text-xs font-semibold text-muted-foreground">Status</p>
@@ -373,7 +393,7 @@ export default function SerialMasterListPage() {
                         </div>
                     </div>
                 )}
-                {generatedSerial?.code === r.code && (
+                {generatedSerial?.code === r.code && generatedSerial?.branch_id === r.branch_id && (
                     <div>
                         <p className="text-xs font-semibold text-muted-foreground">Last Generated</p>
                         <p className="font-mono font-bold text-sm">{generatedSerial.serial}</p>

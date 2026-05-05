@@ -34,6 +34,8 @@ import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 
 const COLUMN_FILTER_KEYS = [
+  "receipt_number",
+  "receipt_number_op",
   "po_number",
   "po_number_op",
   "supplier_name",
@@ -157,6 +159,15 @@ export default function POInwardPage() {
 
   const columns = useMemo(
     () => [
+      {
+        field: "receipt_number",
+        label: "Receipt #",
+        sortable: false,
+        filterType: "text",
+        filterKey: "receipt_number",
+        defaultFilterOperator: "contains",
+        render: (row) => row.receipt_number || "-",
+      },
       {
         field: "purchaseOrder",
         label: "PO Number",
@@ -302,6 +313,7 @@ export default function POInwardPage() {
         po_number: p.po_number || undefined,
         supplier_name: p.supplier_name || undefined,
         warehouse_name: p.warehouse_name || undefined,
+        receipt_number: p.receipt_number || undefined,
         total_received_quantity: p.total_received_quantity || undefined,
         total_received_quantity_op: p.total_received_quantity_op || undefined,
         total_received_quantity_to: p.total_received_quantity_to || undefined,
@@ -354,6 +366,9 @@ export default function POInwardPage() {
       <div className="pr-1 space-y-4">
         <div className="space-y-1">
           <p className="font-semibold text-base">{txt(p.purchaseOrder?.po_number)}</p>
+          {p.receipt_number ? (
+            <p className="text-xs text-muted-foreground">Receipt #: {txt(p.receipt_number)}</p>
+          ) : null}
           <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
             {txt(p.status)}
           </Badge>
@@ -383,6 +398,7 @@ export default function POInwardPage() {
         <div className="rounded-md border border-border p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Invoice & Receipt</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Receipt #</span><span>{txt(p.receipt_number)}</span>
             <span className="text-muted-foreground">Invoice No</span><span>{txt(p.supplier_invoice_number)}</span>
             <span className="text-muted-foreground">Invoice Date</span><span>{formatDate(p.supplier_invoice_date)}</span>
             <span className="text-muted-foreground">Receipt Type</span><span>{txt(p.receipt_type)}</span>
