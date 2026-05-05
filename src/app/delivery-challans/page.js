@@ -152,6 +152,22 @@ export default function DeliveryChallanListPage() {
                                 className="size-7"
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    navigateToPartialReturn(row?.id);
+                                }}
+                                title="Partial Return"
+                                aria-label="Partial Return"
+                            >
+                                <span className="text-[11px] font-semibold">PR</span>
+                            </Button>
+                        )}
+
+                        {canReverseRow && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={(e) => {
+                                    e.stopPropagation();
                                     openReverseDialogForRow(row);
                                 }}
                                 title="Reverse"
@@ -421,6 +437,12 @@ export default function DeliveryChallanListPage() {
         }
     };
 
+    const navigateToPartialReturn = (challanId) => {
+        if (!challanId) return;
+        const returnTo = encodeURIComponent("/delivery-challans");
+        router.push(`/delivery-challans/return?challan_id=${challanId}&returnTo=${returnTo}`);
+    };
+
     return (
         <ListingPageContainer
             title="Delivery Challans"
@@ -464,15 +486,27 @@ export default function DeliveryChallanListPage() {
                 challanId={selectedChallanId}
                 title="Challan Details"
                 extraActions={
-                    <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={!isReverseAllowed || reversing}
-                        loading={reversing}
-                        onClick={openReverseDialog}
-                    >
-                        Reverse
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!isReverseAllowed}
+                            onClick={() =>
+                                navigateToPartialReturn(selectedChallanId)
+                            }
+                        >
+                            Partial Return
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={!isReverseAllowed || reversing}
+                            loading={reversing}
+                            onClick={openReverseDialog}
+                        >
+                            Reverse
+                        </Button>
+                    </div>
                 }
             />
 
