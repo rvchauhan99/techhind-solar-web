@@ -18,6 +18,9 @@ export const deleteChallan = (id) =>
 export const reverseChallan = (id, payload = {}) =>
     apiClient.post(`/challan/${id}/reverse`, payload).then((r) => r.data);
 
+export const partialReturnChallan = (id, payload = {}) =>
+    apiClient.post(`/challan/${id}/partial-return`, payload).then((r) => r.data);
+
 export const getNextChallanNumber = () =>
     apiClient.get("/challan/next-challan-number").then((r) => r.data);
 
@@ -49,6 +52,7 @@ export default {
     updateChallan,
     deleteChallan,
     reverseChallan,
+    partialReturnChallan,
     getNextChallanNumber,
     getQuotationProducts,
     getDeliveryStatus,
