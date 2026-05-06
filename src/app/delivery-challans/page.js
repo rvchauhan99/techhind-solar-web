@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
     IconCircleCheck,
     IconFileDescription,
-    IconRefresh,
     IconTrash,
 } from "@tabler/icons-react";
 import {
@@ -111,23 +110,6 @@ export default function DeliveryChallanListPage() {
             render: (row) => {
                 const stageKey = normalizeStageKey(row?.order?.current_stage_key);
                 const isDraftRow = stageKey === "delivery";
-                const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
-
-                const isSuperAdminLocal = String(user?.role?.name || "")
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]/g, "") === "superadmin";
-
-                const allowedStageKeysLocal = new Set([
-                    "assign_fabricator_and_installer",
-                    "fabrication",
-                    "installation",
-                ]);
-
-                const canReverseRow =
-                    isSuperAdminLocal &&
-                    allowedStageKeysLocal.has(stageKey) &&
-                    !isInstallationCompleted &&
-                    !row?.is_reversed;
 
                 return (
                     <div className="flex items-center gap-0.5">
@@ -144,38 +126,6 @@ export default function DeliveryChallanListPage() {
                         >
                             <IconFileDescription className="size-3.5" />
                         </Button>
-
-                        {canReverseRow && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigateToPartialReturn(row?.id);
-                                }}
-                                title="Partial Return"
-                                aria-label="Partial Return"
-                            >
-                                <span className="text-[11px] font-semibold">PR</span>
-                            </Button>
-                        )}
-
-                        {canReverseRow && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    openReverseDialogForRow(row);
-                                }}
-                                title="Reverse"
-                                aria-label="Reverse"
-                            >
-                                <IconRefresh className="size-3.5" />
-                            </Button>
-                        )}
 
                         {isDraftRow && (
                             <Button
@@ -356,29 +306,6 @@ export default function DeliveryChallanListPage() {
         setReverseDialogOpen(true);
     };
 
-    // Row-aware reverse (used by Actions column buttons)
-    const openReverseDialogForRow = (row) => {
-        const challanId = row?.id;
-        if (!challanId) return;
-
-        const rowStageKey = normalizeStageKey(row?.order?.current_stage_key);
-        const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
-        const canReverseRow =
-            isSuperAdmin && allowedStageKeys.has(rowStageKey) && !isInstallationCompleted && !row?.is_reversed;
-        if (!canReverseRow) return;
-
-        setSelectedChallanId(challanId);
-        setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
-        setSelectedOrderInstallationCompleted(isInstallationCompleted);
-        setSelectedIsReversed(!!row?.is_reversed);
-
-        setReverseReasonId("");
-        setReverseReasonText("");
-        setReverseRemarks("");
-        setReverseReasonError(false);
-        setReverseDialogOpen(true);
-    };
-
     // Draft confirm (draft challan corresponds to order current_stage_key === "delivery")
     const handleConfirmForRow = (row) => {
         const orderId = row?.order?.id;
@@ -494,6 +421,8 @@ export default function DeliveryChallanListPage() {
                             onClick={() =>
                                 navigateToPartialReturn(selectedChallanId)
                             }
+                            title="Open partial return form (submit there completes the return)"
+                            aria-label="Open partial return form"
                         >
                             Partial Return
                         </Button>

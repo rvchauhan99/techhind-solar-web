@@ -29,17 +29,24 @@ function DeliveryChallanReturnContent() {
         return decoded;
     };
     const returnPath = getSafeReturnPath(returnToRaw);
+    const challanIdNum = Number(challanId);
+    const hasValidChallanId = Number.isInteger(challanIdNum) && challanIdNum > 0;
 
     useEffect(() => {
         const load = async () => {
             if (!challanId) {
-                setServerError("challan_id is required");
+                setServerError("challan_id is required in URL");
+                setInitialLoading(false);
+                return;
+            }
+            if (!hasValidChallanId) {
+                setServerError("Invalid or missing challan id. Use a valid link that includes challan_id.");
                 setInitialLoading(false);
                 return;
             }
             try {
                 setInitialLoading(true);
-                const response = await challanService.getChallanById(challanId);
+                const response = await challanService.getChallanById(challanIdNum);
                 const result = response?.result ?? response;
                 setChallan(result || null);
             } catch (err) {
@@ -49,15 +56,26 @@ function DeliveryChallanReturnContent() {
             }
         };
         load();
-    }, [challanId]);
+    }, [challanId, hasValidChallanId, challanIdNum]);
 
     const handleSubmit = async (payload) => {
-        if (!challanId) return;
+        if (!hasValidChallanId || !challan?.id) {
+            setServerError("Unable to submit without a valid challan context.");
+            return;
+        }
         setLoading(true);
         setServerError(null);
         try {
-            await challanService.partialReturnChallan(challanId, payload);
-            toast.success("Partial return created successfully");
+            const response = await challanService.partialReturnChallan(challanIdNum, payload);
+            const result = response?.result ?? response;
+            const returnId = result?.challan_return_id;
+            const idNote =
+                returnId != null && returnId !== ""
+                    ? ` Return #${returnId}.`
+                    : "";
+            toast.success(
+                `Return complete. Stock and ledger are updated; no further steps required.${idNote}`
+            );
             router.push(returnPath);
             setTimeout(() => router.refresh(), 300);
         } catch (err) {
