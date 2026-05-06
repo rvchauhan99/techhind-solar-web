@@ -52,6 +52,12 @@ const COLUMN_FILTER_KEYS = [
   "grand_total_to",
 ];
 
+const formatSignedCurrency = (val) => {
+  const n = Number(val) || 0;
+  const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+  return `${sign}${formatCurrency(Math.abs(n))}`;
+};
+
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "CONFIRMED", label: "Confirmed" },
@@ -322,7 +328,7 @@ export default function B2bSalesOrdersPage() {
         filterKey: "grand_total",
         filterKeyTo: "grand_total_to",
         defaultFilterOperator: "equals",
-        render: (row) => formatCurrency(row.grand_total) || "-",
+        render: (row) => formatCurrency(row.final_amount ?? row.grand_total) || "-",
       },
       {
         field: "actions",
@@ -509,8 +515,12 @@ export default function B2bSalesOrdersPage() {
             <p>{formatCurrency(o.total_gst_amount) ?? "-"}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold text-muted-foreground">Grand Total</p>
-            <p className="font-semibold">{formatCurrency(o.grand_total) ?? "-"}</p>
+            <p className="text-xs font-semibold text-muted-foreground">Round Off</p>
+            <p className="font-semibold">{formatSignedCurrency(o.round_off_amount)}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">Final Amount</p>
+            <p className="font-semibold">{formatCurrency(o.final_amount ?? o.grand_total) ?? "-"}</p>
           </div>
         </div>
 
