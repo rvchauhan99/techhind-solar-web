@@ -47,8 +47,14 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
+const extractStateCodeFromValidGstin = (gstin) => {
+    const normalized = String(gstin || "").trim().toUpperCase();
+    if (!GSTIN_RE.test(normalized)) return "";
+    return normalized.slice(0, 2);
+};
+
 export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null }) {
-    const [sellerProfile, setSellerProfile] = useState({ state: "", gstin: "" });
     const [supplierDetails, setSupplierDetails] = useState({ state: "", gstin: "" });
     const [formData, setFormData] = useState({
         po_date: new Date().toISOString().split("T")[0],
@@ -139,10 +145,6 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 const companyProfileRes = await companyService.getCompanyProfile();
                 const companyProfile = companyProfileRes?.result || companyProfileRes?.data || companyProfileRes;
                 const companies = companyProfile ? [companyProfile] : [];
-                setSellerProfile({
-                    state: String(companyProfile?.state || "").trim(),
-                    gstin: String(companyProfile?.gstin || "").trim(),
-                });
 
                 setOptions((prev) => ({
                     ...prev,
@@ -626,13 +628,28 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     }
 
     const totals = calculateTotals();
-    const sellerStateCode = sellerProfile.gstin && sellerProfile.gstin.length >= 2 ? sellerProfile.gstin.slice(0, 2) : "";
-    const buyerStateCode = supplierDetails.gstin && supplierDetails.gstin.length >= 2 ? supplierDetails.gstin.slice(0, 2) : "";
+    const selectedWarehouse = options.warehouses.find((w) => Number(w.id) === Number(formData.ship_to_id)) || null;
+    const sellerState = String(supplierDetails.state || "").trim();
+    const sellerGstin = String(supplierDetails.gstin || "").trim();
+    const buyerState = String(
+        selectedWarehouse?.state?.name ||
+        selectedWarehouse?.state_name ||
+        selectedWarehouse?.state ||
+        ""
+    ).trim();
+    const buyerGstin = String(
+        selectedWarehouse?.branch?.gst_number ||
+        selectedWarehouse?.branch_gst_number ||
+        selectedWarehouse?.gst_number ||
+        ""
+    ).trim();
+    const sellerStateCode = extractStateCodeFromValidGstin(sellerGstin);
+    const buyerStateCode = extractStateCodeFromValidGstin(buyerGstin);
     const hasValidCodes = /^\d{2}$/.test(sellerStateCode) && /^\d{2}$/.test(buyerStateCode);
     const isIgst = hasValidCodes
         ? sellerStateCode !== buyerStateCode
-        : (sellerProfile.state && supplierDetails.state
-            ? sellerProfile.state.toLowerCase() !== supplierDetails.state.toLowerCase()
+        : (sellerState && buyerState
+            ? sellerState.toLowerCase() !== buyerState.toLowerCase()
             : false);
     const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
     const applicableGstValue = isIgst

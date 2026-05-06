@@ -36,6 +36,13 @@ import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
+const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
+const extractStateCodeFromValidGstin = (gstin) => {
+  const normalized = String(gstin || "").trim().toUpperCase();
+  if (!GSTIN_RE.test(normalized)) return "";
+  return normalized.slice(0, 2);
+};
+
 const emptyCurrentItem = () => ({
   product_id: "",
   product_label: "",
@@ -84,7 +91,6 @@ export default function B2bSalesOrderForm({
   const [clients, setClients] = useState([]);
   const [shipTos, setShipTos] = useState([]);
   const [clientDetails, setClientDetails] = useState(null);
-  const [sellerProfile, setSellerProfile] = useState({ state: "", gstin: "" });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [pdfTermsClauses, setPdfTermsClauses] = useState([]);
   const [pdfTermsDrawerOpen, setPdfTermsDrawerOpen] = useState(false);
@@ -119,16 +125,6 @@ export default function B2bSalesOrderForm({
         setWarehouses(Array.isArray(data) ? data : []);
       })
       .catch(() => setWarehouses([]));
-    companyService
-      .getCompanyProfile()
-      .then((res) => {
-        const c = res?.result ?? res;
-        setSellerProfile({
-          state: String(c?.state || "").trim(),
-          gstin: String(c?.gstin || "").trim(),
-        });
-      })
-      .catch(() => setSellerProfile({ state: "", gstin: "" }));
   }, []);
 
   useEffect(() => {
@@ -489,15 +485,28 @@ export default function B2bSalesOrderForm({
 
   const totals = calculateTotals();
   const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+  const selectedWarehouse = warehouses.find((w) => Number(w.id) === Number(plannedWarehouseId)) || null;
+  const sellerState = String(
+    selectedWarehouse?.state?.name ||
+    selectedWarehouse?.state_name ||
+    selectedWarehouse?.state ||
+    ""
+  ).trim();
+  const sellerGstin = String(
+    selectedWarehouse?.branch?.gst_number ||
+    selectedWarehouse?.branch_gst_number ||
+    selectedWarehouse?.gst_number ||
+    ""
+  ).trim();
   const buyerState = String(selectedShipTo?.state || clientDetails?.billing_state || "").trim();
   const buyerGstin = String(clientDetails?.gstin || "").trim();
-  const sellerStateCode = sellerProfile.gstin && sellerProfile.gstin.length >= 2 ? sellerProfile.gstin.slice(0, 2) : "";
-  const buyerStateCode = buyerGstin && buyerGstin.length >= 2 ? buyerGstin.slice(0, 2) : "";
+  const sellerStateCode = extractStateCodeFromValidGstin(sellerGstin);
+  const buyerStateCode = extractStateCodeFromValidGstin(buyerGstin);
   const hasValidCodes = /^\d{2}$/.test(sellerStateCode) && /^\d{2}$/.test(buyerStateCode);
   const isIgst = hasValidCodes
     ? sellerStateCode !== buyerStateCode
-    : (sellerProfile.state && buyerState
-      ? sellerProfile.state.toLowerCase() !== buyerState.toLowerCase()
+    : (sellerState && buyerState
+      ? sellerState.toLowerCase() !== buyerState.toLowerCase()
       : false);
   const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
   const applicableGstValue = isIgst
