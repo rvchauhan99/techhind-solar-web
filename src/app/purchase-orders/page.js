@@ -61,6 +61,12 @@ const COLUMN_FILTER_KEYS = [
   "grand_total_to",
 ];
 
+const formatSignedCurrency = (val) => {
+  const n = Number(val) || 0;
+  const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+  return `${sign}${formatCurrency(Math.abs(n))}`;
+};
+
 export default function PurchaseOrderPage() {
   const { modulePermissions, currentModuleId } = useAuth();
   const currentPerm = modulePermissions?.[currentModuleId] || {
@@ -310,7 +316,7 @@ export default function PurchaseOrderPage() {
         filterKeyTo: "grand_total_to",
         operatorKey: "grand_total_op",
         defaultFilterOperator: "equals",
-        render: (row) => formatCurrency(row.grand_total),
+        render: (row) => formatCurrency(row.final_amount ?? row.grand_total),
       },
       {
         field: "actions",
@@ -596,7 +602,8 @@ export default function PurchaseOrderPage() {
             <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
             <span className="text-muted-foreground">Taxable Amount</span><span>{formatCurrency(po.taxable_amount || 0)}</span>
             <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
-            <span className="text-muted-foreground">Grand Total</span><span className="font-semibold">{formatCurrency(po.grand_total || 0)}</span>
+            <span className="text-muted-foreground">Round Off</span><span className="font-semibold">{formatSignedCurrency(po.round_off_amount)}</span>
+            <span className="text-muted-foreground">Final Amount</span><span className="font-semibold">{formatCurrency((po.final_amount ?? po.grand_total) || 0)}</span>
           </div>
           <p className="text-xs text-muted-foreground">Amount in words</p>
           <p className="text-sm">{text(po.amount_in_words)}</p>

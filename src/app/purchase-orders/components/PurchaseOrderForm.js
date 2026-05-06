@@ -72,9 +72,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         product_name: "",
         hsn_code: "",
         rate: "",
+        per_watt_rate: "",
         quantity: "",
         gst_percent: "",
         measurement_unit: "",
+        product_capacity: "",
+        product_type_name: "",
     });
 
     const [options, setOptions] = useState({
@@ -234,10 +237,25 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
     const handleItemChange = (e) => {
         const { name, value } = e.target;
-        setCurrentItem((prev) => ({
-            ...prev,
-            [name]: value,
-        }));
+        setCurrentItem((prev) => {
+            const next = {
+                ...prev,
+                [name]: value,
+            };
+            const isPanel = String(prev.product_type_name || "").trim().toLowerCase() === "panel";
+            const capacity = Number(prev.product_capacity);
+            const hasCapacity = Number.isFinite(capacity) && capacity > 0;
+
+            if (isPanel && hasCapacity && name === "per_watt_rate") {
+                const perWatt = Number(value);
+                next.rate = Number.isFinite(perWatt) && perWatt > 0 ? (perWatt * capacity).toFixed(2) : "";
+            }
+            if (isPanel && hasCapacity && name === "rate") {
+                const rate = Number(value);
+                next.per_watt_rate = Number.isFinite(rate) && rate > 0 ? (rate / capacity).toFixed(4) : "";
+            }
+            return next;
+        });
 
         // Clear item errors when user starts typing
         if (itemErrors[name]) {
@@ -259,6 +277,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     hsn_code: product.hsn_ssn_code || "",
                     gst_percent: product.gst_percent || "",
                     measurement_unit: product.measurement_unit_name || prev.measurement_unit || "",
+                    product_capacity: product.capacity ?? "",
+                    product_type_name: product.product_type_name || "",
                 }));
             }
         }
@@ -316,9 +336,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             product_name: currentItem.product_name || product?.product_name || "",
             hsn_code: currentItem.hsn_code || (product?.hsn_ssn_code || ""),
             rate: parseFloat(currentItem.rate),
+            per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
             quantity: parseInt(currentItem.quantity),
             gst_percent: parseFloat(currentItem.gst_percent),
             measurement_unit: currentItem.measurement_unit || product?.measurement_unit?.unit || "",
+            product_capacity: currentItem.product_capacity || product?.capacity || "",
+            product_type_name: currentItem.product_type_name || product?.product_type_name || "",
         };
 
         setFormData((prev) => ({
@@ -332,9 +355,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             product_name: "",
             hsn_code: "",
             rate: "",
+            per_watt_rate: "",
             quantity: "",
             gst_percent: "",
             measurement_unit: "",
+            product_capacity: "",
+            product_type_name: "",
         });
         setItemErrors({});
     };
@@ -373,12 +399,16 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         });
 
         const grandTotal = taxableAmount + totalGstAmount;
+        const finalAmount = Math.round(grandTotal);
+        const roundOffAmount = finalAmount - grandTotal;
 
         return {
             total_quantity: totalQuantity,
             taxable_amount: parseFloat(taxableAmount.toFixed(2)),
             total_gst_amount: parseFloat(totalGstAmount.toFixed(2)),
             grand_total: parseFloat(grandTotal.toFixed(2)),
+            final_amount: parseFloat(finalAmount.toFixed(2)),
+            round_off_amount: parseFloat(roundOffAmount.toFixed(2)),
         };
     };
 
@@ -572,6 +602,11 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     }
 
     const totals = calculateTotals();
+    const signedRoundOff = (val) => {
+        const n = Number(val) || 0;
+        const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+        return `${sign}₹${Math.abs(n).toFixed(2)}`;
+    };
 
     return (
         <Box>
@@ -694,7 +729,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
                         {/* Add Item Form */}
                         <Paper sx={{ p: 1, mb: 1 }}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
                                 <AutocompleteField
                                     label="Product *"
                                     placeholder="Search and select product"
@@ -716,6 +751,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                 hsn_ssn_code: row.hsn_ssn_code,
                                                 gst_percent: row.gst_percent,
                                                 measurement_unit_name: row.measurement_unit_name || null,
+                                                capacity: row.capacity ?? null,
+                                                product_type_name: row.product_type_name || null,
                                             }
                                             : null;
                                     }}
@@ -734,6 +771,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                     newValue.measurement_unit_name ||
                                                     prev.measurement_unit ||
                                                     "",
+                                                product_capacity: newValue.capacity ?? prev.product_capacity ?? "",
+                                                product_type_name: newValue.product_type_name ?? prev.product_type_name ?? "",
                                             }));
                                         }
                                     }}
@@ -766,6 +805,17 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     helperText={itemErrors.quantity}
                                     required
                                 />
+                                {String(currentItem.product_type_name || "").trim().toLowerCase() === "panel" && (
+                                    <Input
+                                        name="per_watt_rate"
+                                        label="Per Watt (₹/W)"
+                                        placeholder="Enter per watt"
+                                        type="number"
+                                        value={currentItem.per_watt_rate}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 0, step: 0.0001 }}
+                                    />
+                                )}
                                 <Input
                                     name="rate"
                                     label="Rate (₹)"
@@ -814,6 +864,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             <TableCell>Product</TableCell>
                                             <TableCell>HSN Code</TableCell>
                                             <TableCell align="right">Qty</TableCell>
+                                            <TableCell align="right">Per Watt (₹/W)</TableCell>
                                             <TableCell align="right">Rate (₹)</TableCell>
                                             <TableCell align="right">GST %</TableCell>
                                             <TableCell align="right">Taxable Amount</TableCell>
@@ -828,6 +879,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             const itemTaxable = item.rate * item.quantity;
                                             const itemGst = (itemTaxable * item.gst_percent) / 100;
                                             const itemTotal = itemTaxable + itemGst;
+                                            const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
+                                            const capacity = Number(item.product_capacity ?? item.product?.capacity);
+                                            const isPanelWithCapacity = productTypeName === "panel" && Number.isFinite(capacity) && capacity > 0;
+                                            const derivedPerWatt = isPanelWithCapacity
+                                                ? (item.per_watt_rate ?? (Number(item.rate) > 0 ? Number(item.rate) / capacity : null))
+                                                : null;
                                             const rowErrors = tableItemErrors[index] || {};
                                             const hasRowError = Object.keys(rowErrors).length > 0;
 
@@ -857,6 +914,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                                 {rowErrors.quantity}
                                                             </Typography>
                                                         )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {derivedPerWatt && Number(derivedPerWatt) > 0 ? `₹${Number(derivedPerWatt).toFixed(2)}` : "-"}
                                                     </TableCell>
                                                     <TableCell align="right">
                                                         {item.rate > 0 ? `₹${parseFloat(item.rate).toFixed(2)}` : <Typography color="error" variant="caption">Invalid</Typography>}
@@ -919,9 +979,15 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             <Typography variant="body1">Total GST Amount:</Typography>
                                             <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
                                         </Box>
-                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1, display: "flex", justifyContent: "space-between" }}>
-                                            <Typography variant="h6">Grand Total:</Typography>
-                                            <Typography variant="h6" fontWeight="bold">₹{totals.grand_total.toFixed(2)}</Typography>
+                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1 }}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                                                <Typography variant="body1">Round Off:</Typography>
+                                                <Typography variant="body1" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                                                <Typography variant="h6">Final Amount:</Typography>
+                                                <Typography variant="h6" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
+                                            </Box>
                                         </Box>
                                     </Box>
                                 </Box>

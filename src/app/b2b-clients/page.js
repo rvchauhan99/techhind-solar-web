@@ -36,7 +36,7 @@ import ShipToForm from "./components/ShipToForm";
 import { useAuth } from "@/hooks/useAuth";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import { formatDate } from "@/utils/dataTableUtils";
+import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { Badge } from "@/components/ui/badge";
 
 const COLUMN_FILTER_KEYS = [
@@ -448,31 +448,136 @@ export default function B2bClientsPage() {
   const sidebarContent = useMemo(() => {
     if (!selectedRecord) return null;
     const r = selectedRecord;
+    const lbl = "text-[11px] font-medium uppercase tracking-wide text-muted-foreground";
+    const val = "text-sm";
+    const hasBilling = [
+      r.billing_address,
+      r.billing_city,
+      r.billing_district,
+      r.billing_state,
+      r.billing_pincode,
+      r.billing_landmark,
+      r.billing_country,
+    ].some((v) => v != null && String(v).trim() !== "");
+
+    const Field = ({ label, value, className = "" }) => (
+      <div className={className}>
+        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-xs break-words">{value != null && String(value).trim() !== "" ? value : "-"}</p>
+      </div>
+    );
+
     return (
-      <div className="pr-1 space-y-4">
-        <div className="space-y-3">
-          <p className="font-semibold">{r.client_code || r.id}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Client Name</p>
-          <p className="text-sm">{r.client_name ?? "-"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Contact</p>
-          <p className="text-sm">{r.contact_person ?? "-"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Phone</p>
-          <p className="text-sm">{r.phone ?? "-"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Email</p>
-          <p className="text-sm">{r.email ?? "-"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">GSTIN</p>
-          <p className="text-sm">{r.gstin ?? "-"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Active</p>
-          <p className="text-sm">{r.is_active ? "Yes" : "No"}</p>
-          <p className="text-xs font-semibold text-muted-foreground">Created</p>
-          <p className="text-sm">{formatDate(r.created_at) ?? "-"}</p>
+      <div className="pr-1 space-y-3">
+        {/* Section 1 — Header */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-mono font-semibold text-sm">{r.client_code || `#${r.id}`}</span>
+          <span className="text-sm font-medium">{r.client_name ?? "-"}</span>
+          <Badge variant={r.is_active ? "default" : "secondary"} className="text-xs">
+            {r.is_active ? "Active" : "Inactive"}
+          </Badge>
+          {r.client_type ? (
+            <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">
+              {r.client_type}
+            </Badge>
+          ) : null}
         </div>
 
-        <div className="border-t pt-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground">Ship-to addresses</p>
+        {/* Section 2 — Client info */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <div>
+            <p className={lbl}>Contact Person</p>
+            <p className={val}>{r.contact_person ?? "-"}</p>
+          </div>
+          <div>
+            <p className={lbl}>Phone</p>
+            <p className={val}>{r.phone ?? "-"}</p>
+          </div>
+          <div className="col-span-2">
+            <p className={lbl}>Email</p>
+            <p className={val}>{r.email ?? "-"}</p>
+          </div>
+          <div>
+            <p className={lbl}>GSTIN</p>
+            <p className={val}>{r.gstin ?? "-"}</p>
+          </div>
+          <div>
+            <p className={lbl}>PAN</p>
+            <p className={val}>{r.pan_number ?? "-"}</p>
+          </div>
+          <div className="col-span-2">
+            <p className={lbl}>GST Reg. Type</p>
+            <p className={val}>{r.gst_registration_type ?? "-"}</p>
+          </div>
+          <div>
+            <p className={lbl}>Credit Limit</p>
+            <p className={val}>{formatCurrency(r.credit_limit)}</p>
+          </div>
+          <div>
+            <p className={lbl}>Credit Days</p>
+            <p className={val}>{r.credit_days != null ? String(r.credit_days) : "-"}</p>
+          </div>
+          <div className="col-span-2">
+            <p className={lbl}>Created</p>
+            <p className={val}>{formatDate(r.created_at) ?? "-"}</p>
+          </div>
+        </div>
+
+        {/* Section 3 — Billing address */}
+        <div className="border-t pt-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <IconMapPin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            <p className="text-xs font-semibold">Billing Address</p>
+          </div>
+          {!hasBilling ? (
+            <p className="text-sm text-muted-foreground">No billing address on file</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+              <div className="col-span-2">
+                <p className={lbl}>Street / Area</p>
+                <p className={`${val} whitespace-pre-line`}>{r.billing_address?.trim() || "-"}</p>
+              </div>
+              <div>
+                <p className={lbl}>City</p>
+                <p className={val}>{r.billing_city ?? "-"}</p>
+              </div>
+              <div>
+                <p className={lbl}>District</p>
+                <p className={val}>{r.billing_district ?? "-"}</p>
+              </div>
+              <div>
+                <p className={lbl}>State</p>
+                <p className={val}>{r.billing_state ?? "-"}</p>
+              </div>
+              <div>
+                <p className={lbl}>Pincode</p>
+                <p className={val}>{r.billing_pincode ?? "-"}</p>
+              </div>
+              <div className="col-span-2">
+                <p className={lbl}>Landmark</p>
+                <p className={val}>{r.billing_landmark ?? "-"}</p>
+              </div>
+              <div className="col-span-2">
+                <p className={lbl}>Country</p>
+                <p className={val}>{r.billing_country ?? "-"}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section 4 — Ship-to addresses (cards) */}
+        <div className="border-t pt-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-xs font-semibold shrink-0">Ship-to Addresses</p>
+              {!shipTosLoading && shipTos.length > 0 && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                  {shipTos.length}
+                </Badge>
+              )}
+            </div>
             {currentPerm.can_update && (
-              <Button variant="outline" size="sm" onClick={handleAddShipTo} className="text-xs">
+              <Button variant="outline" size="sm" onClick={handleAddShipTo} className="text-xs h-7 shrink-0">
                 Add Ship-to
               </Button>
             )}
@@ -480,52 +585,86 @@ export default function B2bClientsPage() {
           {shipTosLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
           ) : shipTos.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No ship-to addresses. Add one to use in quotes and orders.</p>
+            <p className="text-sm text-muted-foreground">
+              No ship-to addresses. Add one to use in quotes and orders.
+            </p>
           ) : (
-            <ul className="space-y-2">
+            <div className="space-y-2">
               {shipTos.map((s) => (
-                <li
-                  key={s.id}
-                  className="flex items-start justify-between gap-2 p-2 rounded border bg-muted/30 text-sm"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="font-medium">{s.ship_to_name || `Ship-to #${s.id}`}</span>
-                    {s.is_default && (
-                      <Badge variant="secondary" className="ml-1 text-xs">Default</Badge>
-                    )}
-                    <p className="text-muted-foreground truncate mt-0.5">
-                      {[s.address, s.city, s.state].filter(Boolean).join(", ") || "-"}
-                    </p>
-                  </div>
-                  {currentPerm.can_update && (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-7"
-                        onClick={() => handleEditShipTo(s)}
-                        title="Edit"
-                        aria-label="Edit"
+                <div key={s.id} className="rounded-md border bg-muted/20 p-2.5 space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-muted shrink-0">
+                        {s.ship_to_code?.trim() ? s.ship_to_code : `#${s.id}`}
+                      </span>
+                      <span className="font-medium text-sm truncate">
+                        {s.ship_to_name || `Ship-to #${s.id}`}
+                      </span>
+                      {s.is_default && (
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
+                          Default
+                        </Badge>
+                      )}
+                      <Badge
+                        variant={s.is_active ? "default" : "secondary"}
+                        className="text-[10px] px-1 py-0 shrink-0"
                       >
-                        <IconPencil className="size-3.5" />
-                      </Button>
-                      {currentPerm.can_delete && (
+                        {s.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                    {currentPerm.can_update ? (
+                      <div className="inline-flex items-center gap-0 shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="size-7 text-destructive hover:text-destructive"
-                          onClick={() => handleDeleteShipToClick(s)}
-                          title="Deactivate"
-                          aria-label="Deactivate"
+                          className="size-7"
+                          onClick={() => handleEditShipTo(s)}
+                          title="Edit"
+                          aria-label="Edit"
                         >
-                          <IconTrash className="size-3.5" />
+                          <IconPencil className="size-3.5" />
                         </Button>
-                      )}
-                    </div>
-                  )}
-                </li>
+                        {currentPerm.can_delete && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-7 text-destructive hover:text-destructive"
+                            onClick={() => handleDeleteShipToClick(s)}
+                            title="Deactivate"
+                            aria-label="Deactivate"
+                          >
+                            <IconTrash className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Address</p>
+                    <p className="text-sm whitespace-pre-line break-words">
+                      {s.address?.trim() || "-"}
+                      {[s.city, s.district, s.state].filter(Boolean).length > 0 || s.pincode ? (
+                        <>
+                          {"\n"}
+                          {[s.city, s.district, s.state].filter(Boolean).join(", ")}
+                          {s.pincode ? ` - ${s.pincode}` : ""}
+                        </>
+                      ) : null}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 text-xs">
+                    <Field label="Pincode" value={s.pincode} />
+                    <Field label="Landmark" value={s.landmark} />
+                    <Field label="Country" value={s.country?.trim() ? s.country : "India"} />
+                    <Field label="Contact Person" value={s.contact_person} />
+                    <Field label="Phone" value={s.phone} />
+                    <Field label="Email" value={s.email} className="col-span-2 sm:col-span-4 break-all" />
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       </div>

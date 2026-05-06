@@ -39,10 +39,13 @@ const emptyCurrentItem = () => ({
     product_label: "",
     hsn_code: "",
     quantity: "",
+    per_watt_rate: "",
     unit_rate: "",
     discount_percent: "",
     gst_percent: "",
     measurement_unit: "",
+    product_capacity: "",
+    product_type_name: "",
 });
 
 export default function B2bSalesQuoteForm({
@@ -151,10 +154,13 @@ export default function B2bSalesQuoteForm({
                 product_label: it.product?.product_name || String(it.product_id),
                 hsn_code: it.hsn_code ?? it.product?.hsn_code ?? "",
                 quantity: it.quantity ?? 1,
+                per_watt_rate: it.per_watt_rate ?? null,
                 unit_rate: it.unit_rate ?? 0,
                 discount_percent: it.discount_percent ?? 0,
                 gst_percent: it.gst_percent ?? 0,
                 measurement_unit: it.measurement_unit || it.product?.measurement_unit_name || "",
+                product_capacity: it.product_capacity ?? it.product?.capacity ?? "",
+                product_type_name: it.product_type_name || it.product?.productType?.name || "",
             }))
             : [];
         setFormData({
@@ -217,7 +223,22 @@ export default function B2bSalesQuoteForm({
 
     const handleCurrentItemChange = (e) => {
         const { name, value } = e.target;
-        setCurrentItem((p) => ({ ...p, [name]: value }));
+        setCurrentItem((p) => {
+            const next = { ...p, [name]: value };
+            const isPanel = String(p.product_type_name || "").trim().toLowerCase() === "panel";
+            const capacity = Number(p.product_capacity);
+            const hasCapacity = Number.isFinite(capacity) && capacity > 0;
+
+            if (isPanel && hasCapacity && name === "per_watt_rate") {
+                const perWatt = Number(value);
+                next.unit_rate = Number.isFinite(perWatt) && perWatt > 0 ? (perWatt * capacity).toFixed(2) : "";
+            }
+            if (isPanel && hasCapacity && name === "unit_rate") {
+                const unitRate = Number(value);
+                next.per_watt_rate = Number.isFinite(unitRate) && unitRate > 0 ? (unitRate / capacity).toFixed(4) : "";
+            }
+            return next;
+        });
         if (itemErrors[name]) setItemErrors((p) => { const n = { ...p }; delete n[name]; return n; });
     };
 
@@ -262,10 +283,13 @@ export default function B2bSalesQuoteForm({
                     product_label: currentItem.product_label,
                     hsn_code: currentItem.hsn_code || "",
                     quantity: parseInt(currentItem.quantity, 10),
+                    per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
                     unit_rate: parseFloat(currentItem.unit_rate),
                     discount_percent: parseFloat(currentItem.discount_percent || 0),
                     gst_percent: parseFloat(currentItem.gst_percent),
                     measurement_unit: currentItem.measurement_unit || "",
+                    product_capacity: currentItem.product_capacity || "",
+                    product_type_name: currentItem.product_type_name || "",
                 },
             ],
         }));
@@ -301,11 +325,17 @@ export default function B2bSalesQuoteForm({
             totalGstAmount += gstAmt;
         });
 
+        const grandTotal = taxableAmount + totalGstAmount;
+        const finalAmount = Math.round(grandTotal);
+        const roundOffAmount = finalAmount - grandTotal;
+
         return {
             total_quantity: totalQuantity,
             taxable_amount: parseFloat(taxableAmount.toFixed(2)),
             total_gst_amount: parseFloat(totalGstAmount.toFixed(2)),
-            grand_total: parseFloat((taxableAmount + totalGstAmount).toFixed(2)),
+            grand_total: parseFloat(grandTotal.toFixed(2)),
+            final_amount: parseFloat(finalAmount.toFixed(2)),
+            round_off_amount: parseFloat(roundOffAmount.toFixed(2)),
         };
     };
 
@@ -346,6 +376,7 @@ export default function B2bSalesQuoteForm({
                 product_id: typeof it.product_id === "object" ? it.product_id?.id : it.product_id,
                 quantity: parseInt(it.quantity, 10) || 1,
                 unit_rate: parseFloat(it.unit_rate) || 0,
+                per_watt_rate: it.per_watt_rate != null && it.per_watt_rate !== "" ? parseFloat(it.per_watt_rate) : null,
                 discount_percent: parseFloat(it.discount_percent) || 0,
                 gst_percent: parseFloat(it.gst_percent) || 0,
                 hsn_code: it.hsn_code || "",
@@ -383,6 +414,11 @@ export default function B2bSalesQuoteForm({
     }
 
     const totals = calculateTotals();
+    const signedRoundOff = (val) => {
+        const n = Number(val) || 0;
+        const sign = n > 0 ? "+" : n < 0 ? "-" : "";
+        return `${sign}₹${Math.abs(n).toFixed(2)}`;
+    };
 
     return (
         <Box>
@@ -555,7 +591,7 @@ export default function B2bSalesQuoteForm({
 
                         {/* Add Item Input Row */}
                         <Paper sx={{ p: 0.75, mb: 1 }}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                            <div className="grid grid-cols-[minmax(160px,2fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(80px,1fr)_minmax(80px,1fr)_auto] gap-2 items-end">
                                 <div>
                                     <AutocompleteField
                                         asyncLoadOptions={async (q) => {
@@ -572,6 +608,8 @@ export default function B2bSalesQuoteForm({
                                                 hsn_code: p.hsn_ssn_code || p.hsn_code || "",
                                                 gst_percent: p.gst_percent ?? "",
                                                 measurement_unit: p.measurement_unit_name || "",
+                                                product_capacity: p.capacity ?? "",
+                                                product_type_name: p.product_type_name || "",
                                             }));
                                         }}
                                         value={currentItem.product_id}
@@ -583,6 +621,8 @@ export default function B2bSalesQuoteForm({
                                                 hsn_code: v?.hsn_code || p.hsn_code,
                                                 gst_percent: v?.gst_percent != null ? String(v.gst_percent) : p.gst_percent,
                                                 measurement_unit: v?.measurement_unit || p.measurement_unit || "",
+                                                product_capacity: v?.product_capacity ?? p.product_capacity ?? "",
+                                                product_type_name: v?.product_type_name ?? p.product_type_name ?? "",
                                             }));
                                             if (itemErrors.product_id) setItemErrors((e) => { const n = { ...e }; delete n.product_id; return n; });
                                         }}
@@ -616,6 +656,17 @@ export default function B2bSalesQuoteForm({
                                     helperText={itemErrors.quantity}
                                     required
                                 />
+                                {String(currentItem.product_type_name || "").trim().toLowerCase() === "panel" && (
+                                    <Input
+                                        name="per_watt_rate"
+                                        label="Per Watt (₹/W)"
+                                        placeholder="Enter per watt"
+                                        type="number"
+                                        value={currentItem.per_watt_rate}
+                                        onChange={handleCurrentItemChange}
+                                        inputProps={{ min: 0, step: 0.0001 }}
+                                    />
+                                )}
                                 <Input
                                     name="unit_rate"
                                     label="Rate (₹)"
@@ -672,6 +723,7 @@ export default function B2bSalesQuoteForm({
                                             <TableCell>Product</TableCell>
                                             <TableCell>HSN Code</TableCell>
                                             <TableCell align="right">Qty</TableCell>
+                                            <TableCell align="right">Per Watt (₹/W)</TableCell>
                                             <TableCell align="right">Rate (₹)</TableCell>
                                             <TableCell align="right">Disc %</TableCell>
                                             <TableCell align="right">GST %</TableCell>
@@ -693,6 +745,12 @@ export default function B2bSalesQuoteForm({
                                             const taxable = lineValue - discountAmt;
                                             const gstAmt = (taxable * gst) / 100;
                                             const total = taxable + gstAmt;
+                                            const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
+                                            const capacity = Number(item.product_capacity ?? item.product?.capacity);
+                                            const isPanelWithCapacity = productTypeName === "panel" && Number.isFinite(capacity) && capacity > 0;
+                                            const derivedPerWatt = isPanelWithCapacity
+                                                ? (item.per_watt_rate ?? (rate > 0 ? rate / capacity : null))
+                                                : null;
 
                                             return (
                                                 <TableRow key={index}>
@@ -700,6 +758,9 @@ export default function B2bSalesQuoteForm({
                                                     <TableCell>{item.product_label || `Product #${item.product_id}`}</TableCell>
                                                     <TableCell>{item.hsn_code || "–"}</TableCell>
                                                     <TableCell align="right">{qty} {item.measurement_unit ? `(${item.measurement_unit})` : ""}</TableCell>
+                                                    <TableCell align="right">
+                                                        {derivedPerWatt && Number(derivedPerWatt) > 0 ? `₹${Number(derivedPerWatt).toFixed(2)}` : "–"}
+                                                    </TableCell>
                                                     <TableCell align="right">₹{rate.toFixed(2)}</TableCell>
                                                     <TableCell align="right">{disc > 0 ? `${disc}%` : "–"}</TableCell>
                                                     <TableCell align="right">{gst}%</TableCell>
@@ -742,9 +803,15 @@ export default function B2bSalesQuoteForm({
                                             <Typography variant="body2">Total GST Amount:</Typography>
                                             <Typography variant="body2" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
                                         </Box>
-                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 0.5, display: "flex", justifyContent: "space-between" }}>
-                                            <Typography variant="subtitle1" fontWeight="bold">Grand Total:</Typography>
-                                            <Typography variant="subtitle1" fontWeight="bold">₹{totals.grand_total.toFixed(2)}</Typography>
+                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 0.5 }}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                                                <Typography variant="body2">Round Off:</Typography>
+                                                <Typography variant="body2" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
+                                            </Box>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                                                <Typography variant="subtitle1" fontWeight="bold">Final Amount:</Typography>
+                                                <Typography variant="subtitle1" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
+                                            </Box>
                                         </Box>
                                     </Box>
                                 </Box>

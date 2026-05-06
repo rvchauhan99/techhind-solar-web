@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     IconCircleCheck,
     IconFileDescription,
-    IconRefresh,
     IconTrash,
 } from "@tabler/icons-react";
 import {
@@ -49,6 +48,9 @@ export default function DeliveryChallanListPage() {
     const [reverseReasonText, setReverseReasonText] = useState("");
     const [reverseRemarks, setReverseRemarks] = useState("");
     const [reverseReasonError, setReverseReasonError] = useState(false);
+    const [reversePreviewChallan, setReversePreviewChallan] = useState(null);
+    const [reversePreviewLoading, setReversePreviewLoading] = useState(false);
+    const [reversePreviewError, setReversePreviewError] = useState(null);
 
     const fetchChallans = async (params) => {
         const response = await challanService.getChallans({ ...params });
@@ -111,23 +113,6 @@ export default function DeliveryChallanListPage() {
             render: (row) => {
                 const stageKey = normalizeStageKey(row?.order?.current_stage_key);
                 const isDraftRow = stageKey === "delivery";
-                const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
-
-                const isSuperAdminLocal = String(user?.role?.name || "")
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]/g, "") === "superadmin";
-
-                const allowedStageKeysLocal = new Set([
-                    "assign_fabricator_and_installer",
-                    "fabrication",
-                    "installation",
-                ]);
-
-                const canReverseRow =
-                    isSuperAdminLocal &&
-                    allowedStageKeysLocal.has(stageKey) &&
-                    !isInstallationCompleted &&
-                    !row?.is_reversed;
 
                 return (
                     <div className="flex items-center gap-0.5">
@@ -144,22 +129,6 @@ export default function DeliveryChallanListPage() {
                         >
                             <IconFileDescription className="size-3.5" />
                         </Button>
-
-                        {canReverseRow && (
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="size-7"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    openReverseDialogForRow(row);
-                                }}
-                                title="Reverse"
-                                aria-label="Reverse"
-                            >
-                                <IconRefresh className="size-3.5" />
-                            </Button>
-                        )}
 
                         {isDraftRow && (
                             <Button
@@ -337,31 +306,38 @@ export default function DeliveryChallanListPage() {
         setReverseReasonText("");
         setReverseRemarks("");
         setReverseReasonError(false);
+        setReversePreviewChallan(null);
+        setReversePreviewError(null);
         setReverseDialogOpen(true);
     };
 
-    // Row-aware reverse (used by Actions column buttons)
-    const openReverseDialogForRow = (row) => {
-        const challanId = row?.id;
-        if (!challanId) return;
+    useEffect(() => {
+        if (!reverseDialogOpen || !selectedChallanId) return;
 
-        const rowStageKey = normalizeStageKey(row?.order?.current_stage_key);
-        const isInstallationCompleted = isInstallationCompletedForOrder(row?.order);
-        const canReverseRow =
-            isSuperAdmin && allowedStageKeys.has(rowStageKey) && !isInstallationCompleted && !row?.is_reversed;
-        if (!canReverseRow) return;
-
-        setSelectedChallanId(challanId);
-        setSelectedOrderStageKey(row?.order?.current_stage_key ?? null);
-        setSelectedOrderInstallationCompleted(isInstallationCompleted);
-        setSelectedIsReversed(!!row?.is_reversed);
-
-        setReverseReasonId("");
-        setReverseReasonText("");
-        setReverseRemarks("");
-        setReverseReasonError(false);
-        setReverseDialogOpen(true);
-    };
+        let cancelled = false;
+        const load = async () => {
+            setReversePreviewLoading(true);
+            setReversePreviewError(null);
+            try {
+                const response = await challanService.getChallanById(selectedChallanId);
+                const result = response?.result ?? response;
+                if (!cancelled) setReversePreviewChallan(result || null);
+            } catch (err) {
+                if (!cancelled) {
+                    setReversePreviewChallan(null);
+                    setReversePreviewError(
+                        err?.response?.data?.message || err?.message || "Failed to load challan lines"
+                    );
+                }
+            } finally {
+                if (!cancelled) setReversePreviewLoading(false);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [reverseDialogOpen, selectedChallanId]);
 
     // Draft confirm (draft challan corresponds to order current_stage_key === "delivery")
     const handleConfirmForRow = (row) => {
@@ -421,6 +397,12 @@ export default function DeliveryChallanListPage() {
         }
     };
 
+    const navigateToPartialReturn = (challanId) => {
+        if (!challanId) return;
+        const returnTo = encodeURIComponent("/delivery-challans");
+        router.push(`/delivery-challans/return?challan_id=${challanId}&returnTo=${returnTo}`);
+    };
+
     return (
         <ListingPageContainer
             title="Delivery Challans"
@@ -464,15 +446,29 @@ export default function DeliveryChallanListPage() {
                 challanId={selectedChallanId}
                 title="Challan Details"
                 extraActions={
-                    <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={!isReverseAllowed || reversing}
-                        loading={reversing}
-                        onClick={openReverseDialog}
-                    >
-                        Reverse
-                    </Button>
+                    <div className="flex items-center gap-1">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!isReverseAllowed}
+                            onClick={() =>
+                                navigateToPartialReturn(selectedChallanId)
+                            }
+                            title="Open partial return form (submit there completes the return)"
+                            aria-label="Open partial return form"
+                        >
+                            Partial Return
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={!isReverseAllowed || reversing}
+                            loading={reversing}
+                            onClick={openReverseDialog}
+                        >
+                            Reverse
+                        </Button>
+                    </div>
                 }
             />
 
@@ -482,6 +478,9 @@ export default function DeliveryChallanListPage() {
                     if (!open) {
                         setReverseDialogOpen(false);
                         setReverseReasonError(false);
+                        setReversePreviewChallan(null);
+                        setReversePreviewError(null);
+                        setReversePreviewLoading(false);
                     }
                 }}
             >
@@ -489,11 +488,65 @@ export default function DeliveryChallanListPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Reverse Delivery Challan</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Select a reason and add remarks (if needed) to return the material and reverse all stock + ledger transactions.
+                            Select a reason and add remarks (if needed). Stock and ledger are reversed only for the
+                            remaining (balance) quantity on each line—material already brought back via partial return is
+                            not doubled. You may still confirm to reverse the challan record if all balances are zero.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
 
                     <div className="space-y-4">
+                        {reversePreviewLoading ? (
+                            <p className="text-xs text-muted-foreground">Loading line quantities…</p>
+                        ) : null}
+                        {reversePreviewError ? (
+                            <p className="text-xs text-destructive">{reversePreviewError}</p>
+                        ) : null}
+                        {reversePreviewChallan?.items?.length > 0 && !reversePreviewLoading ? (
+                            <>
+                                <div className="max-h-36 overflow-y-auto rounded-md border border-border">
+                                    <table className="w-full text-[11px]">
+                                        <thead>
+                                            <tr className="border-b border-border bg-muted/40">
+                                                <th className="px-1.5 py-1 text-left font-semibold">Product</th>
+                                                <th className="px-1.5 py-1 text-right font-semibold">Qty</th>
+                                                <th className="px-1.5 py-1 text-right font-semibold" title="Returned">
+                                                    Ret.
+                                                </th>
+                                                <th className="px-1.5 py-1 text-right font-semibold" title="Balance (remaining)">
+                                                    Bal.
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {reversePreviewChallan.items.map((row, idx) => {
+                                                const name =
+                                                    row?.product?.product_name ||
+                                                    row?.product_snapshot?.product_name ||
+                                                    "-";
+                                                const ret = Number(row.returned_qty) || 0;
+                                                const bal = Number(row.returnable_qty) || 0;
+                                                return (
+                                                    <tr key={row.id ?? idx} className="border-b border-border/60 last:border-0">
+                                                        <td className="px-1.5 py-0.5 text-left break-words max-w-[140px]">{name}</td>
+                                                        <td className="px-1.5 py-0.5 text-right tabular-nums">{row.quantity ?? 0}</td>
+                                                        <td className="px-1.5 py-0.5 text-right tabular-nums">{ret}</td>
+                                                        <td className="px-1.5 py-0.5 text-right tabular-nums">{bal}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {reversePreviewChallan.items.every(
+                                    (row) => (Number(row.returnable_qty) || 0) <= 0
+                                ) ? (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        All lines have zero balance; stock will not be adjusted. Confirm to mark this challan as reversed.
+                                    </p>
+                                ) : null}
+                            </>
+                        ) : null}
+
                         <AutocompleteField
                             usePortal
                             name="reason_id"
