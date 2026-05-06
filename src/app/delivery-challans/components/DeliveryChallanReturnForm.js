@@ -597,6 +597,13 @@ export default function DeliveryChallanReturnForm({
                                     Return Details
                                 </Typography>
                             </Box>
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ display: "block", mb: 0.75, mt: -0.25, lineHeight: 1.35 }}
+                            >
+                                Submitting this form records the return and updates inventory. No confirmation on the delivery challans list is required afterward.
+                            </Typography>
                             <Grid container spacing={COMPACT_FORM_SPACING}>
                                 <Grid item xs={12} md={4}>
                                     <AutocompleteField

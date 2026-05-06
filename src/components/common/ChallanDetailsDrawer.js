@@ -57,6 +57,11 @@ export default function ChallanDetailsDrawer({
         [challan]
     );
 
+    const partialReturns = useMemo(
+        () => (Array.isArray(challan?.partial_returns) ? challan.partial_returns : []),
+        [challan]
+    );
+
     const handlePrint = async () => {
         if (!challan?.id) return;
         setPrinting(true);
@@ -227,6 +232,12 @@ export default function ChallanDetailsDrawer({
                                         <th className="px-2 py-1 text-left font-semibold">Product</th>
                                         <th className="px-2 py-1 text-left font-semibold">UOM</th>
                                         <th className="px-2 py-1 text-right font-semibold">Qty</th>
+                                        <th className="px-2 py-1 text-right font-semibold" title="Returned quantity">
+                                            Ret.
+                                        </th>
+                                        <th className="px-2 py-1 text-right font-semibold" title="Remaining returnable">
+                                            Bal.
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -239,6 +250,8 @@ export default function ChallanDetailsDrawer({
                                         const isExpanded = expandedRowIndex === index;
                                         const productName =
                                             item?.product?.product_name || item?.product_snapshot?.product_name || "-";
+                                        const returnedQty = Number(item.returned_qty) || 0;
+                                        const returnableBal = Number(item.returnable_qty) || 0;
                                         return (
                                             <Fragment key={item.id || index}>
                                                 <tr
@@ -272,13 +285,15 @@ export default function ChallanDetailsDrawer({
                                                             "-"}
                                                     </td>
                                                     <td className="px-2 py-1 text-right">{item.quantity ?? 0}</td>
+                                                    <td className="px-2 py-1 text-right">{returnedQty}</td>
+                                                    <td className="px-2 py-1 text-right">{returnableBal}</td>
                                                 </tr>
                                                 {hasSerials && isExpanded && (
                                                     <tr
                                                         key={`${item.id || index}-serials`}
                                                         className="border-b border-border bg-muted/30 last:border-b-0"
                                                     >
-                                                        <td colSpan={4} className="px-2 py-2">
+                                                        <td colSpan={6} className="px-2 py-2">
                                                             <p className="text-xs font-medium text-muted-foreground mb-1">
                                                                 Serial numbers captured
                                                             </p>
@@ -300,6 +315,76 @@ export default function ChallanDetailsDrawer({
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* ─── Partial return history ─── */}
+                <div>
+                    <SectionHeading>Partial returns</SectionHeading>
+                    {partialReturns.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No partial returns recorded.</p>
+                    ) : (
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
+                            {partialReturns.map((ret) => {
+                                const reasonLabel =
+                                    ret.reason_text || ret.reason?.reason || null;
+                                return (
+                                    <div
+                                        key={ret.id}
+                                        className="rounded-md border border-border bg-muted/15 p-2 text-[11px] leading-snug"
+                                    >
+                                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 font-semibold">
+                                            <span>#{ret.id}</span>
+                                            <span className="font-normal text-muted-foreground">
+                                                {formatDate(ret.return_date) || "-"}
+                                            </span>
+                                            <span className="font-normal">
+                                                Qty {ret.total_return_quantity ?? 0}
+                                            </span>
+                                        </div>
+                                        {reasonLabel ? (
+                                            <p className="mt-1 text-muted-foreground">
+                                                <span className="font-medium">Reason:</span> {reasonLabel}
+                                            </p>
+                                        ) : null}
+                                        {ret.remarks ? (
+                                            <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{ret.remarks}</p>
+                                        ) : null}
+                                        {(ret.items || []).length > 0 ? (
+                                            <table className="mt-2 w-full border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-border text-left font-semibold">
+                                                        <th className="py-0.5 pr-1">Product</th>
+                                                        <th className="py-0.5 pr-1 text-right">Ret. qty</th>
+                                                        <th className="py-0.5">Serials</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(ret.items || []).map((line) => {
+                                                        const sn = (line.serials || [])
+                                                            .map((s) => s.serial_number)
+                                                            .filter(Boolean);
+                                                        const snText =
+                                                            sn.length <= 2
+                                                                ? sn.join(", ")
+                                                                : `${sn.slice(0, 2).join(", ")} +${sn.length - 2}`;
+                                                        return (
+                                                            <tr key={line.id} className="border-b border-border/50 last:border-0">
+                                                                <td className="py-0.5 pr-1 align-top">{line.product?.product_name || "-"}</td>
+                                                                <td className="py-0.5 pr-1 text-right align-top">
+                                                                    {line.return_quantity ?? 0}
+                                                                </td>
+                                                                <td className="py-0.5 align-top break-all">{snText || "—"}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
