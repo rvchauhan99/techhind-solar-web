@@ -521,6 +521,26 @@ export default function PurchaseOrderPage() {
       }
       return "attachment";
     };
+    const totalGst = Number(po.total_gst_amount) || 0;
+    const cgstTotalRaw = Number(po.cgst_amount_total);
+    const sgstTotalRaw = Number(po.sgst_amount_total);
+    const igstTotalRaw = Number(po.igst_amount_total);
+    const hasIgstSplit = Number.isFinite(igstTotalRaw) && Math.abs(igstTotalRaw) > 0.0001;
+    const normalizedGstType = String(po.gst_type || "").toUpperCase();
+    const gstType =
+      normalizedGstType === "IGST" || normalizedGstType === "CGST_SGST"
+        ? normalizedGstType
+        : hasIgstSplit
+          ? "IGST"
+          : "CGST_SGST";
+    const cgstTotal = Number.isFinite(cgstTotalRaw) ? cgstTotalRaw : totalGst / 2;
+    const sgstTotal = Number.isFinite(sgstTotalRaw) ? sgstTotalRaw : totalGst / 2;
+    const igstTotal = Number.isFinite(igstTotalRaw) ? igstTotalRaw : totalGst;
+    const applicableGstLabel = gstType === "IGST" ? "IGST" : "CGST / SGST";
+    const applicableGstValue =
+      gstType === "IGST"
+        ? formatCurrency(igstTotal)
+        : `${formatCurrency(cgstTotal)} / ${formatCurrency(sgstTotal)}`;
 
     return (
       <div className="pr-1 space-y-4">
@@ -601,6 +621,7 @@ export default function PurchaseOrderPage() {
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
             <span className="text-muted-foreground">Taxable Amount</span><span>{formatCurrency(po.taxable_amount || 0)}</span>
+            <span className="text-muted-foreground">{applicableGstLabel}</span><span>{applicableGstValue}</span>
             <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
             <span className="text-muted-foreground">Round Off</span><span className="font-semibold">{formatSignedCurrency(po.round_off_amount)}</span>
             <span className="text-muted-foreground">Final Amount</span><span className="font-semibold">{formatCurrency((po.final_amount ?? po.grand_total) || 0)}</span>
