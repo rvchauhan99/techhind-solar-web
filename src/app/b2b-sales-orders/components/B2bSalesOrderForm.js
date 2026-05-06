@@ -403,6 +403,7 @@ export default function B2bSalesOrderForm({
     const errs = {};
     if (!formData.client_id) errs.client_id = "Client is required";
     if (!formData.order_date) errs.order_date = "Order date is required";
+    if (!plannedWarehouseId) errs.planned_warehouse_id = "Warehouse is required";
     if (formData.items.length === 0) errs.items = "At least one item is required";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -564,14 +565,26 @@ export default function B2bSalesOrderForm({
                   />
                 </div>
                 <AutocompleteField
-                  label="Warehouse"
+                  label="Warehouse *"
                   options={warehouses}
                   getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
                   value={
                     warehouses.find((w) => w.id === parseInt(plannedWarehouseId)) ||
                     (plannedWarehouseId ? { id: parseInt(plannedWarehouseId) } : null)
                   }
-                  onChange={(e, newValue) => setPlannedWarehouseId(newValue?.id ?? "")}
+                  onChange={(e, newValue) => {
+                    setPlannedWarehouseId(newValue?.id ?? "");
+                    if (errors.planned_warehouse_id) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.planned_warehouse_id;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={!!errors.planned_warehouse_id}
+                  helperText={errors.planned_warehouse_id}
+                  required
                   className="lg:col-span-1"
                 />
 
