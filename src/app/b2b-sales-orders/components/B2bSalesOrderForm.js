@@ -695,7 +695,7 @@ export default function B2bSalesOrderForm({
             )}
 
             <Paper sx={{ p: 0.75, mb: 1 }}>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+              <div className="grid grid-cols-[minmax(160px,2fr)_minmax(90px,1fr)_minmax(90px,1fr)_minmax(100px,1fr)_minmax(100px,1fr)_minmax(80px,1fr)_minmax(80px,1fr)_auto] gap-2 items-end">
                 <div>
                   <AutocompleteField
                     asyncLoadOptions={async (q) => {
