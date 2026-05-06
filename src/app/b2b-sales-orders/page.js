@@ -409,6 +409,27 @@ export default function B2bSalesOrdersPage() {
     const hasItems = Array.isArray(items) && items.length > 0;
     const attachments = o?.attachments ?? [];
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const totalGst = Number(o.total_gst_amount) || 0;
+    const cgstTotalRaw = Number(o.cgst_amount_total);
+    const sgstTotalRaw = Number(o.sgst_amount_total);
+    const igstTotalRaw = Number(o.igst_amount_total);
+    const hasCgstSplit = Number.isFinite(cgstTotalRaw) || Number.isFinite(sgstTotalRaw);
+    const hasIgstSplit = Number.isFinite(igstTotalRaw) && Math.abs(igstTotalRaw) > 0.0001;
+    const normalizedGstType = String(o.gst_type || "").toUpperCase();
+    const gstType =
+      normalizedGstType === "IGST" || normalizedGstType === "CGST_SGST"
+        ? normalizedGstType
+        : hasIgstSplit
+          ? "IGST"
+          : "CGST_SGST";
+    const cgstTotal = Number.isFinite(cgstTotalRaw) ? cgstTotalRaw : totalGst / 2;
+    const sgstTotal = Number.isFinite(sgstTotalRaw) ? sgstTotalRaw : totalGst / 2;
+    const igstTotal = Number.isFinite(igstTotalRaw) ? igstTotalRaw : totalGst;
+    const applicableGstLabel = gstType === "IGST" ? "IGST" : "CGST / SGST";
+    const applicableGstValue =
+      gstType === "IGST"
+        ? formatCurrency(igstTotal)
+        : `${formatCurrency(cgstTotal)} / ${formatCurrency(sgstTotal)}`;
 
     return (
       <div className="pr-1 space-y-4">
@@ -509,6 +530,10 @@ export default function B2bSalesOrdersPage() {
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Subtotal</p>
             <p>{formatCurrency(o.subtotal_amount) ?? "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">{applicableGstLabel}</p>
+            <p>{applicableGstValue}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Total GST</p>

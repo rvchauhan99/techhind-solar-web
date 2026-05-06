@@ -30,6 +30,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
+import companyService from "@/services/companyService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
@@ -81,6 +82,8 @@ export default function B2bSalesQuoteForm({
     const [clients, setClients] = useState([]);
     const [shipTos, setShipTos] = useState([]);
     const [clientDetails, setClientDetails] = useState(null);
+    const [companyState, setCompanyState] = useState("");
+    const [companyGstin, setCompanyGstin] = useState("");
     const [loadingOptions, setLoadingOptions] = useState(false);
 
     const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -89,14 +92,26 @@ export default function B2bSalesQuoteForm({
     // Load clients on mount
     useEffect(() => {
         setLoadingOptions(true);
-        b2bClientService
-            .getB2bClients({ limit: 500, is_active: true })
-            .then((res) => {
-                const r = res?.result ?? res;
-                setClients(r?.data ?? []);
-            })
-            .catch(() => { })
-            .finally(() => setLoadingOptions(false));
+        Promise.all([
+            b2bClientService
+                .getB2bClients({ limit: 500, is_active: true })
+                .then((res) => {
+                    const r = res?.result ?? res;
+                    setClients(r?.data ?? []);
+                })
+                .catch(() => { }),
+            companyService
+                .getCompanyProfile()
+                .then((res) => {
+                    const c = res?.result ?? res;
+                    setCompanyState(String(c?.state || "").trim());
+                    setCompanyGstin(String(c?.gstin || "").trim());
+                })
+                .catch(() => {
+                    setCompanyState("");
+                    setCompanyGstin("");
+                }),
+        ]).finally(() => setLoadingOptions(false));
     }, []);
 
     // Load default Terms & Conditions masters for new quotes (not editing)
@@ -414,6 +429,21 @@ export default function B2bSalesQuoteForm({
     }
 
     const totals = calculateTotals();
+    const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+    const buyerState = String(selectedShipTo?.state || clientDetails?.billing_state || "").trim();
+    const buyerGstin = String(clientDetails?.gstin || "").trim();
+    const sellerGstinStateCode = companyGstin && companyGstin.length >= 2 ? companyGstin.slice(0, 2) : "";
+    const buyerGstinStateCode = buyerGstin && buyerGstin.length >= 2 ? buyerGstin.slice(0, 2) : "";
+    const hasBothGstCodes = /^\d{2}$/.test(sellerGstinStateCode) && /^\d{2}$/.test(buyerGstinStateCode);
+    const isIgst = hasBothGstCodes
+        ? sellerGstinStateCode !== buyerGstinStateCode
+        : (companyState && buyerState
+            ? String(companyState).trim().toLowerCase() !== String(buyerState).trim().toLowerCase()
+            : false);
+    const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
+    const applicableGstValue = isIgst
+        ? `₹${totals.total_gst_amount.toFixed(2)}`
+        : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
     const signedRoundOff = (val) => {
         const n = Number(val) || 0;
         const sign = n > 0 ? "+" : n < 0 ? "-" : "";
@@ -798,6 +828,10 @@ export default function B2bSalesQuoteForm({
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                                             <Typography variant="body2">Taxable Amount:</Typography>
                                             <Typography variant="body2" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                                            <Typography variant="body2">{applicableGstLabel}:</Typography>
+                                            <Typography variant="body2" fontWeight="bold">{applicableGstValue}</Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                                             <Typography variant="body2">Total GST Amount:</Typography>

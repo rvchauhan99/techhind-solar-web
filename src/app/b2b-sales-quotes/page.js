@@ -497,6 +497,26 @@ export default function B2bSalesQuotesPage() {
     const hasItems = Array.isArray(items) && items.length > 0;
     const attachments = q?.attachments ?? [];
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const totalGst = Number(q.total_gst_amount) || 0;
+    const normalizedGstType = String(q.gst_type || "").toUpperCase();
+    const igstRaw = Number(q.igst_amount_total);
+    const cgstRaw = Number(q.cgst_amount_total);
+    const sgstRaw = Number(q.sgst_amount_total);
+    const hasIgst = Number.isFinite(igstRaw) && Math.abs(igstRaw) > 0.0001;
+    const gstType =
+      normalizedGstType === "IGST" || normalizedGstType === "CGST_SGST"
+        ? normalizedGstType
+        : hasIgst
+          ? "IGST"
+          : "CGST_SGST";
+    const igstTotal = Number.isFinite(igstRaw) ? igstRaw : totalGst;
+    const cgstTotal = Number.isFinite(cgstRaw) ? cgstRaw : totalGst / 2;
+    const sgstTotal = Number.isFinite(sgstRaw) ? sgstRaw : totalGst / 2;
+    const applicableGstLabel = gstType === "IGST" ? "IGST" : "CGST / SGST";
+    const applicableGstValue =
+      gstType === "IGST"
+        ? formatCurrency(igstTotal)
+        : `${formatCurrency(cgstTotal)} / ${formatCurrency(sgstTotal)}`;
 
     return (
       <div className="pr-1 space-y-4">
@@ -592,6 +612,10 @@ export default function B2bSalesQuotesPage() {
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Subtotal</p>
             <p>{formatCurrency(q.subtotal_amount) ?? "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">{applicableGstLabel}</p>
+            <p>{applicableGstValue}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Total GST</p>

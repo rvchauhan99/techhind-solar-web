@@ -48,6 +48,8 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null }) {
+    const [sellerProfile, setSellerProfile] = useState({ state: "", gstin: "" });
+    const [supplierDetails, setSupplierDetails] = useState({ state: "", gstin: "" });
     const [formData, setFormData] = useState({
         po_date: new Date().toISOString().split("T")[0],
         due_date: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split("T")[0],
@@ -137,6 +139,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 const companyProfileRes = await companyService.getCompanyProfile();
                 const companyProfile = companyProfileRes?.result || companyProfileRes?.data || companyProfileRes;
                 const companies = companyProfile ? [companyProfile] : [];
+                setSellerProfile({
+                    state: String(companyProfile?.state || "").trim(),
+                    gstin: String(companyProfile?.gstin || "").trim(),
+                });
 
                 setOptions((prev) => ({
                     ...prev,
@@ -161,6 +167,24 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         };
         loadInitialOptions();
     }, []);
+
+    useEffect(() => {
+        const supplierId = formData.supplier_id ? parseInt(formData.supplier_id, 10) : null;
+        if (!supplierId) {
+            setSupplierDetails({ state: "", gstin: "" });
+            return;
+        }
+        supplierService
+            .getSupplierById(supplierId)
+            .then((res) => {
+                const s = res?.result ?? res;
+                setSupplierDetails({
+                    state: String(s?.state?.name || s?.state_name || "").trim(),
+                    gstin: String(s?.gstin || "").trim(),
+                });
+            })
+            .catch(() => setSupplierDetails({ state: "", gstin: "" }));
+    }, [formData.supplier_id]);
 
     // Load warehouses when bill_to_id changes
     useEffect(() => {
@@ -602,6 +626,18 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     }
 
     const totals = calculateTotals();
+    const sellerStateCode = sellerProfile.gstin && sellerProfile.gstin.length >= 2 ? sellerProfile.gstin.slice(0, 2) : "";
+    const buyerStateCode = supplierDetails.gstin && supplierDetails.gstin.length >= 2 ? supplierDetails.gstin.slice(0, 2) : "";
+    const hasValidCodes = /^\d{2}$/.test(sellerStateCode) && /^\d{2}$/.test(buyerStateCode);
+    const isIgst = hasValidCodes
+        ? sellerStateCode !== buyerStateCode
+        : (sellerProfile.state && supplierDetails.state
+            ? sellerProfile.state.toLowerCase() !== supplierDetails.state.toLowerCase()
+            : false);
+    const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
+    const applicableGstValue = isIgst
+        ? `₹${totals.total_gst_amount.toFixed(2)}`
+        : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
     const signedRoundOff = (val) => {
         const n = Number(val) || 0;
         const sign = n > 0 ? "+" : n < 0 ? "-" : "";
@@ -974,6 +1010,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Taxable Amount:</Typography>
                                             <Typography variant="body1" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                            <Typography variant="body1">{applicableGstLabel}:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">{applicableGstValue}</Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Total GST Amount:</Typography>

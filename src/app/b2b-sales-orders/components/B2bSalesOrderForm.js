@@ -84,6 +84,7 @@ export default function B2bSalesOrderForm({
   const [clients, setClients] = useState([]);
   const [shipTos, setShipTos] = useState([]);
   const [clientDetails, setClientDetails] = useState(null);
+  const [sellerProfile, setSellerProfile] = useState({ state: "", gstin: "" });
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [pdfTermsClauses, setPdfTermsClauses] = useState([]);
   const [pdfTermsDrawerOpen, setPdfTermsDrawerOpen] = useState(false);
@@ -118,6 +119,16 @@ export default function B2bSalesOrderForm({
         setWarehouses(Array.isArray(data) ? data : []);
       })
       .catch(() => setWarehouses([]));
+    companyService
+      .getCompanyProfile()
+      .then((res) => {
+        const c = res?.result ?? res;
+        setSellerProfile({
+          state: String(c?.state || "").trim(),
+          gstin: String(c?.gstin || "").trim(),
+        });
+      })
+      .catch(() => setSellerProfile({ state: "", gstin: "" }));
   }, []);
 
   useEffect(() => {
@@ -477,6 +488,21 @@ export default function B2bSalesOrderForm({
   }
 
   const totals = calculateTotals();
+  const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+  const buyerState = String(selectedShipTo?.state || clientDetails?.billing_state || "").trim();
+  const buyerGstin = String(clientDetails?.gstin || "").trim();
+  const sellerStateCode = sellerProfile.gstin && sellerProfile.gstin.length >= 2 ? sellerProfile.gstin.slice(0, 2) : "";
+  const buyerStateCode = buyerGstin && buyerGstin.length >= 2 ? buyerGstin.slice(0, 2) : "";
+  const hasValidCodes = /^\d{2}$/.test(sellerStateCode) && /^\d{2}$/.test(buyerStateCode);
+  const isIgst = hasValidCodes
+    ? sellerStateCode !== buyerStateCode
+    : (sellerProfile.state && buyerState
+      ? sellerProfile.state.toLowerCase() !== buyerState.toLowerCase()
+      : false);
+  const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
+  const applicableGstValue = isIgst
+    ? `₹${totals.total_gst_amount.toFixed(2)}`
+    : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
   const signedRoundOff = (val) => {
     const n = Number(val) || 0;
     const sign = n > 0 ? "+" : n < 0 ? "-" : "";
@@ -891,6 +917,10 @@ export default function B2bSalesOrderForm({
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                       <Typography variant="body2">Taxable Amount:</Typography>
                       <Typography variant="body2" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                      <Typography variant="body2">{applicableGstLabel}:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{applicableGstValue}</Typography>
                     </Box>
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                       <Typography variant="body2">Total GST Amount:</Typography>
