@@ -36,11 +36,11 @@ import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
-const extractStateCodeFromValidGstin = (gstin) => {
-  const normalized = String(gstin || "").trim().toUpperCase();
-  if (!GSTIN_RE.test(normalized)) return "";
-  return normalized.slice(0, 2);
+const normalizeState = (value) => String(value || "").trim().toLowerCase();
+const normalizeStateId = (value) => {
+  if (value == null) return "";
+  const normalized = String(value).trim();
+  return normalized === "" ? "" : normalized;
 };
 
 const emptyCurrentItem = () => ({
@@ -493,21 +493,23 @@ export default function B2bSalesOrderForm({
     selectedWarehouse?.state ||
     ""
   ).trim();
-  const sellerGstin = String(
-    selectedWarehouse?.branch?.gst_number ||
-    selectedWarehouse?.branch_gst_number ||
-    selectedWarehouse?.gst_number ||
+  const sellerStateId = normalizeStateId(
+    selectedWarehouse?.state?.id ??
+    selectedWarehouse?.state_id ??
     ""
-  ).trim();
+  );
   const buyerState = String(selectedShipTo?.state || clientDetails?.billing_state || "").trim();
-  const buyerGstin = String(clientDetails?.gstin || "").trim();
-  const sellerStateCode = extractStateCodeFromValidGstin(sellerGstin);
-  const buyerStateCode = extractStateCodeFromValidGstin(buyerGstin);
-  const hasValidCodes = /^\d{2}$/.test(sellerStateCode) && /^\d{2}$/.test(buyerStateCode);
-  const isIgst = hasValidCodes
-    ? sellerStateCode !== buyerStateCode
-    : (sellerState && buyerState
-      ? sellerState.toLowerCase() !== buyerState.toLowerCase()
+  const buyerStateId = normalizeStateId(
+    selectedShipTo?.state_id ??
+    clientDetails?.billing_state_id ??
+    ""
+  );
+  const normalizedSellerState = normalizeState(sellerState);
+  const normalizedBuyerState = normalizeState(buyerState);
+  const isIgst = sellerStateId && buyerStateId
+    ? sellerStateId !== buyerStateId
+    : (normalizedSellerState && normalizedBuyerState
+      ? normalizedSellerState !== normalizedBuyerState
       : false);
   const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
   const applicableGstValue = isIgst
