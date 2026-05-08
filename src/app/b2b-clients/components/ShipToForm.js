@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { validatePincode } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
@@ -23,6 +25,7 @@ export default function ShipToForm({
     city: "",
     district: "",
     state: "",
+    state_id: "",
     pincode: "",
     landmark: "",
     country: "India",
@@ -41,6 +44,7 @@ export default function ShipToForm({
         city: defaultValues.city || "",
         district: defaultValues.district || "",
         state: defaultValues.state || "",
+        state_id: defaultValues.state_id || "",
         pincode: defaultValues.pincode || "",
         landmark: defaultValues.landmark || "",
         country: defaultValues.country || "India",
@@ -78,6 +82,9 @@ export default function ShipToForm({
     const validationErrors = {};
     if (!formData.address || formData.address.trim() === "") {
       validationErrors.address = "Address is required";
+    }
+    if (!formData.state || formData.state.trim() === "") {
+      validationErrors.state = "State is required";
     }
     if (formData.pincode && formData.pincode.trim() !== "") {
       const pincodeValidation = validatePincode(formData.pincode);
@@ -137,7 +144,35 @@ export default function ShipToForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input fullWidth name="city" label="City" value={formData.city} onChange={handleChange} />
           <Input fullWidth name="district" label="District" value={formData.district} onChange={handleChange} />
-          <Input fullWidth name="state" label="State" value={formData.state} onChange={handleChange} />
+          <AutocompleteField
+            name="state"
+            label="State"
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+            referenceModel="state.model"
+            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+            value={
+              formData.state_id
+                ? { id: formData.state_id, name: formData.state }
+                : formData.state
+                  ? { name: formData.state }
+                  : null
+            }
+            onChange={(e, newValue) =>
+              {
+                setFormData((prev) => ({
+                  ...prev,
+                  state_id: newValue?.id ?? "",
+                  state: (newValue?.name ?? newValue?.label ?? "").trim(),
+                }));
+                if (errors.state) setErrors((prev) => ({ ...prev, state: undefined }));
+                if (serverError) onClearServerError();
+              }
+            }
+            placeholder="Type to search..."
+            required
+            error={!!errors.state}
+            helperText={errors.state}
+          />
           <Input
             fullWidth
             name="pincode"

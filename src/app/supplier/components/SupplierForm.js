@@ -125,6 +125,9 @@ export default function SupplierForm({
       case "supplier_name":
         if (!value || value.trim() === "") error = "Supplier Name is required";
         break;
+      case "state_id":
+        if (!value || String(value).trim() === "") error = "State is required";
+        break;
       case "email":
         if (value && value.trim() !== "") {
           const emailValidation = validateEmail(value);
@@ -219,6 +222,9 @@ export default function SupplierForm({
     }
     if (!formData.supplier_name || formData.supplier_name.trim() === "") {
       validationErrors.supplier_name = "Supplier Name is required";
+    }
+    if (!formData.state_id || String(formData.state_id).trim() === "") {
+      validationErrors.state_id = "State is required";
     }
     if (formData.email && formData.email.trim() !== "") {
       const emailValidation = validateEmail(formData.email);
@@ -363,6 +369,9 @@ export default function SupplierForm({
               value={formData.state_id ? { id: formData.state_id } : null}
               onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
               placeholder="Type to search..."
+              required
+              error={!!errors.state_id}
+              helperText={errors.state_id}
             />
             <Input
               fullWidth
