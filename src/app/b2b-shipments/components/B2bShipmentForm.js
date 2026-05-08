@@ -220,7 +220,6 @@ export default function B2bShipmentForm({
     const handleShipNowChange = (index, value) => {
         const shipNowNum = Number(value) || 0;
         const line = lines[index];
-        const isSerialRequired = line?.serial_required;
 
         if (expandedSerialLineIndex === index) closeSerialRowExpand();
 
@@ -253,19 +252,26 @@ export default function B2bShipmentForm({
             return next;
         });
 
-        if (isSerialRequired && shipNowNum > 0) {
-            setTimeout(() => {
-                const existing = (line.serials || []).map((s) => String(s || "").trim()).slice(0, shipNowNum);
-                const padded = Array.from({ length: shipNowNum }, (_, i) => existing[i] ?? "");
-                setSerialDrawerValues(padded);
-                setSerialDrawerError("");
-                setSerialDrawerFieldErrors({});
-                setSerialDrawerValidating(null);
-                setExpandedSerialLineIndex(index);
-                serialInputRefs.current = [];
-                setTimeout(() => serialInputRefs.current[0]?.focus(), 100);
-            }, 0);
-        }
+    };
+
+    const handleShipNowKeyDown = (index, e) => {
+        if (e.key !== "Tab") return;
+        const line = lines[index];
+        if (!line?.serial_required) return;
+        if (expandedSerialLineIndex === index) return;
+
+        const shipNowNum = Number(line.ship_now);
+        const pendingForLine = Number(line.pending_qty) || 0;
+        const availableForLine =
+            line?.available_qty != null && !Number.isNaN(Number(line.available_qty))
+                ? Number(line.available_qty)
+                : Infinity;
+
+        if (!Number.isInteger(shipNowNum) || shipNowNum <= 0) return;
+        if (shipNowNum > pendingForLine || shipNowNum > availableForLine) return;
+        if (errors[`line_${index}_ship_now`]) return;
+
+        toggleSerialRowExpand(index);
     };
 
     const handleSerialAdd = (lineIndex, serialNumber) => {
@@ -374,18 +380,6 @@ export default function B2bShipmentForm({
         const tokens = splitSerialInput(value || "");
         if (!tokens.length || scanTargetIndex == null || expandedSerialLineIndex == null) return;
 
-        const line = lines[expandedSerialLineIndex];
-        const pending = Number(line?.pending_qty) ?? 0;
-        const available = line?.available_qty != null && !Number.isNaN(Number(line.available_qty))
-            ? Number(line.available_qty) : Infinity;
-        const maxAllowed = Math.min(pending, available);
-        const shipNow = serialDrawerValues.length;
-
-        if (tokens.length > maxAllowed) {
-            toastError(`Too many serials (${tokens.length}). Cannot exceed remaining (${pending}) or available (${available === Infinity ? "—" : available}).`);
-            return;
-        }
-
         if (tokens.length === 1) {
             const trimmed = tokens[0];
             const alreadyEntered = serialDrawerValues.some(
@@ -409,68 +403,26 @@ export default function B2bShipmentForm({
         }
 
         // Multi-serial (pallet) barcode
-        const existingLower = new Set(
-            serialDrawerValues.map((v) => (v || "").trim().toLowerCase()).filter(Boolean)
-        );
-        const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
-        if (uniqueNew.length === 0) {
-            toastError("All serials already entered.");
-            return;
+        const firstEmpty = serialDrawerValues.findIndex((v) => !(v || "").trim());
+        const startIndex = scanTargetIndex != null ? scanTargetIndex : (firstEmpty !== -1 ? firstEmpty : 0);
+        const { nextSlots, overflow, duplicates } = fillSerialSlots({
+            slots: serialDrawerValues,
+            startIndex,
+            incoming: tokens,
+            caseInsensitive: true,
+        });
+        if (duplicates.length) {
+            toastError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
         }
-        const newShipNow = Math.min(shipNow + uniqueNew.length, maxAllowed);
-        if (newShipNow > maxAllowed) {
-            toastError(`Too many serials. Cannot exceed remaining (${pending}) or available.`);
-            return;
+        if (overflow.length) {
+            toastError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
         }
-
-        if (newShipNow > shipNow) {
-            setLines((prev) =>
-                prev.map((l, i) =>
-                    i !== expandedSerialLineIndex
-                        ? l
-                        : { ...l, ship_now: String(newShipNow), serials: (l.serials || []).slice(0, newShipNow) }
-                )
-            );
-            setErrors((prev) => {
-                const next = { ...prev };
-                delete next[`line_${expandedSerialLineIndex}_ship_now`];
-                return next;
-            });
-            const paddedSlots = [...serialDrawerValues, ...Array(newShipNow - shipNow).fill("")];
-            const { nextSlots, overflow } = fillSerialSlots({
-                slots: paddedSlots,
-                startIndex: shipNow,
-                incoming: uniqueNew,
-                caseInsensitive: true,
-            });
-            if (overflow.length) {
-                toastError(`Too many serials. ${overflow.length} not filled (limit ${maxAllowed}).`);
-                return;
-            }
-            setSerialDrawerValues(nextSlots);
-            setSerialDrawerFieldErrors({});
-            nextSlots.forEach((val, idx) => {
-                if ((val || "").trim()) validateSerialWithBackend(idx, val);
-            });
-        } else {
-            const { nextSlots, overflow, duplicates } = fillSerialSlots({
-                slots: serialDrawerValues,
-                startIndex: scanTargetIndex,
-                incoming: uniqueNew,
-                caseInsensitive: true,
-            });
-            if (duplicates.length) {
-                toastError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
-            }
-            if (overflow.length) {
-                toastError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
-                return;
-            }
-            setSerialDrawerValues(nextSlots);
-            nextSlots.forEach((val, idx) => {
-                if ((val || "").trim()) validateSerialWithBackend(idx, val);
-            });
-        }
+        setSerialDrawerValues(nextSlots);
+        setSerialDrawerFieldErrors({});
+        setSerialDrawerError("");
+        nextSlots.forEach((val, idx) => {
+            if ((val || "").trim()) validateSerialWithBackend(idx, val);
+        });
         setScannerOpen(false);
         setScanTargetIndex(null);
     };
@@ -530,78 +482,25 @@ export default function B2bShipmentForm({
             return;
         }
         if (expandedSerialLineIndex == null) return;
-        const line = lines[expandedSerialLineIndex];
-        const pending = Number(line?.pending_qty) ?? 0;
-        const available = line?.available_qty != null && !Number.isNaN(Number(line.available_qty))
-            ? Number(line.available_qty) : Infinity;
-        const maxAllowed = Math.min(pending, available);
-        const shipNow = serialDrawerValues.length;
-
-        if (tokens.length > maxAllowed) {
-            setSerialDrawerError(`Too many serials (${tokens.length}). Cannot exceed remaining (${pending}) or available.`);
-            return;
+        const { nextSlots, overflow, duplicates } = fillSerialSlots({
+            slots: serialDrawerValues,
+            startIndex: index,
+            incoming: tokens,
+            caseInsensitive: true,
+        });
+        if (duplicates.length) {
+            setSerialDrawerError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
         }
-
-        const existingLower = new Set(
-            serialDrawerValues.map((v) => (v || "").trim().toLowerCase()).filter(Boolean)
-        );
-        const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
-        if (uniqueNew.length === 0) {
-            setSerialDrawerError("All serials already entered.");
-            return;
-        }
-        const newShipNow = Math.min(shipNow + uniqueNew.length, maxAllowed);
-
-        if (newShipNow > shipNow) {
-            setLines((prev) =>
-                prev.map((l, i) =>
-                    i !== expandedSerialLineIndex
-                        ? l
-                        : { ...l, ship_now: String(newShipNow), serials: (l.serials || []).slice(0, newShipNow) }
-                )
-            );
-            setErrors((prev) => {
-                const next = { ...prev };
-                delete next[`line_${expandedSerialLineIndex}_ship_now`];
-                return next;
-            });
-            const paddedSlots = [...serialDrawerValues, ...Array(newShipNow - shipNow).fill("")];
-            const { nextSlots, overflow } = fillSerialSlots({
-                slots: paddedSlots,
-                startIndex: shipNow,
-                incoming: uniqueNew,
-                caseInsensitive: true,
-            });
-            if (overflow.length) {
-                setSerialDrawerError(`Too many serials. ${overflow.length} not filled (limit ${maxAllowed}).`);
-                return;
-            }
-            setSerialDrawerValues(nextSlots);
-            setSerialDrawerFieldErrors({});
-            setSerialDrawerError("");
-            nextSlots.forEach((val, idx) => {
-                if ((val || "").trim()) validateSerialWithBackend(idx, val);
-            });
+        if (overflow.length) {
+            setSerialDrawerError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
         } else {
-            const { nextSlots, overflow, duplicates } = fillSerialSlots({
-                slots: serialDrawerValues,
-                startIndex: index,
-                incoming: uniqueNew,
-                caseInsensitive: true,
-            });
-            if (duplicates.length) {
-                setSerialDrawerError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
-            }
-            if (overflow.length) {
-                setSerialDrawerError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
-                return;
-            }
-            setSerialDrawerValues(nextSlots);
             setSerialDrawerError("");
-            nextSlots.forEach((val, idx) => {
-                if ((val || "").trim()) validateSerialWithBackend(idx, val);
-            });
         }
+        setSerialDrawerValues(nextSlots);
+        setSerialDrawerFieldErrors({});
+        nextSlots.forEach((val, idx) => {
+            if ((val || "").trim()) validateSerialWithBackend(idx, val);
+        });
     };
 
     const handleSerialDrawerKeyDown = (index, e) => {
@@ -925,6 +824,7 @@ export default function B2bShipmentForm({
                                                             label="Ship Now"
                                                             value={line.ship_now}
                                                             onChange={(e) => handleShipNowChange(index, e.target.value)}
+                                                            onKeyDown={(e) => handleShipNowKeyDown(index, e)}
                                                             inputProps={{ min: 0, max: line.pending_qty }}
                                                             error={!!errors[`line_${index}_ship_now`]}
                                                             helperText={errors[`line_${index}_ship_now`]}
@@ -1100,6 +1000,7 @@ export default function B2bShipmentForm({
                                                                             size="small"
                                                                             value={line.ship_now}
                                                                             onChange={(e) => handleShipNowChange(index, e.target.value)}
+                                                                            onKeyDown={(e) => handleShipNowKeyDown(index, e)}
                                                                             inputProps={{ min: 0, max: line.pending_qty }}
                                                                             error={!!errors[`line_${index}_ship_now`]}
                                                                             helperText={errors[`line_${index}_ship_now`]}
