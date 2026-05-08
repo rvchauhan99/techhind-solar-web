@@ -116,6 +116,7 @@ export default function CompanyProfilePage() {
         email: "",
         contact_no: "",
         gst_number: "",
+        state_id: null,
         billing_address_source: "branch",
         b2b_sales_contact_person: "",
         b2b_sales_contact_number: "",
@@ -642,11 +643,19 @@ export default function CompanyProfilePage() {
                 email: "Email",
                 contact_no: "Contact Number",
                 gst_number: "GST Number",
+                state_id: "State",
             };
 
             const validationErrors = {};
             Object.keys(requiredFields).forEach((field) => {
-                if (!branchFormData[field] || branchFormData[field].trim() === "") {
+                const value = branchFormData[field];
+                if (typeof value === "string") {
+                    if (!value || value.trim() === "") {
+                        validationErrors[field] = "This field is required";
+                    }
+                    return;
+                }
+                if (value === null || value === undefined || value === "") {
                     validationErrors[field] = "This field is required";
                 }
             });
@@ -717,6 +726,7 @@ export default function CompanyProfilePage() {
                 email: "",
                 contact_no: "",
                 gst_number: "",
+                state_id: null,
                 b2b_sales_contact_person: "",
                 b2b_sales_contact_number: "",
                 b2b_sales_contact_email: "",
@@ -744,6 +754,7 @@ export default function CompanyProfilePage() {
             email: branch.email || "",
             contact_no: branch.contact_no || "",
             gst_number: branch.gst_number || "",
+            state_id: branch.state_id || branch.state?.id || null,
             billing_address_source:
                 branch.billing_address_source === "company" ? "company" : "branch",
             b2b_sales_contact_person: branch.b2b_sales_contact_person ?? "",
@@ -790,6 +801,7 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            state_id: null,
             billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
@@ -811,6 +823,7 @@ export default function CompanyProfilePage() {
             email: "",
             contact_no: "",
             gst_number: "",
+            state_id: null,
             billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
@@ -2640,6 +2653,23 @@ export default function CompanyProfilePage() {
                                             required
                                             error={!!branchErrors.gst_number}
                                             helperText={branchErrors.gst_number || ""}
+                                        />
+                                        <AutocompleteField
+                                            name="state_id"
+                                            label="State"
+                                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+                                            referenceModel="state.model"
+                                            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                                            value={branchFormData.state_id ? { id: branchFormData.state_id } : null}
+                                            onChange={(e, newValue) =>
+                                                handleBranchInputChange({
+                                                    target: { name: "state_id", value: newValue?.id ?? newValue?.value ?? "" },
+                                                })
+                                            }
+                                            placeholder="Type to search..."
+                                            required
+                                            error={!!branchErrors.state_id}
+                                            helperText={branchErrors.state_id || ""}
                                         />
                                         <div className="md:col-span-2 lg:col-span-3 space-y-1">
                                             <Select

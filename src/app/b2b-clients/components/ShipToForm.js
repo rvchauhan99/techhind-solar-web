@@ -83,8 +83,8 @@ export default function ShipToForm({
     if (!formData.address || formData.address.trim() === "") {
       validationErrors.address = "Address is required";
     }
-    if (!formData.state || formData.state.trim() === "") {
-      validationErrors.state = "State is required";
+    if (!formData.state_id) {
+      validationErrors.state = "State selection is required";
     }
     if (formData.pincode && formData.pincode.trim() !== "") {
       const pincodeValidation = validatePincode(formData.pincode);
@@ -100,6 +100,7 @@ export default function ShipToForm({
       city: formData.city?.trim() || null,
       district: formData.district?.trim() || null,
       state: formData.state?.trim() || null,
+      state_id: formData.state_id || null,
       pincode: formData.pincode?.trim() || null,
       landmark: formData.landmark?.trim() || null,
       country: formData.country?.trim() || "India",
