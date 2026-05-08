@@ -1064,6 +1064,17 @@ export default function DeliveryChallanForm({
                         </Alert>
                     )}
 
+                    {order && String(order.planned_remarks || "").trim() ? (
+                        <Alert severity="info" sx={{ mb: 1, py: 0.75, "& .MuiAlert-message": { width: "100%" } }}>
+                            <Typography variant="caption" fontWeight={700} display="block" sx={{ mb: 0.25 }}>
+                                Planner remarks
+                            </Typography>
+                            <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                                {order.planned_remarks}
+                            </Typography>
+                        </Alert>
+                    ) : null}
+
                     {/* ─── Section 1: Challan Information ─────────────────── */}
                     <Card sx={{ mb: 0.75 }}>
                         <CardContent sx={compactCardContentSx}>
@@ -1091,6 +1102,7 @@ export default function DeliveryChallanForm({
                                             error={!!errors.order_id}
                                             helperText={errors.order_id}
                                             disabled={ordersLoading || availableOrders.length === 0}
+                                            fullWidth
                                         />
                                     ) : (
                                         <Input
@@ -1099,6 +1111,7 @@ export default function DeliveryChallanForm({
                                             label="Order"
                                             value={`${order.order_number || order.id} – ${order.customer_name || "N/A"} – ${order.planned_warehouse_name || order.branch_name || "N/A"}`}
                                             disabled
+                                            fullWidth
                                         />
                                     )}
                                 </Grid>
@@ -1110,6 +1123,7 @@ export default function DeliveryChallanForm({
                                         label="Customer"
                                         value={order?.customer_name || ""}
                                         disabled
+                                        fullWidth
                                     />
                                 </Grid>
 
@@ -1120,6 +1134,7 @@ export default function DeliveryChallanForm({
                                         label="Warehouse"
                                         value={order ? (order.planned_warehouse_name || "") : ""}
                                         disabled
+                                        fullWidth
                                     />
                                 </Grid>
 
@@ -1134,6 +1149,7 @@ export default function DeliveryChallanForm({
                                         error={!!errors.challan_date}
                                         helperText={errors.challan_date}
                                         disabled={!order}
+                                        fullWidth
                                     />
                                 </Grid>
 
@@ -1145,6 +1161,7 @@ export default function DeliveryChallanForm({
                                         value={formData.transporter}
                                         onChange={handleChange}
                                         disabled={!order}
+                                        fullWidth
                                     />
                                 </Grid>
 
@@ -1473,6 +1490,7 @@ export default function DeliveryChallanForm({
                                                                     error={!!errors[`line_${index}_ship_now`]}
                                                                     helperText={errors[`line_${index}_ship_now`]}
                                                                     disabled={!order}
+                                                                    fullWidth
                                                                 />
                                                             </TableCell>
                                                             <TableCell sx={{ ...compactCellSx, minWidth: 120, maxWidth: 140 }}>

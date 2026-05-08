@@ -16,6 +16,7 @@ import {
 import { useRouter } from "next/navigation";
 import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import PlannerRemarksSnippet from "@/components/common/PlannerRemarksSnippet";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
 
@@ -192,6 +193,7 @@ export default function WarehouseDeliveryOrdersPage() {
                                                         sx={{ fontSize: "0.65rem", height: 18 }}
                                                     />
                                                 </Box>
+                                                <PlannerRemarksSnippet text={o.planned_remarks} />
                                                 <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.5 }}>
                                                     <Button
                                                         size="small"
@@ -281,6 +283,7 @@ export default function WarehouseDeliveryOrdersPage() {
                                                         sx={{ fontSize: "0.65rem", height: 18 }}
                                                     />
                                                 </Box>
+                                                <PlannerRemarksSnippet text={o.planned_remarks} />
                                             </Box>
                                             <Box sx={{ flex: 1.5, display: "flex", gap: 1, justifyContent: "flex-end" }}>
                                                 <Button
