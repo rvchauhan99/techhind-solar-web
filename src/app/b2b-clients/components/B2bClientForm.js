@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { getNextClientCode } from "@/services/b2bClientService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import {
   validateGSTIN,
   validatePAN,
@@ -38,6 +40,7 @@ export default function B2bClientForm({
     billing_city: "",
     billing_district: "",
     billing_state: "",
+    billing_state_id: "",
     billing_pincode: "",
     billing_landmark: "",
     billing_country: "India",
@@ -62,6 +65,7 @@ export default function B2bClientForm({
         billing_city: defaultValues.billing_city || "",
         billing_district: defaultValues.billing_district || "",
         billing_state: defaultValues.billing_state || "",
+        billing_state_id: defaultValues.billing_state_id || "",
         billing_pincode: defaultValues.billing_pincode || "",
         billing_landmark: defaultValues.billing_landmark || "",
         billing_country: defaultValues.billing_country || "India",
@@ -132,6 +136,9 @@ export default function B2bClientForm({
           const pincodeValidation = validatePincode(value);
           if (!pincodeValidation.isValid) error = pincodeValidation.message;
         }
+        break;
+      case "billing_state":
+        if (!value || value.trim() === "") error = "State is required";
         break;
       default:
         break;
@@ -209,6 +216,9 @@ export default function B2bClientForm({
     if (!formData.client_name || formData.client_name.trim() === "") {
       validationErrors.client_name = "Client name is required";
     }
+    if (!formData.billing_state || formData.billing_state.trim() === "") {
+      validationErrors.billing_state = "State is required";
+    }
     if (formData.email && formData.email.trim() !== "") {
       const emailValidation = validateEmail(formData.email);
       if (!emailValidation.isValid) validationErrors.email = emailValidation.message;
@@ -233,8 +243,9 @@ export default function B2bClientForm({
       setErrors(validationErrors);
       return;
     }
+    const { billing_state_id, ...formDataForSubmit } = formData;
     const submitData = {
-      ...formData,
+      ...formDataForSubmit,
       client_code: formData.client_code.trim(),
       client_name: formData.client_name.trim(),
       contact_person: formData.contact_person?.trim() || "",
@@ -400,12 +411,34 @@ export default function B2bClientForm({
               value={formData.billing_district}
               onChange={handleChange}
             />
-            <Input
-              fullWidth
+            <AutocompleteField
               name="billing_state"
               label="State"
-              value={formData.billing_state}
-              onChange={handleChange}
+              asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+              referenceModel="state.model"
+              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+              value={
+                formData.billing_state_id
+                  ? { id: formData.billing_state_id, name: formData.billing_state }
+                  : formData.billing_state
+                    ? { name: formData.billing_state }
+                    : null
+              }
+              onChange={(e, newValue) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  billing_state_id: newValue?.id ?? "",
+                  billing_state: (newValue?.name ?? newValue?.label ?? "").trim(),
+                }));
+                if (errors.billing_state) {
+                  setErrors((prev) => ({ ...prev, billing_state: undefined }));
+                }
+                if (serverError) onClearServerError();
+              }}
+              placeholder="Type to search..."
+              required
+              error={!!errors.billing_state}
+              helperText={errors.billing_state}
             />
             <Input
               fullWidth

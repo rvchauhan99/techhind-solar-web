@@ -38,6 +38,7 @@ import OrderNumberLink from "@/components/common/OrderNumberLink";
 import orderService from "@/services/orderService";
 import { toastError, toastSuccess } from "@/utils/toast";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
+import PlannerRemarksSnippet from "@/components/common/PlannerRemarksSnippet";
 import AssignFabricatorAndInstaller from "@/app/confirm-orders/components/AssignFabricatorAndInstaller";
 import {
   compactAddress,
@@ -615,6 +616,7 @@ export default function DeliveryExecutionPage() {
                             Last Challan: {formatDate(o.last_challan_date)} • Count: {o.challan_count || 0}
                           </Typography>
                         )}
+                        <PlannerRemarksSnippet text={o.planned_remarks} />
                       </Box>
                     </Paper>
                   ))}

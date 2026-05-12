@@ -47,7 +47,47 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
+const extractStateCodeFromValidGstin = (gstin) => {
+    const normalized = String(gstin || "").trim().toUpperCase();
+    if (!GSTIN_RE.test(normalized)) return "";
+    return normalized.slice(0, 2);
+};
+const normalizeStateId = (value) => {
+    if (value == null || value === "") return "";
+    const n = Number(value);
+    return Number.isInteger(n) && n > 0 ? String(n) : "";
+};
+
+const resolvePoGstTypeForUi = ({
+    supplierGstin = "",
+    branchGstin = "",
+    supplierStateId = "",
+    branchStateId = "",
+    supplierState = "",
+    branchState = "",
+} = {}) => {
+    const supplierCode = extractStateCodeFromValidGstin(supplierGstin);
+    const branchCode = extractStateCodeFromValidGstin(branchGstin);
+    const normalizedSupplierStateId = normalizeStateId(supplierStateId);
+    const normalizedBranchStateId = normalizeStateId(branchStateId);
+    const normalizedSupplierState = String(supplierState || "").trim().toLowerCase();
+    const normalizedBranchState = String(branchState || "").trim().toLowerCase();
+
+    if (supplierCode && branchCode) {
+        return supplierCode === branchCode ? "CGST_SGST" : "IGST";
+    }
+    if (normalizedSupplierStateId && normalizedBranchStateId) {
+        return normalizedSupplierStateId === normalizedBranchStateId ? "CGST_SGST" : "IGST";
+    }
+    if (normalizedSupplierState && normalizedBranchState) {
+        return normalizedSupplierState === normalizedBranchState ? "CGST_SGST" : "IGST";
+    }
+    return "CGST_SGST";
+};
+
 export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null }) {
+    const [supplierDetails, setSupplierDetails] = useState({ state: "", state_id: null, gstin: "" });
     const [formData, setFormData] = useState({
         po_date: new Date().toISOString().split("T")[0],
         due_date: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split("T")[0],
@@ -161,6 +201,25 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         };
         loadInitialOptions();
     }, []);
+
+    useEffect(() => {
+        const supplierId = formData.supplier_id ? parseInt(formData.supplier_id, 10) : null;
+        if (!supplierId) {
+            setSupplierDetails({ state: "", state_id: null, gstin: "" });
+            return;
+        }
+        supplierService
+            .getSupplierById(supplierId)
+            .then((res) => {
+                const s = res?.result ?? res;
+                setSupplierDetails({
+                    state: String(s?.state?.name || s?.state_name || "").trim(),
+                    state_id: s?.state?.id || s?.state_id || null,
+                    gstin: String(s?.gstin || "").trim(),
+                });
+            })
+            .catch(() => setSupplierDetails({ state: "", state_id: null, gstin: "" }));
+    }, [formData.supplier_id]);
 
     // Load warehouses when bill_to_id changes
     useEffect(() => {
@@ -602,6 +661,40 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     }
 
     const totals = calculateTotals();
+    const selectedWarehouse = options.warehouses.find((w) => Number(w.id) === Number(formData.ship_to_id)) || null;
+    const sellerState = String(supplierDetails.state || "").trim();
+    const sellerGstin = String(supplierDetails.gstin || "").trim();
+    const sellerStateId = supplierDetails.state_id || null;
+    const buyerState = String(
+        selectedWarehouse?.state?.name ||
+        selectedWarehouse?.state_name ||
+        selectedWarehouse?.state ||
+        ""
+    ).trim();
+    const buyerStateId =
+        selectedWarehouse?.branch?.state_id ||
+        selectedWarehouse?.state?.id ||
+        selectedWarehouse?.state_id ||
+        null;
+    const buyerGstin = String(
+        selectedWarehouse?.branch?.gst_number ||
+        selectedWarehouse?.branch_gst_number ||
+        selectedWarehouse?.gst_number ||
+        ""
+    ).trim();
+    const gstType = resolvePoGstTypeForUi({
+        supplierGstin: sellerGstin,
+        branchGstin: buyerGstin,
+        supplierStateId: sellerStateId,
+        branchStateId: buyerStateId,
+        supplierState: sellerState,
+        branchState: buyerState,
+    });
+    const isIgst = gstType === "IGST";
+    const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
+    const applicableGstValue = isIgst
+        ? `₹${totals.total_gst_amount.toFixed(2)}`
+        : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
     const signedRoundOff = (val) => {
         const n = Number(val) || 0;
         const sign = n > 0 ? "+" : n < 0 ? "-" : "";
@@ -974,6 +1067,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Taxable Amount:</Typography>
                                             <Typography variant="body1" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                                        </Box>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                            <Typography variant="body1">{applicableGstLabel}:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">{applicableGstValue}</Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Total GST Amount:</Typography>

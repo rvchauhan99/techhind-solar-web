@@ -123,6 +123,17 @@ export default function CustomerProjectDetails({ orderData }) {
         </>
       )}
 
+      {String(orderData?.planned_remarks || "").trim() ? (
+        <>
+          <div className={COMPACT_SECTION_HEADER_CLASS}>Planner remarks</div>
+          <Box mt={1} mb={2}>
+            <Typography variant="body2" sx={{ wordBreak: "break-word", whiteSpace: "pre-wrap" }}>
+              {orderData.planned_remarks}
+            </Typography>
+          </Box>
+        </>
+      ) : null}
+
       <div className={COMPACT_SECTION_HEADER_CLASS}>Project Details</div>
       <Box mt={2} mb={2}>
         <Typography variant="body2" color="text.secondary">
