@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Box, Chip, Tooltip } from "@mui/material";
 import moment from "moment";
 import Link from "next/link";
-import { IconCheck, IconX, IconPrinter, IconLoader2, IconPhoto, IconEye } from "@tabler/icons-react";
+import { IconCheck, IconX, IconPrinter, IconLoader2, IconEye } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import orderDocumentsService from "@/services/orderDocumentsService";
@@ -23,6 +23,71 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
 
+const getPaymentStatusLabel = (status) =>
+  status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "Pending";
+
+function PaymentVerificationDetails({ payment }) {
+  if (!payment) return null;
+
+  const hasReceive = !!payment.payment_remarks;
+  const hasApprove = payment.status === "approved" && !!payment.approval_remarks;
+  const hasReject = payment.status === "rejected" && !!payment.rejection_reason;
+
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-2 space-y-2">
+      <div className="text-[11px] font-semibold text-slate-700">Payment Verification Details</div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] leading-4">
+        <span className="text-slate-500">Order</span>
+        <span className="font-medium text-slate-800">{payment.order_number || "-"}</span>
+        <span className="text-slate-500">Customer</span>
+        <span className="font-medium text-slate-800">{payment.customer_name || "-"}</span>
+        <span className="text-slate-500">Branch</span>
+        <span className="font-medium text-slate-800">{payment.branch_name || "-"}</span>
+        <span className="text-slate-500">Payment Date</span>
+        <span className="font-medium text-slate-800">
+          {payment.date_of_payment ? moment(payment.date_of_payment).format("DD-MM-YYYY") : "-"}
+        </span>
+        <span className="text-slate-500">Amount</span>
+        <span className="font-medium text-slate-800">
+          {payment.payment_amount != null ? `₹${Number(payment.payment_amount).toLocaleString("en-IN")}` : "-"}
+        </span>
+        <span className="text-slate-500">Payment Mode</span>
+        <span className="font-medium text-slate-800">{payment.payment_mode_name || "-"}</span>
+        <span className="text-slate-500">Txn/Cheque No.</span>
+        <span className="font-medium text-slate-800">{payment.transaction_cheque_number || "-"}</span>
+        <span className="text-slate-500">Bank/Account</span>
+        <span className="font-medium text-slate-800">
+          {payment.company_bank_name && payment.company_bank_account_number
+            ? `${payment.company_bank_name} - ${payment.company_bank_account_number}`
+            : "-"}
+        </span>
+        <span className="text-slate-500">Receipt #</span>
+        <span className="font-medium text-slate-800">{payment.receipt_number || "-"}</span>
+        <span className="text-slate-500">Status</span>
+        <span className="font-medium text-slate-800">{getPaymentStatusLabel(payment.status)}</span>
+      </div>
+      <div className="border-t border-slate-200 pt-1.5">
+        <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5">Remarks</div>
+        {!hasReceive && !hasApprove && !hasReject ? (
+          <div className="text-[11px] text-slate-600">-</div>
+        ) : (
+          <div className="space-y-0.5 text-[11px]">
+            {hasReceive && (
+              <div className="text-slate-700"><strong>Receive:</strong> {payment.payment_remarks}</div>
+            )}
+            {hasApprove && (
+              <div className="text-slate-700"><strong>Approve:</strong> {payment.approval_remarks}</div>
+            )}
+            {hasReject && (
+              <div className="text-slate-700"><strong>Reject:</strong> {payment.rejection_reason}</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PaymentAuditTable({ filterParams = {} }) {
   const [loadingReceipt, setLoadingReceipt] = useState(new Set());
   const [loadingProof, setLoadingProof] = useState(new Set());
@@ -33,6 +98,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     orderId: null,
     approvalRemarks: "",
     proofFile: null,
+    paymentSnapshot: null,
     reload: null,
   });
   const [approveFileInputKey, setApproveFileInputKey] = useState(Date.now());
@@ -46,6 +112,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     reasonLabel: "",
     remarks: "",
     proofFile: null,
+    paymentSnapshot: null,
     reload: null,
   });
   const [rejectFileInputKey, setRejectFileInputKey] = useState(Date.now());
@@ -58,6 +125,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       orderId: null,
       approvalRemarks: "",
       proofFile: null,
+      paymentSnapshot: null,
       reload: null,
     });
     setApproveFileInputKey(Date.now());
@@ -97,6 +165,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       reasonLabel: "",
       remarks: "",
       proofFile: null,
+      paymentSnapshot: null,
       reload: null,
     });
     setRejectFileInputKey(Date.now());
@@ -296,6 +365,46 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       render: (row) => row.transaction_cheque_number || "-",
     },
     {
+      id: "payment_remarks",
+      label: "Remarks",
+      field: "payment_remarks",
+      render: (row) => {
+        const hasReceive = !!row.payment_remarks;
+        const hasApprove = row.status === "approved" && !!row.approval_remarks;
+        const hasReject = row.status === "rejected" && !!row.rejection_reason;
+
+        if (!hasReceive && !hasApprove && !hasReject) {
+          return "-";
+        }
+
+        return (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+            {hasReceive && (
+              <Tooltip title={row.payment_remarks}>
+                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                  <strong>Receive:</strong> {row.payment_remarks}
+                </span>
+              </Tooltip>
+            )}
+            {hasApprove && (
+              <Tooltip title={row.approval_remarks}>
+                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                  <strong>Approve:</strong> {row.approval_remarks}
+                </span>
+              </Tooltip>
+            )}
+            {hasReject && (
+              <Tooltip title={row.rejection_reason}>
+                <span style={{ fontSize: "0.7rem", lineHeight: 1.2 }}>
+                  <strong>Reject:</strong> {row.rejection_reason}
+                </span>
+              </Tooltip>
+            )}
+          </Box>
+        );
+      },
+    },
+    {
       id: "company_bank",
       label: "Bank/Account",
       field: "company_bank_name",
@@ -355,6 +464,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                         orderId: row.order_id || null,
                         approvalRemarks: "",
                         proofFile: null,
+                        paymentSnapshot: row,
                         reload,
                       })
                     }
@@ -376,6 +486,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                         reasonLabel: "",
                         remarks: "",
                         proofFile: null,
+                        paymentSnapshot: row,
                         reload,
                       })
                     }
@@ -446,6 +557,31 @@ export default function PaymentAuditTable({ filterParams = {} }) {
           <DialogHeader>
             <DialogTitle>Confirm Approve Payment</DialogTitle>
           </DialogHeader>
+          <PaymentVerificationDetails payment={approveDialog.paymentSnapshot} />
+          <div className="rounded-md border border-slate-200 bg-white p-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-600">
+                Receipt File: {approveDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
+              </div>
+              {!!approveDialog.paymentSnapshot?.receipt_cheque_file && (
+                <UiButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => handleViewPaymentProof(approveDialog.paymentId)}
+                  disabled={!approveDialog.paymentId || loadingProof.has(approveDialog.paymentId)}
+                >
+                  {loadingProof.has(approveDialog.paymentId) ? (
+                    <IconLoader2 className="size-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <IconEye className="size-3.5 mr-1" />
+                  )}
+                  View Receipt
+                </UiButton>
+              )}
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground mb-2">
             Are you sure you want to approve this payment?
           </p>
@@ -509,6 +645,31 @@ export default function PaymentAuditTable({ filterParams = {} }) {
           <DialogHeader>
             <DialogTitle>Reject Payment</DialogTitle>
           </DialogHeader>
+          <PaymentVerificationDetails payment={rejectDialog.paymentSnapshot} />
+          <div className="rounded-md border border-slate-200 bg-white p-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-[11px] text-slate-600">
+                Receipt File: {rejectDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
+              </div>
+              {!!rejectDialog.paymentSnapshot?.receipt_cheque_file && (
+                <UiButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => handleViewPaymentProof(rejectDialog.paymentId)}
+                  disabled={!rejectDialog.paymentId || loadingProof.has(rejectDialog.paymentId)}
+                >
+                  {loadingProof.has(rejectDialog.paymentId) ? (
+                    <IconLoader2 className="size-3.5 mr-1 animate-spin" />
+                  ) : (
+                    <IconEye className="size-3.5 mr-1" />
+                  )}
+                  View Receipt
+                </UiButton>
+              )}
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground mb-2">
             Please select a reason for rejection.
           </p>

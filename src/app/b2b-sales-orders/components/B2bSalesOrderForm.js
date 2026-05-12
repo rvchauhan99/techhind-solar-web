@@ -35,6 +35,36 @@ import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { toastError } from "@/utils/toast";
+
+const normalizeState = (value) => String(value || "").trim().toLowerCase();
+const normalizeStateId = (value) => {
+  if (value == null) return "";
+  const normalized = String(value).trim();
+  const lower = normalized.toLowerCase();
+  if (!normalized || lower === "undefined" || lower === "null") return "";
+  return normalized;
+};
+const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
+const extractStateCodeFromValidGstin = (gstin) => {
+  const normalized = String(gstin || "").trim().toUpperCase();
+  if (!GSTIN_RE.test(normalized)) return "";
+  return normalized.slice(0, 2);
+};
+const normalizeComparable = (value) => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+const isBillingShipToSelection = (shipTo, client) => {
+  if (!shipTo) return false;
+  const shipToName = normalizeComparable(shipTo.ship_to_name || "");
+  if (shipToName === "billing address" || shipToName === "billing") return true;
+  if (!client) return false;
+  const shipAddress = normalizeComparable(shipTo.address || "");
+  const billAddress = normalizeComparable(client.billing_address || client.address || "");
+  const shipState = normalizeComparable(shipTo.state || "");
+  const billState = normalizeComparable(client.billing_state || "");
+  const shipPincode = normalizeComparable(shipTo.pincode || "");
+  const billPincode = normalizeComparable(client.billing_pincode || client.pincode || "");
+  return !!shipAddress && shipAddress === billAddress && (!shipState || shipState === billState) && (!shipPincode || shipPincode === billPincode);
+};
 
 const emptyCurrentItem = () => ({
   product_id: "",
@@ -49,6 +79,43 @@ const emptyCurrentItem = () => ({
   product_capacity: "",
   product_type_name: "",
 });
+
+const getFirstValidationError = (errs = {}) => {
+  if (!errs || Object.keys(errs).length === 0) return { key: "", message: "" };
+  const priority = ["client_id", "order_date", "ship_to_id", "planned_warehouse_id", "items"];
+  for (const key of priority) {
+    if (errs[key]) return { key, message: errs[key] };
+  }
+  const fallbackKey = Object.keys(errs)[0] || "";
+  return { key: fallbackKey, message: errs[fallbackKey] || "" };
+};
+
+const scrollToFirstValidationError = (errs = {}) => {
+  if (!errs || Object.keys(errs).length === 0) return;
+  if (errs.items) {
+    const itemsSection = document.querySelector("[data-items-section]");
+    if (itemsSection) {
+      itemsSection.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+  }
+  const priority = ["client_id", "order_date", "ship_to_id", "planned_warehouse_id"];
+  for (const name of priority) {
+    if (!errs[name]) continue;
+    const byContainer = document.querySelector(`[data-field="${name}"]`);
+    if (byContainer) {
+      byContainer.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const el = document.querySelector(`[name="${name}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+  }
+  const formRoot = document.querySelector("#b2b-sales-order-form");
+  if (formRoot) formRoot.scrollIntoView({ behavior: "smooth", block: "start" });
+};
 
 export default function B2bSalesOrderForm({
   defaultValues = {},
@@ -87,6 +154,9 @@ export default function B2bSalesOrderForm({
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [pdfTermsClauses, setPdfTermsClauses] = useState([]);
   const [pdfTermsDrawerOpen, setPdfTermsDrawerOpen] = useState(false);
+  const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [submitErrorMessage, setSubmitErrorMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -267,14 +337,32 @@ export default function B2bSalesOrderForm({
       .catch(() => setClientDetails(null));
   }, [fromQuoteId, formData.client_id]);
 
-  const handleQuoteSubmit = (e) => {
+  const handleQuoteSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingLocal || isCancelling || loading) {
+      toastError("Please wait, request is already in progress");
+      return;
+    }
     if (serverError) onClearServerError();
+    setSubmitErrorMessage("");
     const e2 = {};
     if (fromQuoteId && !plannedWarehouseId) e2.planned_warehouse_id = "Planned warehouse is required";
     setErrors(e2);
-    if (Object.keys(e2).length > 0) return;
-    onSubmit({ planned_warehouse_id: parseInt(plannedWarehouseId, 10) });
+    if (Object.keys(e2).length > 0) {
+      const first = getFirstValidationError(e2);
+      setSubmitErrorMessage(first.message || "Please fix highlighted fields");
+      toastError(first.message || "Please fix highlighted fields");
+      scrollToFirstValidationError(e2);
+      return;
+    }
+    setIsSubmittingLocal(true);
+    try {
+      await Promise.resolve(onSubmit({ planned_warehouse_id: parseInt(plannedWarehouseId, 10) }));
+    } catch (err) {
+      toastError(err?.response?.data?.message || err?.message || "Failed to create order");
+    } finally {
+      setIsSubmittingLocal(false);
+    }
   };
 
   const handleChange = (e) => {
@@ -390,18 +478,48 @@ export default function B2bSalesOrderForm({
     };
   };
 
-  const handleDirectOrderSubmit = (e) => {
+  const handleDirectOrderSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingLocal || isCancelling || loading) {
+      toastError("Please wait, request is already in progress");
+      return;
+    }
     if (serverError) onClearServerError();
+    setSubmitErrorMessage("");
     const errs = {};
     if (!formData.client_id) errs.client_id = "Client is required";
     if (!formData.order_date) errs.order_date = "Order date is required";
+    if (!plannedWarehouseId) errs.planned_warehouse_id = "Warehouse is required";
+    const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+    const selectedWarehouse = warehouses.find((w) => Number(w.id) === Number(plannedWarehouseId)) || null;
+    const selectedBranch = selectedWarehouse?.branch || null;
+    const isBillingShipTo = !!formData.ship_to_id && isBillingShipToSelection(selectedShipTo, clientDetails);
+    const isShippingDifferent = !!formData.ship_to_id && !isBillingShipTo;
+    if (isShippingDifferent && !selectedShipTo?.state_id) {
+      errs.ship_to_id = "Need to Configure State Against Ship to adress ,state is required when shipping address is selected";
+    }
+    if (!selectedBranch?.id) {
+      errs.planned_warehouse_id = "Selected warehouse must be linked to a branch";
+    } else {
+      const hasClientGstin = !!extractStateCodeFromValidGstin(clientDetails?.gstin || "");
+      if (!isShippingDifferent && hasClientGstin && !extractStateCodeFromValidGstin(selectedBranch?.gst_number || "")) {
+        errs.planned_warehouse_id = "Branch GSTIN is required for GSTIN-based comparison";
+      }
+      if ((isShippingDifferent || !hasClientGstin) && !selectedBranch?.state_id) {
+        errs.planned_warehouse_id = "Branch state is required for state-based GST comparison";
+      }
+    }
     if (formData.items.length === 0) errs.items = "At least one item is required";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      const first = getFirstValidationError(errs);
+      setSubmitErrorMessage(first.message || "Please fix highlighted fields");
+      toastError(first.message || "Please fix highlighted fields");
+      scrollToFirstValidationError(errs);
       return;
     }
     setErrors({});
+    setSubmitErrorMessage("");
     const totals = calculateTotals();
     const payload = {
       order_date: formData.order_date,
@@ -426,8 +544,28 @@ export default function B2bSalesOrderForm({
         hsn_code: it.hsn_code || "",
       })),
     };
-    onSubmit(payload);
+    setIsSubmittingLocal(true);
+    try {
+      await Promise.resolve(onSubmit(payload));
+    } catch (err) {
+      toastError(err?.response?.data?.message || err?.message || "Failed to create order");
+    } finally {
+      setIsSubmittingLocal(false);
+    }
   };
+
+  const handleCancelClick = async () => {
+    if (!onCancel) return;
+    if (isSubmittingLocal || isCancelling || loading) return;
+    setIsCancelling(true);
+    try {
+      await Promise.resolve(onCancel());
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const isActionBusy = loading || isSubmittingLocal || isCancelling;
 
   if (fromQuoteId) {
     return (
@@ -452,13 +590,13 @@ export default function B2bSalesOrderForm({
           />
           <FormActions>
             {onCancel && (
-              <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+              <LoadingButton type="button" variant="outline" onClick={handleCancelClick} loading={isCancelling} disabled={isActionBusy}>
                 Cancel
-              </Button>
+              </LoadingButton>
             )}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Order from Quote"}
-            </Button>
+            <LoadingButton type="submit" loading={loading || isSubmittingLocal} disabled={isActionBusy}>
+              {loading || isSubmittingLocal ? "Creating..." : "Create Order from Quote"}
+            </LoadingButton>
           </FormActions>
         </form>
       </FormContainer>
@@ -477,6 +615,41 @@ export default function B2bSalesOrderForm({
   }
 
   const totals = calculateTotals();
+  const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+  const selectedWarehouse = warehouses.find((w) => Number(w.id) === Number(plannedWarehouseId)) || null;
+  const selectedBranch = selectedWarehouse?.branch || null;
+  const isBillingShipTo = !!formData.ship_to_id && isBillingShipToSelection(selectedShipTo, clientDetails);
+  const isShippingDifferent = !!formData.ship_to_id && !isBillingShipTo;
+  const sellerState = String(selectedBranch?.state?.name || selectedBranch?.state_name || "").trim();
+  const sellerStateId = normalizeStateId(
+    selectedBranch?.state_id ??
+    ""
+  );
+  const buyerState = String(isShippingDifferent ? selectedShipTo?.state : clientDetails?.billing_state || "").trim();
+  const buyerStateId = normalizeStateId(
+    isShippingDifferent
+      ? selectedShipTo?.state_id
+      : clientDetails?.billing_state_id ??
+    ""
+  );
+  const sellerGstin = String(selectedBranch?.gst_number || "").trim();
+  const buyerGstin = isShippingDifferent ? "" : String(clientDetails?.gstin || "").trim();
+  const sellerGstinStateCode = extractStateCodeFromValidGstin(sellerGstin);
+  const buyerGstinStateCode = extractStateCodeFromValidGstin(buyerGstin);
+  const normalizedSellerState = normalizeState(sellerState);
+  const normalizedBuyerState = normalizeState(buyerState);
+  let isIgst = false;
+  if (!isShippingDifferent && sellerGstinStateCode && buyerGstinStateCode) {
+    isIgst = sellerGstinStateCode !== buyerGstinStateCode;
+  } else if (sellerStateId && buyerStateId) {
+    isIgst = sellerStateId !== buyerStateId;
+  } else if (normalizedSellerState && normalizedBuyerState) {
+    isIgst = normalizedSellerState !== normalizedBuyerState;
+  }
+  const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
+  const applicableGstValue = isIgst
+    ? `₹${totals.total_gst_amount.toFixed(2)}`
+    : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
   const signedRoundOff = (val) => {
     const n = Number(val) || 0;
     const sign = n > 0 ? "+" : n < 0 ? "-" : "";
@@ -492,11 +665,17 @@ export default function B2bSalesOrderForm({
               {serverError}
             </Alert>
           )}
+          {!serverError && submitErrorMessage && (
+            <Alert severity="error" sx={{ mb: 1 }} onClose={() => setSubmitErrorMessage("")}>
+              {submitErrorMessage}
+            </Alert>
+          )}
 
           <div className="w-full">
             <Paper sx={{ p: 0.75, mb: 1, bgcolor: "#fafafa" }}>
               <FormGrid cols={6}>
                 <DateField
+                  data-field="order_date"
                   name="order_date"
                   label="Order Date"
                   value={formData.order_date}
@@ -506,7 +685,7 @@ export default function B2bSalesOrderForm({
                   helperText={errors.order_date}
                   className="lg:col-span-1"
                 />
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2" data-field="client_id">
                   <AutocompleteField
                     label="Client *"
                     options={clients}
@@ -518,7 +697,7 @@ export default function B2bSalesOrderForm({
                     helperText={errors.client_id}
                   />
                 </div>
-                <div className="lg:col-span-2">
+                <div className="lg:col-span-2" data-field="ship_to_id">
                   <AutocompleteField
                     label="Ship To"
                     options={shipTos}
@@ -526,17 +705,32 @@ export default function B2bSalesOrderForm({
                     value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
                     onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                     disabled={!formData.client_id}
+                    error={!!errors.ship_to_id}
+                    helperText={errors.ship_to_id}
                   />
                 </div>
                 <AutocompleteField
-                  label="Warehouse"
+                  data-field="planned_warehouse_id"
+                  label="Warehouse *"
                   options={warehouses}
                   getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
                   value={
                     warehouses.find((w) => w.id === parseInt(plannedWarehouseId)) ||
                     (plannedWarehouseId ? { id: parseInt(plannedWarehouseId) } : null)
                   }
-                  onChange={(e, newValue) => setPlannedWarehouseId(newValue?.id ?? "")}
+                  onChange={(e, newValue) => {
+                    setPlannedWarehouseId(newValue?.id ?? "");
+                    if (errors.planned_warehouse_id) {
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.planned_warehouse_id;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={!!errors.planned_warehouse_id}
+                  helperText={errors.planned_warehouse_id}
+                  required
                   className="lg:col-span-1"
                 />
 
@@ -893,6 +1087,10 @@ export default function B2bSalesOrderForm({
                       <Typography variant="body2" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
                     </Box>
                     <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                      <Typography variant="body2">{applicableGstLabel}:</Typography>
+                      <Typography variant="body2" fontWeight="bold">{applicableGstValue}</Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                       <Typography variant="body2">Total GST Amount:</Typography>
                       <Typography variant="body2" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
                     </Box>
@@ -956,15 +1154,16 @@ export default function B2bSalesOrderForm({
 
       <div className="sticky bottom-0 z-20 bg-background border-t shadow-[0_-2px_8px_rgba(0,0,0,0.08)] px-4 py-3 flex gap-3 justify-end mt-2">
         {onCancel && (
-          <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={loading}>
+          <LoadingButton type="button" variant="outline" size="sm" onClick={handleCancelClick} loading={isCancelling} disabled={isActionBusy}>
             Cancel
-          </Button>
+          </LoadingButton>
         )}
         <LoadingButton
           type="submit"
           form="b2b-sales-order-form"
           size="sm"
-          loading={loading}
+          loading={loading || isSubmittingLocal}
+          disabled={isActionBusy}
           className="min-w-[120px]"
         >
           {defaultValues?.id ? "Save Changes" : "Create Order"}

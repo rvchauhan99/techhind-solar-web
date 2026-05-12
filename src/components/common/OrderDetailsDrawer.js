@@ -232,6 +232,12 @@ export default function OrderDetailsDrawer({
                         <DetailRow label="Planned Panel Qty" value={safeValue(resolvedOrder?.planned_solar_panel_qty)} />
                         <DetailRow label="Planned Inverter Qty" value={safeValue(resolvedOrder?.planned_inverter_qty)} />
                     </div>
+                    {String(resolvedOrder?.planned_remarks || "").trim() ? (
+                        <div className="sm:col-span-2 mt-1 rounded border border-border bg-muted/30 px-2 py-1">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">Planner remarks</p>
+                            <p className="text-xs whitespace-pre-wrap break-words">{resolvedOrder.planned_remarks}</p>
+                        </div>
+                    ) : null}
 
                     <h4 className="text-[10px] font-semibold text-muted-foreground uppercase mt-2 mb-0.5">Fabrication & Installation</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
