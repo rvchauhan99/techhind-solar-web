@@ -213,10 +213,22 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
             overflowX: "auto",
             overflowY: "hidden",
             whiteSpace: "nowrap",
-            scrollbarWidth: "none",
-            msOverflowStyle: "none",
+            scrollbarGutter: "stable",
+            scrollbarWidth: "thin",
+            msOverflowStyle: "auto",
             "&::-webkit-scrollbar": {
-              display: "none",
+              width: 8,
+              height: 8,
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#f1f1f1",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#888",
+              borderRadius: 4,
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#555",
             },
           }}
         >
@@ -283,21 +295,29 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                         <Box
                           ref={provided.innerRef}
                           {...provided.droppableProps}
-                            sx={{
+                          sx={{
                               flex: 1,
-                              overflowY: "auto",
+                              overflowY: "scroll",
+                              scrollbarGutter: "stable",
                               pr: 0.5,
                               pb: 4,
                               scrollbarWidth: "thin",
-                            "&::-webkit-scrollbar": { width: 4 },
-                            "&::-webkit-scrollbar-thumb": {
-                              bgcolor: "rgba(0,0,0,0.2)",
-                              borderRadius: 4,
-                            },
-                            outline: snapshot.isDraggingOver ? "2px dashed #1976d2" : "none",
-                            outlineOffset: "-2px",
-                            transition: "outline 0.15s ease",
-                          }}
+                              msOverflowStyle: "auto",
+                              "&::-webkit-scrollbar": { width: 8 },
+                              "&::-webkit-scrollbar-track": {
+                                background: "#f1f1f1",
+                              },
+                              "&::-webkit-scrollbar-thumb": {
+                                background: "#888",
+                                borderRadius: 4,
+                              },
+                              "&::-webkit-scrollbar-thumb:hover": {
+                                background: "#555",
+                              },
+                              outline: snapshot.isDraggingOver ? "2px dashed #1976d2" : "none",
+                              outlineOffset: "-2px",
+                              transition: "outline 0.15s ease",
+                            }}
                         >
                           {col.items.map((lead, index) => {
                             const nextFollowUp =

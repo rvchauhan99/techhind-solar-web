@@ -696,20 +696,20 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     [showAssignment, isAllSelected, isIndeterminate, isRowSelected, handleOpenModal, handleOpenSidebar]
   );
 
-  const calculatePaginatedTableHeight = () => `calc(100vh - 125px)`;
-
   return (
     <ProtectedRoute>
-      <Paper
-        sx={{
-          p: PAGE_PADDING,
-          borderRadius: 1,
-          height: calculatePaginatedTableHeight(),
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
+      <Box className="h-full min-h-0 flex flex-col" sx={{ minHeight: 0 }}>
+        <Paper
+          sx={{
+            p: PAGE_PADDING,
+            borderRadius: 1,
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
         {showAssignment && (
           <Box sx={{ mb: 1, p: FORM_PADDING, bgcolor: "background.default", borderRadius: 2, flexShrink: 0 }}>
             <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-start" sx={{ width: "100%" }}>
@@ -771,42 +771,47 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         )}
 
         <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          <PaginatedTable
-            key={`${reloadTrigger}-${JSON.stringify(filterParams)}`}
-            fetcher={fetchInquiries}
-            columns={columns}
-            showSearch={false}
-            showPagination={false}
-            height="100%"
-            onTotalChange={setTotalCount}
-            onRowsChange={handleRowsChange}
-            columnFilterValues={columnFilterValues}
-            onColumnFilterChange={handleColumnFilterChange}
-            filterParams={{
-              q: undefined,
-              ...Object.fromEntries(
-                Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
-              ),
-              ...filterParams,
-            }}
-            page={page}
-            limit={limit}
-            q={q}
-            sortBy={sortBy || "id"}
-            sortOrder={sortOrder || "DESC"}
-            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={setLimit}
-            onQChange={setQ}
-            onSortChange={setSort}
-          />
-          <PaginationControls
-            page={page - 1}
-            rowsPerPage={limit}
-            totalCount={totalCount}
-            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={setLimit}
-            rowsPerPageOptions={[20, 50, 100, 200]}
-          />
+          <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+            <PaginatedTable
+              key={`${reloadTrigger}-${JSON.stringify(filterParams)}`}
+              fetcher={fetchInquiries}
+              columns={columns}
+              showSearch={false}
+              showPagination={false}
+              height="100%"
+              onTotalChange={setTotalCount}
+              onRowsChange={handleRowsChange}
+              columnFilterValues={columnFilterValues}
+              onColumnFilterChange={handleColumnFilterChange}
+              filterParams={{
+                q: undefined,
+                ...Object.fromEntries(
+                  Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
+                ),
+                ...filterParams,
+              }}
+              page={page}
+              limit={limit}
+              q={q}
+              sortBy={sortBy || "id"}
+              sortOrder={sortOrder || "DESC"}
+              onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+              onRowsPerPageChange={setLimit}
+              onQChange={setQ}
+              onSortChange={setSort}
+              persistScrollbars
+            />
+          </Box>
+          <Box sx={{ flexShrink: 0 }}>
+            <PaginationControls
+              page={page - 1}
+              rowsPerPage={limit}
+              totalCount={totalCount}
+              onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+              onRowsPerPageChange={setLimit}
+              rowsPerPageOptions={[20, 50, 100, 200]}
+            />
+          </Box>
         </Box>
 
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
@@ -939,6 +944,7 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
           </Alert>
         </Snackbar>
       </Paper>
+      </Box>
     </ProtectedRoute>
   );
 }

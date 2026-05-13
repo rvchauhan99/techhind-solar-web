@@ -93,7 +93,7 @@ export default function PipelineBoard({ filters, onOrderSelect, onStageClick, da
                 </div>
             </div>
 
-            <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory hide-scroll-bar min-h-[200px] items-center justify-start" style={{ scrollbarWidth: "none" }}>
+            <div className="flex min-h-[200px] items-center justify-start gap-4 overflow-x-scroll pb-4 snap-x snap-mandatory [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
                 {loading ? (
                     <Loader />
                 ) : (
