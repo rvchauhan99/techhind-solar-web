@@ -59,7 +59,7 @@ export default function DetailsSidebar({ open, onClose, title, headerActions, cl
             </Button>
           </div>
         </div>
-        <div className="flex-1 crm-scroll-drawer px-4 lg:px-6 py-3">
+        <div className="flex-1 overflow-y-auto px-4 lg:px-6 py-3 scrollbar-thin">
           {children}
         </div>
       </aside>

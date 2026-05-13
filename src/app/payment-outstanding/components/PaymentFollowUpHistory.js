@@ -22,9 +22,9 @@ export default function PaymentFollowUpHistory({ orderId, refreshKey }) {
   }, [orderId, refreshKey]);
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
       <div className="bg-muted px-2 py-1.5 text-[11px] font-semibold text-muted-foreground">Previous Follow-Ups</div>
-      <div className="max-h-[320px] overflow-y-scroll crm-scroll-modal">
+      <div className="max-h-[320px] overflow-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-card border-b border-border">
             <tr className="[&_th]:text-left [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-[10px] [&_th]:uppercase [&_th]:text-muted-foreground">

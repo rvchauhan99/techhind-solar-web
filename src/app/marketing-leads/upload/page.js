@@ -379,7 +379,7 @@ export default function MarketingLeadsUploadPage() {
                     </div>
                   </div>
 
-                  <div className="max-h-[400px] overflow-scroll">
+                  <div className="max-h-[400px] overflow-auto">
                     <table className="w-full text-sm text-left relative">
                       <thead className="text-[11px] text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10 backdrop-blur-md">
                         <tr>
@@ -483,7 +483,7 @@ export default function MarketingLeadsUploadPage() {
                         <IconAlertTriangle className="size-4" />
                         Import Errors Encountered
                       </h4>
-                      <div className="rounded border border-red-100 bg-background max-h-40 overflow-y-scroll">
+                      <div className="rounded border border-red-100 bg-background overflow-hidden max-h-40 overflow-y-auto">
                         <ul className="divide-y divide-red-100/50 text-[13px]">
                           {result.errors.slice(0, 50).map((e, idx) => (
                             <li key={idx} className="px-3 py-2 flex gap-3 text-red-700/80">
@@ -506,7 +506,7 @@ export default function MarketingLeadsUploadPage() {
                       <div className="px-4 py-3 bg-muted/10 border-b border-border">
                         <h4 className="text-sm font-semibold">Imported Records Overview</h4>
                       </div>
-                      <div className="max-h-[300px] overflow-scroll">
+                      <div className="max-h-[300px] overflow-auto">
                         <table className="w-full text-sm text-left whitespace-nowrap">
                           <thead className="text-[11px] text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10 backdrop-blur-md">
                             <tr>

@@ -541,7 +541,7 @@ export default function MastersPage() {
                             onKeyDown={handleKeyDown}
                             className="mb-2"
                         />
-                        <ul className="list-none p-0 m-0 overflow-y-scroll flex-1">
+                        <ul className="list-none p-0 m-0 overflow-y-auto flex-1">
                             {filteredMasters.length > 0 ? (
                                 filteredMasters.map((m, index) => {
                                     const isSelected = master.id === m.id;

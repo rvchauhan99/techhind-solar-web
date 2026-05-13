@@ -726,7 +726,7 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
                 {editorMode && renderEditor()}
 
                 {/* Detail rows table */}
-                <TableContainer component={Paper} variant="outlined" sx={{ flex: 1, minHeight: 0, overflowY: "scroll" }}>
+                <TableContainer component={Paper} variant="outlined" sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
                     <Table size="small" stickyHeader>
                         <TableHead>
                             <TableRow>

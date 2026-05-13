@@ -374,7 +374,7 @@ function AddOrderContent() {
                     {quotationData?.bom_snapshot?.length > 0 && (
                         <div className="mb-4 rounded-lg border bg-muted/30 p-3 text-sm">
                             <div className="font-semibold mb-2">Order scope (BOM from quotation)</div>
-                            <div className="overflow-x-scroll">
+                            <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b">

@@ -487,7 +487,7 @@ export default function MetaSetupPage() {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-full flex-col overflow-y-scroll">
+      <div className="flex h-full flex-col overflow-y-auto">
         {/* ── Header ── */}
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4 shrink-0">
           <div>

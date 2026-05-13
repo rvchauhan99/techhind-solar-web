@@ -50,7 +50,7 @@ export default function InsightDrawer({ open, onClose, order }) {
                 </div>
 
                 {/* Drawer Scrollable Content */}
-                <div className="flex-1 overflow-y-scroll p-6 space-y-8">
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
 
                     {/* Quick Info Grid */}
                     <div className="grid grid-cols-2 gap-4">

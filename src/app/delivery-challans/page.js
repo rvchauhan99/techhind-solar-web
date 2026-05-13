@@ -503,7 +503,7 @@ export default function DeliveryChallanListPage() {
                         ) : null}
                         {reversePreviewChallan?.items?.length > 0 && !reversePreviewLoading ? (
                             <>
-                                <div className="max-h-36 overflow-y-scroll rounded-md border border-border">
+                                <div className="max-h-36 overflow-y-auto rounded-md border border-border">
                                     <table className="w-full text-[11px]">
                                         <thead>
                                             <tr className="border-b border-border bg-muted/40">

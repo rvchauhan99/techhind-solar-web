@@ -59,7 +59,7 @@ const modalStyle = {
   borderRadius: 2,
   p: 4,
   maxHeight: "90vh",
-  overflowY: "scroll",
+  overflowY: "auto",
 };
 
 const COLUMN_FILTER_KEYS = [

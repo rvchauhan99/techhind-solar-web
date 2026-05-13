@@ -435,7 +435,7 @@ export default function ModuleMasterPage() {
             <DialogHeader className="shrink-0">
               <DialogTitle className="text-base font-semibold">Add Module</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-scroll">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               <ModuleForm
                 onSubmit={handleSubmit}
                 loading={submitting}
@@ -453,7 +453,7 @@ export default function ModuleMasterPage() {
             <DialogHeader className="shrink-0">
               <DialogTitle className="text-base font-semibold">Edit Module</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-scroll">
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {loadingRecord ? (
                 <div className="flex justify-center items-center min-h-[200px]">
                   <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />

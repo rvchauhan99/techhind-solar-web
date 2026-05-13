@@ -257,7 +257,7 @@ export default function PurchaseOrderLinesFilterPanel({
           {open ? <IconChevronUp size={14} className="text-slate-400" /> : <IconChevronDown size={14} className="text-slate-400" />}
         </button>
 
-        <div className="flex-1 flex items-center gap-1 overflow-x-scroll crm-scroll-x py-0.5 min-h-[22px]">
+        <div className="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 min-h-[22px]">
           {summaryLabels.map((label) => (
             <span
               key={label}

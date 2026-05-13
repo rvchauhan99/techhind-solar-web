@@ -532,7 +532,7 @@ export default function UserListPage() {
           <div className="pb-2">
             <DialogTitle>Add User</DialogTitle>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-scroll">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <UserForm
             ref={addFormRef}
             onSubmit={handleSubmit}
@@ -569,7 +569,7 @@ export default function UserListPage() {
             </div>
           ) : (
             <>
-              <div className="flex-1 min-h-0 overflow-y-scroll">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <UserForm
                   ref={editFormRef}
                   defaultValues={selectedRecord}

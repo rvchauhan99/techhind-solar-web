@@ -210,16 +210,14 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
         <Box
           sx={{
             flex: 1,
+            overflowX: "auto",
             overflowY: "hidden",
             whiteSpace: "nowrap",
-            // Ultra-visibility horizontal scrollbar — forced permanent
-            overflowX: "scroll",
-            scrollbarWidth: "auto !important",
-            scrollbarColor: "#1e293b #e2e8f0 !important",
-            "&::-webkit-scrollbar": { height: "16px !important", display: "block !important" },
-            "&::-webkit-scrollbar-track": { background: "#e2e8f0 !important", border: "1px solid #cbd5e1 !important" },
-            "&::-webkit-scrollbar-thumb": { background: "#1e293b !important", borderRadius: 4, boxShadow: "0 0 4px rgba(0,0,0,0.5)" },
-            pb: "20px",
+            scrollbarWidth: "none",
+            msOverflowStyle: "none",
+            "&::-webkit-scrollbar": {
+              display: "none",
+            },
           }}
         >
           <Grid container spacing={2} wrap="nowrap" sx={{ height: "100%" }}>
@@ -287,20 +285,19 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                           {...provided.droppableProps}
                             sx={{
                               flex: 1,
-                              overflowY: "scroll",
+                              overflowY: "auto",
                               pr: 0.5,
                               pb: 4,
-                              // Extreme visibility vertical scrollbar
-                              scrollbarWidth: "auto !important",
-                              scrollbarColor: "#64748b #d1d5db !important",
-                              "&::-webkit-scrollbar": { width: "12px !important", display: "block !important" },
-                              "&::-webkit-scrollbar-track": { background: "#d1d5db !important", borderRadius: 0 },
-                              "&::-webkit-scrollbar-thumb": { background: "#64748b !important", borderRadius: 2 },
-                              "&::-webkit-scrollbar-thumb:hover": { background: "#00823b !important" },
-                              outline: snapshot.isDraggingOver ? "2px dashed #1976d2" : "none",
-                              outlineOffset: "-2px",
-                              transition: "outline 0.15s ease",
-                            }}
+                              scrollbarWidth: "thin",
+                            "&::-webkit-scrollbar": { width: 4 },
+                            "&::-webkit-scrollbar-thumb": {
+                              bgcolor: "rgba(0,0,0,0.2)",
+                              borderRadius: 4,
+                            },
+                            outline: snapshot.isDraggingOver ? "2px dashed #1976d2" : "none",
+                            outlineOffset: "-2px",
+                            transition: "outline 0.15s ease",
+                          }}
                         >
                           {col.items.map((lead, index) => {
                             const nextFollowUp =

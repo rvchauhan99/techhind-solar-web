@@ -183,7 +183,7 @@ export default function QuotationDetailsContent({ quotation, loading }) {
       {bom.length > 0 && (
         <>
           <SectionTitle>BOM Details</SectionTitle>
-          <div className="overflow-x-scroll rounded border border-border">
+          <div className="overflow-x-auto rounded border border-border">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-muted/50">

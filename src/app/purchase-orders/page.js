@@ -635,7 +635,7 @@ export default function PurchaseOrderPage() {
             <div className="px-3 py-2 bg-muted/40">
               <p className="text-xs font-semibold text-muted-foreground">Items ({po.items.length})</p>
             </div>
-            <div className="overflow-scroll">
+            <div className="overflow-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted">
                   <tr>

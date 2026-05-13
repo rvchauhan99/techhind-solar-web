@@ -93,7 +93,7 @@ export default function OrderIssuedSerialsDialog({
           )}
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-scroll">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {loading && (
             <Box display="flex" justifyContent="center" p={3}>
               <Loader />

@@ -447,7 +447,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           )}
         </div>
         {open && (
-          <ul className="mt-1 max-h-48 crm-scroll-dropdown rounded-md border border-border bg-popover py-1 shadow-md z-50">
+          <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50">
             {isLoading && (
               <li className="px-3 py-2 flex items-center justify-center">
                 <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
@@ -550,7 +550,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           createPortal(
             <ul
               ref={dropdownRef}
-              className="max-h-48 crm-scroll-dropdown rounded-md border border-border bg-popover py-1 shadow-md"
+              className="max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
               style={dropdownStyle}
             >
               {isLoading && (
@@ -584,7 +584,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
         ) : (
           <ul
             className={cn(
-              "max-h-48 crm-scroll-dropdown rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0",
+              "max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50 absolute left-0 right-0",
               dropdownPlacement === "top"
                 ? "bottom-full mb-1"
                 : "mt-1 top-full"

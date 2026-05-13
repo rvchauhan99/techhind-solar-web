@@ -182,7 +182,7 @@ export default function NetMeterApplyForm({ orderId, orderData, orderDocuments, 
     }
 
     return (
-        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ height: "calc(100vh)", overflowY: "scroll", p: 2 }}>
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} sx={{ height: "calc(100vh)", overflowY: "auto", p: 2 }}>
             <Grid container spacing={3}>
                 {/* Netmeter Applied On */}
                 <Grid item size={6}>

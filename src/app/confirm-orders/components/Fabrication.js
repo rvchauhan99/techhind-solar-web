@@ -467,7 +467,7 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
     const formShellClass = splitLayout ? "relative flex flex-col h-full bg-slate-50 min-w-0" : "relative flex flex-col min-h-full bg-slate-50";
 
     const formBody = (
-        <div className="flex-1 overflow-y-scroll px-2 sm:px-4 pb-[100px] sm:pb-[80px]">
+        <div className="flex-1 overflow-y-auto px-2 sm:px-4 pb-[100px] sm:pb-[80px]">
             <div className={splitLayout ? "py-3" : "py-4 max-w-5xl mx-auto"}>
                 <FormSection title="Fabrication Execution" className="bg-white rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] mb-4 overflow-hidden border border-slate-200">
                     <Box className="p-3">

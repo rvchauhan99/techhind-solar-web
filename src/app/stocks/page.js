@@ -609,7 +609,7 @@ export default function StockPage() {
         onExportClick={handleExport}
         exportDisabled={exporting}
       >
-        <div className="flex-1 min-h-0 overflow-y-scroll pr-1 -mr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 -mr-1 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20">
           <div className="flex flex-col gap-2 p-1 pt-0">
             <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1008,7 +1008,7 @@ export default function StockPage() {
                 {(summary.by_product_type || []).length === 0 ? (
                   <div className="p-2 text-xs text-muted-foreground">No summary rows found for selected filters.</div>
                 ) : (
-                  <div className="max-h-64 overflow-y-scroll">
+                  <div className="max-h-64 overflow-auto scrollbar-thin">
                     <div className="grid grid-cols-12 gap-1 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10">
                       <div className="col-span-3">Product Type</div>
                       <div className="col-span-1 text-right">SKUs</div>

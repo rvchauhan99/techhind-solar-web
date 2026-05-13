@@ -480,7 +480,7 @@ export default function RoleListPage() {
           <DialogHeader>
             <DialogTitle>Add Role</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
             <RoleForm
               ref={addFormRef}
               onSubmit={handleSubmit}
@@ -522,7 +522,7 @@ export default function RoleListPage() {
               <Loader />
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
               <RoleForm
                 key={`edit-${selectedRecord?.id}-${editRoleModules.length}-${modules.length}`}
                 ref={editFormRef}

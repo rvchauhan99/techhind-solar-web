@@ -96,7 +96,7 @@ const modalStyle = {
     borderRadius: 1,
     p: 4,
     maxHeight: "90vh",
-    overflowY: "scroll",
+    overflowY: "auto",
 };
 
 function InquiryDetailsContent() {
@@ -436,10 +436,26 @@ function InquiryDetailsContent() {
                             borderRadius: 1,
                             height: "100%",
                             maxHeight: calculateInquiryDetailsHeight(),
-                            overflowY: "scroll",
+                            overflowY: "auto",
                             overflowX: "hidden",
                             width: "100%",
                             maxWidth: "100%",
+                            // Show scrollbar
+                            scrollbarWidth: "thin", // Firefox
+                            msOverflowStyle: "auto", // IE/Edge
+                            "&::-webkit-scrollbar": {
+                                width: "8px",
+                            },
+                            "&::-webkit-scrollbar-track": {
+                                background: "#f1f1f1",
+                            },
+                            "&::-webkit-scrollbar-thumb": {
+                                background: "#888",
+                                borderRadius: "4px",
+                            },
+                            "&::-webkit-scrollbar-thumb:hover": {
+                                background: "#555",
+                            },
                         }}
                     >
                         <Stack spacing={2} sx={{ height: "100%" }}>
@@ -684,7 +700,7 @@ function InquiryDetailsContent() {
                 </Grid>
 
                 {/* Right Section - Actions and Tabs (Grid size 9) */}
-                <Grid size={9} sx={{ maxWidth: "100%", overflowY: "scroll", display: "flex", flexDirection: "column", minHeight: 0, height: calculateInquiryDetailsHeight(), }}>
+                <Grid size={9} sx={{ maxWidth: "100%", overflowY: "auto", display: "flex", flexDirection: "column", minHeight: 0, height: calculateInquiryDetailsHeight(), }}>
                     <Paper elevation={0} sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1, width: "100%", maxWidth: "100%", height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}>
                         {/* Status Dates */}
                         <Box display="flex" gap={5} mb={1} flexWrap="wrap" sx={{ width: "100%", maxWidth: "100%", flexShrink: 0 }}>

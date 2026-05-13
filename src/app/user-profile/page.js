@@ -188,7 +188,7 @@ export default function UserProfilePage() {
                         <Button variant="contained">Search</Button>
                       </Box>
 
-                      <Box sx={{ overflowX: 'scroll' }}>
+                      <Box sx={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: '#f7f7f7' }}>
@@ -269,7 +269,7 @@ export default function UserProfilePage() {
                         <Typography sx={{ fontWeight: 600 }}>User Document Files</Typography>
                       </Box>
 
-                      <Paper sx={{ mt: 1, overflowX: 'scroll' }}>
+                      <Paper sx={{ mt: 1, overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ background: '#fff', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>

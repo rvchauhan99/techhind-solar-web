@@ -85,14 +85,14 @@ export const COMPACT_PADDING = {
 // Dialog / modal sizing (viewport-relative; use with DialogContent className)
 // XL: forms with tables or many rows (e.g. Bill of Material Add/Edit) – maximize visibility
 export const DIALOG_FORM_XL =
-  "w-full max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[90vw] flex min-h-0 flex-col max-h-[95vh] overflow-x-hidden crm-scroll-modal";
+  "w-full max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[90vw] flex flex-col max-h-[95vh] overflow-hidden";
 // Large: many fields (Product, Stock Adjustment Add)
 export const DIALOG_FORM_LARGE =
-  "w-full max-w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex min-h-0 flex-col max-h-[90vh] overflow-x-hidden crm-scroll-modal";
+  "w-full max-w-[95vw] sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl flex flex-col max-h-[90vh] overflow-hidden";
 // Medium: moderate fields (User, Supplier, Project Price)
 export const DIALOG_FORM_MEDIUM =
-  "w-full max-w-[95vw] sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex min-h-0 flex-col max-h-[90vh] overflow-x-hidden crm-scroll-modal";
+  "w-full max-w-[95vw] sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl flex flex-col max-h-[90vh] overflow-hidden";
 // Small: confirmations and short forms (Approve, Receive, Delete)
 export const DIALOG_FORM_SMALL =
-  "w-full max-w-[95vw] sm:max-w-md lg:max-w-lg flex min-h-0 flex-col max-h-[85vh] overflow-x-hidden crm-scroll-modal";
+  "w-full max-w-[95vw] sm:max-w-md lg:max-w-lg flex flex-col max-h-[85vh] overflow-hidden";
 

@@ -30,7 +30,8 @@ export const TabsList = forwardRef(function TabsList(
     <BaseTabs.List
       ref={ref}
       className={cn(
-        "inline-flex h-10 w-full items-center justify-start gap-1 overflow-x-scroll overflow-y-hidden rounded-lg py-1 crm-scroll-x",
+        "inline-flex h-10 w-full items-center justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg py-1",
+        "scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
       {...props}
