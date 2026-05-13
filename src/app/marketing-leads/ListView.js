@@ -327,6 +327,7 @@ export default function ListView() {
           onQChange={setQ}
           onSortChange={setSort}
           onRowClick={(row) => router.push(`/marketing-leads/view?id=${row.id}`)}
+          persistScrollbars
         />
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}>
           <MenuItem onClick={handleView}>

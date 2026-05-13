@@ -653,11 +653,22 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
             overflowX: "auto",
             overflowY: "hidden",
             whiteSpace: "nowrap",
-            scrollbarWidth: "none", // Firefox
-            msOverflowStyle: "none", // IE/Edge
+            scrollbarGutter: "stable",
+            scrollbarWidth: "thin",
+            msOverflowStyle: "auto",
             "&::-webkit-scrollbar": {
-              // Chrome/Safari
-              display: "none",
+              width: 8,
+              height: 8,
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#f1f1f1",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#888",
+              borderRadius: 4,
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+              background: "#555",
             },
           }}
         >
@@ -709,7 +720,8 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                               flex: 1, // fill the Paper vertically
                               minHeight: 0,
                               height: "100%",
-                              overflowY: "auto", // 👈 only this area scrolls
+                              overflowY: "scroll",
+                              scrollbarGutter: "stable",
                               pr: 0.5,
                               pb: 4, // Add padding at bottom to prevent cutting off
                               boxSizing: "border-box",
@@ -723,12 +735,20 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                               cursor: isInvalidTarget ? "not-allowed" : snapshot.isDraggingOver ? "move" : "default",
                               position: "relative",
                               transition: "all 0.2s ease",
-
-                              scrollbarWidth: "none", // Firefox
-                              msOverflowStyle: "none", // IE/Edge
+                              scrollbarWidth: "thin",
+                              msOverflowStyle: "auto",
                               "&::-webkit-scrollbar": {
-                                // Chrome/Safari
-                                display: "none",
+                                width: 8,
+                              },
+                              "&::-webkit-scrollbar-track": {
+                                background: "#f1f1f1",
+                              },
+                              "&::-webkit-scrollbar-thumb": {
+                                background: "#888",
+                                borderRadius: 4,
+                              },
+                              "&::-webkit-scrollbar-thumb:hover": {
+                                background: "#555",
                               },
                             }}
                           >

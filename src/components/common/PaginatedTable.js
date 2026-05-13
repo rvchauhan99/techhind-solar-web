@@ -72,6 +72,7 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - filterParams: object merged into fetcher params (when parent uses URL state)
  * - onRowClick(row): when provided, rows are clickable; skip when target is button/link
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
+ * - persistScrollbars: when true, table body uses overflow scroll + stable scrollbar gutter (dense lead lists)
  */
 export default function PaginatedTable({
   columns = [],
@@ -105,6 +106,7 @@ export default function PaginatedTable({
   showPagination = true,
   compactDensity = false,
   rowDetailsRender = null,
+  persistScrollbars = false,
 }) {
   const hasRowDetails = typeof rowDetailsRender === "function";
   const [expandedRows, setExpandedRows] = React.useState(() => new Set());
@@ -482,7 +484,14 @@ export default function PaginatedTable({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+      <div
+        className={cn(
+          "flex-1 min-w-0 border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30",
+          persistScrollbars
+            ? "overflow-y-scroll overflow-x-scroll [scrollbar-gutter:stable]"
+            : "overflow-x-auto overflow-y-auto"
+        )}
+      >
         <table className={cn("w-full table-auto", compactDensity ? "min-w-full" : "min-w-max")} aria-label="paginated table">
           <thead className="sticky top-0 z-[30] isolate">
             <tr className="bg-[#1b365d] text-white relative z-[30]">
