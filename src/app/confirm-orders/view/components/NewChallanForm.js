@@ -59,7 +59,7 @@ export default function NewChallanForm({ orderId }) {
     };
 
     return (
-        <Box sx={{ height: "calc(100vh - 390px)", overflowY: "auto" }}>
+        <Box sx={{ height: "calc(100vh - 390px)", overflowY: "scroll" }}>
             <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, mb: 0.75 }}>
                 <Button size="sm" variant="outline" onClick={handlePrintLatest} disabled={printing}>
                     {printing ? "Printing..." : "Print Latest Challan"}

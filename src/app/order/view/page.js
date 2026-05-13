@@ -1362,7 +1362,7 @@ function OrderViewPageContent() {
                     {/* Left Sidebar - 20% */}
                     <Grid size={3} >
                         {/* Customer Details */}
-                        <Paper sx={{ p: 2, mb: 2, height: calculateInquiryDetailsHeight(), overflowY: "auto" }}>
+                        <Paper sx={{ p: 2, mb: 2, height: calculateInquiryDetailsHeight(), overflowY: "scroll" }}>
                             <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5 }}>
                                 Customer Details
                             </Typography>
@@ -1439,7 +1439,7 @@ function OrderViewPageContent() {
                                     <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, mt: 2 }}>
                                         Scope (BOM)
                                     </Typography>
-                                    <Box mt={1} mb={2} sx={{ overflowX: "auto" }}>
+                                    <Box mt={1} mb={2} sx={{ overflowX: "scroll" }}>
                                         <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
                                             <thead>
                                                 <tr style={{ borderBottom: "1px solid #e0e0e0" }}>

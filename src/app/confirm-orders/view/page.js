@@ -155,7 +155,7 @@ const PipelineStages = ({ currentStageKey, stages = STAGES, stagesStatus = {}, o
     };
 
     return (
-        <Paper elevation={0} sx={{ borderBottom: 1, borderColor: "divider", overflowX: "auto", mb: 2 }} className="rounded-lg border border-border">
+        <Paper elevation={0} sx={{ borderBottom: 1, borderColor: "divider", overflowX: "scroll", mb: 2 }} className="rounded-lg border border-border">
             <Stack direction="row" spacing={0} sx={{ minWidth: "1200px" }}>
                 {stages.map((stage, index) => {
                     const status = stagesStatus[stage.key] || (index === 0 ? "pending" : "locked");
@@ -465,13 +465,13 @@ function ConfirmedOrderViewPageContent() {
     const totalReceivedAmount = getOrderReceivedAmount(orderData);
     const outstandingAmount = getOrderOutstandingAmount(orderData);
     const renderOrderDetailsSidebar = () => (
-        <Paper sx={{ p: 1.5, height: "100%", overflowY: "auto" }} elevation={0} className="border border-border rounded-lg">
+        <Paper sx={{ p: 1.5, height: "100%", overflowY: "scroll" }} elevation={0} className="border border-border rounded-lg">
             <CustomerProjectDetails orderData={orderData} />
 
             {orderData?.bom_snapshot?.length > 0 && (
                 <>
                     <div className={COMPACT_SECTION_HEADER_CLASS}>Scope (BOM)</div>
-                    <Box mt={2} mb={2} sx={{ overflowX: "auto" }}>
+                    <Box mt={2} mb={2} sx={{ overflowX: "scroll" }}>
                         <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
                             <thead>
                                 <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
@@ -542,7 +542,7 @@ function ConfirmedOrderViewPageContent() {
 
             <Divider sx={{ my: 1 }} />
             <div className={COMPACT_SECTION_HEADER_CLASS}>Uploaded Documents</div>
-            <Box mt={1} mb={1} sx={{ overflowX: "auto" }}>
+            <Box mt={1} mb={1} sx={{ overflowX: "scroll" }}>
                 <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
                     <thead>
                         <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
@@ -716,7 +716,7 @@ function ConfirmedOrderViewPageContent() {
                             })}
                         </Tabs>
 
-                        <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                        <div style={{ flex: 1, minHeight: 0, overflowY: "scroll" }}>
                             {visibleStages.map((stage, idx) => (
                                 <TabPanel key={stage.key} value={tabValue} index={idx} stageKey={stage.key}>
                                     {renderStagePanel(stage.key)}

@@ -121,7 +121,7 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
             </div>
 
             {/* Table Container - Handle overflow carefully */}
-            <div className="relative overflow-x-auto w-full min-h-[200px]">
+            <div className="relative overflow-x-scroll w-full min-h-[200px]">
                 {loading && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/80">
                         <Loader />

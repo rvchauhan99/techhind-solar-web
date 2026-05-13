@@ -224,7 +224,7 @@ export default function ChallanDetailsDrawer({
                     {items.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No items</p>
                     ) : (
-                        <div className="max-h-72 overflow-y-auto border rounded-md border-border">
+                        <div className="max-h-72 crm-scroll-drawer border rounded-md border-border">
                             <table className="w-full text-xs">
                                 <thead>
                                     <tr className="border-b border-border bg-muted/40">
@@ -325,7 +325,7 @@ export default function ChallanDetailsDrawer({
                     {partialReturns.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No partial returns recorded.</p>
                     ) : (
-                        <div className="max-h-64 space-y-2 overflow-y-auto">
+                        <div className="max-h-64 space-y-2 crm-scroll-drawer">
                             {partialReturns.map((ret) => {
                                 const reasonLabel =
                                     ret.reason_text || ret.reason?.reason || null;

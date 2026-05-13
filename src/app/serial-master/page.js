@@ -455,7 +455,7 @@ export default function SerialMasterListPage() {
                     <DialogHeader>
                         <DialogTitle>Add Serial Master</DialogTitle>
                     </DialogHeader>
-                    <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                    <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
                         <SerialMasterForm
                             ref={addFormRef}
                             onSubmit={handleSubmit}
@@ -491,7 +491,7 @@ export default function SerialMasterListPage() {
                             <Loader />
                         </div>
                     ) : (
-                        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                        <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
                             <SerialMasterForm
                                 key={`edit-${selectedRecord?.id}`}
                                 ref={editFormRef}

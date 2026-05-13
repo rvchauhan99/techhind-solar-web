@@ -431,7 +431,7 @@ export default function PurchaseReturnsPage() {
                 Items ({r.items.length})
               </p>
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-scroll">
               <table className="w-full text-xs">
                 <thead className="bg-muted">
                   <tr>

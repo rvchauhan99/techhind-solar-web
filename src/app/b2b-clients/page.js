@@ -716,7 +716,7 @@ export default function B2bClientsPage() {
             <div className="pb-2">
               <DialogTitle>Add B2B Client</DialogTitle>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-scroll">
               <B2bClientForm
                 defaultValues={{}}
                 onSubmit={(p) => handleFormSubmit(p, false)}
@@ -736,7 +736,7 @@ export default function B2bClientsPage() {
             <div className="pb-2">
               <DialogTitle>Edit B2B Client</DialogTitle>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-scroll">
               {editRecord && (
                 <B2bClientForm
                   defaultValues={editRecord}
@@ -763,7 +763,7 @@ export default function B2bClientsPage() {
             <div className="pb-2">
               <DialogTitle>{editShipTo?.id ? "Edit Ship-to Address" : "Add Ship-to Address"}</DialogTitle>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-scroll">
               {selectedRecord?.id && (
                 <ShipToForm
                   clientId={selectedRecord.id}

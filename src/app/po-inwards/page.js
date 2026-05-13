@@ -417,7 +417,7 @@ export default function POInwardPage() {
             <div className="px-3 py-2 bg-muted/40">
               <p className="text-xs font-semibold text-muted-foreground">Items ({p.items.length})</p>
             </div>
-            <div className="overflow-auto">
+            <div className="overflow-scroll">
               <table className="w-full text-xs">
                 <thead className="bg-muted">
                   <tr>

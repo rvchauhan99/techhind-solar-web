@@ -135,7 +135,7 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
           )}
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-scroll">
           {loading && (
             <div className="flex justify-center p-8">
               <Loader />

@@ -37,6 +37,7 @@ content = content.replace(
 content = content.replace(
     /<\/TableContainer>\s*<\/Box>\s*<\/>\s*\)\}\s*\{activeTab === 1 && \(\s*<>/,
     `</table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="1" className="m-0 focus-visible:outline-none">`
@@ -46,6 +47,7 @@ content = content.replace(
 content = content.replace(
     /<\/TableContainer>\s*<\/Box>\s*<\/>\s*\)\}\s*\{activeTab === 2 && \(/,
     `</table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="2" className="m-0 focus-visible:outline-none">`
@@ -63,6 +65,7 @@ content = content.replace(
 content = content.replace(
     /<\/TableContainer>\s*<\/Box>\s*<\/>\s*\)\}\s*<\/CardContent>\s*<\/Card>\s*<\/Grid>\s*<\/Grid>/,
     `</table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                 </div>
@@ -80,7 +83,8 @@ content = content.replace(
                                                 + New Bank Details
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                        <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>
@@ -141,7 +145,8 @@ content = content.replace(
                                                 + New Branch
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                        <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>
@@ -206,7 +211,8 @@ content = content.replace(
                                                 + New Warehouse
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                        <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>

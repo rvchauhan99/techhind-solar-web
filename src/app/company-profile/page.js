@@ -1324,7 +1324,7 @@ export default function CompanyProfilePage() {
                 {/* Main Content */}
                 <div className="flex flex-col lg:flex-row gap-6">
                     {/* Left Column - Company Information */}
-                    <div className="w-full lg:w-1/4 flex flex-col gap-6 overflow-y-auto" style={{ maxHeight: calculateMaxHeight() }}>
+                    <div className="w-full lg:w-1/4 flex flex-col gap-6 overflow-y-scroll" style={{ maxHeight: calculateMaxHeight() }}>
                         {/* Company Information Card */}
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="p-5">
@@ -1529,7 +1529,8 @@ export default function CompanyProfilePage() {
                                                 + New Bank Details
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                            <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>
@@ -1603,6 +1604,7 @@ export default function CompanyProfilePage() {
                                                     )}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="1" className="m-0 focus-visible:outline-none">
@@ -1611,7 +1613,8 @@ export default function CompanyProfilePage() {
                                                 + New Branch
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                            <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>
@@ -1680,6 +1683,7 @@ export default function CompanyProfilePage() {
                                                     )}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="2" className="m-0 focus-visible:outline-none">
@@ -2062,7 +2066,8 @@ export default function CompanyProfilePage() {
                                                 + New Warehouse
                                             </Button>
                                         </div>
-                                        <div className="rounded-md border border-gray-200 overflow-hidden overflow-x-auto w-full">
+                                        <div className="rounded-md border border-gray-200 overflow-hidden w-full">
+                                            <div className="min-w-0 w-full overflow-x-scroll crm-scroll-x">
                                             <table className="w-full text-sm text-left whitespace-nowrap">
                                                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-700 font-medium">
                                                     <tr>
@@ -2117,6 +2122,7 @@ export default function CompanyProfilePage() {
                                                     )}
                                                 </tbody>
                                             </table>
+                                            </div>
                                         </div>
                                     </TabsContent>
                                 </div>
@@ -2146,7 +2152,7 @@ export default function CompanyProfilePage() {
                             ) : (
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Managers</label>
-                                    <div className="max-h-56 overflow-y-auto rounded-md border border-input p-2 space-y-1.5">
+                                    <div className="max-h-56 overflow-y-scroll rounded-md border border-input p-2 space-y-1.5">
                                         {allUsers.length === 0 ? (
                                             <p className="text-sm text-muted-foreground py-2">No users available</p>
                                         ) : (
@@ -2217,7 +2223,7 @@ export default function CompanyProfilePage() {
                             ) : (
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Managers</label>
-                                    <div className="max-h-56 overflow-y-auto rounded-md border border-input p-2 space-y-1.5">
+                                    <div className="max-h-56 overflow-y-scroll rounded-md border border-input p-2 space-y-1.5">
                                         {allUsers.length === 0 ? (
                                             <p className="text-sm text-muted-foreground py-2">No users available</p>
                                         ) : (
@@ -2289,7 +2295,7 @@ export default function CompanyProfilePage() {
                             }}
                             onKeyDown={preventEnterSubmit}
                         >
-                            <div className="flex-1 min-h-0 overflow-y-auto pt-2 space-y-4">
+                            <div className="flex-1 min-h-0 overflow-y-scroll pt-2 space-y-4">
                                 <FormSection title="Company Information">
                                     <FormGrid>
                                         <Input
@@ -2598,7 +2604,7 @@ export default function CompanyProfilePage() {
                             }}
                             onKeyDown={preventEnterSubmit}
                         >
-                            <div className="flex-1 min-h-0 overflow-y-auto pt-2">
+                            <div className="flex-1 min-h-0 overflow-y-scroll pt-2">
                                 <FormSection title="">
                                     <FormGrid>
                                         <Input
@@ -2806,7 +2812,7 @@ export default function CompanyProfilePage() {
                             }}
                             onKeyDown={preventEnterSubmit}
                         >
-                            <div className="flex-1 min-h-0 overflow-y-auto pt-2">
+                            <div className="flex-1 min-h-0 overflow-y-scroll pt-2">
                                 <FormSection title="">
                                     <FormGrid>
                                         <Input

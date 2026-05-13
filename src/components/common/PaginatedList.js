@@ -310,7 +310,7 @@ export default function PaginatedList({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-2 bg-muted/30 min-h-0">
+      <div className="flex-1 crm-scroll p-2 bg-muted/30 min-h-0">
         {loading ? (
           <div className="flex justify-center py-8">
             <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />

@@ -38,8 +38,7 @@ export default function FormContainer({
     >
       <div
         className={cn(
-          "flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1 w-full max-w-full",
-          "[scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30"
+          "flex-1 min-h-0 crm-scroll overflow-x-hidden pr-1 w-full max-w-full"
         )}
       >
         {otherChildren}

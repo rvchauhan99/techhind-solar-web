@@ -157,7 +157,7 @@ export default function QuotationTemplatesPage() {
           </ThemeButton>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-auto border rounded-md">
+        <div className="flex-1 min-h-0 overflow-scroll border rounded-md">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Loading...</div>
           ) : templates.length === 0 ? (

@@ -655,7 +655,7 @@ export default function ProductPage() {
           <DialogHeader>
             <DialogTitle>Add Product</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
             <ProductForm
               hideActions
               onSubmit={handleSubmit}
@@ -690,7 +690,7 @@ export default function ProductPage() {
             </div>
           ) : (
             <>
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <div className="flex-1 min-h-0 overflow-y-scroll pr-1">
                 <ProductForm
                   hideActions
                   defaultValues={selectedProduct}
@@ -739,7 +739,7 @@ export default function ProductPage() {
                 {Array.isArray(importResult.errors) && importResult.errors.length > 0 && (
                   <div className="mt-2">
                     <p className="font-medium text-destructive">Errors ({importResult.errors.length}):</p>
-                    <ul className="list-disc list-inside mt-1 max-h-32 overflow-y-auto">
+                    <ul className="list-disc list-inside mt-1 max-h-32 overflow-y-scroll">
                       {importResult.errors.slice(0, 20).map((e, idx) => (
                         <li key={idx}>Row {e.row}: {e.message}</li>
                       ))}

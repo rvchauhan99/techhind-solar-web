@@ -179,7 +179,7 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
     const isCompleted = isStageCompleted && !amendMode;
 
     return (
-        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-4 overflow-y-auto">
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-4 overflow-y-scroll">
             <FormSection title="Net meter installed details">
                 <FormGrid cols={2}>
                     <Input
