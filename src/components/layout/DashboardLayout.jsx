@@ -223,7 +223,7 @@ export default function DashboardLayout({ children }) {
 
       {/* Main Content: push layout; padding matching layout bounds, NOT floating hover bounds */}
       <div
-        className={`flex flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${focusFullscreen ? "lg:pl-0" : layoutSidebarExpanded ? "lg:pl-64" : "lg:pl-16"
+        className={`flex min-h-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${focusFullscreen ? "lg:pl-0" : layoutSidebarExpanded ? "lg:pl-64" : "lg:pl-16"
           }`}
       >
         {/* Mobile bar: hidden in focus fullscreen */}
@@ -264,8 +264,8 @@ export default function DashboardLayout({ children }) {
         <main
           className={
             focusFullscreen
-              ? "bg-content flex-1 overflow-y-auto py-1 px-2 lg:px-2"
-              : "bg-content flex-1 overflow-y-auto py-2 lg:px-4"
+              ? "bg-content flex min-h-0 flex-1 crm-scroll py-1 px-2 lg:px-2"
+              : "bg-content flex min-h-0 flex-1 crm-scroll py-2 lg:px-4"
           }
         >
           {children}

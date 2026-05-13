@@ -218,7 +218,7 @@ export default function Navbar({ onMenuClick }) {
                       right: `${dropdownPosition.right}px`,
                       width: { xs: "280px", sm: "380px", md: "450px" },
                       maxHeight: "350px",
-                      overflowY: "auto",
+                      overflowY: "scroll",
                       zIndex: 1500, // Highest z-index to appear above everything
                       boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
                       borderRadius: 1,

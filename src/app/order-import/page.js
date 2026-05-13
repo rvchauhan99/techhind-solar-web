@@ -401,7 +401,7 @@ export default function OrderImportPage() {
           <div className="mt-6">
             <h2 className="text-lg font-semibold mb-2">Results (All Records)</h2>
             <div className="border rounded-lg overflow-hidden">
-              <div className="max-h-[70vh] overflow-auto">
+              <div className="max-h-[70vh] overflow-scroll">
                 <table className="w-full text-xs min-w-[980px] border-collapse">
                   <thead className="sticky top-0 bg-muted/50 z-10">
                     <tr className="text-left">

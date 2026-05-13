@@ -60,7 +60,7 @@ function DeliveryExecutionViewContent() {
       <Grid container spacing={1}>
         <Grid size={2.5}>
           <Paper
-            sx={{ p: 1.5, height: "calc(100vh - 140px)", overflowY: "auto" }}
+            sx={{ p: 1.5, height: "calc(100vh - 140px)", overflowY: "scroll" }}
             elevation={0}
             className="border border-border rounded-lg"
           >

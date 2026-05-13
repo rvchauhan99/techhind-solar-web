@@ -483,7 +483,7 @@ export default function SiteVisitPage() {
             <DialogHeader>
               <DialogTitle>{selectedRow ? "View/Edit Site Visit" : "Add Site Visit"}</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
+            <div className="flex-1 min-h-0 overflow-y-scroll pr-1 pt-2">
               <SiteVisitForm
                 defaultValues={
                   selectedRow ? { inquiry_id: selectedRow.inquiry_id ? String(selectedRow.inquiry_id) : "" } : null
@@ -503,7 +503,7 @@ export default function SiteVisitPage() {
             <DialogHeader>
               <DialogTitle>Site Survey</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
+            <div className="flex-1 min-h-0 overflow-y-scroll pr-1 pt-2">
               <SiteSurveyForm
                 siteVisitId={selectedRow?.site_visit_id}
                 onSubmit={handleSurveySubmit}

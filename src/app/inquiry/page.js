@@ -237,7 +237,7 @@ export default function InquiryPage() {
           />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden pb-10">
+        <div className="min-h-0 flex-1 flex flex-col pb-10">
           {view === "kanban" ? (
             <KanbanBoard
               inquiries={inquiries}
@@ -334,7 +334,7 @@ export default function InquiryPage() {
                     {importResult.inserted} created, {importResult.failed} failed out of {importResult.total} row(s).
                   </p>
                   {importResult.errors?.length > 0 && (
-                    <ul className="max-h-32 list-inside list-disc overflow-y-auto text-destructive">
+                    <ul className="max-h-32 list-inside list-disc overflow-y-scroll text-destructive">
                       {importResult.errors.slice(0, 10).map((err, i) => (
                         <li key={i}>
                           Row {err.row}: {err.message}

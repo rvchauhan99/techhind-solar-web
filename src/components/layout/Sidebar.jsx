@@ -293,7 +293,7 @@ export default function Sidebar({
   if (showCollapsed) {
     return (
       <aside className="border-[#0f1f3a] bg-[#1b365d] flex h-dvh w-full flex-col transition-all duration-300 ease-in-out border-r">
-        <div className="flex h-full flex-col overflow-y-auto px-2 py-4 custom-scrollbar">
+        <div className="flex h-full flex-col crm-scroll-sidebar px-2 py-4">
           {/* User: avatar only */}
           <div className="mb-4 flex justify-center">
             <DropdownMenu>
@@ -415,7 +415,7 @@ export default function Sidebar({
 
   return (
     <aside className="bg-[#1b365d] border-r border-[#0f1f3a] flex h-dvh w-full flex-col transition-all duration-300 ease-in-out">
-      <div className="flex h-full flex-col overflow-y-auto px-3 py-4 custom-scrollbar">
+      <div className="flex h-full flex-col crm-scroll-sidebar px-3 py-4">
         {/* User Profile Section */}
         <div className="mb-4">
           <DropdownMenu>
@@ -495,7 +495,7 @@ export default function Sidebar({
           {searchQuery.trim() && (
             <div
               data-sidebar-search-dropdown
-              className="border-[#0f1f3a] bg-[#1b365d] absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+              className="border-[#0f1f3a] bg-[#1b365d] absolute left-0 right-0 top-full z-50 mt-1 max-h-60 crm-scroll-dropdown rounded-lg border shadow-lg"
               role="listbox"
             >
               {searchResults.length > 0 ? (

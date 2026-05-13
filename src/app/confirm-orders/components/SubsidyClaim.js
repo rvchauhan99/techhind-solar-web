@@ -116,7 +116,7 @@ export default function SubsidyClaim({ orderId, orderData, onSuccess, amendMode 
     const isCompleted = isStageCompleted && !amendMode;
 
     return (
-        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-2 sm:p-3 overflow-y-auto max-w-3xl">
+        <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-2 sm:p-3 overflow-y-scroll max-w-3xl">
             <FormSection title="Subsidy claim details">
                 <div className="mb-2">
                     <Checkbox

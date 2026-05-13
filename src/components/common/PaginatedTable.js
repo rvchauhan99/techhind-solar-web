@@ -482,7 +482,7 @@ export default function PaginatedTable({
         </div>
       )}
 
-      <div className="flex-1 min-w-0 overflow-x-auto overflow-y-auto border-y border-border w-full max-w-full [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+      <div className="flex-1 min-w-0 crm-scroll-table border-y border-border w-full max-w-full">
         <table className={cn("w-full table-auto", compactDensity ? "min-w-full" : "min-w-max")} aria-label="paginated table">
           <thead className="sticky top-0 z-[30] isolate">
             <tr className="bg-[#1b365d] text-white relative z-[30]">

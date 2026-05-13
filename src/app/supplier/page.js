@@ -492,7 +492,7 @@ export default function SupplierPage() {
           <div className="pb-2">
             <DialogTitle>Add Supplier</DialogTitle>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-scroll">
             <SupplierForm
             onSubmit={handleSubmit}
             loading={submitting}
@@ -514,7 +514,7 @@ export default function SupplierPage() {
               <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-scroll">
               <SupplierForm
                 defaultValues={selectedSupplier}
                 onSubmit={handleSubmit}

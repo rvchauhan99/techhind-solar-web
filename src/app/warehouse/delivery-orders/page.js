@@ -145,7 +145,18 @@ export default function WarehouseDeliveryOrdersPage() {
             {!loading && !error && orders.length > 0 && (
                 <>
                     {view === "kanban" && (
-                        <Box sx={{ display: "flex", gap: 2, overflowX: "auto" }}>
+                        <Box sx={{
+                            display: "flex",
+                            gap: 2,
+                            // Ultra-visibility horizontal scrollbar \u2014 forced permanent
+                            overflowX: "scroll",
+                            scrollbarWidth: "auto !important",
+                            scrollbarColor: "#1e293b #e2e8f0 !important",
+                            "&::-webkit-scrollbar": { height: "16px !important", display: "block !important" },
+                            "&::-webkit-scrollbar-track": { background: "#e2e8f0 !important", border: "1px solid #cbd5e1 !important" },
+                            "&::-webkit-scrollbar-thumb": { background: "#1e293b !important", borderRadius: 4, boxShadow: "0 0 4px rgba(0,0,0,0.5)" },
+                            paddingBottom: "20px !important",
+                        }}>
                             {Object.entries(groupedByPriority).map(([priority, list]) => (
                                 <Paper key={priority} sx={{ minWidth: 260, p: 1, flexShrink: 0 }}>
                                     <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>

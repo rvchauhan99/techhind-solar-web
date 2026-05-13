@@ -152,7 +152,7 @@ export default function InquiryFilterPanel({
                 </button>
 
                 {/* Applied Filters Chips (Horizontal Scroll on small) */}
-                <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+                <div className="flex-1 flex items-center gap-1.5 overflow-x-scroll crm-scroll-x py-1">
                     {appliedSummary.map((label) => (
                         <span
                             key={label}

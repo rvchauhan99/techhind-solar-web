@@ -467,7 +467,7 @@ export default function ProjectPricePage() {
             <DialogHeader>
               <DialogTitle>Add Project Price</DialogTitle>
             </DialogHeader>
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-scroll">
               <ProjectPriceForm
               onSubmit={handleSubmit}
               loading={submitting}
@@ -489,7 +489,7 @@ export default function ProjectPricePage() {
                 <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
               </div>
             ) : (
-              <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-scroll">
                 <ProjectPriceForm
                   defaultValues={selectedRecord}
                   onSubmit={handleSubmit}

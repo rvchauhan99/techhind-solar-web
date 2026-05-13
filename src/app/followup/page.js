@@ -580,7 +580,7 @@ export default function FollowupPage() {
         </DetailsSidebar>
 
         <Dialog open={modalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
-          <DialogContent className="max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-[700px] max-h-[90vh] overflow-y-scroll">
             <div className="pb-2">
               <DialogTitle>Create Followup</DialogTitle>
             </div>

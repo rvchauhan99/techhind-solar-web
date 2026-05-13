@@ -195,7 +195,7 @@ export default function DeliveryChallanFilterPanel({
           )}
         </button>
 
-        <div className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+        <div className="flex-1 flex items-center gap-1.5 overflow-x-scroll crm-scroll-x py-0.5">
           {appliedSummary.map((label) => (
             <span
               key={label}
