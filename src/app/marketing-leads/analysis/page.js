@@ -658,7 +658,7 @@ export default function MarketingLeadAnalysisPage() {
                       </ResponsiveContainer>
                     </div>
                     {/* Rank table */}
-                    <div className="overflow-scroll border-t border-slate-100">
+                    <div className="overflow-auto border-t border-slate-100">
                       <table className="w-full text-[11px]">
                         <thead>
                           <tr className="bg-slate-50 text-slate-400">
@@ -707,7 +707,7 @@ export default function MarketingLeadAnalysisPage() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="border-t border-slate-100 overflow-scroll">
+                    <div className="border-t border-slate-100 overflow-auto">
                       <table className="w-full text-[11px]">
                         <tbody>
                           {sourceData.slice(0, 6).map((s, i) => (

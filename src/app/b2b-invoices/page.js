@@ -317,7 +317,7 @@ export default function B2bInvoicesPage() {
             <p className="text-xs font-semibold">Items</p>
             <p className="text-xs text-muted-foreground">{items.length} line(s)</p>
           </div>
-          <div className="overflow-x-scroll">
+          <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-muted/30">
                 <tr className="text-left">

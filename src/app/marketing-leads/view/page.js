@@ -82,7 +82,7 @@ function LeadDetails({ lead }) {
       <CardHeader className="border-b py-2 px-3 sm:px-4 shrink-0">
         <CardTitle>Lead Details</CardTitle>
       </CardHeader>
-      <CardContent className="p-2 sm:p-3 flex-1 overflow-y-scroll flex flex-col gap-2">
+      <CardContent className="p-2 sm:p-3 flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2">
 
         <div>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Contact</div>
@@ -212,8 +212,8 @@ function FollowUpHistory({ leadId, refreshKey }) {
   }
 
   return (
-    <div className="border border-border rounded-lg bg-card">
-      <div className="min-w-0 max-h-[400px] overflow-x-scroll overflow-y-scroll crm-scroll-x">
+    <div className="border border-border rounded-lg overflow-hidden bg-card">
+      <div className="overflow-x-auto max-h-[400px] custom-scrollbar">
         <table className="w-full text-sm text-left">
           <thead className="text-xs text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10">
             <tr>
@@ -332,7 +332,7 @@ function MarketingLeadViewContent() {
           </div>
 
           <div className="md:col-span-8 lg:col-span-9 h-[calc(100vh-180px)] flex flex-col min-h-0">
-            <div className="flex-1 min-h-0 overflow-y-scroll flex flex-col gap-2">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-2">
               <Card className="shrink-0 bg-white dark:bg-zinc-900 border-border">
                 <CardContent className="p-2 py-1">
                   <AddCallDetailsForm

@@ -559,7 +559,7 @@ export default function BillOfMaterialForm({
               <div className="shrink-0 px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border bg-muted/20">
                 Added products ({formData.bom_detail.length})
               </div>
-              <div className="overflow-x-scroll crm-scroll-x">
+              <div className="overflow-x-auto [scrollbar-width:thin]">
                 <table className="w-full text-sm border-collapse">
                   <thead className="bg-muted/30 border-b border-border">
                     <tr>

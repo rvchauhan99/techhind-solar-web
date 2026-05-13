@@ -171,7 +171,7 @@ const modalStyle = {
   borderRadius: 1,
   p: 4,
   maxHeight: "90vh",
-  overflowY: "scroll",
+  overflowY: "auto",
 };
 const siteVisitModalStyle = {
   position: "absolute",
@@ -185,7 +185,7 @@ const siteVisitModalStyle = {
   borderRadius: 1,
   p: 4,
   maxHeight: "90vh",
-  overflowY: "scroll",
+  overflowY: "auto",
 };
 
 export default function KanbanBoard({ search, inquiries, onRefresh }) {
@@ -650,16 +650,15 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
         <Box
           sx={{
             flex: 1,
+            overflowX: "auto",
             overflowY: "hidden",
             whiteSpace: "nowrap",
-            // Ultra-visibility horizontal scrollbar — forced permanent
-            overflowX: "scroll",
-            scrollbarWidth: "auto !important",
-            scrollbarColor: "#1e293b #e2e8f0 !important",
-            "&::-webkit-scrollbar": { height: "16px !important", display: "block !important" },
-            "&::-webkit-scrollbar-track": { background: "#e2e8f0 !important", border: "1px solid #cbd5e1 !important" },
-            "&::-webkit-scrollbar-thumb": { background: "#1e293b !important", borderRadius: 4, boxShadow: "0 0 4px rgba(0,0,0,0.5)" },
-            pb: "20px", 
+            scrollbarWidth: "none", // Firefox
+            msOverflowStyle: "none", // IE/Edge
+            "&::-webkit-scrollbar": {
+              // Chrome/Safari
+              display: "none",
+            },
           }}
         >
           <Grid container spacing={1} wrap="nowrap" sx={{ height: "100%" }}>
@@ -690,7 +689,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
 
                         display: "flex",
                         flexDirection: "column",
-                        overflowX: "scroll",
+                        overflowX: "auto",
                       }}
                   >
                     {/* Each column's list is a Droppable and scrolls independently */}
@@ -707,12 +706,12 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                             ref={provided.innerRef}
                             {...provided.droppableProps}
                             sx={{
-                              flex: 1,
+                              flex: 1, // fill the Paper vertically
                               minHeight: 0,
                               height: "100%",
-                              overflowY: "scroll",
+                              overflowY: "auto", // 👈 only this area scrolls
                               pr: 0.5,
-                              pb: 4,
+                              pb: 4, // Add padding at bottom to prevent cutting off
                               boxSizing: "border-box",
                               outline: isInvalidTarget
                                 ? "3px solid red"
@@ -724,13 +723,13 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                               cursor: isInvalidTarget ? "not-allowed" : snapshot.isDraggingOver ? "move" : "default",
                               position: "relative",
                               transition: "all 0.2s ease",
-                              // Extreme visibility vertical scrollbar
-                              scrollbarWidth: "auto !important",
-                              scrollbarColor: "#64748b #d1d5db !important",
-                              "&::-webkit-scrollbar": { width: "12px !important", display: "block !important" },
-                              "&::-webkit-scrollbar-track": { background: "#d1d5db !important", borderRadius: 0 },
-                              "&::-webkit-scrollbar-thumb": { background: "#64748b !important", borderRadius: 2 },
-                              "&::-webkit-scrollbar-thumb:hover": { background: "#00823b !important" },
+
+                              scrollbarWidth: "none", // Firefox
+                              msOverflowStyle: "none", // IE/Edge
+                              "&::-webkit-scrollbar": {
+                                // Chrome/Safari
+                                display: "none",
+                              },
                             }}
                           >
                             {/* Block indicator overlay */}

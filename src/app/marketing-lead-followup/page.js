@@ -651,7 +651,7 @@ export default function MarketingLeadFollowupPage() {
 
         {/* Add Follow-Up Modal */}
         <Dialog open={modalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
-          <DialogContent className="max-w-[700px] max-h-[90vh] overflow-y-scroll">
+          <DialogContent className="max-w-[700px] max-h-[90vh] overflow-y-auto">
             <div className="pb-2">
               <DialogTitle>Add Follow-Up</DialogTitle>
             </div>
@@ -670,7 +670,7 @@ export default function MarketingLeadFollowupPage() {
         </Dialog>
         {/* ── Global Add Follow-Up Dialog (two-step) ──────────────────── */}
         <Dialog open={addDialogOpen} onOpenChange={(open) => !open && handleCloseAddDialog()}>
-          <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-scroll">
+          <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto">
             {/* Step indicator */}
             <div className="flex items-center gap-2 pb-2 border-b border-slate-100 mb-2">
               <span
@@ -738,7 +738,7 @@ export default function MarketingLeadFollowupPage() {
 
                 {/* Results list */}
                 {leadSearchResults.length > 0 ? (
-                  <ul className="divide-y divide-slate-100 max-h-64 overflow-y-scroll rounded-lg border border-slate-100 shadow-sm">
+                  <ul className="divide-y divide-slate-100 max-h-64 overflow-y-auto rounded-lg border border-slate-100 shadow-sm">
                     {leadSearchResults.map((lead) => (
                       <li key={lead.id}>
                         <button

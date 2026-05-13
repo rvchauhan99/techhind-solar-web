@@ -55,7 +55,7 @@ export function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 bg-background ring-foreground/10 group/alert-dialog-content fixed top-1/2 left-1/2 grid max-h-[90vh] min-h-0 w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-x-hidden overflow-y-scroll crm-scroll-modal rounded-xl p-4 ring-1 duration-100 outline-none",
+          "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 bg-background ring-foreground/10 group/alert-dialog-content fixed top-1/2 left-1/2 grid max-h-[90vh] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-hidden rounded-xl p-4 ring-1 duration-100 outline-none",
           "data-[size=sm]:max-w-xs data-[size=sm]:sm:max-w-sm",
           "data-[size=default]:max-w-xs data-[size=default]:sm:max-w-sm data-[size=default]:md:max-w-md",
           "data-[size=lg]:max-w-sm data-[size=lg]:sm:max-w-md data-[size=lg]:md:max-w-lg data-[size=lg]:lg:max-w-xl",

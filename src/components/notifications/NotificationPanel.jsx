@@ -364,7 +364,7 @@ export default function NotificationPanel({ open, onClose }) {
         {/* ── Notification List ── */}
         <Box
           ref={listRef}
-          sx={{ flex: 1, overflowY: "scroll", py: 0, scrollBehavior: "smooth" }}
+          sx={{ flex: 1, overflowY: "auto", py: 0, scrollBehavior: "smooth" }}
         >
           {loading && notifications.length === 0 ? (
             <LoadingSkeleton />

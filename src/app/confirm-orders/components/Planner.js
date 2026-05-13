@@ -1485,7 +1485,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                         </div>
                         {bomPlan.length > 0 ? (
                             <>
-                                <div className="overflow-x-scroll rounded-lg border border-border">
+                                <div className="overflow-x-auto rounded-lg border border-border">
                                     <table className="w-full text-xs sm:text-sm border-collapse">
                                         <thead>
                                             <tr className="bg-muted/50 border-b border-border">
@@ -1752,7 +1752,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                     <summary className="cursor-pointer font-medium">
                                         View item-wise amendments ({Number(saveConfirmSummary?.adjustmentCount || 0)})
                                     </summary>
-                                    <div className="mt-2 space-y-1 max-h-60 overflow-scroll">
+                                    <div className="mt-2 space-y-1 max-h-60 overflow-auto">
                                         {(saveConfirmSummary?.amendmentItems || []).length === 0 ? (
                                             <div className="text-muted-foreground">No quantity/cost amendment rows in this save.</div>
                                         ) : (

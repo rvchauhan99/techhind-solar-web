@@ -69,7 +69,7 @@ function InstallationViewContent() {
             <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
                 <Grid size={2.5} sx={{ display: "flex", minHeight: 0 }}>
                     <Paper
-                        sx={{ p: 1.5, flex: 1, minHeight: 0, width: "100%", overflowY: "scroll" }}
+                        sx={{ p: 1.5, flex: 1, minHeight: 0, width: "100%", overflowY: "auto" }}
                         elevation={0}
                         className="border border-border rounded-lg"
                     >
@@ -90,7 +90,7 @@ function InstallationViewContent() {
                         }}
                         className="border border-border rounded-lg"
                     >
-                        <Box sx={{ flex: 1, minHeight: 0, overflowY: "scroll", overflowX: "hidden" }}>
+                        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
                             <Installation
                                 orderId={orderId}
                                 orderData={orderData}

@@ -93,7 +93,7 @@ export default function PipelineBoard({ filters, onOrderSelect, onStageClick, da
                 </div>
             </div>
 
-            <div className="flex crm-scroll-kanban gap-4 snap-x snap-mandatory min-h-[220px] items-stretch">
+            <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory hide-scroll-bar min-h-[200px] items-center justify-start" style={{ scrollbarWidth: "none" }}>
                 {loading ? (
                     <Loader />
                 ) : (
@@ -102,7 +102,7 @@ export default function PipelineBoard({ filters, onOrderSelect, onStageClick, da
                         return (
                             <div
                                 key={stage.id}
-                                className="shrink-0 w-[260px] snap-start bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col cursor-pointer hover:shadow-md hover:border-primary/30 transition-shadow"
+                                className="flex-shrink-0 w-[260px] snap-start bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-200 overflow-hidden flex flex-col cursor-pointer hover:shadow-md hover:border-primary/30 transition-shadow"
                                 onClick={() => handleCardClick(stage)}
                             >
                                 <div className={`h-1.5 w-full ${stage.color}`}></div>
@@ -113,7 +113,7 @@ export default function PipelineBoard({ filters, onOrderSelect, onStageClick, da
                                             {metrics.count} Orders
                                         </div>
                                     </div>
-                                    <div className="space-y-3 mb-4 grow">
+                                    <div className="space-y-3 mb-4 flex-grow">
                                         <div className="flex justify-between text-sm">
                                             <span className="text-slate-500">Total Capacity</span>
                                             <span className="font-medium text-slate-800">{metrics.capacity} kW</span>

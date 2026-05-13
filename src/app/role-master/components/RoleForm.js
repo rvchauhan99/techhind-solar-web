@@ -360,7 +360,7 @@ const RoleForm = forwardRef(function RoleForm({
         onKeyDown={preventEnterSubmit}
         sx={{ display: "flex", flexDirection: "column", height: "100%" }}
       >
-        <Box sx={{ display: "grid", gap: 2, flex: 1, overflowY: "scroll", pr: 1, pt: 2 }}>
+        <Box sx={{ display: "grid", gap: 2, flex: 1, overflowY: "auto", pr: 1, pt: 2 }}>
           <Input 
             name="name" 
             label="Name" 

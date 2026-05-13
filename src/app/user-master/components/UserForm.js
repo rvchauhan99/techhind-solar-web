@@ -160,7 +160,7 @@ const UserForm = forwardRef(function UserForm({
           display: "grid", 
           gap: 1.5, 
           flex: 1, 
-          overflowY: "scroll", 
+          overflowY: "auto", 
           pr: 1, 
           pt: 1,
           width: "100%",

@@ -444,17 +444,10 @@ function FabricationInstallationPageContent() {
                         minHeight: 0,
                         display: "flex",
                         gap: 2,
+                        overflowX: "auto",
                         overflowY: "hidden",
-                        pb: 2,
+                        pb: 1,
                         alignItems: "stretch",
-                        // Ultra-visibility horizontal scrollbar — forced permanent
-                        overflowX: "scroll",
-                        scrollbarWidth: "auto !important",
-                        scrollbarColor: "#1e293b #e2e8f0 !important",
-                        "&::-webkit-scrollbar": { height: "16px !important", display: "block !important" },
-                        "&::-webkit-scrollbar-track": { background: "#e2e8f0 !important", border: "1px solid #cbd5e1 !important" },
-                        "&::-webkit-scrollbar-thumb": { background: "#1e293b !important", borderRadius: 4, boxShadow: "0 0 4px rgba(0,0,0,0.5)" },
-                        paddingBottom: "20px !important",
                     }}
                 >
                     {COLUMNS.map((col) => {
@@ -515,14 +508,7 @@ function FabricationInstallationPageContent() {
                                         gap: 1,
                                         flex: 1,
                                         minHeight: 0,
-                                        overflowY: "scroll",
-                                        // Extreme visibility vertical scrollbar
-                                        scrollbarWidth: "auto !important",
-                                        scrollbarColor: "#64748b #d1d5db !important",
-                                        "&::-webkit-scrollbar": { width: "12px !important", display: "block !important" },
-                                        "&::-webkit-scrollbar-track": { background: "#d1d5db !important", borderRadius: 0 },
-                                        "&::-webkit-scrollbar-thumb": { background: "#64748b !important", borderRadius: 2 },
-                                        "&::-webkit-scrollbar-thumb:hover": { background: "#00823b !important" },
+                                        overflowY: "auto",
                                     }}
                                 >
                                     {list.length === 0 && (
