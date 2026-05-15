@@ -71,6 +71,7 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - initialSortBy, initialSortOrder (optional default sorting)
  * - filterParams: object merged into fetcher params (when parent uses URL state)
  * - onRowClick(row): when provided, rows are clickable; skip when target is button/link
+ * - getRowClassName(row): optional extra class names per row (e.g. danger highlight)
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
  * - persistScrollbars: when true, table body uses overflow scroll + stable scrollbar gutter (dense lead lists)
  */
@@ -89,6 +90,7 @@ export default function PaginatedTable({
   onTotalChange = null,
   filterParams = {},
   onRowClick = null,
+  getRowClassName = null,
   // Controlled mode (from useListingQueryState)
   page: controlledPage,
   limit: controlledLimit,
@@ -802,7 +804,8 @@ export default function PaginatedTable({
                       }
                       className={cn(
                         onRowClick ? "cursor-pointer" : "",
-                        "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0"
+                        "group hover:bg-[#00823b]/5 transition-colors border-b border-border last:border-b-0",
+                        getRowClassName?.(row)
                       )}
                     >
                       {hasRowDetails && (

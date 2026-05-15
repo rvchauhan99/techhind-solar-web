@@ -6,6 +6,7 @@
 export * from "./alert-dialog";
 export { Badge, badgeVariants } from "./badge";
 export { Button, buttonVariants } from "./button";
+export { Checkbox } from "./checkbox";
 export * from "./card";
 export * from "./dialog";
 export * from "./dropdown-menu";
