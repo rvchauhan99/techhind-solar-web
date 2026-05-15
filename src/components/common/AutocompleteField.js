@@ -545,6 +545,9 @@ const AutocompleteField = forwardRef(function AutocompleteField(
           </div>
         )}
       </div>
+      {error && helperText && (
+        <p className="mt-1 text-xs text-destructive">{helperText}</p>
+      )}
       {open &&
         (usePortal && typeof document !== "undefined" ? (
           createPortal(
