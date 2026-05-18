@@ -16,6 +16,8 @@ import {
   payableAmount,
   hasOutstandingOffset,
   getOffsetOrders,
+  hasLineAdjustments,
+  formatAdjustmentBadge,
 } from "../utils/settlementMoney";
 
 function fmtDate(v) {
@@ -75,6 +77,11 @@ export default function CommissionSettlementReviewDrawer({
   const byUser = detail?.by_user || [];
   const orderOffsets = detail?.order_offsets || detail?.meta?.order_offsets || [];
   const showOffset = hasOutstandingOffset(lines) || orderOffsets.length > 0;
+  const adjustmentSummary = detail?.adjustment_summary || detail?.meta?.adjustment_summary;
+  const showAdjustments =
+    detail?.has_line_adjustments ||
+    (adjustmentSummary?.count ?? 0) > 0 ||
+    hasLineAdjustments(lines);
   const lineCount = lines.length;
   const beneficiaryCount = useMemo(
     () => new Set(lines.map((l) => l.beneficiary_user_id).filter(Boolean)).size,
@@ -146,6 +153,12 @@ export default function CommissionSettlementReviewDrawer({
                 label="Gross"
                 value={`₹ ${fmtMoney(detail.gross_line_total ?? detail.total_line_amount)}`}
               />
+              {showAdjustments ? (
+                <KpiCard
+                  label="Manual adjustments"
+                  value={`${adjustmentSummary?.count ?? 0} lines`}
+                />
+              ) : null}
               {showOffset ? (
                 <KpiCard
                   label="Outstanding cut"
@@ -157,6 +170,20 @@ export default function CommissionSettlementReviewDrawer({
               <KpiCard label="Round off" value={`₹ ${fmtSignedMoney(detail.total_round_off_amount ?? 0)}`} />
               <KpiCard label="Lines / users" value={`${lineCount} / ${beneficiaryCount}`} />
             </div>
+
+            {showAdjustments ? (
+              <div className="rounded border-2 border-violet-300 bg-violet-50 px-2 py-2 text-xs text-violet-950 space-y-1">
+                <p className="font-bold">Manual commission adjustments — review carefully</p>
+                <p className="text-[10px]">
+                  Amounts were revised from system-calculated commission before settlement was submitted.
+                </p>
+                <p className="text-[10px] font-medium">
+                  {adjustmentSummary?.count ?? 0} line(s) · total bonus +₹{" "}
+                  {fmtMoney(adjustmentSummary?.bonus_total ?? 0)} · total deduction −₹{" "}
+                  {fmtMoney(adjustmentSummary?.deduction_total ?? 0)}
+                </p>
+              </div>
+            ) : null}
 
             {showOffset ? (
               <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 space-y-1">
@@ -189,14 +216,14 @@ export default function CommissionSettlementReviewDrawer({
             {byUser.length > 0 && (
               <section>
                 <h3 className="text-[11px] font-semibold text-slate-700 mb-1">Summary by beneficiary</h3>
-                <SettlementByUserSummary byUser={byUser} showDeduction={showOffset} />
+                <SettlementByUserSummary byUser={byUser} lines={lines} showDeduction={showOffset} />
               </section>
             )}
 
             <section>
               <h3 className="text-[11px] font-semibold text-slate-700 mb-1">Line items ({lineCount})</h3>
               <div className="overflow-x-auto max-h-[min(50vh,420px)] overflow-y-auto rounded border border-slate-200">
-                <table className="w-full text-[11px] min-w-[900px]">
+                <table className="w-full text-[11px] min-w-[1100px]">
                   <thead className="bg-slate-50 text-left sticky top-0 z-10">
                     <tr>
                       <th className="px-2 py-1 font-medium">Order</th>
@@ -206,6 +233,9 @@ export default function CommissionSettlementReviewDrawer({
                       <th className="px-2 py-1 font-medium">Role</th>
                       <th className="px-2 py-1 font-medium text-right">Outstanding</th>
                       <th className="px-2 py-1 font-medium text-right">Combined</th>
+                      <th className="px-2 py-1 font-medium text-right">System</th>
+                      <th className="px-2 py-1 font-medium text-right">Adjustment</th>
+                      <th className="px-2 py-1 font-medium">Reason</th>
                       <th className="px-2 py-1 font-medium text-right">Gross</th>
                       <th className="px-2 py-1 font-medium text-right">Deduction</th>
                       <th className="px-2 py-1 font-medium text-right">Net</th>
@@ -215,12 +245,21 @@ export default function CommissionSettlementReviewDrawer({
                     </tr>
                   </thead>
                   <tbody>
-                    {lines.map((ln) => (
+                    {lines.map((ln) => {
+                      const adjBadge = formatAdjustmentBadge(ln);
+                      const rowBg = ln.settlement_blocked
+                        ? "bg-red-50/80"
+                        : ln.adjustment_type === "bonus"
+                          ? "bg-emerald-50/70 border-l-2 border-l-emerald-500"
+                          : ln.adjustment_type === "deduction"
+                            ? "bg-rose-50/70 border-l-2 border-l-rose-500"
+                            : ln.outstanding_offset
+                              ? "bg-amber-50/80"
+                              : "";
+                      return (
                       <tr
                         key={ln.id}
-                        className={`border-t border-slate-100 hover:bg-slate-50/80 ${
-                          ln.outstanding_offset ? "bg-amber-50/80" : ""
-                        }`}
+                        className={`border-t border-slate-100 hover:bg-slate-50/80 ${rowBg}`}
                       >
                         <td className="px-2 py-1">
                           {ln.order_id ? (
@@ -241,6 +280,25 @@ export default function CommissionSettlementReviewDrawer({
                         <td className="px-2 py-1">{ln.role || "—"}</td>
                         <td className="px-2 py-1 text-right">₹ {fmtMoney(ln.order_outstanding ?? 0)}</td>
                         <td className="px-2 py-1 text-right">₹ {fmtMoney(ln.combined_commission_on_order ?? ln.amount)}</td>
+                        <td className="px-2 py-1 text-right text-muted-foreground">
+                          ₹ {fmtMoney(ln.original_amount ?? ln.amount)}
+                        </td>
+                        <td className="px-2 py-1 text-right">
+                          {adjBadge ? (
+                            <span
+                              className={`font-semibold ${
+                                adjBadge.className === "bonus" ? "text-emerald-700" : "text-rose-700"
+                              }`}
+                            >
+                              {adjBadge.label} {adjBadge.sign}₹{fmtMoney(adjBadge.amount)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-2 py-1 max-w-[120px] truncate" title={ln.adjustment_reason || ""}>
+                          {ln.adjustment_reason || "—"}
+                        </td>
                         <td className="px-2 py-1 text-right">₹ {fmtMoney(ln.gross_amount ?? ln.amount)}</td>
                         <td className="px-2 py-1 text-right text-amber-800">
                           {Number(ln.line_deduction) > 0 ? `− ₹ ${fmtMoney(ln.line_deduction)}` : "—"}
@@ -250,15 +308,16 @@ export default function CommissionSettlementReviewDrawer({
                         <td className="px-2 py-1 text-right">{ln.capacity_kw != null ? fmtMoney(ln.capacity_kw) : "—"}</td>
                         <td className="px-2 py-1 whitespace-nowrap">{fmtDate(ln.accrued_at)}</td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                   <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold">
                     <tr>
-                      <td colSpan={5} className="px-2 py-1 text-right">
+                      <td colSpan={8} className="px-2 py-1 text-right">
                         Total
                       </td>
                       <td className="px-2 py-1 text-right">₹ {fmtMoney(payableAmount(detail))}</td>
-                      <td colSpan={3} />
+                      <td colSpan={6} />
                     </tr>
                   </tfoot>
                 </table>

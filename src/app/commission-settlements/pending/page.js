@@ -95,6 +95,15 @@ export default function CommissionPendingPage() {
         render: (r) => (
           <span className="inline-flex items-center gap-1">
             {r.settlement_number}
+            {r.has_line_adjustments ? (
+              <Badge
+                variant="outline"
+                className="text-[9px] px-1 py-0 border-violet-300 bg-violet-50 text-violet-800"
+                title="Manual bonus/deduction adjustments included"
+              >
+                Adjustments ({r.adjustment_count ?? 0})
+              </Badge>
+            ) : null}
             {r.has_outstanding_offset ? (
               <Badge
                 variant="outline"

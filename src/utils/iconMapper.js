@@ -144,6 +144,8 @@ const iconMap = {
   "commission-settlements-history": IconChartBar,
   commission_settlement_pending: IconClock,
   "commission-settlements-pending": IconClock,
+  commission_ledger_report: IconBuildingBank,
+  "commission-settlements-ledger-report": IconBuildingBank,
   quotation: IconFileDescription,
   task_planner: IconCalendar,
   "task-planner": IconCalendar,
