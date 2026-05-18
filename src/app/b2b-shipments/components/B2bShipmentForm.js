@@ -195,7 +195,10 @@ export default function B2bShipmentForm({
             try {
                 setOrdersLoading(true);
                 setInitialLoading(false);
-                const res = await b2bSalesOrderService.getB2bSalesOrders({ status: "CONFIRMED", limit: 200 });
+                const res = await b2bSalesOrderService.getB2bSalesOrders({
+                    status_in: "CONFIRMED,PARTIAL_SHIPPED",
+                    limit: 200,
+                });
                 const r = res?.result ?? res;
                 const data = r?.data ?? [];
                 setAvailableOrders(Array.isArray(data) ? data : []);
