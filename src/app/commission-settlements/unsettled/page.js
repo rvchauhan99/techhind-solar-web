@@ -22,12 +22,16 @@ import commissionSettlementService from "@/services/commissionSettlementService"
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { IconRefresh } from "@tabler/icons-react";
 import SettlementByUserSummary from "../components/SettlementByUserSummary";
+import CommissionAdjustDialog from "../components/CommissionAdjustDialog";
 import {
   fmtMoney,
   fmtSignedMoney,
   payableAmount,
   hasOutstandingOffset,
   getOffsetOrders,
+  formatAdjustmentBadge,
+  hasLineAdjustments,
+  adjustmentRowBorderClass,
 } from "../utils/settlementMoney";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/unsettled";
@@ -106,6 +110,8 @@ export default function CommissionUnsettledPage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [draftFilters, setDraftFilters] = useState(INITIAL_DRAFT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState({});
+  const [adjustRow, setAdjustRow] = useState(null);
+  const [adjustOpen, setAdjustOpen] = useState(false);
 
   const filterParams = useMemo(() => {
     const a = appliedFilters || {};
@@ -247,6 +253,11 @@ export default function CommissionUnsettledPage() {
     }
   };
 
+  const openAdjust = useCallback((row) => {
+    setAdjustRow(row);
+    setAdjustOpen(true);
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -277,10 +288,58 @@ export default function CommissionUnsettledPage() {
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "-" },
       { field: "role", label: "Role", sortable: false, render: (row) => row.role || "-" },
       {
-        field: "amount",
-        label: "Commission",
+        field: "original_amount",
+        label: "System",
         sortable: false,
-        render: (row) => fmtMoney(row.amount),
+        render: (row) => (
+          <span className="text-[11px] text-muted-foreground">
+            ₹{fmtMoney(row.original_amount ?? row.amount)}
+          </span>
+        ),
+      },
+      {
+        field: "adjustment",
+        label: "Adjustment",
+        sortable: false,
+        render: (row) => {
+          const badge = formatAdjustmentBadge(row);
+          if (!badge) return <span className="text-muted-foreground">—</span>;
+          return (
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${
+                badge.className === "bonus"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-rose-50 text-rose-700 border-rose-200"
+              }`}
+            >
+              {badge.label} {badge.sign}₹{fmtMoney(badge.amount)}
+            </span>
+          );
+        },
+      },
+      {
+        field: "amount",
+        label: "Net",
+        sortable: false,
+        render: (row) => {
+          const canAdjust = currentPerm.can_update && !row.settlement_blocked;
+          if (!canAdjust) {
+            return <span className="font-semibold text-[11px]">₹{fmtMoney(row.amount)}</span>;
+          }
+          return (
+            <button
+              type="button"
+              className="font-semibold text-[11px] text-primary underline-offset-2 hover:underline cursor-pointer"
+              title="Click to adjust commission"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAdjust(row);
+              }}
+            >
+              ₹{fmtMoney(row.amount)}
+            </button>
+          );
+        },
       },
       {
         field: "combined_commission_on_order",
@@ -319,7 +378,7 @@ export default function CommissionUnsettledPage() {
       },
       { field: "branch_name", label: "Branch", sortable: false, render: (row) => row.branch_name || "-" },
     ],
-    [allPageSelected, eligiblePageRows.length, pageRows, selected]
+    [allPageSelected, eligiblePageRows.length, openAdjust, selected, currentPerm.can_update]
   );
 
   return (
@@ -484,9 +543,12 @@ export default function CommissionUnsettledPage() {
             onQChange={() => {}}
             onSortChange={() => {}}
             getRowClassName={(row) => {
+              const adj = adjustmentRowBorderClass(row);
               if (row.settlement_blocked) return "bg-red-50 hover:bg-red-100/80 !hover:bg-red-100/80";
+              if (row.adjustment_type === "bonus") return `bg-emerald-50/50 hover:bg-emerald-50/80 ${adj}`;
+              if (row.adjustment_type === "deduction") return `bg-rose-50/50 hover:bg-rose-50/80 ${adj}`;
               if (row.outstanding_offset) return "bg-amber-50 hover:bg-amber-100/70 !hover:bg-amber-100/70";
-              return "";
+              return adj;
             }}
           />
           <PaginationControls
@@ -507,6 +569,16 @@ export default function CommissionUnsettledPage() {
               <p className="text-muted-foreground text-sm">Loading…</p>
             ) : preview ? (
               <div className="space-y-3 text-sm">
+                {preview.has_line_adjustments || hasLineAdjustments(preview.lines) ? (
+                  <div className="rounded border border-violet-200 bg-violet-50 px-2 py-1.5 text-xs text-violet-900 space-y-1">
+                    <p className="font-semibold">Manual commission adjustments in this batch</p>
+                    <p className="text-[10px]">
+                      {preview.adjustment_summary?.count ?? 0} line(s): bonus ₹{" "}
+                      {fmtMoney(preview.adjustment_summary?.bonus_total ?? 0)} · deduction ₹{" "}
+                      {fmtMoney(preview.adjustment_summary?.deduction_total ?? 0)}
+                    </p>
+                  </div>
+                ) : null}
                 {hasOutstandingOffset(preview.lines) ? (
                   <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 space-y-1">
                     <p className="font-semibold">Outstanding will be deducted from commission payout</p>
@@ -549,6 +621,7 @@ export default function CommissionUnsettledPage() {
                   <p className="text-xs font-semibold text-muted-foreground">By beneficiary</p>
                   <SettlementByUserSummary
                     byUser={preview.by_user || []}
+                    lines={preview.lines || []}
                     showDeduction={hasOutstandingOffset(preview.lines)}
                   />
                 </div>
@@ -557,11 +630,26 @@ export default function CommissionUnsettledPage() {
                     <div
                       key={ln.id}
                       className={`flex justify-between gap-2 rounded px-1 py-0.5 ${
-                        ln.outstanding_offset ? "bg-amber-50/80" : ""
+                        ln.adjustment_type === "bonus"
+                          ? "bg-emerald-50/80"
+                          : ln.adjustment_type === "deduction"
+                            ? "bg-rose-50/80"
+                            : ln.outstanding_offset
+                              ? "bg-amber-50/80"
+                              : ""
                       }`}
                     >
                       <span>
                         {ln.order_number} · {ln.role}
+                        {ln.adjustment_type ? (
+                          <span
+                            className={`ml-1 text-[9px] font-semibold ${
+                              ln.adjustment_type === "bonus" ? "text-emerald-700" : "text-rose-700"
+                            }`}
+                          >
+                            {ln.adjustment_type}
+                          </span>
+                        ) : null}
                         {ln.outstanding_offset ? " · offset" : ""}
                       </span>
                       <span className="text-right shrink-0">
@@ -595,6 +683,20 @@ export default function CommissionUnsettledPage() {
             ) : null}
           </DialogContent>
         </Dialog>
+
+        <CommissionAdjustDialog
+          open={adjustOpen}
+          row={adjustRow}
+          onClose={() => {
+            setAdjustOpen(false);
+            setAdjustRow(null);
+          }}
+          onSaved={() => {
+            setSelected(new Set());
+            setTableKey((k) => k + 1);
+            loadSummary();
+          }}
+        />
       </ListingPageContainer>
     </ProtectedRoute>
   );

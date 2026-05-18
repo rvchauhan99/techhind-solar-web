@@ -8,6 +8,9 @@ export const listUnsettledLedger = (params) =>
 export const getCommissionDashboardSummary = () =>
   apiClient.get(`${base}/ledger/dashboard-summary`).then((r) => r.data);
 
+export const adjustCommissionLedgerEntry = (id, payload) =>
+  apiClient.patch(`${base}/ledger/${id}/adjustment`, payload).then((r) => r.data);
+
 export const previewCommissionSettlement = (payload) =>
   apiClient.post(`${base}/preview`, payload).then((r) => r.data);
 
@@ -40,9 +43,18 @@ export const downloadSettledLedgerCsv = (params) =>
     .get(`${base}/history/export/user-ledger`, { params, responseType: "blob" })
     .then((r) => r.data);
 
+export const getCommissionLedgerReport = (params) =>
+  apiClient.get(`${base}/ledger/report`, { params }).then((r) => r.data);
+
+export const downloadCommissionLedgerReportCsv = (params) =>
+  apiClient
+    .get(`${base}/ledger/report/export`, { params, responseType: "blob" })
+    .then((r) => r.data);
+
 export default {
   listUnsettledLedger,
   getCommissionDashboardSummary,
+  adjustCommissionLedgerEntry,
   previewCommissionSettlement,
   createCommissionSettlement,
   listCommissionSettlements,
@@ -53,4 +65,6 @@ export default {
   listSettledHistoryByOrder,
   getSettledHistoryDashboard,
   downloadSettledLedgerCsv,
+  getCommissionLedgerReport,
+  downloadCommissionLedgerReportCsv,
 };
