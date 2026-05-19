@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
+import DateField from "@/components/common/DateField";
+import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -14,13 +18,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Input as ShadcnInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import AutocompleteField from "@/components/common/AutocompleteField";
+import {
+  IconCurrencyRupee,
+  IconFilter,
+  IconChevronDown,
+  IconChevronUp,
+  IconRefresh,
+  IconX,
+} from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import commissionSettlementService from "@/services/commissionSettlementService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
-import { IconRefresh } from "@tabler/icons-react";
 import SettlementByUserSummary from "../components/SettlementByUserSummary";
 import CommissionAdjustDialog from "../components/CommissionAdjustDialog";
 import {
@@ -33,6 +43,13 @@ import {
   hasLineAdjustments,
   adjustmentRowBorderClass,
 } from "../utils/settlementMoney";
+import {
+  buildFilterChips,
+  countActiveFilterFields,
+  clearFilterField,
+  masterAutocompleteValue,
+  referenceAutocompleteDisplay,
+} from "../utils/filterChips";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/unsettled";
 
@@ -41,9 +58,11 @@ const ROLE_FILTER_OPTIONS = [
   { value: "channel_partner", label: "Channel partner" },
 ];
 
-const INITIAL_DRAFT_FILTERS = {
+const INITIAL_FILTERS = {
   beneficiary_user_id: null,
+  beneficiary_label: "",
   branch_id: null,
+  branch_label: "",
   role: "",
   accrued_from: "",
   accrued_to: "",
@@ -51,6 +70,26 @@ const INITIAL_DRAFT_FILTERS = {
   min_amount: "",
   max_amount: "",
 };
+
+const FILTER_LABELS = {
+  beneficiary_user_id: "Beneficiary",
+  branch_id: "Branch",
+  role: "Role",
+  accrued_from: "Accrued from",
+  accrued_to: "Accrued to",
+  order_number: "Order #",
+  min_amount: "Min amt",
+  max_amount: "Max amt",
+};
+
+function getChips(filters) {
+  return buildFilterChips(filters, {
+    filterLabels: FILTER_LABELS,
+    enumResolvers: {
+      role: (v) => ROLE_FILTER_OPTIONS.find((o) => o.value === v)?.label || v,
+    },
+  });
+}
 
 function parseFilterId(v) {
   const n = v != null && v !== "" ? Number(v) : NaN;
@@ -108,10 +147,38 @@ export default function CommissionUnsettledPage() {
   const [remarks, setRemarks] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [draftFilters, setDraftFilters] = useState(INITIAL_DRAFT_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState({});
+
+  const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [adjustRow, setAdjustRow] = useState(null);
   const [adjustOpen, setAdjustOpen] = useState(false);
+
+  const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
+  const activeCount = countActiveFilterFields(appliedFilters);
+  const chips = getChips(appliedFilters);
+
+  const handleApply = () => {
+    setAppliedFilters({ ...filters });
+    setSelected(new Set());
+    setPage(1);
+    setTableKey((k) => k + 1);
+  };
+
+  const handleReset = () => {
+    setFilters(INITIAL_FILTERS);
+    setAppliedFilters(INITIAL_FILTERS);
+    setSelected(new Set());
+    setPage(1);
+    setTableKey((k) => k + 1);
+  };
+
+  const removeChip = (key) => {
+    const next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
+    setFilters(next);
+    setAppliedFilters(next);
+    setTableKey((k) => k + 1);
+  };
 
   const filterParams = useMemo(() => {
     const a = appliedFilters || {};
@@ -383,132 +450,180 @@ export default function CommissionUnsettledPage() {
 
   return (
     <ProtectedRoute>
-      <ListingPageContainer title="Unsettled commission">
-        <div className="flex flex-col gap-2 px-1 pb-2">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
-            <AutocompleteField
-              usePortal
-              name="beneficiary_user_id"
-              label="Beneficiary"
-              asyncLoadOptions={(q) =>
-                getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
-              }
-              referenceModel="user.model"
-              getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-              value={draftFilters.beneficiary_user_id ? { id: draftFilters.beneficiary_user_id } : null}
-              onChange={(e, v) =>
-                setDraftFilters((f) => ({ ...f, beneficiary_user_id: v?.id ?? null }))
-              }
-              placeholder="Search user…"
-            />
-            <AutocompleteField
-              usePortal
-              name="branch_id"
-              label="Branch"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
-              referenceModel="company_branch.model"
-              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-              value={draftFilters.branch_id ? { id: draftFilters.branch_id } : null}
-              onChange={(e, v) => setDraftFilters((f) => ({ ...f, branch_id: v?.id ?? null }))}
-              placeholder="Search branch…"
-            />
-            <AutocompleteField
-              usePortal
-              name="role"
-              label="Role"
-              options={ROLE_FILTER_OPTIONS}
-              getOptionLabel={(o) => o?.label ?? ""}
-              value={
-                draftFilters.role
-                  ? ROLE_FILTER_OPTIONS.find((o) => o.value === draftFilters.role) ?? null
-                  : null
-              }
-              onChange={(e, v) => setDraftFilters((f) => ({ ...f, role: v?.value ?? "" }))}
-              clearable
-              placeholder="All roles"
-            />
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Accrued from</Label>
-              <Input
-                type="date"
-                className="h-8 text-xs"
-                value={draftFilters.accrued_from}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, accrued_from: e.target.value }))}
-              />
+      <div className="min-h-full bg-slate-50 font-sans text-slate-900">
+        <div className="mx-auto max-w-[1440px] space-y-2.5 px-3 py-3 pb-8">
+          
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <div className="rounded-lg bg-primary/10 p-1.5">
+                <IconCurrencyRupee size={16} className="text-primary" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold leading-tight tracking-tight">Pending commission</h1>
+                <p className="text-[11px] text-slate-500">Accrued pending settlements · Settle orders</p>
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Accrued to</Label>
-              <Input
-                type="date"
-                className="h-8 text-xs"
-                value={draftFilters.accrued_to}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, accrued_to: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Order #</Label>
-              <Input
-                className="h-8 text-xs"
-                value={draftFilters.order_number}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, order_number: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Min amt</Label>
-              <Input
-                className="h-8 text-xs"
-                inputMode="decimal"
-                value={draftFilters.min_amount}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, min_amount: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] text-muted-foreground">Max amt</Label>
-              <Input
-                className="h-8 text-xs"
-                inputMode="decimal"
-                value={draftFilters.max_amount}
-                onChange={(e) => setDraftFilters((f) => ({ ...f, max_amount: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button
-                size="sm"
-                className="h-8 w-full text-xs"
-                onClick={() => {
-                  setAppliedFilters({ ...draftFilters });
-                  setSelected(new Set());
-                  setPage(1);
-                }}
-              >
-                Apply filters
+            <div className="flex flex-wrap items-center gap-1.5">
+              {activeCount > 0 && (
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                  {activeCount} active
+                </Badge>
+              )}
+              <Button size="sm" variant="outline" onClick={handleReset} className="h-7 gap-1 px-2 text-xs">
+                <IconRefresh size={11} /> Reset
+              </Button>
+              <Button size="sm" onClick={handleApply} className="h-7 gap-1 px-2 text-xs">
+                <IconFilter size={11} /> Apply
               </Button>
             </div>
           </div>
+
+          {/* Collapsible filters card */}
+          <Card className="overflow-visible rounded-xl border-slate-200 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-slate-50"
+            >
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <IconFilter size={12} /> Filters
+                {activeCount > 0 && (
+                  <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                    {activeCount}
+                  </Badge>
+                )}
+              </span>
+              {filtersOpen ? <IconChevronUp size={13} /> : <IconChevronDown size={13} />}
+            </button>
+            {filtersOpen && (
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-3 py-2.5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <AutocompleteField
+                  usePortal
+                  name="beneficiary_user_id"
+                  label="Beneficiary"
+                  asyncLoadOptions={(q) =>
+                    getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                  }
+                  referenceModel="user.model"
+                  getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+                  value={masterAutocompleteValue(
+                    filters.beneficiary_user_id,
+                    filters.beneficiary_label
+                  )}
+                  onChange={(e, v) => {
+                    fc("beneficiary_user_id", v?.id ?? null);
+                    fc("beneficiary_label", referenceAutocompleteDisplay(v));
+                  }}
+                  placeholder="Search user…"
+                />
+                <AutocompleteField
+                  usePortal
+                  name="branch_id"
+                  label="Branch"
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                  referenceModel="company_branch.model"
+                  getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                  value={masterAutocompleteValue(filters.branch_id, filters.branch_label)}
+                  onChange={(e, v) => {
+                    fc("branch_id", v?.id ?? null);
+                    fc("branch_label", referenceAutocompleteDisplay(v));
+                  }}
+                  placeholder="Branch…"
+                />
+                <AutocompleteField
+                  usePortal
+                  name="role"
+                  label="Role"
+                  options={ROLE_FILTER_OPTIONS}
+                  getOptionLabel={(o) => o?.label ?? ""}
+                  value={
+                    filters.role
+                      ? ROLE_FILTER_OPTIONS.find((o) => o.value === filters.role) ?? null
+                      : null
+                  }
+                  onChange={(e, v) => fc("role", v?.value ?? "")}
+                  clearable
+                  placeholder="All roles"
+                />
+                <DateField
+                  name="accrued_from"
+                  label="Accrued from"
+                  value={filters.accrued_from || ""}
+                  onChange={(e) => fc("accrued_from", e.target.value || "")}
+                />
+                <DateField
+                  name="accrued_to"
+                  label="Accrued to"
+                  value={filters.accrued_to || ""}
+                  onChange={(e) => fc("accrued_to", e.target.value || "")}
+                />
+                <Input
+                  name="order_number"
+                  label="Order #"
+                  value={filters.order_number || ""}
+                  onChange={(e) => fc("order_number", e.target.value || "")}
+                />
+                <Input
+                  name="min_amount"
+                  label="Min amount"
+                  value={filters.min_amount || ""}
+                  onChange={(e) => fc("min_amount", e.target.value || "")}
+                />
+                <Input
+                  name="max_amount"
+                  label="Max amount"
+                  value={filters.max_amount || ""}
+                  onChange={(e) => fc("max_amount", e.target.value || "")}
+                />
+              </div>
+            )}
+          </Card>
+
+          {/* Chips */}
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {chips.map(({ key, label, value }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => removeChip(key)}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-2 py-0.5 text-[10px] font-medium text-primary/80 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                >
+                  {label}: <span className="font-semibold">{value}</span>
+                  <IconX size={9} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Summary */}
           {summary && (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div className="rounded border bg-card px-2 py-1.5 text-xs">
-                <div className="text-muted-foreground">Unsettled total</div>
-                <div className="font-semibold">{fmtMoney(summary.unsettled_total)}</div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Pending total</div>
+                <div className="mt-0.5 text-base font-bold text-slate-800">{fmtMoney(summary.pending_total ?? summary.unsettled_total)}</div>
               </div>
-              <div className="rounded border bg-card px-2 py-1.5 text-xs">
-                <div className="text-muted-foreground">Unsettled lines</div>
-                <div className="font-semibold">{summary.unsettled_count ?? 0}</div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Pending lines</div>
+                <div className="mt-0.5 text-base font-bold text-slate-800">{summary.pending_count ?? summary.unsettled_count ?? 0}</div>
               </div>
-              <div className="rounded border bg-card px-2 py-1.5 text-xs">
-                <div className="text-muted-foreground">Pending batches</div>
-                <div className="font-semibold">{summary.pending_approval_batches ?? 0}</div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Approval batches</div>
+                <div className="mt-0.5 text-base font-bold text-slate-800">{summary.pending_approval_batches ?? 0}</div>
               </div>
-              <div className="rounded border bg-card px-2 py-1.5 text-xs">
-                <div className="text-muted-foreground">Approved (MTD)</div>
-                <div className="font-semibold">{fmtMoney(summary.approved_mtd_total)}</div>
+              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Approved unpaid</div>
+                <div className="mt-0.5 text-base font-bold text-emerald-700">{fmtMoney(summary.approved_unpaid_total ?? 0)}</div>
               </div>
             </div>
           )}
+
           <p className="text-[10px] text-muted-foreground px-0.5">
-            Red: outstanding exceeds combined commission (cannot settle). Amber: outstanding will be deducted from
-            commission payout on approval; include all unsettled lines for that order.
+            Red: outstanding exceeds combined commission (cannot submit). Amber: outstanding will be adjusted on approval;
+            include all pending lines for that order when submitting.
           </p>
+
           <div className="flex items-center gap-2">
             {currentPerm.can_create && (
               <Button
@@ -524,6 +639,7 @@ export default function CommissionUnsettledPage() {
               <IconRefresh className="size-4" />
             </Button>
           </div>
+
           <PaginatedTable
             key={tableKey}
             moduleKey={PERMISSION_MODULE_KEY}
@@ -581,9 +697,9 @@ export default function CommissionUnsettledPage() {
                 ) : null}
                 {hasOutstandingOffset(preview.lines) ? (
                   <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 space-y-1">
-                    <p className="font-semibold">Outstanding will be deducted from commission payout</p>
+                    <p className="font-semibold">Outstanding will be adjusted on approval</p>
                     <p className="text-[10px]">
-                      On approval, an approved payment will be recorded for each affected order. Total deduction: ₹{" "}
+                      On approval, an approved payment will be recorded for each affected order. Estimated deduction: ₹{" "}
                       {fmtMoney(preview.total_outstanding_deduction ?? 0)}
                     </p>
                     <ul className="text-[10px] list-disc pl-4 space-y-0.5">
@@ -697,7 +813,7 @@ export default function CommissionUnsettledPage() {
             loadSummary();
           }}
         />
-      </ListingPageContainer>
+      </div>
     </ProtectedRoute>
   );
 }

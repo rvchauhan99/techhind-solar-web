@@ -20,6 +20,13 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import SettledCommissionHistoryView from "./components/SettledCommissionHistoryView";
+import {
+  buildFilterChips,
+  countActiveFilterFields,
+  clearFilterField,
+  masterAutocompleteValue,
+  referenceAutocompleteDisplay,
+} from "../utils/filterChips";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/history";
 
@@ -47,16 +54,24 @@ function findModuleByPermissionKey(modules, moduleKey) {
 const INITIAL_FILTERS = {
   approved_from: "",
   approved_to: "",
+  paid_from: "",
+  paid_to: "",
   accrued_from: "",
   accrued_to: "",
   submitted_from: "",
   submitted_to: "",
   branch_id: null,
+  branch_label: "",
   beneficiary_user_id: null,
+  beneficiary_label: "",
   order_type_id: null,
+  order_type_label: "",
   project_scheme_id: null,
+  project_scheme_label: "",
   submitted_by: null,
+  submitted_by_label: "",
   approved_by: null,
+  approved_by_label: "",
   order_number: "",
   settlement_number: "",
   role: "",
@@ -110,6 +125,8 @@ const ROLE_OPTIONS = [
 const FILTER_LABELS = {
   approved_from: "Approved from",
   approved_to: "Approved to",
+  paid_from: "Paid from",
+  paid_to: "Paid to",
   accrued_from: "Accrued from",
   accrued_to: "Accrued to",
   branch_id: "Branch",
@@ -125,21 +142,13 @@ const FILTER_LABELS = {
   approved_by: "Approved by",
 };
 
-function countActive(f) {
-  return Object.values(f || {}).filter((v) => v != null && v !== "").length;
-}
-
 function getChips(filters) {
-  return Object.entries(filters)
-    .filter(([, v]) => v != null && v !== "")
-    .map(([key, value]) => ({
-      key,
-      label: FILTER_LABELS[key] || key,
-      value:
-        key === "role"
-          ? ROLE_OPTIONS.find((o) => o.value === value)?.label || value
-          : String(value),
-    }));
+  return buildFilterChips(filters, {
+    filterLabels: FILTER_LABELS,
+    enumResolvers: {
+      role: (v) => ROLE_OPTIONS.find((o) => o.value === v)?.label || v,
+    },
+  });
 }
 
 export default function CommissionSettledHistoryPage() {
@@ -160,7 +169,7 @@ export default function CommissionSettledHistoryPage() {
   const [activePreset, setActivePreset] = useState(null);
 
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
-  const activeCount = countActive(appliedFilters);
+  const activeCount = countActiveFilterFields(appliedFilters);
   const chips = getChips(appliedFilters);
 
   const handleApply = () => {
@@ -186,7 +195,7 @@ export default function CommissionSettledHistoryPage() {
   };
 
   const removeChip = (key) => {
-    const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
+    const next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
     setFilters(next);
     setAppliedFilters(next);
     setRefreshKey((k) => k + 1);
@@ -203,7 +212,7 @@ export default function CommissionSettledHistoryPage() {
               </div>
               <div>
                 <h1 className="text-base font-bold leading-tight tracking-tight">Settled commission history</h1>
-                <p className="text-[11px] text-slate-500">Approved settlements only · Dashboard · Export</p>
+                <p className="text-[11px] text-slate-500">Settled (paid) commissions only · Dashboard · Export</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -270,6 +279,18 @@ export default function CommissionSettledHistoryPage() {
                   onChange={(e) => fc("approved_to", e.target.value || "")}
                 />
                 <DateField
+                  label="Paid from"
+                  name="paid_from"
+                  value={filters.paid_from || ""}
+                  onChange={(e) => fc("paid_from", e.target.value || "")}
+                />
+                <DateField
+                  label="Paid to"
+                  name="paid_to"
+                  value={filters.paid_to || ""}
+                  onChange={(e) => fc("paid_to", e.target.value || "")}
+                />
+                <DateField
                   label="Accrued from"
                   name="accrued_from"
                   value={filters.accrued_from || ""}
@@ -290,8 +311,14 @@ export default function CommissionSettledHistoryPage() {
                   }
                   referenceModel="user.model"
                   getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                  value={filters.beneficiary_user_id ? { id: filters.beneficiary_user_id } : null}
-                  onChange={(e, v) => fc("beneficiary_user_id", v?.id ?? null)}
+                  value={masterAutocompleteValue(
+                    filters.beneficiary_user_id,
+                    filters.beneficiary_label
+                  )}
+                  onChange={(e, v) => {
+                    fc("beneficiary_user_id", v?.id ?? null);
+                    fc("beneficiary_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Search user…"
                 />
                 <AutocompleteField
@@ -301,8 +328,11 @@ export default function CommissionSettledHistoryPage() {
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
                   referenceModel="company_branch.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                  value={filters.branch_id ? { id: filters.branch_id } : null}
-                  onChange={(e, v) => fc("branch_id", v?.id ?? null)}
+                  value={masterAutocompleteValue(filters.branch_id, filters.branch_label)}
+                  onChange={(e, v) => {
+                    fc("branch_id", v?.id ?? null);
+                    fc("branch_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Branch…"
                 />
                 <AutocompleteField
@@ -312,8 +342,11 @@ export default function CommissionSettledHistoryPage() {
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
                   referenceModel="order_type.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                  value={filters.order_type_id ? { id: filters.order_type_id } : null}
-                  onChange={(e, v) => fc("order_type_id", v?.id ?? null)}
+                  value={masterAutocompleteValue(filters.order_type_id, filters.order_type_label)}
+                  onChange={(e, v) => {
+                    fc("order_type_id", v?.id ?? null);
+                    fc("order_type_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Type…"
                 />
                 <AutocompleteField
@@ -323,8 +356,14 @@ export default function CommissionSettledHistoryPage() {
                   asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
                   referenceModel="project_scheme.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                  value={filters.project_scheme_id ? { id: filters.project_scheme_id } : null}
-                  onChange={(e, v) => fc("project_scheme_id", v?.id ?? null)}
+                  value={masterAutocompleteValue(
+                    filters.project_scheme_id,
+                    filters.project_scheme_label
+                  )}
+                  onChange={(e, v) => {
+                    fc("project_scheme_id", v?.id ?? null);
+                    fc("project_scheme_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Scheme…"
                 />
                 <DateField
@@ -348,8 +387,11 @@ export default function CommissionSettledHistoryPage() {
                   }
                   referenceModel="user.model"
                   getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                  value={filters.submitted_by ? { id: filters.submitted_by } : null}
-                  onChange={(e, v) => fc("submitted_by", v?.id ?? null)}
+                  value={masterAutocompleteValue(filters.submitted_by, filters.submitted_by_label)}
+                  onChange={(e, v) => {
+                    fc("submitted_by", v?.id ?? null);
+                    fc("submitted_by_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Submitted by…"
                 />
                 <AutocompleteField
@@ -361,8 +403,11 @@ export default function CommissionSettledHistoryPage() {
                   }
                   referenceModel="user.model"
                   getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                  value={filters.approved_by ? { id: filters.approved_by } : null}
-                  onChange={(e, v) => fc("approved_by", v?.id ?? null)}
+                  value={masterAutocompleteValue(filters.approved_by, filters.approved_by_label)}
+                  onChange={(e, v) => {
+                    fc("approved_by", v?.id ?? null);
+                    fc("approved_by_label", referenceAutocompleteDisplay(v));
+                  }}
                   placeholder="Approved by…"
                 />
                 <AutocompleteField

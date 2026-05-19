@@ -19,6 +19,7 @@ import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import CommissionLedgerReportView from "./components/CommissionLedgerReportView";
+import { masterAutocompleteValue, referenceAutocompleteDisplay } from "../utils/filterChips";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/ledger-report";
 
@@ -94,8 +95,8 @@ const ROLE_OPTIONS = [
 ];
 
 const STATUS_CHIPS = [
-  { value: "unsettled", label: "Unsettled" },
   { value: "in_settlement", label: "In settlement" },
+  { value: "approved", label: "Approved" },
   { value: "settled", label: "Settled" },
 ];
 
@@ -262,17 +263,13 @@ export default function CommissionLedgerReportPage() {
                     }
                     referenceModel="user.model"
                     getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                    value={
-                      filters.beneficiary_user_id
-                        ? {
-                            id: filters.beneficiary_user_id,
-                            name: filters.beneficiary_label || undefined,
-                          }
-                        : null
-                    }
+                    value={masterAutocompleteValue(
+                      filters.beneficiary_user_id,
+                      filters.beneficiary_label
+                    )}
                     onChange={(e, v) => {
                       fc("beneficiary_user_id", v?.id ?? null);
-                      fc("beneficiary_label", v?.name ?? v?.email ?? "");
+                      fc("beneficiary_label", referenceAutocompleteDisplay(v));
                     }}
                     placeholder="Search user…"
                   />
@@ -324,7 +321,7 @@ export default function CommissionLedgerReportPage() {
                     checked={filters.include_unsettled !== false}
                     onChange={(e) => fc("include_unsettled", e.target.checked)}
                   />
-                  Include unsettled & in-settlement transactions
+                  Include in-settlement & approved transactions
                 </label>
               </div>
             )}

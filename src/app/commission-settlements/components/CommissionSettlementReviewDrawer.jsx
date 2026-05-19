@@ -106,7 +106,7 @@ export default function CommissionSettlementReviewDrawer({
         await commissionSettlementService.approveCommissionSettlement(settlementId, {
           remarks: remarks.trim() || undefined,
         });
-        toast.success("Settlement approved");
+        toast.success("Settlement approved for payout");
       } else {
         await commissionSettlementService.rejectCommissionSettlement(settlementId, {
           rejection_remarks: remarks.trim(),
@@ -187,11 +187,13 @@ export default function CommissionSettlementReviewDrawer({
 
             {showOffset ? (
               <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 space-y-1">
-                <p className="font-semibold">Outstanding deducted from commission payout</p>
+                <p className="font-semibold">Outstanding offset (on approval)</p>
                 <p className="text-[10px]">
-                  {detail.status === "approved"
-                    ? "Approved payments were recorded for affected orders."
-                    : "On approval, outstanding will be auto-recorded as approved payments; payout is net after deduction."}
+                  {detail.status === "paid" || detail.status === "approved"
+                    ? orderOffsets.some((o) => o.payment_id)
+                      ? "Approved payments were recorded for affected orders when this batch was approved."
+                      : "Net payable is after outstanding deduction applied at approval."
+                    : "On approval, an approved payment will be recorded for each affected order; net payable is after deduction."}
                 </p>
                 <ul className="text-[10px] list-disc pl-4 space-y-0.5">
                   {(orderOffsets.length ? orderOffsets : getOffsetOrders(lines)).map((o) => (
