@@ -17,6 +17,16 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { toast } from "sonner";
+
+const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
+    if (!channelPartner || channelPartner === "") return null;
+    if (!handledBy) return null;
+    if (String(handledBy) === String(channelPartner)) {
+        return "Channel Partner cannot be the same as Handled By";
+    }
+    return null;
+};
 
 export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const router = useRouter();
@@ -214,8 +224,29 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
             }
         }
 
+        if (name === "handled_by" || name === "channel_partner") {
+            const nextHandledBy = name === "handled_by" ? processedValue : formData.handled_by;
+            const nextChannelPartner = name === "channel_partner" ? processedValue : formData.channel_partner;
+            const cpError = channelPartnerMustDifferFromHandledBy(nextHandledBy, nextChannelPartner);
+            setErrors((prev) => {
+                const updated = { ...prev };
+                if (cpError) {
+                    updated.channel_partner = cpError;
+                } else {
+                    delete updated.channel_partner;
+                }
+                return updated;
+            });
+        }
+
         setFormData({ ...formData, [name]: processedValue });
-        if (errors[name] && name !== "mobile_number" && name !== "phone_no" && name !== "email_id") {
+        if (
+            errors[name] &&
+            name !== "mobile_number" &&
+            name !== "phone_no" &&
+            name !== "email_id" &&
+            name !== "channel_partner"
+        ) {
             setErrors((prev) => {
                 const updated = { ...prev };
                 delete updated[name];
@@ -252,6 +283,13 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         }
         if (!formData.handled_by) {
             newErrors.handled_by = "Handled By is required";
+        }
+        const cpError = channelPartnerMustDifferFromHandledBy(
+            formData.handled_by,
+            formData.channel_partner
+        );
+        if (cpError) {
+            newErrors.channel_partner = cpError;
         }
         if (!formData.branch_id) {
             newErrors.branch_id = "Branch is required";
@@ -317,6 +355,8 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
+            const firstMessage = Object.values(newErrors)[0];
+            if (firstMessage) toast.error(firstMessage);
             return;
         }
 
@@ -392,6 +432,8 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             value={formData.channel_partner ? { id: formData.channel_partner } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "channel_partner", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            error={!!errors.channel_partner}
+                            helperText={errors.channel_partner}
                         />
                         <AutocompleteField
                             name="branch_id"

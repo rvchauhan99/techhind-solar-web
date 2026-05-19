@@ -33,6 +33,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { Badge } from "@/components/ui/badge";
+import B2bSalesOrderDetailsContent from "./components/B2bSalesOrderDetailsContent";
 
 const COLUMN_FILTER_KEYS = [
   "order_no",
@@ -61,9 +62,25 @@ const formatSignedCurrency = (val) => {
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "CONFIRMED", label: "Confirmed" },
-  { value: "CLOSED", label: "Closed" },
+  { value: "PARTIAL_SHIPPED", label: "Partial Shipped" },
+  { value: "COMPLETED", label: "Completed" },
   { value: "CANCELLED", label: "Cancelled" },
 ];
+
+const STATUS_LABELS = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
+
+const getStatusBadgeVariant = (status) => {
+  if (status === "COMPLETED" || status === "CONFIRMED") return "default";
+  if (status === "PARTIAL_SHIPPED") return "outline";
+  if (status === "CANCELLED") return "destructive";
+  return "secondary";
+};
+
+const renderOrderStatusBadge = (status) => (
+  <Badge variant={getStatusBadgeVariant(status)} className="text-xs">
+    {STATUS_LABELS[status] || status || "Draft"}
+  </Badge>
+);
 
 export default function B2bSalesOrdersPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -314,11 +331,7 @@ export default function B2bSalesOrdersPage() {
         filterType: "select",
         filterKey: "status",
         filterOptions: STATUS_OPTIONS,
-        render: (row) => (
-          <Badge variant={row.status === "CONFIRMED" ? "default" : "secondary"} className="text-xs">
-            {row.status || "DRAFT"}
-          </Badge>
-        ),
+        render: (row) => renderOrderStatusBadge(row.status),
       },
       {
         field: "grand_total",
@@ -397,6 +410,15 @@ export default function B2bSalesOrdersPage() {
 
   const sidebarContent = useMemo(() => {
     if (!selectedRecord) return null;
+    return (
+      <B2bSalesOrderDetailsContent
+        order={orderDetails || selectedRecord}
+        loading={loadingOrderDetails}
+        canUpdate={currentPerm.can_update}
+        onConfirm={handleConfirmOrderClick}
+        onCancel={handleCancelOrderClick}
+      />
+    );
     if (loadingOrderDetails) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -458,9 +480,7 @@ export default function B2bSalesOrdersPage() {
           )}
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Status</p>
-            <Badge variant={o.status === "CONFIRMED" ? "default" : "secondary"} className="text-xs">
-              {o.status ?? "DRAFT"}
-            </Badge>
+            {renderOrderStatusBadge(o.status)}
           </div>
           {(o.payment_terms || o.delivery_terms) && (
             <>
