@@ -34,6 +34,12 @@ export function payableAmount(data) {
   return Number(data?.total_amount) || 0;
 }
 
+/** Nearest-rupee payable for a single ledger line (after outstanding deduction). */
+export function linePayableAmount(line) {
+  const net = roundMoney(line?.line_net_amount != null ? line.line_net_amount : line?.amount);
+  return Math.round(net);
+}
+
 export function hasOutstandingOffset(lines) {
   return (lines || []).some((l) => l.outstanding_offset);
 }

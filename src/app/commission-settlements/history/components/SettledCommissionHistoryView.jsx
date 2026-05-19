@@ -16,6 +16,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import commissionSettlementService from "@/services/commissionSettlementService";
 import { toast } from "sonner";
+import { stripReferenceLabelsFromFilters } from "../../utils/filterChips";
 import {
   XAxis,
   YAxis,
@@ -39,7 +40,7 @@ const PERMISSION_MODULE_KEY = "/commission-settlements/history";
 
 function buildApiParams(filters, page, limit, extra = {}) {
   const p = { page, limit, ...extra };
-  Object.entries(filters || {}).forEach(([k, v]) => {
+  Object.entries(stripReferenceLabelsFromFilters(filters) || {}).forEach(([k, v]) => {
     if (v != null && v !== "") p[k] = v;
   });
   return p;
@@ -85,7 +86,13 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
   const [orderFilter, setOrderFilter] = useState(null);
 
   const effectiveFilters = useMemo(
-    () => stripEmpty({ ...filters, ...(orderFilter ? { order_id: orderFilter } : {}) }),
+    () =>
+      stripEmpty(
+        stripReferenceLabelsFromFilters({
+          ...filters,
+          ...(orderFilter ? { order_id: orderFilter } : {}),
+        })
+      ),
     [filters, orderFilter]
   );
 
@@ -133,7 +140,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
   const ordersFetcher = useCallback(
     async (params) => {
       const response = await commissionSettlementService.listSettledHistoryByOrder(
-        buildApiParams(stripEmpty(filters), params.page, params.limit)
+        buildApiParams(effectiveFilters, params.page, params.limit)
       );
       const result = response?.result || response;
       return {
@@ -141,7 +148,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
         meta: result?.meta || { total: 0, page: params.page, limit: params.limit },
       };
     },
-    [filters, tableKey]
+    [effectiveFilters, tableKey]
   );
 
   const handleDownload = async (layout) => {
@@ -454,7 +461,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
             moduleKey={PERMISSION_MODULE_KEY}
             columns={orderColumns}
             fetcher={ordersFetcher}
-            filterParams={stripEmpty(filters)}
+            filterParams={effectiveFilters}
             showSearch={false}
             showPagination={false}
             height="calc(100vh - 520px)"

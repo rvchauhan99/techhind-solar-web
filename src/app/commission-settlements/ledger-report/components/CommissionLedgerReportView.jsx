@@ -27,14 +27,14 @@ const INR = (v) =>
   Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 const STATUS_STYLES = {
-  unsettled: "bg-amber-50 text-amber-700 border-amber-200",
   in_settlement: "bg-sky-50 text-sky-700 border-sky-200",
+  approved: "bg-violet-50 text-violet-700 border-violet-200",
   settled: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 const STATUS_LABELS = {
-  unsettled: "Unsettled",
   in_settlement: "In settlement",
+  approved: "Approved",
   settled: "Settled",
 };
 
@@ -63,6 +63,7 @@ function stripParams(filters, page, limit) {
   if (filters.role) p.role = filters.role;
   if (filters.settlement_status) p.settlement_status = filters.settlement_status;
   p.include_unsettled = filters.include_unsettled !== false;
+  p.include_open = filters.include_open !== false;
   return p;
 }
 
@@ -211,7 +212,7 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3 md:grid-cols-6">
+        <div className="grid grid-cols-2 gap-1.5 p-2 sm:grid-cols-3 md:grid-cols-7">
           <KpiCard label="Opening" value={INR(summary?.opening_balance)} />
           <KpiCard label="Credits" value={INR(summary?.total_credit)} />
           <KpiCard label="Debits" value={INR(summary?.total_debit)} />
@@ -221,8 +222,9 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
             highlight
             sub="Payable outstanding"
           />
-          <KpiCard label="Unsettled" value={INR(summary?.unsettled_amount)} sub="Accrued, not paid" />
           <KpiCard label="In settlement" value={INR(summary?.in_settlement_amount)} sub="Pending approval" />
+          <KpiCard label="Approved" value={INR(summary?.approved_amount)} sub="Awaiting payout" />
+          <KpiCard label="Settled" value={INR(summary?.settled_credit_amount)} sub="Paid commission credits" />
         </div>
       </Card>
 

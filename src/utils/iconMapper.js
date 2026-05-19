@@ -143,6 +143,7 @@ const iconMap = {
   commission_settled_history: IconChartBar,
   "commission-settlements-history": IconChartBar,
   commission_settlement_pending: IconClock,
+  commission_payout: IconCurrencyDollar,
   "commission-settlements-pending": IconClock,
   commission_ledger_report: IconBuildingBank,
   "commission-settlements-ledger-report": IconBuildingBank,
