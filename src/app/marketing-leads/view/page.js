@@ -21,6 +21,7 @@ import {
 } from "@mui/material"; // Keep basic MUI table for now or refactor to static table
 // Actually, let's use a standard tailwind table
 import Loader from "@/components/common/Loader";
+import FacebookLeadDetailsSection from "@/components/marketing-leads/FacebookLeadDetailsSection";
 
 function LeadHeader({ lead }) {
   const router = useRouter();
@@ -144,9 +145,11 @@ function LeadDetails({ lead }) {
           </div>
         </div>
 
+        <FacebookLeadDetailsSection lead={lead} />
+
         <div>
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Remarks</div>
-          <div className="text-sm whitespace-pre-wrap leading-relaxed bg-muted/30 p-2 rounded-md border border-border/50 min-h-[160px]">
+          <div className="text-sm whitespace-pre-wrap leading-relaxed bg-muted/30 p-2 rounded-md border border-border/50 min-h-[80px] max-h-[200px] overflow-y-auto custom-scrollbar">
             {lead.remarks || "-"}
           </div>
         </div>
