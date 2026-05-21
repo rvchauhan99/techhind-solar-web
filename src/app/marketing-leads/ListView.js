@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPhone } from "@tabler/icons-react";
+import { IconPhone, IconBrandFacebook } from "@tabler/icons-react";
+import { isFacebookMarketingLead } from "@/components/marketing-leads/FacebookLeadDetailsSection";
 import { Badge } from "@/components/ui/badge";
 import moment from "moment";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -219,7 +220,15 @@ export default function ListView() {
         label: "Name",
         sortable: true,
         render: (row) => (
-          <span className="font-semibold text-xs text-foreground">
+          <span className="inline-flex items-center gap-1 font-semibold text-xs text-foreground">
+            {isFacebookMarketingLead(row) && (
+              <span
+                className="inline-flex shrink-0 text-[#1877F2]"
+                title={row.tags?.fb_form_name || "Facebook Lead"}
+              >
+                <IconBrandFacebook className="size-3.5" />
+              </span>
+            )}
             {(row.customer_name || "-").toUpperCase()}
           </span>
         ),
