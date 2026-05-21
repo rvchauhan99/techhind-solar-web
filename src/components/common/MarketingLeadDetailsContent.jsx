@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDate } from "@/utils/dataTableUtils";
+import FacebookLeadDetailsSection from "@/components/marketing-leads/FacebookLeadDetailsSection";
 
 function statusBadgeClass(status) {
   const s = String(status ?? "").toLowerCase();
@@ -71,6 +72,8 @@ export default function MarketingLeadDetailsContent({ lead, loading }) {
           </div>
         </div>
       </div>
+
+      <FacebookLeadDetailsSection lead={l} />
 
       <SectionTitle>Contact</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
