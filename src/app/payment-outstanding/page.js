@@ -34,11 +34,13 @@ const pct = (part, total) => {
 };
 
 function getInitialFilters() {
-  const n = new Date(); const p = new Date(n); p.setDate(n.getDate() - 30);
-  return { ...ORDER_FILTER_EMPTY_VALUES, payment_type: "", order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] };
+  return { ...ORDER_FILTER_EMPTY_VALUES, payment_type: "" };
 }
 
+const DEFAULT_DATE_PRESET_LABEL = "All";
+
 const DATE_PRESETS = [
+  { label: "All", fn: () => ({ order_date_from: "", order_date_to: "" }) },
   { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
   { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: m.toISOString().split("T")[0], order_date_to: e.toISOString().split("T")[0] }; } },
   { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
@@ -94,7 +96,7 @@ function countActive(f) {
 export default function PaymentOutstandingPage() {
   const [filters, setFilters] = useState(getInitialFilters());
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const [activePreset, setActivePreset] = useState(null);
+  const [activePreset, setActivePreset] = useState(DEFAULT_DATE_PRESET_LABEL);
   const [activePaymentTypeTab, setActivePaymentTypeTab] = useState("");
   const [activeTab, setActiveTab] = useState("report");
   const [summary, setSummary] = useState(null);
@@ -106,12 +108,18 @@ export default function PaymentOutstandingPage() {
   const chips = getChips(filters);
 
   const handleApplyFilters = (next) => {
-    setFilters((prev) => ({ ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) }));
+    setFilters((prev) => {
+      const merged = { ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) };
+      const from = merged.order_date_from || "";
+      const to = merged.order_date_to || "";
+      setActivePreset(!from && !to ? DEFAULT_DATE_PRESET_LABEL : null);
+      return merged;
+    });
     setFilterPanelOpen(false);
   };
   const handleClearFilters = () => {
     setFilters(getInitialFilters());
-    setActivePreset(null);
+    setActivePreset(DEFAULT_DATE_PRESET_LABEL);
     setActivePaymentTypeTab("");
   };
 
@@ -132,8 +140,15 @@ export default function PaymentOutstandingPage() {
 
   const removeChip = (key) => {
     const empty = getInitialFilters();
-    setFilters((prev) => ({ ...prev, [key]: empty[key] ?? "" }));
-    if (key === "order_date_from" || key === "order_date_to") setActivePreset(null);
+    setFilters((prev) => {
+      const next = { ...prev, [key]: empty[key] ?? "" };
+      if (key === "order_date_from" || key === "order_date_to") {
+        const from = next.order_date_from || "";
+        const to = next.order_date_to || "";
+        setActivePreset(!from && !to ? DEFAULT_DATE_PRESET_LABEL : null);
+      }
+      return next;
+    });
     if (key === "payment_type") setActivePaymentTypeTab("");
   };
 
@@ -422,7 +437,7 @@ export default function PaymentOutstandingPage() {
                   <div>
                     <div className="text-[10px] text-slate-500">Total Outstanding</div>
                     <div className="text-lg font-bold leading-tight">₹{fmtMoney(total)}</div>
-                    <div className="text-[10px] text-slate-400">Filtered view</div>
+                    <div className="text-[10px] text-slate-400">{activeCount > 0 ? "Filtered view" : "All outstanding"}</div>
                   </div>
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">All</Badge>
                 </CardContent>
