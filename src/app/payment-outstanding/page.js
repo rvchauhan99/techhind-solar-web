@@ -20,7 +20,12 @@ const INR = (v, fractionDigits = 2) =>
     minimumFractionDigits: Number(fractionDigits || 0),
     maximumFractionDigits: Number(fractionDigits || 0),
   });
-const fmtINDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN") : "-");
+const fmtINDate = (d) => {
+  if (!d) return "-";
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return "-";
+  return `${String(dt.getDate()).padStart(2, "0")}-${String(dt.getMonth() + 1).padStart(2, "0")}-${dt.getFullYear()}`;
+};
 const pct = (part, total) => {
   const p = Number(part || 0);
   const t = Number(total || 0);
@@ -295,7 +300,7 @@ export default function PaymentOutstandingPage() {
                   <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">Payment Outstanding</h1>
                   <TabsList className="h-7 bg-white border border-slate-200 rounded-lg px-1 py-0">
                     <TabsTrigger value="report" className="text-[11px] font-semibold px-2 py-1">Report</TabsTrigger>
-                    <TabsTrigger value="analysis" className="text-[11px] font-semibold px-2 py-1">Analysis</TabsTrigger>
+                    <TabsTrigger value="summary" className="text-[11px] font-semibold px-2 py-1">Summary</TabsTrigger>
                   </TabsList>
                 </div>
                 <p className="text-[11px] text-slate-500">All orders with pending payment and quick actions.</p>
@@ -345,7 +350,7 @@ export default function PaymentOutstandingPage() {
                 <IconFilter size={11} /> {filterPanelOpen ? "Hide" : "Filters"}
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs gap-1 px-2 ml-1" onClick={exportCsv}>
-                <IconDownload size={12} /> CSV
+                <IconDownload size={12} /> Excel
               </Button>
             </div>
           </div>
@@ -480,7 +485,7 @@ export default function PaymentOutstandingPage() {
             />
           </TabsContent>
 
-          <TabsContent value="analysis" className="mt-2">
+          <TabsContent value="summary" className="mt-2">
             <PaymentOutstandingAnalysis filters={filters} />
           </TabsContent>
         </Tabs>
