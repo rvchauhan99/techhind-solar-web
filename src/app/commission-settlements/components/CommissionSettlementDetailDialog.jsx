@@ -84,7 +84,23 @@ export default function CommissionSettlementDetailDialog({
                   <span>
                     {ln.order_number} · {ln.role} · {ln.beneficiary_name}
                   </span>
-                  <span>{fmtMoney(ln.line_net_amount ?? ln.amount)}</span>
+                  <span className="tabular-nums text-right shrink-0">
+                    {Number(ln.line_deduction) > 0 ? (
+                      <>
+                        <span className="text-muted-foreground">
+                          ₹{fmtMoney(ln.gross_amount ?? ln.amount)}
+                        </span>
+                        <span className="text-amber-700 mx-0.5">
+                          −₹{fmtMoney(ln.line_deduction)}
+                        </span>
+                        <span className="font-medium">
+                          ₹{fmtMoney(ln.line_net_amount ?? ln.amount)}
+                        </span>
+                      </>
+                    ) : (
+                      fmtMoney(ln.line_net_amount ?? ln.amount)
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
