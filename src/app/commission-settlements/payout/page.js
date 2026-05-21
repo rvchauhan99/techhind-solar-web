@@ -34,6 +34,8 @@ import {
   payableAmount,
   linePayableAmount,
   adjustmentRowBorderClass,
+  hasOutstandingOffset,
+  getOffsetOrders,
 } from "../utils/settlementMoney";
 import {
   buildFilterChips,
@@ -187,6 +189,14 @@ export default function CommissionPayoutPage() {
     return total;
   }, [pageRows, selected]);
 
+  const pageHasDeductions = useMemo(
+    () =>
+      pageRows.some(
+        (r) => Number(r.line_deduction) > 0 || r.outstanding_offset
+      ),
+    [pageRows]
+  );
+
   const fetcher = useCallback(async (params) => {
     const p = params || {};
     const response = await commissionSettlementService.listApprovedLedger({
@@ -316,22 +326,61 @@ export default function CommissionPayoutPage() {
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "—" },
       { field: "role", label: "Role", sortable: false, render: (row) => row.role || "—" },
       {
+        field: "gross",
+        label: "Gross",
+        sortable: false,
+        render: (row) => (
+          <span className="text-[10px] tabular-nums">
+            ₹{fmtMoney(row.gross_amount ?? row.amount)}
+          </span>
+        ),
+      },
+      {
+        field: "deduction",
+        label: "Deduction",
+        sortable: false,
+        render: (row) => (
+          <span className="text-[10px] tabular-nums text-amber-700">
+            {Number(row.line_deduction) > 0 ? `−₹${fmtMoney(row.line_deduction)}` : "—"}
+          </span>
+        ),
+      },
+      {
+        field: "net",
+        label: "Net",
+        sortable: false,
+        render: (row) => (
+          <span className="text-[10px] tabular-nums">
+            ₹{fmtMoney(row.line_net_amount ?? row.amount)}
+          </span>
+        ),
+      },
+      {
         field: "payable",
         label: "Payable",
         sortable: false,
         render: (row) => (
-          <span className="font-semibold text-[11px]">₹{fmtMoney(linePayableAmount(row))}</span>
+          <span className="font-semibold text-[11px] tabular-nums">
+            ₹{fmtMoney(linePayableAmount(row))}
+          </span>
         ),
       },
       {
-        field: "order_outstanding",
-        label: "Outstanding",
+        field: "line_status",
+        label: "Status",
         sortable: false,
-        render: (row) => (
-          <span className="text-[10px] text-muted-foreground">
-            ₹{fmtMoney(row.order_outstanding ?? 0)}
-          </span>
-        ),
+        width: 88,
+        render: (row) =>
+          row.settlement_partially_paid ? (
+            <Badge
+              variant="outline"
+              className="h-5 border-amber-300 bg-amber-50 px-1 text-[9px] font-medium text-amber-800"
+            >
+              Partial {row.settlement_lines_settled}/{row.settlement_lines_total}
+            </Badge>
+          ) : (
+            <span className="text-[10px] text-violet-700">Approved</span>
+          ),
       },
       {
         field: "accrued_at",
@@ -469,11 +518,34 @@ export default function CommissionPayoutPage() {
 
           {/* Summary KPI row */}
           {summary && (
-            <div className={`grid grid-cols-2 gap-2 ${selected.size > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+            <div
+              className={`grid grid-cols-2 gap-2 ${
+                selected.size > 0
+                  ? pageHasDeductions
+                    ? "sm:grid-cols-5"
+                    : "sm:grid-cols-4"
+                  : pageHasDeductions
+                    ? "sm:grid-cols-4"
+                    : "sm:grid-cols-3"
+              }`}
+            >
               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Approved unpaid</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Approved payable</div>
                 <div className="mt-0.5 text-base font-bold text-slate-800">{fmtMoney(summary.approved_unpaid_total ?? 0)}</div>
               </div>
+              {pageHasDeductions && (
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-2 shadow-sm">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-800/80">Gross (page)</div>
+                  <div className="mt-0.5 text-base font-bold text-amber-900">
+                    {fmtMoney(
+                      pageRows.reduce(
+                        (s, r) => s + Number(r.gross_amount ?? r.amount ?? 0),
+                        0
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Approved lines</div>
                 <div className="mt-0.5 text-base font-bold text-slate-800">{summary.approved_unpaid_count ?? 0}</div>
@@ -497,6 +569,7 @@ export default function CommissionPayoutPage() {
 
           <p className="text-[10px] text-muted-foreground px-0.5">
             Outstanding was adjusted when the batch was approved. Payout records payment of the approved payable amount.
+            You may pay one line at a time; other lines in the same settlement stay approved until paid.
           </p>
 
           {/* Action bar */}
@@ -562,17 +635,58 @@ export default function CommissionPayoutPage() {
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : preview ? (
             <div className="space-y-3 text-sm">
+              {(preview.total_outstanding_deduction > 0 ||
+                hasOutstandingOffset(preview.lines) ||
+                (preview.order_offsets || []).length > 0) && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                  <p className="font-semibold">Outstanding offset (at approval)</p>
+                  <p className="text-[10px]">
+                    Cash payout is net payable after deduction of ₹{" "}
+                    {fmtMoney(preview.total_outstanding_deduction ?? 0)}. Offset is recorded as a separate ledger debit on confirm.
+                  </p>
+                  <ul className="text-[10px] list-disc pl-4 space-y-0.5 mt-1">
+                    {(preview.order_offsets || getOffsetOrders(preview.lines)).map((o) => (
+                      <li key={o.order_id}>
+                        {o.order_number || `Order #${o.order_id}`}: deduction ₹{" "}
+                        {fmtMoney(o.deduction_amount ?? o.order_outstanding)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div>
                   <span className="text-muted-foreground">Payable </span>
                   <span className="font-semibold">₹ {fmtMoney(payableAmount(preview))}</span>
                 </div>
+                {preview.gross_line_total != null ? (
+                  <div>
+                    <span className="text-muted-foreground">Gross </span>
+                    <span className="font-semibold">₹ {fmtMoney(preview.gross_line_total)}</span>
+                  </div>
+                ) : null}
+                {Number(preview.total_outstanding_deduction) > 0 ? (
+                  <div>
+                    <span className="text-muted-foreground">Outstanding cut </span>
+                    <span className="font-semibold text-amber-800">
+                      −₹ {fmtMoney(preview.total_outstanding_deduction)}
+                    </span>
+                  </div>
+                ) : null}
                 <div>
                   <span className="text-muted-foreground">Round off </span>
                   <span className="font-semibold">₹ {fmtSignedMoney(preview.total_round_off_amount ?? 0)}</span>
                 </div>
               </div>
-              <SettlementByUserSummary byUser={preview.by_user || []} lines={preview.lines || []} />
+              <p className="text-xs font-semibold text-muted-foreground">By beneficiary</p>
+              <SettlementByUserSummary
+                byUser={preview.by_user || []}
+                lines={preview.lines || []}
+                showDeduction={
+                  hasOutstandingOffset(preview.lines) ||
+                  Number(preview.total_outstanding_deduction) > 0
+                }
+              />
               <div className="space-y-1">
                 <Label className="text-xs">Remarks (optional)</Label>
                 <ShadcnInput value={remarks} onChange={(e) => setRemarks(e.target.value)} className="h-8 text-sm" />

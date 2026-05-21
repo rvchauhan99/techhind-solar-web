@@ -292,7 +292,9 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
                           {row.particulars}
                         </button>
                       ) : (
-                        row.particulars
+                        <span className="block max-w-md truncate" title={row.particulars || undefined}>
+                          {row.particulars}
+                        </span>
                       )}
                     </td>
                     <td className="px-2 py-1">
@@ -327,7 +329,17 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
                           {STATUS_LABELS[row.settlement_status] || row.settlement_status}
                         </span>
                       ) : row.txn_type === "debit" ? (
-                        <span className="text-[9px] text-slate-400">Payout</span>
+                        <span
+                          className={`inline-block rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
+                            row.txn_subtype === "deduction" || row.txn_subtype === "offset"
+                              ? "bg-amber-50 text-amber-800 border-amber-200"
+                              : "bg-violet-50 text-violet-700 border-violet-200"
+                          }`}
+                        >
+                          {row.txn_subtype === "deduction" || row.txn_subtype === "offset"
+                            ? "Deduction"
+                            : "Payout"}
+                        </span>
                       ) : null}
                     </td>
                   </tr>
