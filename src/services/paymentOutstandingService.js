@@ -11,7 +11,7 @@ const paymentOutstandingService = {
       .then((r) => {
         const disposition = r.headers?.["content-disposition"] || "";
         const match = disposition.match(/filename=\"?([^\"]+)\"?/i);
-        return { blob: r.data, filename: match?.[1] || "payment-outstanding.csv" };
+        return { blob: r.data, filename: match?.[1] || "payment-outstanding.xlsx" };
       }),
   listFollowUps: (orderId, params) =>
     apiClient.get(`/payment-outstanding/${orderId}/followups`, { params }).then((r) => r.data?.data ?? r.data),
