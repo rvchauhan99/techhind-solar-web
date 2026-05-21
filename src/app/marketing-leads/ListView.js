@@ -16,6 +16,24 @@ import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mu
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { useAuth } from "@/hooks/useAuth";
+import { toastError, toastSuccess } from "@/utils/toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const normalizeRoleName = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
@@ -69,6 +87,8 @@ const getPriorityBadgeVariant = (priority) => {
 
 export default function ListView() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
   const listingState = useListingQueryState({
     defaultLimit: 25,
     filterKeys: LEAD_LIST_FILTER_KEYS,
@@ -90,6 +110,10 @@ export default function ListView() {
 
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuLead, setMenuLead] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [reloadTrigger, setReloadTrigger] = useState(0);
 
   const handleMenuOpen = useCallback((event, row) => {
     event.stopPropagation();
@@ -110,7 +134,30 @@ export default function ListView() {
   const handleEdit = useCallback(() => {
     if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
     handleMenuClose();
-  }, [menuLead, router]);
+  }, [menuLead, router, handleMenuClose]);
+
+  const handleDeleteClick = useCallback(() => {
+    if (!menuLead?.id) return;
+    setLeadToDelete(menuLead);
+    setDeleteDialogOpen(true);
+    handleMenuClose();
+  }, [menuLead, handleMenuClose]);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!leadToDelete?.id) return;
+    setDeleting(true);
+    try {
+      await marketingLeadsService.deleteMarketingLead(leadToDelete.id);
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
+      setReloadTrigger((p) => p + 1);
+      toastSuccess("Marketing lead deleted");
+    } catch (err) {
+      toastError(err.response?.data?.message || err.message || "Failed to delete lead");
+    } finally {
+      setDeleting(false);
+    }
+  }, [leadToDelete]);
 
   const defaultDatesAppliedRef = useRef(false);
 
@@ -310,6 +357,7 @@ export default function ListView() {
       />
       <div className="flex-1 min-h-0 flex flex-col">
         <PaginatedTable
+          key={`${reloadTrigger}-${JSON.stringify(filterParams)}`}
           columns={columns}
           fetcher={fetchLeads}
           showSearch={false}
@@ -344,7 +392,51 @@ export default function ListView() {
               <ListItemText>Edit</ListItemText>
             </MenuItem>
           )}
+          {isSuperAdmin &&
+            menuLead &&
+            !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
+              <MenuItem onClick={handleDeleteClick} sx={{ color: "error.main" }}>
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText>Delete</ListItemText>
+              </MenuItem>
+            )}
         </Menu>
+        <AlertDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteDialogOpen(false);
+              setLeadToDelete(null);
+            }
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete marketing lead</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete{" "}
+                {leadToDelete?.lead_number || `ML-${leadToDelete?.id}`}
+                {leadToDelete?.customer_name
+                  ? ` (${leadToDelete.customer_name})`
+                  : ""}
+                ? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                loading={deleting}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

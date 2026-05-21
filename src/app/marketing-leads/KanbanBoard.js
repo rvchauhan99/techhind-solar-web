@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Box,
@@ -20,7 +20,26 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Input from "@/components/common/Input";
+import marketingLeadsService from "@/services/marketingLeadsService";
+import { useAuth } from "@/hooks/useAuth";
+import { toastError, toastSuccess } from "@/utils/toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const normalizeRoleName = (s) =>
+  String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 import moment from "moment";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -58,9 +77,14 @@ function buildBoardState(leads = []) {
 
 export default function KanbanBoard({ leads = [], onRefresh }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
   const [query, setQuery] = useState("");
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuLead, setMenuLead] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [data, setData] = useState(() => buildBoardState(leads));
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [followUpDialogOpen, setFollowUpDialogOpen] = useState(false);
@@ -88,6 +112,29 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
     if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
     handleMenuClose();
   };
+
+  const handleDeleteClick = () => {
+    if (!menuLead?.id) return;
+    setLeadToDelete(menuLead);
+    setDeleteDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!leadToDelete?.id) return;
+    setDeleting(true);
+    try {
+      await marketingLeadsService.deleteMarketingLead(leadToDelete.id);
+      setDeleteDialogOpen(false);
+      setLeadToDelete(null);
+      toastSuccess("Marketing lead deleted");
+      if (typeof onRefresh === "function") onRefresh();
+    } catch (err) {
+      toastError(err.response?.data?.message || err.message || "Failed to delete lead");
+    } finally {
+      setDeleting(false);
+    }
+  }, [leadToDelete, onRefresh]);
 
   useEffect(() => {
     setData(buildBoardState(leads));
@@ -495,7 +542,50 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
             <ListItemText primary="Edit" />
           </MenuItem>
         )}
+        {isSuperAdmin &&
+          menuLead &&
+          !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
+            <MenuItem onClick={handleDeleteClick} sx={{ color: "error.main" }}>
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" color="error" />
+              </ListItemIcon>
+              <ListItemText primary="Delete" />
+            </MenuItem>
+          )}
       </Menu>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteDialogOpen(false);
+            setLeadToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete marketing lead</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete{" "}
+              {leadToDelete?.lead_number || `ML-${leadToDelete?.id}`}
+              {leadToDelete?.customer_name ? ` (${leadToDelete.customer_name})` : ""}? This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={deleting}
+              loading={deleting}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {updatingStatus && (
         <Box
