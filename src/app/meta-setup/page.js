@@ -538,8 +538,12 @@ export default function MetaSetupPage() {
         <div className="mb-5 shrink-0 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-800">Meta prerequisites</p>
           <ul className="space-y-0.5 text-xs text-amber-700">
-            <li>Webhook in Meta app must subscribe to Page object with leadgen field.</li>
-            <li>Callback/verify token must match backend env values.</li>
+            <li>
+              Webhook URL is platform-global (one URL for all tenants, no tenant_key in the URL).
+              Your admin configures it once in Meta Developer Console.
+            </li>
+            <li>Meta app must subscribe to Page object with leadgen field; verify token must match backend env.</li>
+            <li>After Sync Pages / Sync Forms, routes are registered automatically for live lead delivery.</li>
             <li>If scopes are missing in diagnostics, reconnect account and approve all requested permissions.</li>
           </ul>
         </div>
