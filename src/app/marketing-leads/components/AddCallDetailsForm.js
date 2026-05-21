@@ -331,14 +331,15 @@ export default function AddCallDetailsForm({
                 value={formData.promised_action || ""}
                 onChange={handleChange}
               />
-              <Textarea
-                name="notes"
-                label="Remarks"
-                value={formData.notes || ""}
-                onChange={handleChange}
-                minRows={8}
-                className="md:col-span-2"
-              />
+              <div className="col-span-1 sm:col-span-2">
+                <Textarea
+                  name="notes"
+                  label="Remarks"
+                  value={formData.notes || ""}
+                  onChange={handleChange}
+                  minRows={4}
+                />
+              </div>
               <div className="col-span-2 flex justify-end pt-2">
                 <LoadingButton
                   type="submit"
