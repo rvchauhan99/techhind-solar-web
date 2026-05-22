@@ -92,6 +92,14 @@ export default function ChallanDetailsDrawer({
         const projectScheme = order.projectScheme || {};
         const discom = order.discom || {};
 
+        const orderDeliveryComplete =
+            String(order.delivery_status || "").toLowerCase() === "complete";
+        const challanHasPartialReturns = partialReturns.length > 0;
+        const anyLineReturned = items.some((i) => Number(i.returned_qty) > 0);
+        const showReturnBalColumns =
+            !orderDeliveryComplete || challanHasPartialReturns || anyLineReturned;
+        const itemsTableColSpan = showReturnBalColumns ? 6 : 4;
+
         /** Reusable detail row */
         const DetailRow = ({ label, value }) =>
             value ? (
@@ -221,6 +229,11 @@ export default function ChallanDetailsDrawer({
                 {/* ─── Items ─── */}
                 <div>
                     <SectionHeading>Items ({items.length})</SectionHeading>
+                    {!showReturnBalColumns && items.length > 0 && (
+                        <p className="text-xs text-muted-foreground mb-1">
+                            Order delivery is complete. Return columns are hidden because this challan has no partial returns.
+                        </p>
+                    )}
                     {items.length === 0 ? (
                         <p className="text-xs text-muted-foreground">No items</p>
                     ) : (
@@ -232,12 +245,16 @@ export default function ChallanDetailsDrawer({
                                         <th className="px-2 py-1 text-left font-semibold">Product</th>
                                         <th className="px-2 py-1 text-left font-semibold">UOM</th>
                                         <th className="px-2 py-1 text-right font-semibold">Qty</th>
-                                        <th className="px-2 py-1 text-right font-semibold" title="Returned quantity">
-                                            Ret.
-                                        </th>
-                                        <th className="px-2 py-1 text-right font-semibold" title="Remaining returnable">
-                                            Bal.
-                                        </th>
+                                        {showReturnBalColumns && (
+                                            <>
+                                                <th className="px-2 py-1 text-right font-semibold" title="Returned quantity">
+                                                    Ret.
+                                                </th>
+                                                <th className="px-2 py-1 text-right font-semibold" title="Returnable from this challan">
+                                                    Ret. bal.
+                                                </th>
+                                            </>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -285,15 +302,19 @@ export default function ChallanDetailsDrawer({
                                                             "-"}
                                                     </td>
                                                     <td className="px-2 py-1 text-right">{item.quantity ?? 0}</td>
-                                                    <td className="px-2 py-1 text-right">{returnedQty}</td>
-                                                    <td className="px-2 py-1 text-right">{returnableBal}</td>
+                                                    {showReturnBalColumns && (
+                                                        <>
+                                                            <td className="px-2 py-1 text-right">{returnedQty}</td>
+                                                            <td className="px-2 py-1 text-right">{returnableBal}</td>
+                                                        </>
+                                                    )}
                                                 </tr>
                                                 {hasSerials && isExpanded && (
                                                     <tr
                                                         key={`${item.id || index}-serials`}
                                                         className="border-b border-border bg-muted/30 last:border-b-0"
                                                     >
-                                                        <td colSpan={6} className="px-2 py-2">
+                                                        <td colSpan={itemsTableColSpan} className="px-2 py-2">
                                                             <p className="text-xs font-medium text-muted-foreground mb-1">
                                                                 Serial numbers captured
                                                             </p>
