@@ -169,6 +169,7 @@ export default function DeliveryChallanForm({
                 make_name: p?.product_make_name || "",
                 required_qty: planned,
                 shipped_qty: shipped,
+                returned_qty: returned,
                 pending_qty: pending,
                 available_qty: available,
                 unit_name: unitName,
@@ -531,6 +532,7 @@ export default function DeliveryChallanForm({
             make_name: p.product_make_name || "",
             required_qty: 0,
             shipped_qty: 0,
+            returned_qty: 0,
             pending_qty: 0, // Not applicable for custom additions
             available_qty: available,
             unit_name: p.measurement_unit_name || "",
@@ -1036,6 +1038,7 @@ export default function DeliveryChallanForm({
     const totalShipNow = lines.reduce((sum, l) => sum + (Number(l.ship_now) || 0), 0);
     const totalRemaining = lines.reduce((sum, l) => sum + (l.pending_qty || 0), 0);
     const itemsToShip = lines.filter((l) => Number(l.ship_now) > 0).length;
+    const showReturnedQtyColumn = lines.some((l) => Number(l.returned_qty) > 0);
 
     // ── Loading spinner ────────────────────────────────────────────────
     if ((initialLoading || configLoading) && !ordersLoading) {
@@ -1196,6 +1199,14 @@ export default function DeliveryChallanForm({
                                 </Alert>
                             )}
 
+                            {showReturnedQtyColumn && (
+                                <Alert severity="info" sx={{ mb: 1, py: 0.5, "& .MuiAlert-message": { py: 0.25 } }}>
+                                    <Typography variant="caption">
+                                        Partial return recorded: <strong>Remaining</strong> is quantity to ship again (planned − net delivered + returned).
+                                    </Typography>
+                                </Alert>
+                            )}
+
                             {lines.length > 0 ? (
                               <Fragment>
                                 {/* ── Mobile card list (xs only) ─────────────────── */}
@@ -1243,10 +1254,23 @@ export default function DeliveryChallanForm({
                                                             { label: "Planned", value: Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0 },
                                                             { label: "Avail", value: Number(line.available_qty) || 0 },
                                                             { label: "Shipped", value: Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0 },
-                                                        ].map(({ label, value }) => (
+                                                            ...(showReturnedQtyColumn
+                                                                ? [{
+                                                                    label: "Returned",
+                                                                    value: Number.isFinite(Number(line.returned_qty)) ? line.returned_qty : 0,
+                                                                    emphasize: Number(line.returned_qty) > 0,
+                                                                }]
+                                                                : []),
+                                                        ].map(({ label, value, emphasize }) => (
                                                             <Box key={label}>
                                                                 <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-                                                                <Typography variant="body2">{value}</Typography>
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    color={emphasize ? "text.secondary" : undefined}
+                                                                    fontWeight={emphasize ? 500 : undefined}
+                                                                >
+                                                                    {value}
+                                                                </Typography>
                                                             </Box>
                                                         ))}
                                                         <Box>
@@ -1407,6 +1431,9 @@ export default function DeliveryChallanForm({
                                                 <TableCell align="right"><strong>Planned</strong></TableCell>
                                                 <TableCell align="right"><strong>Avail.</strong></TableCell>
                                                 <TableCell align="right"><strong>Shipped</strong></TableCell>
+                                                {showReturnedQtyColumn && (
+                                                    <TableCell align="right"><strong>Ret.</strong></TableCell>
+                                                )}
                                                 <TableCell align="right"><strong>Rem.</strong></TableCell>
                                                 <TableCell align="right" sx={{ minWidth: 110 }}><strong>Ship Now</strong></TableCell>
                                                 <TableCell sx={{ minWidth: 120 }}><strong>Serials</strong></TableCell>
@@ -1471,6 +1498,17 @@ export default function DeliveryChallanForm({
                                                             <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0}</TableCell>
                                                             <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
                                                             <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0}</TableCell>
+                                                            {showReturnedQtyColumn && (
+                                                                <TableCell sx={compactCellSx} align="right">
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        color={Number(line.returned_qty) > 0 ? "text.secondary" : undefined}
+                                                                        fontWeight={Number(line.returned_qty) > 0 ? 500 : undefined}
+                                                                    >
+                                                                        {Number.isFinite(Number(line.returned_qty)) ? line.returned_qty : 0}
+                                                                    </Typography>
+                                                                </TableCell>
+                                                            )}
                                                             <TableCell sx={compactCellSx} align="right">
                                                                 <Typography
                                                                     variant="body2"
@@ -1521,7 +1559,7 @@ export default function DeliveryChallanForm({
                                                         </TableRow>
                                                         {isSerialLine && (
                                                             <TableRow sx={{ "& > td": { borderBottom: isExpanded ? undefined : "none", py: 0, verticalAlign: "top" } }}>
-                                                                <TableCell colSpan={10} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
+                                                                <TableCell colSpan={showReturnedQtyColumn ? 11 : 10} sx={{ p: 0, borderBottom: isExpanded ? undefined : "none" }}>
                                                                     <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                         <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
                                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
