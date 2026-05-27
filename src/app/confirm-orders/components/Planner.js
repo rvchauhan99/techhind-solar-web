@@ -25,6 +25,7 @@ import orderService from "@/services/orderService";
 import companyService from "@/services/companyService";
 import productService from "@/services/productService";
 import projectPriceService from "@/services/projectPriceService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -370,6 +371,8 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const [saveConfirmPayload, setSaveConfirmPayload] = useState(null);
     const [saveConfirmSummary, setSaveConfirmSummary] = useState(null);
     const [lockingWarehouse, setLockingWarehouse] = useState(false);
+    const [plannerAmendmentSuperadminOnly, setPlannerAmendmentSuperadminOnly] = useState(false);
+    const [plannerAmendmentSuperadminOnlyLoading, setPlannerAmendmentSuperadminOnlyLoading] = useState(true);
     /** After BOM import from project, skip one planner save of cost amendments / override so project_cost stays as on order. */
     const skipNextPlannerCostEffectsRef = useRef(false);
 
@@ -380,6 +383,38 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     useEffect(() => {
         if (!isSuperAdmin) setIsManualOverride(false);
     }, [isSuperAdmin]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const parseConfigBoolean = (rows) => {
+            const row = Array.isArray(rows) ? rows[0] : null;
+            const raw = row?.config_value ?? row?.value ?? row?.label ?? "";
+            const parsed = String(raw).trim().toLowerCase();
+            return parsed === "true" || parsed === "1" || parsed === "yes";
+        };
+
+        setPlannerAmendmentSuperadminOnlyLoading(true);
+        getReferenceOptionsSearch("platform_config.model", {
+            config_key: "planner_amendment_superadmin_only",
+            is_active: true,
+            limit: 1,
+        })
+            .then((rows) => {
+                if (cancelled) return;
+                setPlannerAmendmentSuperadminOnly(parseConfigBoolean(rows));
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setPlannerAmendmentSuperadminOnly(false);
+            })
+            .finally(() => {
+                if (!cancelled) setPlannerAmendmentSuperadminOnlyLoading(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Sync formData from orderData only when the order changes (or first load). Avoid overwriting
     // user input when the parent re-renders and passes a new orderData reference.
@@ -543,6 +578,13 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (isReadOnly || isPlannerLocked || isBomEditingBlocked || submitting) return;
+        if (plannerAmendmentSuperadminOnlyLoading) return;
+        if (isPlannerSaveBlocked) {
+            const errMsg = "Only superadmin can save or update planner details for this tenant configuration.";
+            setError(errMsg);
+            toastError(errMsg);
+            return;
+        }
         setSubmitting(true);
         setError(null);
         setSuccessMsg(null);
@@ -778,6 +820,13 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
             handleCancelSaveConfirm();
             return;
         }
+        if (isPlannerSaveBlocked) {
+            const errMsg = "Only superadmin can save or update planner details for this tenant configuration.";
+            setError(errMsg);
+            toastError(errMsg);
+            handleCancelSaveConfirm();
+            return;
+        }
         setSaveConfirmOpen(false);
         setSubmitting(true);
         try {
@@ -817,6 +866,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const warehouseSelected = Boolean(formData?.planned_warehouse_id);
     const warehouseLocked = Boolean(orderData?.planned_warehouse_id);
     const isBomEditingBlocked = !warehouseLocked;
+    const isPlannerSaveBlocked = plannerAmendmentSuperadminOnly && !isSuperAdmin;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
     const showImportFromProject =
@@ -1686,9 +1736,20 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                     <div className="mt-4 flex flex-col gap-2">
                         {error && <Alert severity="error">{error}</Alert>}
                         {successMsg && <Alert severity="success">{successMsg}</Alert>}
-                        <Button type="submit" size="sm" loading={submitting} disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked}>
-                            {isCompleted ? "Update Details" : "Save"}
-                        </Button>
+                        {isPlannerSaveBlocked ? (
+                            <Alert severity="warning">
+                                Only superadmin can save or update planner details for this tenant configuration.
+                            </Alert>
+                        ) : (
+                            <Button
+                                type="submit"
+                                size="sm"
+                                loading={submitting}
+                                disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || plannerAmendmentSuperadminOnlyLoading}
+                            >
+                                {isCompleted ? "Update Details" : "Save"}
+                            </Button>
+                        )}
                     </div>
 
                     <Dialog
