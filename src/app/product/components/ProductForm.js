@@ -91,6 +91,17 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
     const [loadingOptions, setLoadingOptions] = useState(false);
 
     useEffect(() => {
+        if (!serverError) return;
+        const msg = String(serverError).toLowerCase();
+        if (msg.includes("product name already exists")) {
+            setErrors((prev) => ({
+                ...prev,
+                product_name: "Product name already exists",
+            }));
+        }
+    }, [serverError]);
+
+    useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
             const properties = defaultValues?.properties || {};
             const getLegacyWarranty = () => {
