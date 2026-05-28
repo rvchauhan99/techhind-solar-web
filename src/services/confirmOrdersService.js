@@ -28,4 +28,28 @@ export const getModelAgreementPdf = (orderId, options = {}) => {
         .then((r) => r.data);
 };
 
-export default { getConfirmedOrders, getOrderById, changeHandledBy, getModelAgreementPdf };
+/**
+ * Get Warranty Card PDF as blob (view or download).
+ * @param {string|number} orderId
+ * @param {{ action: 'view' | 'download' }} options
+ * @returns {Promise<Blob>}
+ */
+export const getWarrantyCardPdf = (orderId, options = {}) => {
+    const isDownload = options.action === "download";
+    const params = {};
+    if (isDownload) params.action = "download";
+    return apiClient
+        .get(`/confirm-orders/${orderId}/warranty-card-pdf`, {
+            params: Object.keys(params).length ? params : undefined,
+            responseType: "blob",
+        })
+        .then((r) => r.data);
+};
+
+export default {
+    getConfirmedOrders,
+    getOrderById,
+    changeHandledBy,
+    getModelAgreementPdf,
+    getWarrantyCardPdf,
+};

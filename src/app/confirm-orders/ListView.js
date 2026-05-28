@@ -33,6 +33,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import EventIcon from "@mui/icons-material/Event";
 import HelpIcon from "@mui/icons-material/Help";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
+import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
 import { useRouter } from "next/navigation";
 import moment from "moment";
 import PaginatedList from "@/components/common/PaginatedList";
@@ -319,6 +320,26 @@ export default function ListView() {
         }
     }, []);
 
+    const handleDownloadWarrantyCard = useCallback(async (orderId) => {
+        try {
+            const file = await confirmOrdersService.getWarrantyCardPdf(orderId);
+            const blob = file?.blob || file;
+            const filename = file?.filename || `warranty-card-${orderId}.pdf`;
+            if (!blob) throw new Error("PDF download failed");
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            const msg = err?.response?.data?.message || err?.message || "Failed to download warranty card";
+            toastError(msg);
+        }
+    }, []);
+
     const handleOpenQuotationDrawer = useCallback((row) => {
         if (!row?.id) return;
         setSelectedQuotationOrder(row);
@@ -400,6 +421,11 @@ export default function ListView() {
                                 <Inventory2Icon sx={{ fontSize: 16 }} />
                             </IconButton>
                         </Tooltip>
+                        {Boolean(row.netmeter_installed_on) && (
+                            <IconButton size="small" title="Download Warranty Card" onClick={(e) => { e.stopPropagation(); handleDownloadWarrantyCard(row.id); }}>
+                                <WorkspacePremiumIcon sx={{ fontSize: 16, color: "#16a34a" }} />
+                            </IconButton>
+                        )}
                         <IconButton size="small" title="Add Payment" onClick={() => router.push(`/order/view?id=${row.id}&tab=2`)}>
                             <PaymentIcon sx={{ fontSize: 16 }} />
                         </IconButton>

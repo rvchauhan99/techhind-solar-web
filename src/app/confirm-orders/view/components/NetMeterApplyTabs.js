@@ -28,7 +28,7 @@ export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, 
             <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
                 <Tabs value={tabValue} onChange={handleTabChange}>
                     <Tab label="Net Meter Apply" />
-                    <Tab label="Predefined Documents" />
+                    {!isReadOnly && <Tab label="Predefined Documents" />}
                 </Tabs>
             </Box>
 
@@ -43,9 +43,11 @@ export default function NetMeterApplyTabs({ orderId, orderData, orderDocuments, 
                 />
             </TabPanel>
 
-            <TabPanel value={tabValue} index={1}>
-                <PredefinedDocumentsTab orderId={orderId} orderNumber={orderData?.order_number} />
-            </TabPanel>
+            {!isReadOnly && (
+                <TabPanel value={tabValue} index={1}>
+                    <PredefinedDocumentsTab orderId={orderId} orderNumber={orderData?.order_number} />
+                </TabPanel>
+            )}
         </Box>
     );
 }
