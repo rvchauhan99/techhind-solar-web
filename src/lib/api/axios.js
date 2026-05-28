@@ -12,6 +12,7 @@ import {
   isPathAllowedByRoutes,
   normalizePath,
 } from "@/lib/permissionUtils";
+import { getEffectiveTenantKey } from "@/utils/tenantKey";
 
 let refreshPromise = null;
 
@@ -110,6 +111,11 @@ axiosInstance.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
       if (config.headers) {
+        const tenantKey = getEffectiveTenantKey();
+        if (tenantKey) {
+          config.headers["x-tenant-key"] = tenantKey;
+        }
+
         // Timezone
         config.headers["x-timezone"] =
           Intl.DateTimeFormat().resolvedOptions().timeZone || "";

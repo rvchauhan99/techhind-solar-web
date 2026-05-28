@@ -17,8 +17,10 @@ export function getTenantKeyFromSubdomain() {
  * Order: subdomain (when in browser) -> NEXT_PUBLIC_TENANT_KEY (e.g. acme for local).
  */
 export function getEffectiveTenantKey() {
+  const fromEnv = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_TENANT_KEY) || "";
+  const envTenantKey = (fromEnv && String(fromEnv).trim()) || "";
+  if (envTenantKey) return envTenantKey;
   const fromSubdomain = getTenantKeyFromSubdomain();
   if (fromSubdomain) return fromSubdomain;
-  const fromEnv = (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_TENANT_KEY) || "";
-  return (fromEnv && String(fromEnv).trim()) || "";
+  return "";
 }
