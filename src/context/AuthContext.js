@@ -38,6 +38,13 @@ export default function AuthProvider({ children }) {
 
       const isAuthRoute = pathname?.startsWith("/auth");
       const isAdminRoute = pathname?.startsWith("/admin");
+      const isVerifyRoute = pathname?.startsWith("/verify");
+
+      if (isVerifyRoute) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
       // Admin UI uses admin API key only; no login required (allows creating first tenant when 0 tenants).
       if (isAdminRoute) {

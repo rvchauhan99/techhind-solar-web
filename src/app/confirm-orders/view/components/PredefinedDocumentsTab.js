@@ -23,6 +23,16 @@ const PREDEFINED_DOCUMENTS = [
         getSignedDownloadFilename: (orderNumber, orderId) =>
             `model-agreement-signed-${orderNumber || orderId}.pdf`,
     },
+    {
+        id: "warranty-card",
+        name: "Warranty Card",
+        getViewBlob: (orderId) =>
+            confirmOrdersService.getWarrantyCardPdf(orderId, { action: "view" }),
+        getDownloadBlob: (orderId) =>
+            confirmOrdersService.getWarrantyCardPdf(orderId, { action: "download" }),
+        getDownloadFilename: (orderNumber, orderId) =>
+            `warranty-card-${orderNumber || orderId}.pdf`,
+    },
 ];
 
 export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
@@ -131,21 +141,23 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                         >
                             Download
                         </Button>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            color="secondary"
-                            startIcon={<DownloadIcon />}
-                            onClick={() => handleDownloadWithSignatures(row)}
-                            disabled={loadingIds[`${row.id}-download-signed`]}
-                        >
-                            Download With Sign & Stamp
-                        </Button>
+                        {typeof row.getDownloadWithSignaturesBlob === "function" ? (
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                color="secondary"
+                                startIcon={<DownloadIcon />}
+                                onClick={() => handleDownloadWithSignatures(row)}
+                                disabled={loadingIds[`${row.id}-download-signed`]}
+                            >
+                                Download With Sign & Stamp
+                            </Button>
+                        ) : null}
                     </Box>
                 ),
             },
         ],
-        [handleView, handleDownload, loadingIds]
+        [handleView, handleDownload, handleDownloadWithSignatures, loadingIds]
     );
 
     return (
@@ -157,7 +169,7 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                 showPagination={false}
                 initialPage={1}
                 initialLimit={Math.max(PREDEFINED_DOCUMENTS.length, 1)}
-                height="120px"
+                height="160px"
                 getRowKey={(row) => row.id}
             />
         </Box>
