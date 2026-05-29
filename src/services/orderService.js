@@ -12,6 +12,11 @@ export const createOrder = (payload) =>
 export const getOrderById = (id, options = {}) =>
     apiClient.get(`/order/${id}`, { signal: options.signal }).then((r) => r.data);
 
+export const previewWorkCommission = (id, params = {}) =>
+    apiClient
+        .get(`/order/${id}/work-commission-preview`, { params })
+        .then((r) => r.data?.result ?? r.data);
+
 export const updateOrder = (id, payload) =>
     apiClient.put(`/order/${id}`, payload).then((r) => r.data);
 
@@ -110,6 +115,7 @@ export default {
     exportOrders,
     createOrder,
     getOrderById,
+    previewWorkCommission,
     updateOrder,
     deleteOrder,
     getSolarPanels,

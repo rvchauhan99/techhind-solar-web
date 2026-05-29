@@ -40,6 +40,8 @@ export default function UserOrderCommissionRateForm({
     as_handled_by_per_kw: "",
     as_handled_by_per_kw_with_channel_partner: "",
     as_channel_partner_per_kw: "",
+    as_fabrication_per_kw: "",
+    as_installation_per_kw: "",
   }));
   const [errors, setErrors] = useState({});
 
@@ -57,6 +59,8 @@ export default function UserOrderCommissionRateForm({
         as_handled_by_per_kw_with_channel_partner:
           defaultValues.as_handled_by_per_kw_with_channel_partner ?? "",
         as_channel_partner_per_kw: defaultValues.as_channel_partner_per_kw ?? "",
+        as_fabrication_per_kw: defaultValues.as_fabrication_per_kw ?? "",
+        as_installation_per_kw: defaultValues.as_installation_per_kw ?? "",
       });
     }
   }, [defaultValues]);
@@ -87,6 +91,8 @@ export default function UserOrderCommissionRateForm({
     nonNeg("Handled-by rate", "as_handled_by_per_kw");
     nonNeg("Handled-by (with CP) rate", "as_handled_by_per_kw_with_channel_partner");
     nonNeg("Channel partner rate", "as_channel_partner_per_kw");
+    nonNeg("Fabrication rate", "as_fabrication_per_kw");
+    nonNeg("Installation rate", "as_installation_per_kw");
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -110,6 +116,8 @@ export default function UserOrderCommissionRateForm({
         formData.as_handled_by_per_kw_with_channel_partner
       ),
       as_channel_partner_per_kw: toNumber(formData.as_channel_partner_per_kw),
+      as_fabrication_per_kw: toNumber(formData.as_fabrication_per_kw),
+      as_installation_per_kw: toNumber(formData.as_installation_per_kw),
     };
 
     onSubmit(payload);
@@ -291,6 +299,46 @@ export default function UserOrderCommissionRateForm({
               onChange={handleChange}
               error={!!errors.as_channel_partner_per_kw}
               helperText={errors.as_channel_partner_per_kw}
+              inputProps={{ min: 0, step: "any" }}
+            />
+          </Grid>
+        </Grid>
+
+        <Box sx={COMPACT_SECTION_HEADER_STYLE}>
+          <Typography variant="subtitle1" fontWeight={600}>
+            Fabrication & installation (per kW)
+          </Typography>
+        </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
+          Fabrication only and installation only use the respective rate. When both apply, combined
+          commission per kW is the sum of the two rates (if provided).
+        </Typography>
+        <Grid container spacing={COMPACT_FORM_SPACING}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <Input
+              fullWidth
+              size="small"
+              type="number"
+              label="Fabrication / kW"
+              name="as_fabrication_per_kw"
+              value={formData.as_fabrication_per_kw}
+              onChange={handleChange}
+              error={!!errors.as_fabrication_per_kw}
+              helperText={errors.as_fabrication_per_kw}
+              inputProps={{ min: 0, step: "any" }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <Input
+              fullWidth
+              size="small"
+              type="number"
+              label="Installation / kW"
+              name="as_installation_per_kw"
+              value={formData.as_installation_per_kw}
+              onChange={handleChange}
+              error={!!errors.as_installation_per_kw}
+              helperText={errors.as_installation_per_kw}
               inputProps={{ min: 0, step: "any" }}
             />
           </Grid>

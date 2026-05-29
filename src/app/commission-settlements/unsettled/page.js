@@ -44,19 +44,21 @@ import {
   adjustmentRowBorderClass,
 } from "../utils/settlementMoney";
 import {
-  buildFilterChips,
   countActiveFilterFields,
   clearFilterField,
   masterAutocompleteValue,
   referenceAutocompleteDisplay,
 } from "../utils/filterChips";
+import {
+  ROLE_FILTER_OPTIONS,
+  QUICK_ROLE_FILTERS,
+  normalizeFilterRoles,
+  roleFilterQueryParam,
+  buildRoleFilterChips,
+  filtersForActiveCount,
+} from "../utils/roleFilters";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/unsettled";
-
-const ROLE_FILTER_OPTIONS = [
-  { value: "handled_by", label: "Handled by" },
-  { value: "channel_partner", label: "Channel partner" },
-];
 
 const INITIAL_FILTERS = {
   beneficiary_user_id: null,
@@ -64,6 +66,7 @@ const INITIAL_FILTERS = {
   branch_id: null,
   branch_label: "",
   role: "",
+  roles: [],
   accrued_from: "",
   accrued_to: "",
   order_number: "",
@@ -75,6 +78,7 @@ const FILTER_LABELS = {
   beneficiary_user_id: "Beneficiary",
   branch_id: "Branch",
   role: "Role",
+  roles: "Roles",
   accrued_from: "Accrued from",
   accrued_to: "Accrued to",
   order_number: "Order #",
@@ -83,12 +87,7 @@ const FILTER_LABELS = {
 };
 
 function getChips(filters) {
-  return buildFilterChips(filters, {
-    filterLabels: FILTER_LABELS,
-    enumResolvers: {
-      role: (v) => ROLE_FILTER_OPTIONS.find((o) => o.value === v)?.label || v,
-    },
-  });
+  return buildRoleFilterChips(filters, { filterLabels: FILTER_LABELS });
 }
 
 function parseFilterId(v) {
@@ -155,15 +154,42 @@ export default function CommissionUnsettledPage() {
   const [adjustOpen, setAdjustOpen] = useState(false);
 
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
-  const activeCount = countActiveFilterFields(appliedFilters);
+  const activeCount = useMemo(
+    () => countActiveFilterFields(filtersForActiveCount(appliedFilters)),
+    [appliedFilters]
+  );
   const chips = getChips(appliedFilters);
 
-  const handleApply = () => {
-    setAppliedFilters({ ...filters });
+  const applyRoleFilters = (roles) => {
+    const list = [...new Set((roles || []).filter(Boolean))];
+    const next = { ...appliedFilters, roles: list, role: "" };
+    setFilters(next);
+    setAppliedFilters(next);
     setSelected(new Set());
     setPage(1);
     setTableKey((k) => k + 1);
   };
+
+  const handleApply = () => {
+    const roles = normalizeFilterRoles(filters);
+    const next = { ...filters, roles, role: "" };
+    setFilters(next);
+    setAppliedFilters(next);
+    setSelected(new Set());
+    setPage(1);
+    setTableKey((k) => k + 1);
+  };
+
+  const toggleQuickRole = (roleValue) => {
+    const current = normalizeFilterRoles(appliedFilters);
+    const idx = current.indexOf(roleValue);
+    const next = idx >= 0 ? current.filter((r) => r !== roleValue) : [...current, roleValue];
+    applyRoleFilters(next);
+  };
+
+  const clearQuickRoles = () => applyRoleFilters([]);
+
+  const activeRoles = useMemo(() => new Set(normalizeFilterRoles(appliedFilters)), [appliedFilters]);
 
   const handleReset = () => {
     setFilters(INITIAL_FILTERS);
@@ -174,7 +200,10 @@ export default function CommissionUnsettledPage() {
   };
 
   const removeChip = (key) => {
-    const next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
+    let next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
+    if (key === "roles") {
+      next = { ...next, roles: [], role: "" };
+    }
     setFilters(next);
     setAppliedFilters(next);
     setTableKey((k) => k + 1);
@@ -187,7 +216,7 @@ export default function CommissionUnsettledPage() {
     return {
       beneficiary_user_id: parseFilterId(a.beneficiary_user_id),
       branch_id: parseFilterId(a.branch_id),
-      role: a.role || undefined,
+      role: roleFilterQueryParam(a),
       accrued_from: a.accrued_from || undefined,
       accrued_to: a.accrued_to || undefined,
       order_number: String(a.order_number || "").trim() || undefined,
@@ -537,14 +566,23 @@ export default function CommissionUnsettledPage() {
                   label="Role"
                   options={ROLE_FILTER_OPTIONS}
                   getOptionLabel={(o) => o?.label ?? ""}
-                  value={
-                    filters.role
-                      ? ROLE_FILTER_OPTIONS.find((o) => o.value === filters.role) ?? null
-                      : null
-                  }
-                  onChange={(e, v) => fc("role", v?.value ?? "")}
+                  value={(() => {
+                    const roles = normalizeFilterRoles(filters);
+                    if (roles.length === 1) {
+                      return ROLE_FILTER_OPTIONS.find((o) => o.value === roles[0]) ?? null;
+                    }
+                    return null;
+                  })()}
+                  onChange={(e, v) => {
+                    const roles = v?.value ? [v.value] : [];
+                    setFilters((p) => ({ ...p, role: "", roles }));
+                  }}
                   clearable
-                  placeholder="All roles"
+                  placeholder={
+                    normalizeFilterRoles(filters).length > 1
+                      ? `${normalizeFilterRoles(filters).length} roles selected`
+                      : "All roles"
+                  }
                 />
                 <DateField
                   name="accrued_from"
@@ -620,24 +658,62 @@ export default function CommissionUnsettledPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground px-0.5">
-            Red: outstanding exceeds combined commission (cannot submit). Amber: outstanding will be adjusted on approval;
-            include all pending lines for that order when submitting.
+            Red / amber rules apply to Handled by and Channel partner only. Fabricator, Installer, and
+            Fabricator &amp; installer lines are not blocked or reduced by order outstanding. Red: outstanding
+            exceeds combined sales commission (cannot submit). Amber: outstanding offset on approval; include all
+            pending sales lines for that order when submitting.
           </p>
 
-          <div className="flex items-center gap-2">
-            {currentPerm.can_create && (
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
               <Button
+                type="button"
                 size="sm"
-                className="h-8"
-                onClick={openSettle}
-                disabled={!selected.size || hasBlockedSelected}
+                variant={activeRoles.size === 0 ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={clearQuickRoles}
               >
-                Settle selected ({selected.size})
+                All
               </Button>
-            )}
-            <Button variant="outline" size="icon" className="size-8" onClick={() => setTableKey((k) => k + 1)} title="Refresh">
-              <IconRefresh className="size-4" />
-            </Button>
+              {QUICK_ROLE_FILTERS.map((opt) => {
+                const isActive = activeRoles.has(opt.value);
+                const btnLabel = opt.shortLabel || opt.label;
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={isActive ? "default" : "outline"}
+                    className="h-7 px-2 text-xs"
+                    title={opt.shortLabel ? opt.label : undefined}
+                    onClick={() => toggleQuickRole(opt.value)}
+                  >
+                    {btnLabel}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {currentPerm.can_create && (
+                <Button
+                  size="sm"
+                  className="h-8"
+                  onClick={openSettle}
+                  disabled={!selected.size || hasBlockedSelected}
+                >
+                  Settle selected ({selected.size})
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setTableKey((k) => k + 1)}
+                title="Refresh"
+              >
+                <IconRefresh className="size-4" />
+              </Button>
+            </div>
           </div>
 
           <PaginatedTable
