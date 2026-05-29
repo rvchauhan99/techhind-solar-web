@@ -80,6 +80,16 @@ function fmtRate(v) {
   return Number.isFinite(n) ? String(n) : "-";
 }
 
+function fmtCombinedFabInst(fab, inst) {
+  const hasFab = fab != null && fab !== "";
+  const hasInst = inst != null && inst !== "";
+  if (!hasFab && !hasInst) return "-";
+  const f = hasFab ? Number(fab) : 0;
+  const i = hasInst ? Number(inst) : 0;
+  const sum = (Number.isFinite(f) ? f : 0) + (Number.isFinite(i) ? i : 0);
+  return Number.isFinite(sum) ? String(Math.round(sum * 10000) / 10000) : "-";
+}
+
 export default function UserOrderCommissionRatesPage() {
   const { user, modulePermissions, fetchPermissionForModule } = useAuth();
   const permModule = useMemo(
@@ -333,6 +343,25 @@ export default function UserOrderCommissionRatesPage() {
         render: (row) => fmtRate(row.as_channel_partner_per_kw),
       },
       {
+        field: "as_fabrication_per_kw",
+        label: "Fab/kW",
+        sortable: false,
+        render: (row) => fmtRate(row.as_fabrication_per_kw),
+      },
+      {
+        field: "as_installation_per_kw",
+        label: "Inst/kW",
+        sortable: false,
+        render: (row) => fmtRate(row.as_installation_per_kw),
+      },
+      {
+        field: "fab_inst_combined",
+        label: "Fab+Inst/kW",
+        sortable: false,
+        render: (row) =>
+          fmtCombinedFabInst(row.as_fabrication_per_kw, row.as_installation_per_kw),
+      },
+      {
         field: "actions",
         label: "Actions",
         sortable: false,
@@ -422,10 +451,17 @@ export default function UserOrderCommissionRatesPage() {
         <p>
           {fmtDate(r.effective_from)} → {fmtDate(r.effective_to)}
         </p>
-        <p className="text-xs font-semibold text-muted-foreground">Rates (per kW)</p>
+        <p className="text-xs font-semibold text-muted-foreground">Sales rates (per kW)</p>
         <p>Handled by: {fmtRate(r.as_handled_by_per_kw)}</p>
         <p>Handled by (with CP): {fmtRate(r.as_handled_by_per_kw_with_channel_partner)}</p>
         <p>Channel partner: {fmtRate(r.as_channel_partner_per_kw)}</p>
+        <p className="text-xs font-semibold text-muted-foreground">Fabrication & installation (per kW)</p>
+        <p>Fabrication: {fmtRate(r.as_fabrication_per_kw)}</p>
+        <p>Installation: {fmtRate(r.as_installation_per_kw)}</p>
+        <p>
+          Combined (fab + inst):{" "}
+          {fmtCombinedFabInst(r.as_fabrication_per_kw, r.as_installation_per_kw)}
+        </p>
       </div>
     );
   }, [sidebarRow]);

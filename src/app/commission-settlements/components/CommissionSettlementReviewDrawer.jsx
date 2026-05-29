@@ -130,7 +130,13 @@ export default function CommissionSettlementReviewDrawer({
 
   return (
     <>
-      <DetailsSidebar open={open} onClose={onClose} title={title} closeOnBackdropClick={!submitting}>
+      <DetailsSidebar
+        open={open}
+        onClose={onClose}
+        title={title}
+        closeOnBackdropClick={!submitting}
+        panelClassName="sm:max-w-[min(96vw,1420px)] lg:max-w-[min(96vw,1420px)]"
+      >
         {loading ? (
           <p className="text-sm text-muted-foreground py-4">Loading settlement…</p>
         ) : !detail ? (
@@ -225,7 +231,7 @@ export default function CommissionSettlementReviewDrawer({
             <section>
               <h3 className="text-[11px] font-semibold text-slate-700 mb-1">Line items ({lineCount})</h3>
               <div className="overflow-x-auto max-h-[min(50vh,420px)] overflow-y-auto rounded border border-slate-200">
-                <table className="w-full text-[11px] min-w-[1100px]">
+                <table className="w-full text-[11px] min-w-0">
                   <thead className="bg-slate-50 text-left sticky top-0 z-10">
                     <tr>
                       <th className="px-2 py-1 font-medium">Order</th>
@@ -233,6 +239,7 @@ export default function CommissionSettlementReviewDrawer({
                       <th className="px-2 py-1 font-medium">Branch</th>
                       <th className="px-2 py-1 font-medium">Beneficiary</th>
                       <th className="px-2 py-1 font-medium">Role</th>
+                      <th className="px-2 py-1 font-medium text-right">Master rate</th>
                       <th className="px-2 py-1 font-medium text-right">Outstanding</th>
                       <th className="px-2 py-1 font-medium text-right">Combined</th>
                       <th className="px-2 py-1 font-medium text-right">System</th>
@@ -280,6 +287,23 @@ export default function CommissionSettlementReviewDrawer({
                         <td className="px-2 py-1">{ln.branch_name || "—"}</td>
                         <td className="px-2 py-1">{ln.beneficiary_name || "—"}</td>
                         <td className="px-2 py-1">{ln.role || "—"}</td>
+                        <td
+                          className="px-2 py-1 text-right whitespace-nowrap"
+                          title={ln.master_setup_rate_detail || ln.master_setup_rate_label || undefined}
+                        >
+                          {ln.master_setup_rate != null ? (
+                            <span className="inline-flex flex-col items-end leading-tight">
+                              <span>₹ {fmtMoney(ln.master_setup_rate)}</span>
+                              {ln.master_setup_rate_label ? (
+                                <span className="text-[9px] font-normal text-muted-foreground">
+                                  {ln.master_setup_rate_label}
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="px-2 py-1 text-right">₹ {fmtMoney(ln.order_outstanding ?? 0)}</td>
                         <td className="px-2 py-1 text-right">₹ {fmtMoney(ln.combined_commission_on_order ?? ln.amount)}</td>
                         <td className="px-2 py-1 text-right text-muted-foreground">
@@ -315,11 +339,11 @@ export default function CommissionSettlementReviewDrawer({
                   </tbody>
                   <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold">
                     <tr>
-                      <td colSpan={8} className="px-2 py-1 text-right">
+                      <td colSpan={9} className="px-2 py-1 text-right">
                         Total
                       </td>
                       <td className="px-2 py-1 text-right">₹ {fmtMoney(payableAmount(detail))}</td>
-                      <td colSpan={6} />
+                      <td colSpan={7} />
                     </tr>
                   </tfoot>
                 </table>
