@@ -53,6 +53,39 @@ flowchart LR
 
 **Note:** The menu label is **Pending commission**; the URL still contains `unsettled`.
 
+### User order commission rates master (`/user-order-commission-rates`)
+
+Each rate row is scoped by **user** (required) and optional **order type**, **branch**, **project scheme**, plus an **effective date range**. All amounts are **per kW**.
+
+| Group | Fields | Notes |
+|-------|--------|--------|
+| Sales (B2C) | Handled by / kW; Handled by / kW (with CP); Channel partner / kW | Used when orders complete for handled-by and channel-partner roles |
+| Fabrication & installation | Fabrication / kW; Installation / kW | Used for fabricator/installer pay on orders (see flow below) |
+
+**Fabrication / installation work types** (rate master → calculated amount):
+
+| Type | Per-kW amount used |
+|------|-------------------|
+| Fabrication only | Fabrication / kW |
+| Installation only | Installation / kW |
+| Fabrication and installation both | Sum of Fabrication / kW + Installation / kW when both values are set on the rate row |
+
+The rates list shows **Fab+Inst/kW** as the computed sum (read-only). CSV import/export includes **Fabrication / kW** and **Installation / kW** columns.
+
+### Work commission on orders (assign → net meter)
+
+| Step | Where | Expected |
+|------|--------|----------|
+| 1 | Confirm order → **Assign fabricator & installer** | Commission table shows per kW, calculated amount (capacity × rate), editable **Payable**; save stores payables on the order |
+| 2 | Complete **Net meter installed** | Pending commission gets ledger line(s) for fabricator / installer / combined role with saved payable amounts |
+| 3 | **Pending commission** → approval → payout | Same settlement flow as sales commission |
+
+**Settlement rules for work roles:** Fabricator, Installer, and Fabricator & installer lines are **not** blocked by order outstanding, do **not** participate in outstanding offset, and can be settled **on their own** even when the same order has blocked Handled by / Channel partner lines (submit only validates outstanding rules for sales roles in your selection). Handled by / Channel partner lines keep existing offset and block rules.
+
+Unsettled / payout / history / ledger role filters include: Fabricator, Installer, Fabricator & installer.
+
+**Pending approval:** Line items in the settlement review drawer show **Master rate** (snapshotted Commission Master ₹/kW by role, e.g. Fab/kW, HB/kW) from the linked rate rule at accrual/assign.
+
 ---
 
 ## 4. End-to-end happy path
@@ -161,7 +194,7 @@ Use this once per environment after rates and test orders exist.
 ## 8. Pre-test checklist
 
 - [ ] Test users can see Commission menu items they need (submit / approve / payout / reports)
-- [ ] Commission rates configured for HB and CP test users
+- [ ] Commission rates configured for HB and CP test users (optional: fabrication / installation per kW on same rows)
 - [ ] At least one completed B2C-eligible order—or seeded commission data
 - [ ] Cash payment mode and company bank account exist (needed for outstanding-offset scenarios)
 - [ ] Optional: fresh seed for repeatable S1–S6 scenarios

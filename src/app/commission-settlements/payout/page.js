@@ -38,31 +38,35 @@ import {
   getOffsetOrders,
 } from "../utils/settlementMoney";
 import {
-  buildFilterChips,
   countActiveFilterFields,
   clearFilterField,
   masterAutocompleteValue,
   referenceAutocompleteDisplay,
 } from "../utils/filterChips";
+import {
+  QUICK_ROLE_FILTERS,
+  normalizeFilterRoles,
+  roleFilterQueryParam,
+  buildRoleFilterChips,
+  filtersForActiveCount,
+} from "../utils/roleFilters";
 
 const PERMISSION_MODULE_KEY = "/commission-settlements/payout";
-
-const ROLE_FILTER_OPTIONS = [
-  { value: "handled_by", label: "Handled by" },
-  { value: "channel_partner", label: "Channel partner" },
-];
 
 const INITIAL_FILTERS = {
   beneficiary_user_id: null,
   beneficiary_label: "",
   settlement_number: "",
   order_number: "",
+  role: "",
+  roles: [],
 };
 
 const FILTER_LABELS = {
   beneficiary_user_id: "Beneficiary",
   settlement_number: "Settlement #",
   order_number: "Order #",
+  roles: "Roles",
 };
 
 function parseFilterId(v) {
@@ -92,7 +96,7 @@ function findModuleByPermissionKey(modules, moduleKey) {
 }
 
 function getChips(filters) {
-  return buildFilterChips(filters, { filterLabels: FILTER_LABELS });
+  return buildRoleFilterChips(filters, { filterLabels: FILTER_LABELS });
 }
 
 export default function CommissionPayoutPage() {
@@ -132,15 +136,42 @@ export default function CommissionPayoutPage() {
   const [filtersOpen, setFiltersOpen] = useState(true);
 
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
-  const activeCount = countActiveFilterFields(appliedFilters);
+  const activeCount = useMemo(
+    () => countActiveFilterFields(filtersForActiveCount(appliedFilters)),
+    [appliedFilters]
+  );
   const chips = getChips(appliedFilters);
 
-  const handleApply = () => {
-    setAppliedFilters({ ...filters });
+  const applyRoleFilters = (roles) => {
+    const list = [...new Set((roles || []).filter(Boolean))];
+    const next = { ...appliedFilters, roles: list, role: "" };
+    setFilters(next);
+    setAppliedFilters(next);
     setSelected(new Set());
     setPage(1);
     setRefreshKey((k) => k + 1);
   };
+
+  const handleApply = () => {
+    const roles = normalizeFilterRoles(filters);
+    const next = { ...filters, roles, role: "" };
+    setFilters(next);
+    setAppliedFilters(next);
+    setSelected(new Set());
+    setPage(1);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const toggleQuickRole = (roleValue) => {
+    const current = normalizeFilterRoles(appliedFilters);
+    const idx = current.indexOf(roleValue);
+    const next = idx >= 0 ? current.filter((r) => r !== roleValue) : [...current, roleValue];
+    applyRoleFilters(next);
+  };
+
+  const clearQuickRoles = () => applyRoleFilters([]);
+
+  const activeRoles = useMemo(() => new Set(normalizeFilterRoles(appliedFilters)), [appliedFilters]);
 
   const handleReset = () => {
     setFilters(INITIAL_FILTERS);
@@ -151,7 +182,10 @@ export default function CommissionPayoutPage() {
   };
 
   const removeChip = (key) => {
-    const next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
+    let next = clearFilterField(appliedFilters, key, INITIAL_FILTERS);
+    if (key === "roles") {
+      next = { ...next, roles: [], role: "" };
+    }
     setFilters(next);
     setAppliedFilters(next);
     setRefreshKey((k) => k + 1);
@@ -163,6 +197,7 @@ export default function CommissionPayoutPage() {
       beneficiary_user_id: parseFilterId(a.beneficiary_user_id),
       settlement_number: String(a.settlement_number || "").trim() || undefined,
       order_number: String(a.order_number || "").trim() || undefined,
+      role: roleFilterQueryParam(a),
     };
   }, [appliedFilters]);
 
@@ -205,6 +240,7 @@ export default function CommissionPayoutPage() {
       beneficiary_user_id: p.beneficiary_user_id,
       settlement_number: p.settlement_number,
       order_number: p.order_number,
+      role: p.role,
     });
     const result = response?.result || response;
     const rows = result?.data || [];
@@ -573,20 +609,56 @@ export default function CommissionPayoutPage() {
           </p>
 
           {/* Action bar */}
-          <div className="flex items-center gap-2">
-            {canPayout && (
+          <div className="flex flex-wrap items-center justify-between gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
               <Button
+                type="button"
                 size="sm"
-                className="h-8"
-                onClick={openPayout}
-                disabled={!selected.size || hasBlockedSelected}
+                variant={activeRoles.size === 0 ? "default" : "outline"}
+                className="h-7 px-2 text-xs"
+                onClick={clearQuickRoles}
               >
-                Payout selected ({selected.size})
+                All
               </Button>
-            )}
-            <Button variant="outline" size="icon" className="size-8" onClick={() => setRefreshKey((k) => k + 1)} title="Refresh">
-              <IconRefresh className="size-4" />
-            </Button>
+              {QUICK_ROLE_FILTERS.map((opt) => {
+                const isActive = activeRoles.has(opt.value);
+                const btnLabel = opt.shortLabel || opt.label;
+                return (
+                  <Button
+                    key={opt.value}
+                    type="button"
+                    size="sm"
+                    variant={isActive ? "default" : "outline"}
+                    className="h-7 px-2 text-xs"
+                    title={opt.shortLabel ? opt.label : undefined}
+                    onClick={() => toggleQuickRole(opt.value)}
+                  >
+                    {btnLabel}
+                  </Button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {canPayout && (
+                <Button
+                  size="sm"
+                  className="h-8"
+                  onClick={openPayout}
+                  disabled={!selected.size || hasBlockedSelected}
+                >
+                  Payout selected ({selected.size})
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8"
+                onClick={() => setRefreshKey((k) => k + 1)}
+                title="Refresh"
+              >
+                <IconRefresh className="size-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Table */}
