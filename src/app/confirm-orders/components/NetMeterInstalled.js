@@ -180,6 +180,15 @@ export default function NetMeterInstalledForm({ orderId, orderData, orderDocumen
 
     return (
         <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} className="p-4 overflow-y-auto">
+            {orderData?.assign_fabricator_installer_completed_at &&
+                (orderData?.fabricator_installer_commission_payable_amount > 0 ||
+                    orderData?.fabricator_commission_payable_amount > 0 ||
+                    orderData?.installer_commission_payable_amount > 0) && (
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        Completing this step will add fabrication/installation commission to Pending
+                        commission (if not already posted).
+                    </Alert>
+                )}
             <FormSection title="Net meter installed details">
                 <FormGrid cols={2}>
                     <Input

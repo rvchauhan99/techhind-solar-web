@@ -14,9 +14,18 @@ import { Z_INDEX_LAYERS } from "@/utils/zIndexLayers";
  * @param {string} [title] - optional sidebar title
  * @param {React.ReactNode} [headerActions] - optional actions (e.g. Download PDF) shown in header top-right, left of close
  * @param {boolean} [closeOnBackdropClick=true] - if false, drawer stays open when clicking backdrop (close only via X)
+ * @param {string} [panelClassName] - optional width/layout classes for the aside panel (replaces default max-width when set)
  * @param {React.ReactNode} children - entity-specific content
  */
-export default function DetailsSidebar({ open, onClose, title, headerActions, closeOnBackdropClick = true, children }) {
+export default function DetailsSidebar({
+  open,
+  onClose,
+  title,
+  headerActions,
+  closeOnBackdropClick = true,
+  panelClassName,
+  children,
+}) {
   if (!open) return null;
 
   const handleBackdropClick = closeOnBackdropClick ? onClose : undefined;
@@ -35,10 +44,11 @@ export default function DetailsSidebar({ open, onClose, title, headerActions, cl
       />
       <aside
         className={cn(
-          "fixed top-0 right-0 h-full w-full sm:max-w-[672px] md:max-w-[768px] max-w-full",
+          "fixed top-0 right-0 h-full w-full max-w-full",
           "bg-background border-border border-l shadow-xl",
           "flex flex-col transition-transform duration-200 ease-out",
-          open ? "translate-x-0" : "translate-x-full"
+          open ? "translate-x-0" : "translate-x-full",
+          panelClassName ?? "sm:max-w-[672px] md:max-w-[768px]"
         )}
         style={{ zIndex: Z_INDEX_LAYERS.drawerPanel }}
       >
