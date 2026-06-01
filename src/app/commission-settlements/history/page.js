@@ -74,6 +74,8 @@ const INITIAL_FILTERS = {
   approved_by_label: "",
   order_number: "",
   settlement_number: "",
+  payout_number: "",
+  bank_reference: "",
   role: "",
   min_amount: "",
   max_amount: "",
@@ -128,8 +130,10 @@ const ROLE_OPTIONS = [
 const FILTER_LABELS = {
   approved_from: "Approved from",
   approved_to: "Approved to",
-  paid_from: "Paid from",
-  paid_to: "Paid to",
+  paid_from: "Payout from",
+  paid_to: "Payout to",
+  payout_number: "Payout #",
+  bank_reference: "UTR / Ref",
   accrued_from: "Accrued from",
   accrued_to: "Accrued to",
   branch_id: "Branch",
@@ -282,13 +286,13 @@ export default function CommissionSettledHistoryPage() {
                   onChange={(e) => fc("approved_to", e.target.value || "")}
                 />
                 <DateField
-                  label="Paid from"
+                  label="Payout from"
                   name="paid_from"
                   value={filters.paid_from || ""}
                   onChange={(e) => fc("paid_from", e.target.value || "")}
                 />
                 <DateField
-                  label="Paid to"
+                  label="Payout to"
                   name="paid_to"
                   value={filters.paid_to || ""}
                   onChange={(e) => fc("paid_to", e.target.value || "")}
@@ -439,6 +443,18 @@ export default function CommissionSettledHistoryPage() {
                   label="Settlement #"
                   value={filters.settlement_number || ""}
                   onChange={(e) => fc("settlement_number", e.target.value || "")}
+                />
+                <Input
+                  name="payout_number"
+                  label="Payout #"
+                  value={filters.payout_number || ""}
+                  onChange={(e) => fc("payout_number", e.target.value || "")}
+                />
+                <Input
+                  name="bank_reference"
+                  label="UTR / Ref"
+                  value={filters.bank_reference || ""}
+                  onChange={(e) => fc("bank_reference", e.target.value || "")}
                 />
                 <Input
                   name="min_amount"

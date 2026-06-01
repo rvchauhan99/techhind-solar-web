@@ -187,6 +187,9 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
   };
 
   const totals = dashboard?.totals || {};
+  const payoutSummary = dashboard?.payout_summary;
+  const timeseriesLabel =
+    dashboard?.timeseries_by === "payout_date" ? "Settled by payout date" : "Settled by approval date";
   const rolePie = (dashboard?.by_role || []).map((r, i) => ({
     name: r.role || "—",
     value: Number(r.amount) || 0,
@@ -206,6 +209,21 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
         render: (r) => (r.approved_at ? String(r.approved_at).slice(0, 10) : "—"),
       },
       { field: "settlement_number", label: "Settlement", sortable: false, render: (r) => r.settlement_number || "—" },
+      { field: "payout_number", label: "Payout #", sortable: false, render: (r) => r.payout_number || "—" },
+      {
+        field: "bank_reference",
+        label: "UTR / Ref",
+        sortable: false,
+        render: (r) => (
+          <span className="text-[10px] font-mono">{r.bank_reference || "—"}</span>
+        ),
+      },
+      {
+        field: "payout_paid_at",
+        label: "Paid on",
+        sortable: false,
+        render: (r) => (r.payout_paid_at ? String(r.payout_paid_at).slice(0, 10) : "—"),
+      },
       {
         field: "order_number",
         label: "Order",
@@ -292,13 +310,24 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div
+        className={`grid grid-cols-2 gap-2 ${payoutSummary ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-4"}`}
+      >
         <KpiCard
           icon={IconCurrencyRupee}
           iconColor="bg-emerald-500/10 text-emerald-600"
           label="Settled total"
           value={dashLoading ? "…" : `₹${INR(totals.total_amount)}`}
         />
+        {payoutSummary ? (
+          <KpiCard
+            icon={IconCurrencyRupee}
+            iconColor="bg-primary/10 text-primary"
+            label="Payouts (period)"
+            value={dashLoading ? "…" : payoutSummary.payout_count ?? 0}
+            sub={dashLoading ? null : `₹${INR(payoutSummary.payout_total)}`}
+          />
+        ) : null}
         <KpiCard
           icon={IconChartBar}
           iconColor="bg-slate-500/10 text-slate-600"
@@ -322,7 +351,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
       <div className="grid gap-2 lg:grid-cols-3">
         <Card className="rounded-xl border-slate-200 lg:col-span-2">
           <CardContent className="p-2">
-            <p className="text-xs font-semibold text-slate-700 px-1 pb-1">Settled by approval date</p>
+            <p className="text-xs font-semibold text-slate-700 px-1 pb-1">{timeseriesLabel}</p>
             <div className="h-40">
               {periodData.length ? (
                 <ResponsiveContainer width="100%" height="100%">
