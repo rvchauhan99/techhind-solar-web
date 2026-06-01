@@ -307,7 +307,16 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
                           {row.reference || "—"}
                         </button>
                       ) : (
-                        <span className="text-slate-500">{row.reference || "—"}</span>
+                        <span
+                          className="text-slate-500 font-mono text-[10px]"
+                          title={
+                            row.bank_reference && row.payout_number
+                              ? `Payout ${row.payout_number}`
+                              : row.payout_number || undefined
+                          }
+                        >
+                          {row.reference || "—"}
+                        </span>
                       )}
                     </td>
                     <td className="px-2 py-1 text-right font-semibold text-red-600 tabular-nums">

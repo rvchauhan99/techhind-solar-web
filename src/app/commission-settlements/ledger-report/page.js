@@ -201,7 +201,7 @@ export default function CommissionLedgerReportPage() {
                   Commission ledger report
                 </h1>
                 <p className="text-[11px] text-slate-500">
-                  Bank statement · Credits, settlements, running balance
+                  Bank statement · Payout debits show UTR/ref · Date range filters payout date
                 </p>
               </div>
             </div>

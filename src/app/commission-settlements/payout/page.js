@@ -128,7 +128,9 @@ export default function CommissionPayoutPage() {
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [preview, setPreview] = useState(null);
   const [remarks, setRemarks] = useState("");
+  const [bankReference, setBankReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectingAll, setSelectingAll] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detailSettlementId, setDetailSettlementId] = useState(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -148,6 +150,7 @@ export default function CommissionPayoutPage() {
     setFilters(next);
     setAppliedFilters(next);
     setSelected(new Set());
+    setLockedBeneficiaryId(null);
     setPage(1);
     setRefreshKey((k) => k + 1);
   };
@@ -158,6 +161,7 @@ export default function CommissionPayoutPage() {
     setFilters(next);
     setAppliedFilters(next);
     setSelected(new Set());
+    setLockedBeneficiaryId(null);
     setPage(1);
     setRefreshKey((k) => k + 1);
   };
@@ -177,6 +181,7 @@ export default function CommissionPayoutPage() {
     setFilters(INITIAL_FILTERS);
     setAppliedFilters(INITIAL_FILTERS);
     setSelected(new Set());
+    setLockedBeneficiaryId(null);
     setPage(1);
     setRefreshKey((k) => k + 1);
   };
@@ -256,20 +261,94 @@ export default function CommissionPayoutPage() {
     [pageRows]
   );
 
+  const [lockedBeneficiaryId, setLockedBeneficiaryId] = useState(null);
+
   const toggleRow = (row) => {
     if (row?.settlement_blocked) return;
     const id = row?.id ?? row;
+    const bid = row?.beneficiary_user_id;
     setSelected((prev) => {
+      if (prev.has(id)) {
+        const next = new Set(prev);
+        next.delete(id);
+        if (next.size === 0) setLockedBeneficiaryId(null);
+        return next;
+      }
+      if (prev.size > 0 && lockedBeneficiaryId != null && bid !== lockedBeneficiaryId) {
+        toast.error("Payout is one person at a time — clear selection or pick lines for the same beneficiary");
+        return prev;
+      }
+      if (prev.size === 0 && bid) setLockedBeneficiaryId(bid);
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.add(id);
       return next;
     });
   };
 
   const toggleSelectAllPage = (checked) => {
-    if (!checked) { setSelected(new Set()); return; }
-    setSelected(new Set(eligiblePageRows.map((r) => r.id)));
+    if (!checked) {
+      setSelected(new Set());
+      setLockedBeneficiaryId(null);
+      return;
+    }
+    const filterBid = parseFilterId(appliedFilters.beneficiary_user_id);
+    let targetBid = filterBid ?? lockedBeneficiaryId;
+    if (!targetBid && eligiblePageRows.length) {
+      targetBid = eligiblePageRows[0].beneficiary_user_id;
+    }
+    const rowsToSelect = targetBid
+      ? eligiblePageRows.filter((r) => r.beneficiary_user_id === targetBid)
+      : eligiblePageRows;
+    if (
+      !filterBid &&
+      eligiblePageRows.length > rowsToSelect.length
+    ) {
+      toast.info("Selected lines for one beneficiary only (one bank transfer per person)");
+    }
+    setSelected(new Set(rowsToSelect.map((r) => r.id)));
+    if (targetBid) setLockedBeneficiaryId(targetBid);
+  };
+
+  const selectAllForBeneficiary = async () => {
+    const bid = parseFilterId(appliedFilters.beneficiary_user_id);
+    if (!bid) {
+      toast.error("Set beneficiary filter first");
+      return;
+    }
+    setSelectingAll(true);
+    try {
+      const allIds = [];
+      let pg = 1;
+      const pageSize = 200;
+      let pages = 1;
+      while (pg <= pages && allIds.length < 500) {
+        const response = await commissionSettlementService.listApprovedLedger({
+          ...filterParams,
+          beneficiary_user_id: bid,
+          page: pg,
+          limit: pageSize,
+        });
+        const result = response?.result || response;
+        const rows = (result?.data || []).filter((r) => !r.settlement_blocked);
+        allIds.push(...rows.map((r) => r.id));
+        pages = result?.meta?.pages ?? 1;
+        pg += 1;
+      }
+      if (!allIds.length) {
+        toast.error("No payable lines for this beneficiary");
+        return;
+      }
+      if (allIds.length >= 500) {
+        toast.warning("Selected first 500 lines — narrow filters if needed");
+      }
+      setSelected(new Set(allIds.slice(0, 500)));
+      setLockedBeneficiaryId(bid);
+      toast.success(`Selected ${Math.min(allIds.length, 500)} line(s)`);
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e?.message || "Could not load lines");
+    } finally {
+      setSelectingAll(false);
+    }
   };
 
   const allPageSelected =
@@ -313,15 +392,23 @@ export default function CommissionPayoutPage() {
     if (rejectBlockedSelection()) return;
     setSubmitting(true);
     try {
+      const utr = bankReference.trim();
+      if (utr.length < 4) {
+        toast.error("Enter UTR / bank reference (at least 4 characters)");
+        return;
+      }
       await commissionSettlementService.createPayout({
         ledger_entry_ids: ids,
+        bank_reference: utr,
         remarks: remarks.trim() || undefined,
       });
       toast.success("Payout recorded — lines settled");
       setPayoutOpen(false);
       setPreview(null);
       setRemarks("");
+      setBankReference("");
       setSelected(new Set());
+      setLockedBeneficiaryId(null);
       setRefreshKey((k) => k + 1);
       loadSummary();
     } catch (e) {
@@ -604,8 +691,8 @@ export default function CommissionPayoutPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground px-0.5">
-            Outstanding was adjusted when the batch was approved. Payout records payment of the approved payable amount.
-            You may pay one line at a time; other lines in the same settlement stay approved until paid.
+            One bank transfer = one payout = one person. Enter the bank UTR/reference when confirming.
+            Outstanding was adjusted at batch approval; you may pay lines partially — other lines stay approved until paid.
           </p>
 
           {/* Action bar */}
@@ -639,6 +726,18 @@ export default function CommissionPayoutPage() {
               })}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {canPayout && parseFilterId(appliedFilters.beneficiary_user_id) && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={selectAllForBeneficiary}
+                  disabled={selectingAll}
+                >
+                  {selectingAll ? "Loading…" : "Select all for beneficiary"}
+                </Button>
+              )}
               {canPayout && (
                 <Button
                   size="sm"
@@ -701,7 +800,14 @@ export default function CommissionPayoutPage() {
       <Dialog open={payoutOpen} onOpenChange={setPayoutOpen}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Payout summary</DialogTitle>
+            <DialogTitle>
+              Payout summary
+              {preview?.beneficiary_name ? (
+                <span className="block text-sm font-normal text-muted-foreground mt-0.5">
+                  {preview.beneficiary_name}
+                </span>
+              ) : null}
+            </DialogTitle>
           </DialogHeader>
           {loadingPreview ? (
             <p className="text-muted-foreground text-sm">Loading…</p>
@@ -760,6 +866,18 @@ export default function CommissionPayoutPage() {
                 }
               />
               <div className="space-y-1">
+                <Label className="text-xs">
+                  UTR / Bank reference <span className="text-destructive">*</span>
+                </Label>
+                <ShadcnInput
+                  value={bankReference}
+                  onChange={(e) => setBankReference(e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="NEFT / IMPS / UTR number"
+                  maxLength={64}
+                />
+              </div>
+              <div className="space-y-1">
                 <Label className="text-xs">Remarks (optional)</Label>
                 <ShadcnInput value={remarks} onChange={(e) => setRemarks(e.target.value)} className="h-8 text-sm" />
               </div>
@@ -767,7 +885,12 @@ export default function CommissionPayoutPage() {
                 <Button type="button" variant="outline" size="sm" onClick={() => setPayoutOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="button" size="sm" onClick={submitPayout} disabled={submitting || !canPayout}>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={submitPayout}
+                  disabled={submitting || !canPayout || bankReference.trim().length < 4}
+                >
                   {submitting ? "Processing…" : "Confirm payout"}
                 </Button>
               </div>
