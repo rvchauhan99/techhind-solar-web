@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   IconAlertTriangle,
@@ -11,6 +12,7 @@ import {
   IconPackage,
   IconRefresh,
   IconReportAnalytics,
+  IconX,
 } from "@tabler/icons-react";
 import {
   Bar,
@@ -46,6 +48,7 @@ import ChartCard from "@/components/common/ChartCard";
 import Checkbox from "@/components/common/Checkbox";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatCurrency } from "@/utils/dataTableUtils";
+
 
 const COLUMN_FILTER_KEYS = [
   "product_id",
@@ -135,6 +138,11 @@ export default function StockPage() {
   const [selectedProductName, setSelectedProductName] = useState("");
   const [selectedWarehouseName, setSelectedWarehouseName] = useState("");
   const [productMakeOptions, setProductMakeOptions] = useState([]);
+  const [reservedDetailsOpen, setReservedDetailsOpen] = useState(false);
+  const [reservedDetailsLoading, setReservedDetailsLoading] = useState(false);
+  const [reservedDetailsExporting, setReservedDetailsExporting] = useState(false);
+  const [reservedDetailsRows, setReservedDetailsRows] = useState([]);
+  const [reservedDetailsContext, setReservedDetailsContext] = useState(null);
 
   useEffect(() => {
     mastersService
@@ -197,6 +205,29 @@ export default function StockPage() {
     };
   }, [filterParams]);
 
+  // Scroll lock when modal is open
+  useEffect(() => {
+    if (reservedDetailsOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [reservedDetailsOpen]);
+
+  // Escape key listener to close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && reservedDetailsOpen) {
+        setReservedDetailsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [reservedDetailsOpen]);
+
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -217,6 +248,59 @@ export default function StockPage() {
       setExporting(false);
     }
   }, [filterParams]);
+
+  const handleOpenReservedDetails = useCallback(async (row) => {
+    const productId = Number(row?.product_id || 0);
+    const warehouseId = Number(row?.warehouse_id || 0);
+    if (productId <= 0 || warehouseId <= 0) return;
+    setReservedDetailsOpen(true);
+    setReservedDetailsLoading(true);
+    setReservedDetailsRows([]);
+    setReservedDetailsContext({
+      product_id: productId,
+      warehouse_id: warehouseId,
+      product_name: row?.product?.product_name || "-",
+      warehouse_name: row?.warehouse?.name || "-",
+    });
+    try {
+      const res = await stockService.getReservationDetails({
+        product_id: productId,
+        warehouse_id: warehouseId,
+      });
+      const list = res?.result || res?.data || [];
+      setReservedDetailsRows(Array.isArray(list) ? list : []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to fetch reserved details");
+    } finally {
+      setReservedDetailsLoading(false);
+    }
+  }, []);
+
+  const handleExportReservedDetails = useCallback(async () => {
+    const productId = Number(reservedDetailsContext?.product_id || 0);
+    const warehouseId = Number(reservedDetailsContext?.warehouse_id || 0);
+    if (productId <= 0 || warehouseId <= 0) return;
+    setReservedDetailsExporting(true);
+    try {
+      const blob = await stockService.exportReservationDetails({
+        product_id: productId,
+        warehouse_id: warehouseId,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reserved-details-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Reserved details export completed");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to export reserved details");
+    } finally {
+      setReservedDetailsExporting(false);
+    }
+  }, [reservedDetailsContext]);
 
   const productTypeById = useMemo(() => {
     const map = new Map();
@@ -422,7 +506,21 @@ export default function StockPage() {
         field: "reserved_display",
         label: "Reserved",
         sortable: true,
-        render: (row) => formatNumber(row.reserved_display),
+        render: (row) =>
+          toNum(row.reserved_display) > 0 ? (
+            <button
+              type="button"
+              className="text-primary underline underline-offset-2 font-medium tabular-nums"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenReservedDetails(row);
+              }}
+            >
+              {formatNumber(row.reserved_display)}
+            </button>
+          ) : (
+            <span className="tabular-nums">{formatNumber(row.reserved_display)}</span>
+          ),
       },
       {
         field: "available_after_reserved_display",
@@ -531,7 +629,7 @@ export default function StockPage() {
         },
       },
     ],
-    []
+    [handleOpenReservedDetails]
   );
 
   const fetcher = useMemo(
@@ -1183,6 +1281,182 @@ export default function StockPage() {
             onRowsPerPageChange={setLimit}
             rowsPerPageOptions={[20, 50, 100, 200]}
           />
+          {reservedDetailsOpen && createPortal(
+            <div className="fixed inset-0 z-9999 flex items-center justify-center">
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in-0"
+                onClick={() => setReservedDetailsOpen(false)}
+              />
+              {/* Centered Modal Content Card */}
+              <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col border border-border overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200 z-10 p-0 m-4">
+                
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-base font-bold tracking-tight text-foreground">
+                      Reserved Qty Details
+                    </h3>
+                    {reservedDetailsContext && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          {reservedDetailsContext.product_name}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-900">
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                          {reservedDetailsContext.warehouse_name}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-medium tabular-nums ml-1">
+                          {reservedDetailsRows.length} reservation{reservedDetailsRows.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Close button in header */}
+                  <button
+                    onClick={() => setReservedDetailsOpen(false)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    <IconX size={18} />
+                  </button>
+                </div>
+
+                {/* Table Body Container */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                  <div className="overflow-x-auto rounded-xl border border-border shadow-sm max-h-[55vh]">
+                    {reservedDetailsLoading ? (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <span className="text-sm text-muted-foreground font-medium">Loading reservation details…</span>
+                      </div>
+                    ) : reservedDetailsRows.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                          <IconPackage size={24} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">No reservations found</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">All reservations may have been cleared or released</p>
+                        </div>
+                      </div>
+                    ) : (() => {
+                      // Compute totals for footer
+                      const totActive = reservedDetailsRows.reduce((s, r) => s + Number(r.active_reserved_quantity || 0), 0);
+
+                      const getStatusBadge = (status) => {
+                        const s = (status || "").toUpperCase();
+                        if (s === "CONFIRMED" || s === "RESERVED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 uppercase tracking-wide">{status}</span>;
+                        if (s === "PARTIAL_SHIPPED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900 uppercase tracking-wide">{status}</span>;
+                        if (s === "RELEASED" || s === "CANCELLED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground border border-border uppercase tracking-wide">{status}</span>;
+                        return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground border border-border uppercase tracking-wide">{status || "-"}</span>;
+                      };
+
+                      const getRowClass = (row) => {
+                        const active = Number(row.active_reserved_quantity || 0);
+                        if (active > 0) return "bg-amber-50/40 dark:bg-amber-950/10";
+                        return "";
+                      };
+
+                      return (
+                        <table className="w-full table-auto text-xs border-collapse">
+                          <thead className="bg-muted/80 sticky top-0 z-10 backdrop-blur-sm">
+                            <tr className="border-b border-border">
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Order No.</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Type</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Customer / Party</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Warehouse</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Product</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Status</th>
+                              <th className="text-right px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-amber-700 dark:text-amber-400 whitespace-nowrap">Active Qty</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Created</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">By</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reservedDetailsRows.map((row) => {
+                              const activeQty = Number(row.active_reserved_quantity || 0);
+                              return (
+                                <tr
+                                  key={row.reservation_id}
+                                  className={cn(
+                                    "border-t border-border/50 transition-colors hover:bg-muted/40",
+                                    getRowClass(row)
+                                  )}
+                                >
+                                  <td className="px-4 py-2.5 font-medium whitespace-nowrap text-foreground">{row.order_number || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap">
+                                    <span className={cn(
+                                      "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase",
+                                      row.order_type === "B2B"
+                                        ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200 dark:border-violet-900"
+                                        : "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200 dark:border-orange-900"
+                                    )}>
+                                      {row.order_type || "-"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 max-w-[200px] truncate text-foreground/90" title={row.customer_party_name}>{row.customer_party_name || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-foreground/90">{row.warehouse_name || "-"}</td>
+                                  <td className="px-4 py-2.5 max-w-[180px] truncate text-foreground/90" title={row.product_name}>{row.product_name || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap">{getStatusBadge(row.status)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold whitespace-nowrap">
+                                    {activeQty > 0 ? (
+                                      <span className="text-amber-600 dark:text-amber-400">{formatNumber(activeQty)}</span>
+                                    ) : (
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatNumber(activeQty)}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground text-[11px]">
+                                    {row.created_at ? new Date(row.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
+                                  </td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{row.created_by_name || "-"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          {/* Totals footer */}
+                          <tfoot className="bg-muted/70 border-t-2 border-border sticky bottom-0 backdrop-blur-sm">
+                            <tr>
+                              <td colSpan={6} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Totals ({reservedDetailsRows.length} rows)
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums font-bold text-[12px]">
+                                {totActive > 0 ? (
+                                  <span className="text-amber-600 dark:text-amber-400">{formatNumber(totActive)}</span>
+                                ) : (
+                                  <span className="text-emerald-600 dark:text-emerald-400">{formatNumber(totActive)}</span>
+                                )}
+                              </td>
+                              <td colSpan={2} />
+                            </tr>
+                          </tfoot>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-border bg-muted/20 flex justify-end items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={() => setReservedDetailsOpen(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleExportReservedDetails}
+                    disabled={reservedDetailsLoading || reservedDetailsExporting || !reservedDetailsRows.length}
+                  >
+                    {reservedDetailsExporting ? "Exporting…" : "Export"}
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       </div>
     </ListingPageContainer>

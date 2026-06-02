@@ -126,6 +126,7 @@ export default function ListView() {
     const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
     const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
     const [reservingOrderId, setReservingOrderId] = useState(null);
+    const [releasingOrderId, setReleasingOrderId] = useState(null);
 
     const handleListingMetaChange = useCallback((meta) => {
         const total = meta?.total ?? 0;
@@ -360,6 +361,19 @@ export default function ListView() {
         }
     }, []);
 
+    const handleReleaseStock = useCallback(async (row, reload) => {
+        try {
+            setReleasingOrderId(row.id);
+            await orderService.releaseStock(row.id);
+            toastSuccess("Stock released successfully");
+            if (typeof reload === "function") reload();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Failed to release stock");
+        } finally {
+            setReleasingOrderId(null);
+        }
+    }, []);
+
     const getStageIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
         if (status === "pending") return <EventIcon color="error" sx={{ fontSize: 18 }} />;
@@ -402,6 +416,7 @@ export default function ListView() {
             bomLines.length > 0 &&
             !row?.has_stock_reservation
         );
+        const canReleaseStock = Boolean(isSuperAdmin && row?.has_stock_reservation);
 
         return (
             <Paper
@@ -501,6 +516,25 @@ export default function ListView() {
                                 </Button>
                             </span>
                         </Tooltip>
+                        {canReleaseStock && (
+                            <Tooltip title={releasingOrderId === row.id ? "Releasing stock..." : "Release stock"}>
+                                <span>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        color="error"
+                                        sx={{ px: 1, py: 0.2, minHeight: 22, fontSize: "0.62rem" }}
+                                        disabled={releasingOrderId === row.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleReleaseStock(row, reload);
+                                        }}
+                                    >
+                                        {releasingOrderId === row.id ? "Releasing..." : "Release Stock"}
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                        )}
                         <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
                             <MoreVertIcon sx={{ fontSize: 16 }} />
                         </IconButton>
