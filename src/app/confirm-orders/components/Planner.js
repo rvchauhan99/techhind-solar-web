@@ -1274,6 +1274,11 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                 <Tab label="Planner" value="add_planner" />
                 <Tab label="Activity" value="activity" />
             </Tabs>
+            {orderData?.has_stock_reservation && (
+                <Alert severity="info" sx={{ mb: { xs: 1.5, md: 1 }, py: 0.25 }}>
+                    Reserved stock active: {Number(orderData?.reserved_qty_total || 0)} qty. BOM changes will auto-sync reservation.
+                </Alert>
+            )}
             {activeTab === "add_planner" ? (
                 <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit}>
                     <Paper variant="outlined" sx={{ p: { xs: 1.25, md: 1, lg: 0.75 }, mb: { xs: 2, md: 1.25, lg: 1 }, bgcolor: "#fcfcfc" }} className="rounded-lg">

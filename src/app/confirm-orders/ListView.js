@@ -125,6 +125,7 @@ export default function ListView() {
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
     const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
     const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+    const [reservingOrderId, setReservingOrderId] = useState(null);
 
     const handleListingMetaChange = useCallback((meta) => {
         const total = meta?.total ?? 0;
@@ -346,6 +347,19 @@ export default function ListView() {
         setQuotationDrawerOpen(true);
     }, []);
 
+    const handleReserveStock = useCallback(async (row, reload) => {
+        try {
+            setReservingOrderId(row.id);
+            await orderService.reserveStock(row.id);
+            toastSuccess("Stock reserved successfully");
+            if (typeof reload === "function") reload();
+        } catch (err) {
+            toastError(err?.response?.data?.message || "Failed to reserve stock");
+        } finally {
+            setReservingOrderId(null);
+        }
+    }, []);
+
     const getStageIcon = (status) => {
         if (status === "completed") return <CheckCircleIcon color="success" sx={{ fontSize: 18 }} />;
         if (status === "pending") return <EventIcon color="error" sx={{ fontSize: 18 }} />;
@@ -371,6 +385,23 @@ export default function ListView() {
         const totalReceived = getOrderReceivedAmount(row);
         const outstanding = getOrderOutstandingAmount(row);
         const fullyCompleted = isOrderFullyCompleted(row);
+        const bomLines = Array.isArray(row.bom_snapshot) ? row.bom_snapshot : [];
+        const reserveDisabledReason =
+            row?.status !== "confirmed"
+                ? "Order is not confirmed"
+                : !row?.planned_warehouse_id
+                    ? "Planned warehouse is required"
+                    : bomLines.length <= 0
+                        ? "BOM is required before reserving stock"
+                        : row?.has_stock_reservation
+                            ? "Stock already reserved"
+                            : "";
+        const canReserveStock = Boolean(
+            row?.planned_warehouse_id &&
+            row?.status === "confirmed" &&
+            bomLines.length > 0 &&
+            !row?.has_stock_reservation
+        );
 
         return (
             <Paper
@@ -454,6 +485,22 @@ export default function ListView() {
                                 <ManageAccountsIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                         )}
+                        <Tooltip title={reservingOrderId === row.id ? "Reserving stock..." : reserveDisabledReason || "Reserve stock"}>
+                            <span>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ px: 1, py: 0.2, minHeight: 22, fontSize: "0.62rem" }}
+                                    disabled={!canReserveStock || reservingOrderId === row.id}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleReserveStock(row, reload);
+                                    }}
+                                >
+                                    {reservingOrderId === row.id ? "Reserving..." : "Reserve Stock"}
+                                </Button>
+                            </span>
+                        </Tooltip>
                         <IconButton size="small" onClick={(e) => handleMenuOpen(e, row.id)}>
                             <MoreVertIcon sx={{ fontSize: 16 }} />
                         </IconButton>
@@ -494,6 +541,12 @@ export default function ListView() {
                         </Grid>
                         <Grid item size={3}>
                             {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
+                            {renderOrderDetail(
+                                "Reserved Qty",
+                                row.has_stock_reservation
+                                    ? String(row.reserved_qty_total || 0)
+                                    : "Not reserved"
+                            )}
                             {renderOrderDetail("Total Payable", `Rs. ${totalPayable.toLocaleString()}`)}
                             {renderOrderDetail("Payment Received", `Rs. ${totalReceived.toLocaleString()}`)}
                             <Box mb={0.4}>
