@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   IconAlertTriangle,
@@ -11,6 +12,7 @@ import {
   IconPackage,
   IconRefresh,
   IconReportAnalytics,
+  IconX,
 } from "@tabler/icons-react";
 import {
   Bar,
@@ -43,20 +45,25 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import StatCard from "@/components/common/StatCard";
 import ChartCard from "@/components/common/ChartCard";
+import Checkbox from "@/components/common/Checkbox";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatCurrency } from "@/utils/dataTableUtils";
+
 
 const COLUMN_FILTER_KEYS = [
   "product_id",
   "product_type_id",
   "product_make_id",
   "warehouse_id",
+  "quantity_on_hand",
+  "quantity_on_hand_op",
+  "quantity_on_hand_to",
   "quantity_reserved",
   "quantity_reserved_op",
   "quantity_reserved_to",
-  "quantity_available",
-  "quantity_available_op",
-  "quantity_available_to",
+  "after_reserve",
+  "after_reserve_op",
+  "after_reserve_to",
   "tracking_type",
   "min_stock_quantity",
   "min_stock_quantity_op",
@@ -70,7 +77,7 @@ const TRACKING_OPTIONS = [
 ];
 
 const LOW_STOCK_OPTIONS = [
-  { value: "true", label: "Low Stock" },
+  { value: "true", label: "Less Stock" },
   { value: "false", label: "OK" },
 ];
 
@@ -99,7 +106,10 @@ const FILTER_LABELS = {
   product_make_id: "Product Make",
   warehouse_id: "Warehouse",
   tracking_type: "Tracking",
-  low_stock: "Status",
+  low_stock: "Less Stock",
+  quantity_on_hand: "Total AVL",
+  quantity_reserved: "Reserved",
+  after_reserve: "After Reserve",
   quantity_available: "Available",
 };
 
@@ -107,6 +117,7 @@ const formatNumber = (value) =>
   new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 }).format(Number(value || 0));
 
 const toNum = (value) => Number(value || 0);
+const getAvailableAfterReserved = (onHand, reserved) => toNum(onHand) - toNum(reserved);
 
 export default function StockPage() {
   const listingState = useListingQueryState({
@@ -127,6 +138,11 @@ export default function StockPage() {
   const [selectedProductName, setSelectedProductName] = useState("");
   const [selectedWarehouseName, setSelectedWarehouseName] = useState("");
   const [productMakeOptions, setProductMakeOptions] = useState([]);
+  const [reservedDetailsOpen, setReservedDetailsOpen] = useState(false);
+  const [reservedDetailsLoading, setReservedDetailsLoading] = useState(false);
+  const [reservedDetailsExporting, setReservedDetailsExporting] = useState(false);
+  const [reservedDetailsRows, setReservedDetailsRows] = useState([]);
+  const [reservedDetailsContext, setReservedDetailsContext] = useState(null);
 
   useEffect(() => {
     mastersService
@@ -158,9 +174,6 @@ export default function StockPage() {
     delete params.product_name_op;
     delete params.warehouse_name;
     delete params.warehouse_name_op;
-    delete params.quantity_on_hand;
-    delete params.quantity_on_hand_op;
-    delete params.quantity_on_hand_to;
     return params;
   }, [filters]);
 
@@ -192,6 +205,29 @@ export default function StockPage() {
     };
   }, [filterParams]);
 
+  // Scroll lock when modal is open
+  useEffect(() => {
+    if (reservedDetailsOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [reservedDetailsOpen]);
+
+  // Escape key listener to close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && reservedDetailsOpen) {
+        setReservedDetailsOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [reservedDetailsOpen]);
+
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
@@ -212,6 +248,59 @@ export default function StockPage() {
       setExporting(false);
     }
   }, [filterParams]);
+
+  const handleOpenReservedDetails = useCallback(async (row) => {
+    const productId = Number(row?.product_id || 0);
+    const warehouseId = Number(row?.warehouse_id || 0);
+    if (productId <= 0 || warehouseId <= 0) return;
+    setReservedDetailsOpen(true);
+    setReservedDetailsLoading(true);
+    setReservedDetailsRows([]);
+    setReservedDetailsContext({
+      product_id: productId,
+      warehouse_id: warehouseId,
+      product_name: row?.product?.product_name || "-",
+      warehouse_name: row?.warehouse?.name || "-",
+    });
+    try {
+      const res = await stockService.getReservationDetails({
+        product_id: productId,
+        warehouse_id: warehouseId,
+      });
+      const list = res?.result || res?.data || [];
+      setReservedDetailsRows(Array.isArray(list) ? list : []);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to fetch reserved details");
+    } finally {
+      setReservedDetailsLoading(false);
+    }
+  }, []);
+
+  const handleExportReservedDetails = useCallback(async () => {
+    const productId = Number(reservedDetailsContext?.product_id || 0);
+    const warehouseId = Number(reservedDetailsContext?.warehouse_id || 0);
+    if (productId <= 0 || warehouseId <= 0) return;
+    setReservedDetailsExporting(true);
+    try {
+      const blob = await stockService.exportReservationDetails({
+        product_id: productId,
+        warehouse_id: warehouseId,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reserved-details-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Reserved details export completed");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to export reserved details");
+    } finally {
+      setReservedDetailsExporting(false);
+    }
+  }, [reservedDetailsContext]);
 
   const productTypeById = useMemo(() => {
     const map = new Map();
@@ -408,19 +497,36 @@ export default function StockPage() {
         render: (row) => row.warehouse?.name || "-",
       },
       {
-        field: "quantity_on_hand",
-        label: "On Hand",
+        field: "total_available_display",
+        label: "Total AVL",
         sortable: true,
+        render: (row) => formatNumber(row.total_available_display),
       },
       {
-        field: "quantity_reserved",
+        field: "reserved_display",
         label: "Reserved",
         sortable: true,
+        render: (row) =>
+          toNum(row.reserved_display) > 0 ? (
+            <button
+              type="button"
+              className="text-primary underline underline-offset-2 font-medium tabular-nums"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenReservedDetails(row);
+              }}
+            >
+              {formatNumber(row.reserved_display)}
+            </button>
+          ) : (
+            <span className="tabular-nums">{formatNumber(row.reserved_display)}</span>
+          ),
       },
       {
-        field: "quantity_available",
-        label: "Available",
+        field: "available_after_reserved_display",
+        label: "After Reserve",
         sortable: true,
+        render: (row) => formatNumber(row.available_after_reserved_display),
       },
       {
         field: "quantity_damaged",
@@ -512,18 +618,18 @@ export default function StockPage() {
         label: "Status",
         sortable: false,
         render: (row) => {
-          const available = row.quantity_available || 0;
+          const availableAfterReserve = getAvailableAfterReserved(row.quantity_on_hand, row.quantity_reserved);
           const minStock = row.min_stock_quantity || 0;
-          const isLow = available < minStock;
+          const isLow = availableAfterReserve <= minStock;
           return (
             <Badge variant={isLow ? "destructive" : "default"} className="text-xs">
-              {isLow ? "Low Stock" : "OK"}
+              {isLow ? "Less Stock" : "OK"}
             </Badge>
           );
         },
       },
     ],
-    []
+    [handleOpenReservedDetails]
   );
 
   const fetcher = useMemo(
@@ -536,12 +642,15 @@ export default function StockPage() {
         product_id: p.product_id || undefined,
         product_type_id: p.product_type_id || undefined,
         product_make_id: p.product_make_id || undefined,
+        quantity_on_hand: p.quantity_on_hand || undefined,
+        quantity_on_hand_op: p.quantity_on_hand_op || undefined,
+        quantity_on_hand_to: p.quantity_on_hand_to || undefined,
         quantity_reserved: p.quantity_reserved || undefined,
         quantity_reserved_op: p.quantity_reserved_op || undefined,
         quantity_reserved_to: p.quantity_reserved_to || undefined,
-        quantity_available: p.quantity_available || undefined,
-        quantity_available_op: p.quantity_available_op || undefined,
-        quantity_available_to: p.quantity_available_to || undefined,
+        after_reserve: p.after_reserve || undefined,
+        after_reserve_op: p.after_reserve_op || undefined,
+        after_reserve_to: p.after_reserve_to || undefined,
         min_stock_quantity: p.min_stock_quantity || undefined,
         min_stock_quantity_op: p.min_stock_quantity_op || undefined,
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
@@ -552,7 +661,15 @@ export default function StockPage() {
       });
       const result = response?.result || response;
       return {
-        data: result?.data || [],
+        data: (result?.data || []).map((row) => ({
+          ...row,
+          total_available_display: toNum(row.quantity_on_hand),
+          reserved_display: toNum(row.quantity_reserved),
+          available_after_reserved_display: getAvailableAfterReserved(
+            row.quantity_on_hand,
+            row.quantity_reserved
+          ),
+        })),
         meta: result?.meta || { total: 0, page: p.page, pages: 0, limit: p.limit },
       };
     },
@@ -560,6 +677,12 @@ export default function StockPage() {
   );
 
   const totals = summary?.totals || EMPTY_SUMMARY.totals;
+  const totalAvailableDisplay = toNum(totals.total_on_hand);
+  const totalReservedDisplay = toNum(totals.total_reserved);
+  const totalAvailableAfterReservedDisplay = getAvailableAfterReserved(
+    totals.total_on_hand,
+    totals.total_reserved
+  );
   const productTypeChartData = useMemo(
     () =>
       (summary?.by_product_type || []).slice(0, 8).map((row) => ({
@@ -584,17 +707,15 @@ export default function StockPage() {
   );
 
   const healthChartData = useMemo(() => {
-    const totalStockRows = (summary?.by_tracking_type || []).reduce((acc, item) => acc + toNum(item.count), 0);
     const out = toNum(totals.out_of_stock_count);
-    const low = toNum(totals.low_stock_count);
-    const lowOnly = Math.max(low - out, 0);
-    const ok = Math.max(totalStockRows - low, 0);
+    const lessStock = toNum(totals.less_stock_count);
+    const ok = toNum(totals.ok_count);
     return [
       { name: "OK", value: ok },
-      { name: "Low", value: lowOnly },
+      { name: "Less Stock", value: lessStock },
       { name: "Out", value: out },
     ];
-  }, [summary, totals]);
+  }, [totals]);
 
   const productTypeTabs = useMemo(
     () => [{ value: "", label: "All" }, ...productTypeOptions],
@@ -619,6 +740,9 @@ export default function StockPage() {
               <div>
                 <h2 className="text-sm font-semibold leading-tight">Inventory Insights</h2>
                 <p className="text-[11px] text-muted-foreground">Product Type focus with GST-aware valuation</p>
+                <p className="text-[11px] text-muted-foreground">
+                  After Reserve = Total AVL - Reserved
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -655,6 +779,13 @@ export default function StockPage() {
                 </button>
               );
             })}
+            <Checkbox
+              name="quick_less_stock"
+              label="Less Stock"
+              checked={String(filters.low_stock || "") === "true"}
+              onChange={(e) => setFilter("low_stock", e.target.checked ? "true" : "")}
+              className="w-auto"
+            />
           </div>
 
           <Card className="rounded-xl border border-border bg-card overflow-visible">
@@ -788,7 +919,7 @@ export default function StockPage() {
                 </Select>
                 <Select
                   name="low_stock"
-                  label="Stock Status"
+                  label="Less Stock (After Reserve <= Min Stock)"
                   size="small"
                   value={filters.low_stock || ""}
                   onChange={(e) => setFilter("low_stock", e.target.value)}
@@ -802,21 +933,69 @@ export default function StockPage() {
                   ))}
                 </Select>
                 <Input
-                  name="quantity_available"
-                  label="Available From"
+                  name="quantity_on_hand"
+                  label="Total AVL From"
                   type="number"
                   size="small"
-                  value={filters.quantity_available ?? ""}
-                  onChange={(e) => setRangeFilter("quantity_available", e.target.value, filters.quantity_available_to || "")}
+                  value={filters.quantity_on_hand ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("quantity_on_hand", e.target.value, filters.quantity_on_hand_to || "")
+                  }
                   placeholder="0"
                 />
                 <Input
-                  name="quantity_available_to"
-                  label="Available To"
+                  name="quantity_on_hand_to"
+                  label="Total AVL To"
                   type="number"
                   size="small"
-                  value={filters.quantity_available_to ?? ""}
-                  onChange={(e) => setRangeFilter("quantity_available", filters.quantity_available || "", e.target.value)}
+                  value={filters.quantity_on_hand_to ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("quantity_on_hand", filters.quantity_on_hand || "", e.target.value)
+                  }
+                  placeholder="1000"
+                />
+                <Input
+                  name="quantity_reserved"
+                  label="Reserved From"
+                  type="number"
+                  size="small"
+                  value={filters.quantity_reserved ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("quantity_reserved", e.target.value, filters.quantity_reserved_to || "")
+                  }
+                  placeholder="0"
+                />
+                <Input
+                  name="quantity_reserved_to"
+                  label="Reserved To"
+                  type="number"
+                  size="small"
+                  value={filters.quantity_reserved_to ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("quantity_reserved", filters.quantity_reserved || "", e.target.value)
+                  }
+                  placeholder="1000"
+                />
+                <Input
+                  name="after_reserve"
+                  label="After Reserve From"
+                  type="number"
+                  size="small"
+                  value={filters.after_reserve ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("after_reserve", e.target.value, filters.after_reserve_to || "")
+                  }
+                  placeholder="0"
+                />
+                <Input
+                  name="after_reserve_to"
+                  label="After Reserve To"
+                  type="number"
+                  size="small"
+                  value={filters.after_reserve_to ?? ""}
+                  onChange={(e) =>
+                    setRangeFilter("after_reserve", filters.after_reserve || "", e.target.value)
+                  }
                   placeholder="1000"
                 />
               </div>
@@ -848,18 +1027,26 @@ export default function StockPage() {
             />
             <StatCard
               icon={<IconPackage size={16} />}
-              label="On Hand"
-              value={formatNumber(totals.total_on_hand)}
+              label="Total AVL"
+              value={formatNumber(totalAvailableDisplay)}
               accentColor="#4f46e5"
-              subLabel="Inventory units"
+              subLabel="Physical stock"
               loading={summaryLoading}
             />
             <StatCard
               icon={<IconPackage size={16} />}
-              label="Available"
-              value={formatNumber(totals.total_available)}
+              label="Reserved"
+              value={formatNumber(totalReservedDisplay)}
+              accentColor="#f59e0b"
+              subLabel="Reserved stock"
+              loading={summaryLoading}
+            />
+            <StatCard
+              icon={<IconPackage size={16} />}
+              label="After Reserve"
+              value={formatNumber(totalAvailableAfterReservedDisplay)}
               accentColor="#10b981"
-              subLabel={`Reserved: ${formatNumber(totals.total_reserved)}`}
+              subLabel="Total AVL - Reserved"
               loading={summaryLoading}
             />
             <StatCard
@@ -891,7 +1078,7 @@ export default function StockPage() {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
             <ChartCard
               title="By Product Type"
-              subtitle="On hand and available quantities"
+              subtitle="On hand and system available quantities"
               className="xl:col-span-5"
               loading={summaryLoading}
               isEmpty={productTypeChartData.length === 0}
@@ -933,7 +1120,7 @@ export default function StockPage() {
                     labelFormatter={(label) => `Type: ${label}`}
                   />
                   <Legend />
-                  <Bar dataKey="on_hand" name="On Hand" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="on_hand" name="Total AVL" fill="#4f46e5" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="available" name="Available" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -951,7 +1138,7 @@ export default function StockPage() {
 
             <ChartCard
               title="Stock Health"
-              subtitle="OK, low and out-of-stock lines"
+              subtitle="OK, less stock and out lines (After Reserve based)"
               className="xl:col-span-3"
               loading={summaryLoading}
               isEmpty={healthChartData.every((item) => item.value === 0)}
@@ -978,7 +1165,7 @@ export default function StockPage() {
 
             <ChartCard
               title="By Warehouse"
-              subtitle="Top warehouses by on-hand quantity"
+              subtitle="Top warehouses by total available (on hand)"
               className="xl:col-span-4"
               loading={summaryLoading}
               isEmpty={warehouseChartData.length === 0}
@@ -1012,7 +1199,7 @@ export default function StockPage() {
                     <div className="grid grid-cols-12 gap-1 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10">
                       <div className="col-span-3">Product Type</div>
                       <div className="col-span-1 text-right">SKUs</div>
-                      <div className="col-span-1 text-right">On Hand</div>
+                      <div className="col-span-1 text-right">Total AVL</div>
                       <div className="col-span-1 text-right">Available</div>
                       <div className="col-span-1 text-right">Damaged</div>
                       <div className="col-span-2 text-right">Value (Excl)</div>
@@ -1080,6 +1267,11 @@ export default function StockPage() {
             onRowsPerPageChange={setLimit}
             onQChange={setQ}
             onSortChange={setSort}
+            getRowClassName={(row) =>
+              toNum(row.available_after_reserved_display) < 0
+                ? "[&_td]:!bg-red-100 hover:[&_td]:!bg-red-100 dark:[&_td]:!bg-red-950/35"
+                : ""
+            }
           />
           <PaginationControls
             page={page - 1}
@@ -1089,6 +1281,182 @@ export default function StockPage() {
             onRowsPerPageChange={setLimit}
             rowsPerPageOptions={[20, 50, 100, 200]}
           />
+          {reservedDetailsOpen && createPortal(
+            <div className="fixed inset-0 z-9999 flex items-center justify-center">
+              {/* Backdrop */}
+              <div 
+                className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in-0"
+                onClick={() => setReservedDetailsOpen(false)}
+              />
+              {/* Centered Modal Content Card */}
+              <div className="relative bg-background rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col border border-border overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200 z-10 p-0 m-4">
+                
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center justify-between">
+                  <div className="flex flex-col gap-1.5">
+                    <h3 className="text-base font-bold tracking-tight text-foreground">
+                      Reserved Qty Details
+                    </h3>
+                    {reservedDetailsContext && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          {reservedDetailsContext.product_name}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-900">
+                          <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                          {reservedDetailsContext.warehouse_name}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-medium tabular-nums ml-1">
+                          {reservedDetailsRows.length} reservation{reservedDetailsRows.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Close button in header */}
+                  <button
+                    onClick={() => setReservedDetailsOpen(false)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    <IconX size={18} />
+                  </button>
+                </div>
+
+                {/* Table Body Container */}
+                <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+                  <div className="overflow-x-auto rounded-xl border border-border shadow-sm max-h-[55vh]">
+                    {reservedDetailsLoading ? (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <span className="text-sm text-muted-foreground font-medium">Loading reservation details…</span>
+                      </div>
+                    ) : reservedDetailsRows.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                          <IconPackage size={24} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">No reservations found</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">All reservations may have been cleared or released</p>
+                        </div>
+                      </div>
+                    ) : (() => {
+                      // Compute totals for footer
+                      const totActive = reservedDetailsRows.reduce((s, r) => s + Number(r.active_reserved_quantity || 0), 0);
+
+                      const getStatusBadge = (status) => {
+                        const s = (status || "").toUpperCase();
+                        if (s === "CONFIRMED" || s === "RESERVED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 uppercase tracking-wide">{status}</span>;
+                        if (s === "PARTIAL_SHIPPED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-900 uppercase tracking-wide">{status}</span>;
+                        if (s === "RELEASED" || s === "CANCELLED")
+                          return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground border border-border uppercase tracking-wide">{status}</span>;
+                        return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground border border-border uppercase tracking-wide">{status || "-"}</span>;
+                      };
+
+                      const getRowClass = (row) => {
+                        const active = Number(row.active_reserved_quantity || 0);
+                        if (active > 0) return "bg-amber-50/40 dark:bg-amber-950/10";
+                        return "";
+                      };
+
+                      return (
+                        <table className="w-full table-auto text-xs border-collapse">
+                          <thead className="bg-muted/80 sticky top-0 z-10 backdrop-blur-sm">
+                            <tr className="border-b border-border">
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Order No.</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Type</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Customer / Party</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Warehouse</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Product</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Status</th>
+                              <th className="text-right px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-amber-700 dark:text-amber-400 whitespace-nowrap">Active Qty</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">Created</th>
+                              <th className="text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">By</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reservedDetailsRows.map((row) => {
+                              const activeQty = Number(row.active_reserved_quantity || 0);
+                              return (
+                                <tr
+                                  key={row.reservation_id}
+                                  className={cn(
+                                    "border-t border-border/50 transition-colors hover:bg-muted/40",
+                                    getRowClass(row)
+                                  )}
+                                >
+                                  <td className="px-4 py-2.5 font-medium whitespace-nowrap text-foreground">{row.order_number || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap">
+                                    <span className={cn(
+                                      "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase",
+                                      row.order_type === "B2B"
+                                        ? "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200 dark:border-violet-900"
+                                        : "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200 dark:border-orange-900"
+                                    )}>
+                                      {row.order_type || "-"}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 max-w-[200px] truncate text-foreground/90" title={row.customer_party_name}>{row.customer_party_name || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-foreground/90">{row.warehouse_name || "-"}</td>
+                                  <td className="px-4 py-2.5 max-w-[180px] truncate text-foreground/90" title={row.product_name}>{row.product_name || "-"}</td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap">{getStatusBadge(row.status)}</td>
+                                  <td className="px-4 py-2.5 text-right tabular-nums font-bold whitespace-nowrap">
+                                    {activeQty > 0 ? (
+                                      <span className="text-amber-600 dark:text-amber-400">{formatNumber(activeQty)}</span>
+                                    ) : (
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatNumber(activeQty)}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground text-[11px]">
+                                    {row.created_at ? new Date(row.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-"}
+                                  </td>
+                                  <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{row.created_by_name || "-"}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          {/* Totals footer */}
+                          <tfoot className="bg-muted/70 border-t-2 border-border sticky bottom-0 backdrop-blur-sm">
+                            <tr>
+                              <td colSpan={6} className="px-4 py-3 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                Totals ({reservedDetailsRows.length} rows)
+                              </td>
+                              <td className="px-4 py-3 text-right tabular-nums font-bold text-[12px]">
+                                {totActive > 0 ? (
+                                  <span className="text-amber-600 dark:text-amber-400">{formatNumber(totActive)}</span>
+                                ) : (
+                                  <span className="text-emerald-600 dark:text-emerald-400">{formatNumber(totActive)}</span>
+                                )}
+                              </td>
+                              <td colSpan={2} />
+                            </tr>
+                          </tfoot>
+                        </table>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-border bg-muted/20 flex justify-end items-center gap-3">
+                  <Button size="sm" variant="outline" onClick={() => setReservedDetailsOpen(false)}>
+                    Close
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleExportReservedDetails}
+                    disabled={reservedDetailsLoading || reservedDetailsExporting || !reservedDetailsRows.length}
+                  >
+                    {reservedDetailsExporting ? "Exporting…" : "Export"}
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
         </div>
       </div>
     </ListingPageContainer>

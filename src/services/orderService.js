@@ -88,6 +88,12 @@ export const forceCompleteDelivery = (id, payload = {}) =>
 export const cancelOrder = (id, payload = {}) =>
     apiClient.post(`/order/${id}/cancel`, payload).then((r) => r.data);
 
+export const reserveStock = (id) =>
+    apiClient.post(`/order/${id}/reserve-stock`).then((r) => r.data);
+
+export const releaseStock = (id) =>
+    apiClient.post(`/order/${id}/release-stock`).then((r) => r.data);
+
 export const getLatestPurchasePrices = (productIds = [], options = {}) =>
     apiClient
         .get("/order/latest-purchase-prices", {
@@ -134,6 +140,8 @@ export default {
     downloadOrderPDF,
     forceCompleteDelivery,
     cancelOrder,
+    reserveStock,
+    releaseStock,
     getLatestPurchasePrices,
     getOrderCostAmendments,
     amendOrder,
