@@ -21,6 +21,7 @@ export const LINE_STATUS_OPTIONS = [
   { value: "PENDING", label: "Pending" },
   { value: "PARTIAL", label: "Partial" },
   { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
 ];
 
 const mapList = (res) => {
