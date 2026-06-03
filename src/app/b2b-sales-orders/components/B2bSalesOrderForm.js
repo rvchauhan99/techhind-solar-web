@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
@@ -20,6 +20,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import DateField from "@/components/common/DateField";
@@ -31,6 +32,7 @@ import LoadingButton from "@/components/common/LoadingButton";
 import companyService from "@/services/companyService";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
+import stockService from "@/services/stockService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
@@ -79,6 +81,262 @@ const emptyCurrentItem = () => ({
   product_capacity: "",
   product_type_name: "",
 });
+
+const resolveProductId = (productId) => {
+  if (productId == null || productId === "") return null;
+  if (typeof productId === "object") return productId?.id ?? null;
+  return productId;
+};
+
+const stockCacheKey = (warehouseId, productId) => {
+  const wid = warehouseId ? parseInt(warehouseId, 10) : null;
+  const pid = resolveProductId(productId);
+  if (!wid || Number.isNaN(wid) || pid == null) return null;
+  return `${wid}:${pid}`;
+};
+
+const getStockFromCache = (stockCache, warehouseId, productId) => {
+  const key = stockCacheKey(warehouseId, productId);
+  if (!key || !Object.prototype.hasOwnProperty.call(stockCache, key)) return undefined;
+  return stockCache[key];
+};
+
+const getStockNumbers = (stockRow) => {
+  const available =
+    stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
+      ? Number(stockRow.quantity_available)
+      : 0;
+  const reserved =
+    stockRow && stockRow.quantity_reserved != null && !Number.isNaN(Number(stockRow.quantity_reserved))
+      ? Number(stockRow.quantity_reserved)
+      : 0;
+  return { available, reserved, hasRow: !!stockRow };
+};
+
+const buildStockSnapshot = (stockRow, orderQty = 0) => {
+  const { available, reserved, hasRow } = getStockNumbers(stockRow);
+  const qty = Number(orderQty) || 0;
+  return {
+    stock_available: available,
+    stock_reserved: reserved,
+    stock_after_reservation: Math.max(0, available - qty),
+    stock_has_row: hasRow,
+  };
+};
+
+const computeStockDisplay = ({
+  warehouseId,
+  productId,
+  orderQty = 0,
+  stockCache = {},
+  stockFetchingKeys = {},
+  item = null,
+  allowSnapshotFallback = false,
+}) => {
+  const pid = resolveProductId(productId);
+  if (!pid) return { kind: "hidden" };
+
+  if (!warehouseId) {
+    return { kind: "message", message: "Select warehouse to view stock" };
+  }
+
+  const key = stockCacheKey(warehouseId, pid);
+  if (key && stockFetchingKeys[key]) {
+    return { kind: "loading" };
+  }
+
+  const cached = getStockFromCache(stockCache, warehouseId, pid);
+  const qty = Number(orderQty) || 0;
+
+  if (cached !== undefined) {
+    const { available, reserved, hasRow } = getStockNumbers(cached);
+    if (hasRow) {
+      return {
+        kind: "values",
+        available,
+        reserved,
+        afterReservation: Math.max(0, available - qty),
+      };
+    }
+    return { kind: "message", message: "No stock found for selected warehouse", warning: true };
+  }
+
+  if (allowSnapshotFallback && item && (item.stock_has_row || item.stock_available != null)) {
+    const snapAvailable = Number(item.stock_available) || 0;
+    const snapReserved = Number(item.stock_reserved) || 0;
+    const snapAfter =
+      item.stock_after_reservation != null
+        ? Number(item.stock_after_reservation)
+        : Math.max(0, snapAvailable - qty);
+    return {
+      kind: "values",
+      available: snapAvailable,
+      reserved: snapReserved,
+      afterReservation: snapAfter,
+    };
+  }
+
+  return { kind: "loading" };
+};
+
+const StockValueLines = ({ available, reserved, afterReservation }) => (
+  <div className="flex flex-col gap-1 text-xs">
+    <div>
+      <span className="text-muted-foreground">Available:</span> {available}
+    </div>
+    <div>
+      <span className="text-muted-foreground">Reserved:</span> {reserved}
+    </div>
+    <div>
+      <span className="text-muted-foreground">After reservation:</span> {afterReservation}
+    </div>
+  </div>
+);
+
+function StockDetailsInline({
+  warehouseId,
+  productId,
+  orderQty = 0,
+  stockCache = {},
+  stockFetchingKeys = {},
+  fetchStockForProduct,
+}) {
+  const pid = resolveProductId(productId);
+
+  useEffect(() => {
+    if (!pid || !warehouseId || !fetchStockForProduct) return;
+    const key = stockCacheKey(warehouseId, pid);
+    if (!key) return;
+    fetchStockForProduct(pid, warehouseId);
+  }, [pid, warehouseId, fetchStockForProduct]);
+
+  const display = computeStockDisplay({
+    warehouseId,
+    productId,
+    orderQty,
+    stockCache,
+    stockFetchingKeys,
+  });
+
+  if (display.kind === "hidden") return null;
+
+  if (display.kind === "message") {
+    return (
+      <Typography
+        variant="caption"
+        color={display.warning ? "warning.main" : "text.secondary"}
+        sx={{ fontSize: 11, lineHeight: 1.3, py: 0.25 }}
+      >
+        {display.message}
+      </Typography>
+    );
+  }
+
+  if (display.kind === "loading") {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, py: 0.25 }}>
+        <CircularProgress size={12} />
+        <Typography variant="caption" sx={{ fontSize: 11 }}>Loading stock…</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 1,
+        py: 0.25,
+      }}
+    >
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3, fontWeight: 600 }}>
+        Stock:
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3 }}>
+        Available: {display.available}
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3, color: "text.disabled" }}>
+        ·
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3 }}>
+        Reserved: {display.reserved}
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3, color: "text.disabled" }}>
+        ·
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3 }}>
+        After reservation: {display.afterReservation}
+      </Typography>
+    </Box>
+  );
+}
+
+function StockDetailsViewButton({
+  warehouseId,
+  productId,
+  orderQty = 0,
+  stockCache = {},
+  stockFetchingKeys = {},
+  fetchStockForProduct,
+  item = null,
+}) {
+  const [open, setOpen] = useState(false);
+  const pid = resolveProductId(productId);
+
+  const handleOpenChange = (nextOpen) => {
+    setOpen(nextOpen);
+    if (nextOpen && pid && warehouseId && fetchStockForProduct) {
+      fetchStockForProduct(pid, warehouseId);
+    }
+  };
+
+  const display = computeStockDisplay({
+    warehouseId,
+    productId,
+    orderQty,
+    stockCache,
+    stockFetchingKeys,
+    item,
+    allowSnapshotFallback: false,
+  });
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-7 px-2 text-xs">
+          View
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <p className="text-xs font-semibold mb-1.5">Stock details</p>
+        {display.kind === "loading" && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <CircularProgress size={12} />
+            <Typography variant="caption" sx={{ fontSize: 11 }}>Loading stock…</Typography>
+          </Box>
+        )}
+        {display.kind === "message" && (
+          <Typography
+            variant="caption"
+            color={display.warning ? "warning.main" : "text.secondary"}
+            sx={{ fontSize: 11 }}
+          >
+            {display.message}
+          </Typography>
+        )}
+        {display.kind === "values" && (
+          <StockValueLines
+            available={display.available}
+            reserved={display.reserved}
+            afterReservation={display.afterReservation}
+          />
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 const getFirstValidationError = (errs = {}) => {
   if (!errs || Object.keys(errs).length === 0) return { key: "", message: "" };
@@ -157,6 +415,61 @@ export default function B2bSalesOrderForm({
   const [isSubmittingLocal, setIsSubmittingLocal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [submitErrorMessage, setSubmitErrorMessage] = useState("");
+  const [stockCache, setStockCache] = useState({});
+  const [stockFetchingKeys, setStockFetchingKeys] = useState({});
+  const stockFetchingRef = useRef(new Set());
+  const stockCacheRef = useRef({});
+
+  useEffect(() => {
+    stockCacheRef.current = stockCache;
+  }, [stockCache]);
+
+  useEffect(() => {
+    if (fromQuoteId) return;
+    setStockCache({});
+    setStockFetchingKeys({});
+    stockFetchingRef.current.clear();
+    stockCacheRef.current = {};
+  }, [plannedWarehouseId, fromQuoteId]);
+
+  const fetchStockForProduct = useCallback(async (productId, warehouseId) => {
+    const key = stockCacheKey(warehouseId, productId);
+    if (!key) return null;
+
+    if (Object.prototype.hasOwnProperty.call(stockCacheRef.current, key)) {
+      return stockCacheRef.current[key];
+    }
+    if (stockFetchingRef.current.has(key)) {
+      return undefined;
+    }
+
+    stockFetchingRef.current.add(key);
+    setStockFetchingKeys((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      const row = await stockService.getStockByProductAndWarehouse(productId, warehouseId);
+      setStockCache((prev) => {
+        const next = { ...prev, [key]: row };
+        stockCacheRef.current = next;
+        return next;
+      });
+      return row;
+    } catch {
+      setStockCache((prev) => {
+        const next = { ...prev, [key]: null };
+        stockCacheRef.current = next;
+        return next;
+      });
+      return null;
+    } finally {
+      stockFetchingRef.current.delete(key);
+      setStockFetchingKeys((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -421,6 +734,12 @@ export default function B2bSalesOrderForm({
       return;
     }
     const pid = typeof currentItem.product_id === "object" ? currentItem.product_id?.id : currentItem.product_id;
+    const cacheKey = stockCacheKey(plannedWarehouseId, pid);
+    const stockRow =
+      cacheKey && Object.prototype.hasOwnProperty.call(stockCache, cacheKey)
+        ? stockCache[cacheKey]
+        : null;
+    const stockSnap = buildStockSnapshot(stockRow, currentItem.quantity);
     setFormData((p) => ({
       ...p,
       items: [
@@ -437,6 +756,7 @@ export default function B2bSalesOrderForm({
           measurement_unit: currentItem.measurement_unit || "",
           product_capacity: currentItem.product_capacity || "",
           product_type_name: currentItem.product_type_name || "",
+          ...stockSnap,
         },
       ],
     }));
@@ -1008,6 +1328,16 @@ export default function B2bSalesOrderForm({
                   </Button>
                 </div>
               </div>
+              {resolveProductId(currentItem.product_id) && (
+                <StockDetailsInline
+                  warehouseId={plannedWarehouseId}
+                  productId={currentItem.product_id}
+                  orderQty={currentItem.quantity}
+                  stockCache={stockCache}
+                  stockFetchingKeys={stockFetchingKeys}
+                  fetchStockForProduct={fetchStockForProduct}
+                />
+              )}
             </Paper>
 
             {formData.items.length > 0 && (
@@ -1017,6 +1347,7 @@ export default function B2bSalesOrderForm({
                     <TableRow>
                       <TableCell>#</TableCell>
                       <TableCell>Product</TableCell>
+                      <TableCell align="center">Stock</TableCell>
                       <TableCell>HSN Code</TableCell>
                       <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Per Watt (₹/W)</TableCell>
@@ -1049,7 +1380,22 @@ export default function B2bSalesOrderForm({
                       return (
                         <TableRow key={index}>
                           <TableCell>{index + 1}</TableCell>
-                          <TableCell>{item.product_label || `Product #${item.product_id}`}</TableCell>
+                          <TableCell sx={{ minWidth: 140 }}>
+                            <Typography variant="body2" sx={{ fontSize: 12, lineHeight: 1.3 }}>
+                              {item.product_label || `Product #${item.product_id}`}
+                            </Typography>
+                          </TableCell>
+                          <TableCell align="center" sx={{ whiteSpace: "nowrap" }}>
+                            <StockDetailsViewButton
+                              warehouseId={plannedWarehouseId}
+                              productId={item.product_id}
+                              orderQty={item.quantity}
+                              stockCache={stockCache}
+                              stockFetchingKeys={stockFetchingKeys}
+                              fetchStockForProduct={fetchStockForProduct}
+                              item={item}
+                            />
+                          </TableCell>
                           <TableCell>{item.hsn_code || "–"}</TableCell>
                           <TableCell align="right">{qty} {item.measurement_unit ? `(${item.measurement_unit})` : ""}</TableCell>
                           <TableCell align="right">

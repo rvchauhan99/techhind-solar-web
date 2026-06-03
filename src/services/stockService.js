@@ -21,6 +21,19 @@ export const getStockById = (id) =>
 export const getStocksByWarehouse = (warehouseId, options = {}) =>
   apiClient.get(`/stocks/warehouse/${warehouseId}`, { signal: options.signal }).then((r) => r.data);
 
+export const getStockByProductAndWarehouse = async (productId, warehouseId, options = {}) => {
+  const res = await getStocks({
+    product_id: productId,
+    warehouse_id: warehouseId,
+    limit: 1,
+    page: 1,
+    ...options,
+  });
+  const result = res?.result ?? res;
+  const rows = result?.data ?? [];
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+};
+
 export const getAvailableSerials = (productId, warehouseId, options = {}) =>
   apiClient.get("/stocks/serials/available", {
     params: { product_id: productId, warehouse_id: warehouseId },
@@ -45,6 +58,7 @@ export default {
   exportReservationDetails,
   getStockById,
   getStocksByWarehouse,
+  getStockByProductAndWarehouse,
   getAvailableSerials,
   validateSerialAvailable,
   validateSerialNotExists,
