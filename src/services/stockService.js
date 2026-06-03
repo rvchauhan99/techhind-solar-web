@@ -9,6 +9,12 @@ export const getStockSummary = (params = {}) =>
 export const exportStocks = (params = {}) =>
   apiClient.get("/stocks/export", { params, responseType: "blob" }).then((r) => r.data);
 
+export const getReservationDetails = (params = {}) =>
+  apiClient.get("/stocks/reservation-details", { params }).then((r) => r.data);
+
+export const exportReservationDetails = (params = {}) =>
+  apiClient.get("/stocks/reservation-details/export", { params, responseType: "blob" }).then((r) => r.data);
+
 export const getStockById = (id) =>
   apiClient.get(`/stocks/${id}`).then((r) => r.data);
 
@@ -35,6 +41,8 @@ export default {
   getStocks,
   getStockSummary,
   exportStocks,
+  getReservationDetails,
+  exportReservationDetails,
   getStockById,
   getStocksByWarehouse,
   getAvailableSerials,

@@ -36,6 +36,7 @@ const FILTER_KEYS = [
   "order_number",
   "order_date_from",
   "order_date_to",
+  "delivery_status",
   "delivery_date_from",
   "delivery_date_to",
   "current_stage_key",
@@ -239,6 +240,7 @@ export default function OrderListFilterPanel({
       order_number: "Order No",
       order_date_from: "Date From",
       order_date_to: "Date To",
+      delivery_status: "Delivery Status",
       delivery_date_from: "Delivery Date From",
       delivery_date_to: "Delivery Date To",
       cancelled_stage: "Cancelled Stage",
@@ -452,6 +454,19 @@ export default function OrderListFilterPanel({
           <Input name="order_number" label="Order Number" placeholder="Search..." value={localValues.order_number} onChange={(e) => handleChange("order_number", e.target.value)} />
           <DateField name="order_date_from" label="Order Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
           <DateField name="order_date_to" label="Order Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
+          {(variant === "confirm" || variant === "closed" || variant === "cancelled" || variant === "dashboard") && (
+            <Select
+              name="delivery_status"
+              label="Delivery Status"
+              value={localValues.delivery_status || ""}
+              onChange={(e) => handleChange("delivery_status", e.target.value)}
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="pending">Pending</MenuItem>
+              <MenuItem value="partial">Partial</MenuItem>
+              <MenuItem value="complete">Complete</MenuItem>
+            </Select>
+          )}
           {(variant === "confirm" ||
             variant === "closed" ||
             variant === "cancelled" ||
