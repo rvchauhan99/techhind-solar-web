@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   IconAlertTriangle,
   IconChartBar,
@@ -10,7 +12,9 @@ import {
   IconDownload,
   IconFileTypePdf,
   IconPackage,
+  IconPencil,
   IconTruck,
+  IconX,
 } from "@tabler/icons-react";
 import {
   Bar,
@@ -26,11 +30,22 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import b2bSalesOrderLinesReportService from "@/services/b2bSalesOrderLinesReportService";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import B2bSalesOrderDetailsContent from "@/app/b2b-sales-orders/components/B2bSalesOrderDetailsContent";
+import { useAuth } from "@/hooks/useAuth";
 import { toastError } from "@/utils/toast";
 
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"];
@@ -166,14 +181,31 @@ function FulfillmentBar({ value }) {
 }
 
 export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
+  const router = useRouter();
+  const { modulePermissions, currentModuleId } = useAuth();
+  const currentPerm = modulePermissions?.[currentModuleId] || {
+    can_create: false,
+    can_read: false,
+    can_update: false,
+    can_delete: false,
+  };
+
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [selectedLineId, setSelectedLineId] = useState(null);
+  const [selectedOrderSummary, setSelectedOrderSummary] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
+  const [confirmOrderDialogOpen, setConfirmOrderDialogOpen] = useState(false);
+  const [orderToConfirm, setOrderToConfirm] = useState(null);
+  const [confirmingOrder, setConfirmingOrder] = useState(false);
+  const [cancelOrderDialogOpen, setCancelOrderDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
+  const [localRefreshKey, setLocalRefreshKey] = useState(0);
   const setErrorRef = useRef(() => {});
   setErrorRef.current = setError;
 
@@ -199,7 +231,7 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
         setLoading(false);
       }
     },
-    [filters, refreshKey]
+    [filters, refreshKey, localRefreshKey]
   );
 
   const handleExport = async (format) => {
@@ -214,6 +246,11 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     if (!row?.order_id) return;
     setSelectedOrderId(row.order_id);
     setSelectedLineId(row.id ?? null);
+    setSelectedOrderSummary({
+      id: row.order_id,
+      status: row.order_status,
+      order_no: row.order_no,
+    });
     setOrderDetails(null);
     setSidebarOpen(true);
   }, []);
@@ -222,25 +259,93 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     setSidebarOpen(false);
     setSelectedOrderId(null);
     setSelectedLineId(null);
+    setSelectedOrderSummary(null);
     setOrderDetails(null);
+  }, []);
+
+  const loadOrderDetails = useCallback(async (orderId) => {
+    if (!orderId) return;
+    setLoadingOrderDetails(true);
+    setOrderDetails(null);
+    try {
+      const res = await b2bSalesOrderService.getB2bSalesOrderById(orderId);
+      const order = res?.result ?? res;
+      setOrderDetails(order ?? null);
+      if (order) {
+        setSelectedOrderSummary((prev) => ({
+          id: order.id ?? prev?.id ?? orderId,
+          status: order.status ?? prev?.status,
+          order_no: order.order_no ?? prev?.order_no,
+        }));
+      }
+    } catch (err) {
+      setOrderDetails(null);
+      toastError(err?.response?.data?.message || "Failed to load order details");
+    } finally {
+      setLoadingOrderDetails(false);
+    }
   }, []);
 
   useEffect(() => {
     if (!sidebarOpen || !selectedOrderId) return;
-    setLoadingOrderDetails(true);
-    setOrderDetails(null);
-    b2bSalesOrderService
-      .getB2bSalesOrderById(selectedOrderId)
-      .then((res) => {
-        const order = res?.result ?? res;
-        setOrderDetails(order ?? null);
-      })
-      .catch((err) => {
-        setOrderDetails(null);
-        toastError(err?.response?.data?.message || "Failed to load order details");
-      })
-      .finally(() => setLoadingOrderDetails(false));
-  }, [sidebarOpen, selectedOrderId]);
+    loadOrderDetails(selectedOrderId);
+  }, [sidebarOpen, selectedOrderId, loadOrderDetails]);
+
+  const handleEdit = useCallback(
+    (id) => {
+      if (!id) return;
+      router.push(`/b2b-sales-orders/edit?id=${id}`);
+    },
+    [router]
+  );
+
+  const handleConfirmOrderClick = useCallback((order) => {
+    if (!order?.id) return;
+    setOrderToConfirm(order);
+    setConfirmOrderDialogOpen(true);
+  }, []);
+
+  const handleConfirmOrderConfirm = useCallback(async () => {
+    if (!orderToConfirm?.id) return;
+    setConfirmingOrder(true);
+    try {
+      await b2bSalesOrderService.confirmB2bSalesOrder(orderToConfirm.id);
+      toast.success("Order confirmed");
+      setConfirmOrderDialogOpen(false);
+      setOrderToConfirm(null);
+      setLocalRefreshKey((prev) => prev + 1);
+      await loadOrderDetails(orderToConfirm.id);
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to confirm order");
+    } finally {
+      setConfirmingOrder(false);
+    }
+  }, [orderToConfirm, loadOrderDetails]);
+
+  const handleCancelOrderClick = useCallback((order) => {
+    if (!order?.id) return;
+    setOrderToCancel(order);
+    setCancelOrderDialogOpen(true);
+  }, []);
+
+  const handleCancelOrderConfirm = useCallback(async () => {
+    if (!orderToCancel?.id) return;
+    setCancellingOrder(true);
+    try {
+      await b2bSalesOrderService.cancelB2bSalesOrder(orderToCancel.id);
+      toast.success("Order cancelled");
+      setCancelOrderDialogOpen(false);
+      setOrderToCancel(null);
+      setLocalRefreshKey((prev) => prev + 1);
+      if (selectedOrderId === orderToCancel.id) {
+        handleCloseSidebar();
+      }
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to cancel order");
+    } finally {
+      setCancellingOrder(false);
+    }
+  }, [orderToCancel, selectedOrderId, handleCloseSidebar]);
 
   const handlePdfDownload = useCallback(async (orderId) => {
     if (!orderId) return;
@@ -374,6 +479,8 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     },
   ];
 
+  const selectedOrder = orderDetails || selectedOrderSummary;
+
   return (
     <div className="space-y-2">
       {error && (
@@ -478,6 +585,7 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
           </div>
         </div>
         <PaginatedTable
+          key={`${refreshKey}-${localRefreshKey}`}
           columns={columns}
           fetcher={fetcher}
           filterParams={filterParams()}
@@ -499,21 +607,74 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
         onClose={handleCloseSidebar}
         title="Order Details"
         headerActions={
-          selectedOrderId ? (
-            <Button size="sm" variant="outline" onClick={() => handlePdfDownload(selectedOrderId)}>
-              <IconFileTypePdf className="size-4 mr-1" />
-              Download PDF
-            </Button>
-          ) : null
+            selectedOrderId ? (
+              <div className="flex items-center gap-1">
+                {selectedOrder?.status === "DRAFT" && currentPerm.can_update && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(selectedOrderId)}>
+                      <IconPencil className="size-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="default" onClick={() => handleConfirmOrderClick(selectedOrder)}>
+                      <IconCircleCheck className="size-4 mr-1" />
+                      Confirm
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleCancelOrderClick(selectedOrder)}>
+                      Cancel Order
+                    </Button>
+                  </>
+                )}
+                <Button size="sm" variant="outline" onClick={() => handlePdfDownload(selectedOrderId)}>
+                  <IconFileTypePdf className="size-4 mr-1" />
+                  Download PDF
+                </Button>
+              </div>
+            ) : null
         }
       >
         <B2bSalesOrderDetailsContent
           order={orderDetails}
           loading={loadingOrderDetails}
-          readOnly
+            canUpdate={currentPerm.can_update}
+            onConfirm={handleConfirmOrderClick}
+            onCancel={handleCancelOrderClick}
           highlightLineId={selectedLineId}
         />
       </DetailsSidebar>
+
+      <AlertDialog open={confirmOrderDialogOpen} onOpenChange={setConfirmOrderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm this order? Planned warehouse must be set. The order status will change to Confirmed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={confirmingOrder}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmOrderConfirm} disabled={confirmingOrder}>
+              {confirmingOrder ? "Confirming..." : "Confirm Order"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={cancelOrderDialogOpen} onOpenChange={setCancelOrderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this order? The order will be marked as cancelled. Only draft orders can be cancelled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancellingOrder}>No</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={handleCancelOrderConfirm} disabled={cancellingOrder}>
+              {cancellingOrder ? "Cancelling..." : "Yes, cancel order"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
