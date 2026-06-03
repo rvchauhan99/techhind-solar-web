@@ -275,8 +275,8 @@ function AddOrderContent() {
             defaults.phone_no = inquiryData.phone_no;
             defaults.email = inquiryData.email;
             defaults.pin_code = inquiryData.pin_code;
-            defaults.state_id = inquiryData.state_name || inquiryData.state_id;
-            defaults.city_id = inquiryData.city_name || inquiryData.city_id;
+            defaults.state_id = inquiryData.state_id ?? "";
+            defaults.city_id = inquiryData.city_id ?? "";
             defaults.landmark_area = inquiryData.landmark_area;
             defaults.district = inquiryData.district;
 
@@ -324,11 +324,11 @@ function AddOrderContent() {
             if (quotationData.phone_no) defaults.phone_no = quotationData.phone_no;
             if (quotationData.email) defaults.email = quotationData.email;
             if (quotationData.pin_code) defaults.pin_code = quotationData.pin_code;
-            if (quotationData.state_name || quotationData.state_id) {
-                defaults.state_id = quotationData.state_name || quotationData.state_id;
+            if (quotationData.state_id != null && quotationData.state_id !== "") {
+                defaults.state_id = quotationData.state_id;
             }
-            if (quotationData.city_name || quotationData.city_id) {
-                defaults.city_id = quotationData.city_name || quotationData.city_id;
+            if (quotationData.city_id != null && quotationData.city_id !== "") {
+                defaults.city_id = quotationData.city_id;
             }
             if (quotationData.landmark_area) defaults.landmark_area = quotationData.landmark_area;
             if (quotationData.district) defaults.district = quotationData.district;
