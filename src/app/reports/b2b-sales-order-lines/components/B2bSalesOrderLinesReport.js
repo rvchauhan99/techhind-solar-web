@@ -47,6 +47,7 @@ import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import B2bSalesOrderDetailsContent from "@/app/b2b-sales-orders/components/B2bSalesOrderDetailsContent";
 import { useAuth } from "@/hooks/useAuth";
 import { toastError } from "@/utils/toast";
+import { formatInrCompact, formatInrFull } from "@/utils/currencyFormatters";
 
 const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"];
 const TOOLTIP_STYLE = { borderRadius: 8, border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.12)", fontSize: 11 };
@@ -70,13 +71,6 @@ const STATUS_LABEL = {
   PENDING: "Pending",
   PARTIAL: "Partial",
 };
-
-const currency = (value) =>
-  Number(value || 0).toLocaleString("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  });
 
 const number = (value, digits = 0) =>
   Number(value || 0).toLocaleString("en-IN", {
@@ -117,19 +111,24 @@ const buildParams = (filters, params = {}) => ({
   sortOrder: params.sortOrder === "asc" ? "ASC" : "DESC",
 });
 
-function KpiCard({ icon: Icon, iconColor, label, value, sub, loading }) {
+function KpiCard({ icon: Icon, iconColor, label, value, title, sub, loading }) {
   return (
-    <Card className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md ${loading ? "animate-pulse" : ""}`}>
-      <CardContent className="p-2 flex flex-col justify-center h-full gap-0.5">
-        <div className="flex justify-between items-center mb-0.5">
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight leading-none">{label}</span>
+    <Card className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md min-w-0 ${loading ? "animate-pulse" : ""}`}>
+      <CardContent className="p-2 flex flex-col justify-center h-full gap-0.5 min-w-0">
+        <div className="flex justify-between items-center mb-0.5 gap-1 min-w-0">
+          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-tight leading-none truncate">{label}</span>
           {Icon && (
             <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${iconColor}`}>
               <Icon size={11} />
             </div>
           )}
         </div>
-        <div className="text-lg font-bold text-slate-900 leading-none">{loading ? "…" : value}</div>
+        <div
+          className="min-w-0 w-full truncate tabular-nums text-sm font-bold text-slate-900 leading-tight"
+          title={!loading && title ? title : undefined}
+        >
+          {loading ? "…" : value}
+        </div>
         {sub && <div className="text-[10px] text-slate-400 leading-none truncate">{sub}</div>}
       </CardContent>
     </Card>
@@ -464,18 +463,18 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     {
       field: "unit_rate",
       label: "Rate",
-      render: (row) => <span className="text-[10px] text-slate-600">{currency(row.unit_rate)}</span>,
+      render: (row) => <span className="text-[10px] text-slate-600">{formatInrFull(row.unit_rate)}</span>,
     },
     {
       field: "total_amount",
       label: "Value",
       sortable: true,
-      render: (row) => <span className="text-[10px] font-semibold text-slate-800">{currency(row.total_amount)}</span>,
+      render: (row) => <span className="text-[10px] font-semibold text-slate-800">{formatInrFull(row.total_amount)}</span>,
     },
     {
       field: "pending_value",
       label: "Pending Value",
-      render: (row) => <span className="text-[10px] font-semibold text-amber-700">{currency(row.pending_value)}</span>,
+      render: (row) => <span className="text-[10px] font-semibold text-amber-700">{formatInrFull(row.pending_value)}</span>,
     },
   ];
 
@@ -489,13 +488,27 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 gap-1.5">
         <KpiCard icon={IconPackage} iconColor="bg-blue-50 text-blue-600" label="Lines" value={number(summary?.total_lines)} loading={loading} />
-        <KpiCard icon={IconCurrencyRupee} iconColor="bg-emerald-50 text-emerald-600" label="Order Value" value={currency(summary?.total_value)} loading={loading} />
+        <KpiCard
+          icon={IconCurrencyRupee}
+          iconColor="bg-emerald-50 text-emerald-600"
+          label="Order Value"
+          value={formatInrCompact(summary?.total_value)}
+          title={formatInrFull(summary?.total_value)}
+          loading={loading}
+        />
         <KpiCard icon={IconPackage} iconColor="bg-slate-50 text-slate-600" label="Ordered Qty" value={number(summary?.ordered_qty)} loading={loading} />
         <KpiCard icon={IconTruck} iconColor="bg-blue-50 text-blue-600" label="Shipped Qty" value={number(summary?.shipped_qty)} loading={loading} />
         <KpiCard icon={IconClock} iconColor="bg-amber-50 text-amber-600" label="Pending Qty" value={number(summary?.pending_qty)} loading={loading} />
-        <KpiCard icon={IconCurrencyRupee} iconColor="bg-amber-50 text-amber-600" label="Pending Value" value={currency(summary?.pending_value)} loading={loading} />
+        <KpiCard
+          icon={IconCurrencyRupee}
+          iconColor="bg-amber-50 text-amber-600"
+          label="Pending Value"
+          value={formatInrCompact(summary?.pending_value)}
+          title={formatInrFull(summary?.pending_value)}
+          loading={loading}
+        />
         <KpiCard icon={IconCircleCheck} iconColor="bg-emerald-50 text-emerald-600" label="Completed" value={number(summary?.completed_lines)} loading={loading} />
         <KpiCard icon={IconTruck} iconColor="bg-amber-50 text-amber-600" label="Partial" value={number(summary?.partial_lines)} loading={loading} />
         <KpiCard icon={IconClock} iconColor="bg-slate-50 text-slate-600" label="Pending" value={number(summary?.pending_lines)} loading={loading} />
@@ -510,7 +523,7 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 9 }} />
                 <YAxis tick={{ fontSize: 9 }} />
-                <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => currency(v)} />
+                <RTooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => formatInrFull(v)} />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                   {statusData.map((entry, index) => <Cell key={entry.name} fill={COLORS[index % COLORS.length]} />)}
                 </Bar>
