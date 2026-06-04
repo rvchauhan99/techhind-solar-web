@@ -29,6 +29,8 @@ import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
 import ClearIcon from "@mui/icons-material/Clear";
 import BarcodeScanner from "@/components/common/BarcodeScanner";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
+import B2bOrderPaymentSummaryStrip from "./B2bOrderPaymentSummaryStrip";
+import { formatCurrency } from "@/utils/dataTableUtils";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
@@ -665,9 +667,11 @@ export default function B2bShipmentForm({
                                             name="order_id"
                                             label="Confirmed Order"
                                             options={orderOptions}
-                                            getOptionLabel={(o) =>
-                                                `${o.order_number || o.id} – ${o.customer_name || "N/A"} ${o.planned_warehouse_name ? `– ${o.planned_warehouse_name}` : ""}`
-                                            }
+                                            getOptionLabel={(o) => {
+                                                const base = `${o.order_number || o.id} – ${o.customer_name || "N/A"}${o.planned_warehouse_name ? ` – ${o.planned_warehouse_name}` : ""}`;
+                                                const out = Number(o.outstanding_balance ?? 0);
+                                                return out > 0 ? `${base} · Out: ${formatCurrency(out)}` : base;
+                                            }}
                                             value={selectedOrderOption}
                                             onChange={(e, newValue) => {
                                                 setSelectedOrderOption(newValue);
@@ -755,6 +759,7 @@ export default function B2bShipmentForm({
                                         billTo={order.client}
                                         shipTo={order.shipTo}
                                     />
+                                    <B2bOrderPaymentSummaryStrip order={order} />
                                 </Box>
                             )}
                         </CardContent>
