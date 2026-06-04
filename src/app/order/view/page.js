@@ -34,6 +34,7 @@ import orderPaymentsService from "@/services/orderPaymentsService";
 import mastersService from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import PaymentProofViewButton from "@/components/common/PaymentProofViewButton";
 import { toastSuccess, toastError } from "@/utils/toast";
 import {
     getOrderOutstandingAmount,
@@ -777,6 +778,20 @@ function PreviousPaymentsTable({ orderId }) {
                     row.status === "approved" ? "success" : row.status === "rejected" ? "error" : "warning";
                 return <Chip label={label} color={color} size="small" />;
             },
+        },
+        {
+            id: "attachment",
+            label: "Attachment",
+            field: "receipt_cheque_file",
+            isActionColumn: true,
+            render: (row) => (
+                <PaymentProofViewButton
+                    paymentId={row.id}
+                    hasFile={!!row.receipt_cheque_file}
+                    fetchUrl={orderPaymentsService.getReceiptUrl}
+                    label="View"
+                />
+            ),
         },
         {
             id: "actions",
