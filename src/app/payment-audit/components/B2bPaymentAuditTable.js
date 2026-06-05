@@ -6,8 +6,7 @@ import moment from "moment";
 import Link from "next/link";
 import { IconCheck, IconX, IconPrinter, IconLoader2, IconEye } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
-import orderPaymentsService from "@/services/orderPaymentsService";
-import orderDocumentsService from "@/services/orderDocumentsService";
+import b2bOrderPaymentsService from "@/services/b2bOrderPaymentsService";
 import Input from "@/components/common/Input";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -27,7 +26,7 @@ const calculatedTableHeight = () => `calc(100vh - 220px)`;
 const getPaymentStatusLabel = (status) =>
   status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "Pending";
 
-function PaymentVerificationDetails({ payment }) {
+function B2bPaymentVerificationDetails({ payment }) {
   if (!payment) return null;
 
   const hasReceive = !!payment.payment_remarks;
@@ -39,18 +38,20 @@ function PaymentVerificationDetails({ payment }) {
       <div className="text-[11px] font-semibold text-slate-700">Payment Verification Details</div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] leading-4">
         <span className="text-slate-500">Order</span>
-        <span className="font-medium text-slate-800">{payment.order_number || "-"}</span>
-        <span className="text-slate-500">Customer</span>
-        <span className="font-medium text-slate-800">{payment.customer_name || "-"}</span>
-        <span className="text-slate-500">Branch</span>
-        <span className="font-medium text-slate-800">{payment.branch_name || "-"}</span>
+        <span className="font-medium text-slate-800">{payment.order_no || "-"}</span>
+        <span className="text-slate-500">Client</span>
+        <span className="font-medium text-slate-800">{payment.client_name || "-"}</span>
+        <span className="text-slate-500">Warehouse</span>
+        <span className="font-medium text-slate-800">{payment.warehouse_name || "-"}</span>
         <span className="text-slate-500">Payment Date</span>
         <span className="font-medium text-slate-800">
           {payment.date_of_payment ? moment(payment.date_of_payment).format("DD-MM-YYYY") : "-"}
         </span>
         <span className="text-slate-500">Amount</span>
         <span className="font-medium text-slate-800">
-          {payment.payment_amount != null ? `₹${Number(payment.payment_amount).toLocaleString("en-IN")}` : "-"}
+          {payment.payment_amount != null
+            ? `₹${Number(payment.payment_amount).toLocaleString("en-IN")}`
+            : "-"}
         </span>
         <span className="text-slate-500">Payment Mode</span>
         <span className="font-medium text-slate-800">{payment.payment_mode_name || "-"}</span>
@@ -74,13 +75,19 @@ function PaymentVerificationDetails({ payment }) {
         ) : (
           <div className="space-y-0.5 text-[11px]">
             {hasReceive && (
-              <div className="text-slate-700"><strong>Receive:</strong> {payment.payment_remarks}</div>
+              <div className="text-slate-700">
+                <strong>Receive:</strong> {payment.payment_remarks}
+              </div>
             )}
             {hasApprove && (
-              <div className="text-slate-700"><strong>Approve:</strong> {payment.approval_remarks}</div>
+              <div className="text-slate-700">
+                <strong>Approve:</strong> {payment.approval_remarks}
+              </div>
             )}
             {hasReject && (
-              <div className="text-slate-700"><strong>Reject:</strong> {payment.rejection_reason}</div>
+              <div className="text-slate-700">
+                <strong>Reject:</strong> {payment.rejection_reason}
+              </div>
             )}
           </div>
         )}
@@ -89,69 +96,51 @@ function PaymentVerificationDetails({ payment }) {
   );
 }
 
-export default function PaymentAuditTable({ filterParams = {} }) {
+export default function B2bPaymentAuditTable({ filterParams = {} }) {
   const [loadingReceipt, setLoadingReceipt] = useState(new Set());
   const [loadingProof, setLoadingProof] = useState(new Set());
 
   const [approveDialog, setApproveDialog] = useState({
     open: false,
     paymentId: null,
-    orderId: null,
     approvalRemarks: "",
-    proofFile: null,
     paymentSnapshot: null,
     reload: null,
   });
-  const [approveFileInputKey, setApproveFileInputKey] = useState(Date.now());
   const [approveConfirmLoading, setApproveConfirmLoading] = useState(false);
 
   const [rejectDialog, setRejectDialog] = useState({
     open: false,
     paymentId: null,
-    orderId: null,
     reasonId: null,
     reasonLabel: "",
     remarks: "",
-    proofFile: null,
     paymentSnapshot: null,
     reload: null,
   });
-  const [rejectFileInputKey, setRejectFileInputKey] = useState(Date.now());
 
   const handleCloseApproveDialog = () => {
     if (approveConfirmLoading) return;
     setApproveDialog({
       open: false,
       paymentId: null,
-      orderId: null,
       approvalRemarks: "",
-      proofFile: null,
       paymentSnapshot: null,
       reload: null,
     });
-    setApproveFileInputKey(Date.now());
   };
 
   const handleConfirmApprove = async () => {
-    const { paymentId, orderId, approvalRemarks, proofFile, reload } = approveDialog;
+    const { paymentId, approvalRemarks, reload } = approveDialog;
     setApproveConfirmLoading(true);
     try {
-      await orderPaymentsService.approvePayment(paymentId, approvalRemarks);
-      if (proofFile && orderId) {
-        const formData = new FormData();
-        formData.append("document", proofFile);
-        formData.append("order_id", orderId);
-        formData.append("doc_type", "Payment Proof (Approved)");
-        formData.append("remarks", "Payment proof - approved");
-        await orderDocumentsService.createOrderDocument(formData);
-      }
+      await b2bOrderPaymentsService.approvePayment(paymentId, approvalRemarks);
       toastSuccess("Payment approved");
       handleCloseApproveDialog();
       if (reload) await reload();
     } catch (err) {
-      console.error("Failed to approve payment:", err);
-      const msg = err?.response?.data?.message || err?.message || "Failed to approve payment";
-      toastError(msg);
+      console.error("Failed to approve B2B payment:", err);
+      toastError(err?.response?.data?.message || err?.message || "Failed to approve payment");
     } finally {
       setApproveConfirmLoading(false);
     }
@@ -161,50 +150,38 @@ export default function PaymentAuditTable({ filterParams = {} }) {
     setRejectDialog({
       open: false,
       paymentId: null,
-      orderId: null,
       reasonId: null,
       reasonLabel: "",
       remarks: "",
-      proofFile: null,
       paymentSnapshot: null,
       reload: null,
     });
-    setRejectFileInputKey(Date.now());
   };
 
   const handleConfirmReject = async () => {
-    const { paymentId, orderId, reasonLabel, remarks, proofFile, reload } = rejectDialog;
+    const { paymentId, reasonLabel, remarks, reload } = rejectDialog;
     try {
       const trimmedReason = String(reasonLabel || "").trim();
       const trimmedRemarks = String(remarks || "").trim();
       const rejectionReason =
         trimmedReason && trimmedRemarks
           ? `${trimmedReason} - ${trimmedRemarks}`
-          : (trimmedReason || null);
+          : trimmedReason || null;
 
-      await orderPaymentsService.rejectPayment(paymentId, rejectionReason);
-      if (proofFile && orderId) {
-        const formData = new FormData();
-        formData.append("document", proofFile);
-        formData.append("order_id", orderId);
-        formData.append("doc_type", "Payment Proof (Rejected)");
-        formData.append("remarks", "Payment proof - rejected");
-        await orderDocumentsService.createOrderDocument(formData);
-      }
+      await b2bOrderPaymentsService.rejectPayment(paymentId, rejectionReason);
       toastSuccess("Payment rejected");
       handleCloseRejectDialog();
       if (reload) await reload();
     } catch (err) {
-      console.error("Failed to reject payment:", err);
-      const msg = err?.response?.data?.message || err?.message || "Failed to reject payment";
-      toastError(msg);
+      console.error("Failed to reject B2B payment:", err);
+      toastError(err?.response?.data?.message || err?.message || "Failed to reject payment");
     }
   };
 
   const handlePrintReceipt = async (id) => {
     setLoadingReceipt((prev) => new Set(prev).add(id));
     try {
-      const { blob, filename } = await orderPaymentsService.downloadReceiptPDF(id);
+      const { blob, filename } = await b2bOrderPaymentsService.downloadReceiptPDF(id);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -215,17 +192,20 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to download payment receipt:", err);
-      const msg = err?.response?.data?.message || err?.message || "Failed to download payment receipt";
-      toastError(msg);
+      toastError(err?.response?.data?.message || err?.message || "Failed to download payment receipt");
     } finally {
-      setLoadingReceipt((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      setLoadingReceipt((prev) => {
+        const s = new Set(prev);
+        s.delete(id);
+        return s;
+      });
     }
   };
 
   const handleViewPaymentProof = async (id) => {
     setLoadingProof((prev) => new Set(prev).add(id));
     try {
-      const url = await orderPaymentsService.getReceiptUrl(id);
+      const url = await b2bOrderPaymentsService.getReceiptUrl(id);
       if (url) {
         window.open(url, "_blank", "noopener,noreferrer");
       } else {
@@ -233,10 +213,13 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       }
     } catch (err) {
       console.error("Failed to get payment proof URL:", err);
-      const msg = err?.response?.data?.message || err?.message || "No payment proof available";
-      toastError(msg);
+      toastError(err?.response?.data?.message || err?.message || "No payment proof available");
     } finally {
-      setLoadingProof((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      setLoadingProof((prev) => {
+        const s = new Set(prev);
+        s.delete(id);
+        return s;
+      });
     }
   };
 
@@ -245,7 +228,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       filterParams?.status && Array.isArray(filterParams.status)
         ? filterParams.status.join(",")
         : filterParams?.status;
-    const response = await orderPaymentsService.getPayments({
+    const response = await b2bOrderPaymentsService.getPayments({
       ...filterParams,
       ...params,
       status: statusParam ?? params.status,
@@ -270,48 +253,42 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       render: (row) => moment(row.date_of_payment).format("DD-MM-YYYY"),
     },
     {
-      id: "order_number",
+      id: "order_no",
       label: "Order #",
-      field: "order_number",
+      field: "order_no",
       stickyLeft: true,
       stickyWidth: 100,
       render: (row) =>
-        row.order_id ? (
-          <Link href={`/order/view?id=${row.order_id}`} style={{ color: "inherit" }}>
-            {row.order_number || row.order_id}
+        row.b2b_sales_order_id ? (
+          <Link href={`/b2b-sales-orders/view?id=${row.b2b_sales_order_id}`} className="text-primary hover:underline">
+            {row.order_no || row.b2b_sales_order_id}
           </Link>
         ) : (
-          row.order_number || "-"
+          row.order_no || "-"
         ),
     },
     {
-      id: "customer_name",
-      label: "Customer",
-      field: "customer_name",
+      id: "client_name",
+      label: "Client",
+      field: "client_name",
       stickyLeft: true,
       stickyWidth: 150,
       stickyShadow: true,
-      render: (row) => row.customer_name || "-",
+      render: (row) => row.client_name || "-",
     },
     {
-      id: "branch_name",
-      label: "Branch",
-      field: "branch_name",
-      render: (row) => row.branch_name || "-",
+      id: "warehouse_name",
+      label: "Warehouse",
+      field: "warehouse_name",
+      render: (row) => row.warehouse_name || "-",
     },
     {
-      id: "handled_by_name",
-      label: "Handled By",
-      field: "handled_by_name",
-      render: (row) => row.handled_by_name || "-",
-    },
-    {
-      id: "order_project_cost",
+      id: "order_payable_amount",
       label: "Total Payable",
-      field: "order_project_cost",
+      field: "order_payable_amount",
       render: (row) =>
-        row.order_project_cost != null
-          ? `₹${Number(row.order_project_cost).toLocaleString()}`
+        row.order_payable_amount != null
+          ? `₹${Number(row.order_payable_amount).toLocaleString("en-IN")}`
           : "-",
     },
     {
@@ -336,12 +313,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       label: "Status",
       field: "status",
       render: (row) => {
-        const label =
-          row.status === "approved"
-            ? "Approved"
-            : row.status === "rejected"
-              ? "Rejected"
-              : "Pending";
+        const label = getPaymentStatusLabel(row.status);
         const color =
           row.status === "approved" ? "success" : row.status === "rejected" ? "error" : "warning";
         return <Chip label={label} color={color} size="small" />;
@@ -368,7 +340,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         <PaymentProofViewButton
           paymentId={row.id}
           hasFile={!!row.receipt_cheque_file}
-          fetchUrl={orderPaymentsService.getReceiptUrl}
+          fetchUrl={b2bOrderPaymentsService.getReceiptUrl}
           label="View"
         />
       ),
@@ -476,9 +448,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                       setApproveDialog({
                         open: true,
                         paymentId: row.id,
-                        orderId: row.order_id || null,
                         approvalRemarks: "",
-                        proofFile: null,
                         paymentSnapshot: row,
                         reload,
                       })
@@ -496,11 +466,9 @@ export default function PaymentAuditTable({ filterParams = {} }) {
                       setRejectDialog({
                         open: true,
                         paymentId: row.id,
-                        orderId: row.order_id || null,
                         reasonId: null,
                         reasonLabel: "",
                         remarks: "",
-                        proofFile: null,
                         paymentSnapshot: row,
                         reload,
                       })
@@ -564,19 +532,24 @@ export default function PaymentAuditTable({ filterParams = {} }) {
         filterParams={filterParams}
         moduleKey="payment_audit"
       />
+
       <Dialog
         open={approveDialog.open}
         onOpenChange={(open) => !open && !approveConfirmLoading && handleCloseApproveDialog()}
       >
-        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => approveConfirmLoading && e.preventDefault()}>
+        <DialogContent
+          className="sm:max-w-md"
+          onPointerDownOutside={(e) => approveConfirmLoading && e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Confirm Approve Payment</DialogTitle>
           </DialogHeader>
-          <PaymentVerificationDetails payment={approveDialog.paymentSnapshot} />
+          <B2bPaymentVerificationDetails payment={approveDialog.paymentSnapshot} />
           <div className="rounded-md border border-slate-200 bg-white p-2">
             <div className="flex items-center justify-between gap-2">
               <div className="text-[11px] text-slate-600">
-                Receipt File: {approveDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
+                Receipt File:{" "}
+                {approveDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
               </div>
               {!!approveDialog.paymentSnapshot?.receipt_cheque_file && (
                 <UiButton
@@ -600,9 +573,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
           <p className="text-sm text-muted-foreground mb-2">
             Are you sure you want to approve this payment?
           </p>
-          <p className="text-sm text-muted-foreground mt-1 mb-2">
-            Approval remarks (optional):
-          </p>
+          <p className="text-sm text-muted-foreground mt-1 mb-2">Approval remarks (optional):</p>
           <Input
             fullWidth
             multiline
@@ -611,19 +582,6 @@ export default function PaymentAuditTable({ filterParams = {} }) {
             onChange={(e) =>
               setApproveDialog((prev) => ({ ...prev, approvalRemarks: e.target.value }))
             }
-          />
-          <p className="text-sm text-muted-foreground mb-2">
-            Payment proof (optional):
-          </p>
-          <input
-            key={approveFileInputKey}
-            type="file"
-            accept=".pdf,image/*"
-            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              setApproveDialog((prev) => ({ ...prev, proofFile: file || null }));
-            }}
           />
           <DialogFooter className="pt-4">
             <UiButton
@@ -655,16 +613,18 @@ export default function PaymentAuditTable({ filterParams = {} }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && handleCloseRejectDialog()}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reject Payment</DialogTitle>
           </DialogHeader>
-          <PaymentVerificationDetails payment={rejectDialog.paymentSnapshot} />
+          <B2bPaymentVerificationDetails payment={rejectDialog.paymentSnapshot} />
           <div className="rounded-md border border-slate-200 bg-white p-2">
             <div className="flex items-center justify-between gap-2">
               <div className="text-[11px] text-slate-600">
-                Receipt File: {rejectDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
+                Receipt File:{" "}
+                {rejectDialog.paymentSnapshot?.receipt_cheque_file ? "Available" : "Not uploaded"}
               </div>
               {!!rejectDialog.paymentSnapshot?.receipt_cheque_file && (
                 <UiButton
@@ -685,9 +645,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               )}
             </div>
           </div>
-          <p className="text-sm text-muted-foreground mb-2">
-            Please select a reason for rejection.
-          </p>
+          <p className="text-sm text-muted-foreground mb-2">Please select a reason for rejection.</p>
           <AutocompleteField
             name="payment_rejection_reason"
             label="Rejection Reason"
@@ -701,7 +659,11 @@ export default function PaymentAuditTable({ filterParams = {} }) {
             }
             referenceModel="reason.model"
             getOptionLabel={(o) => o?.reason ?? o?.label ?? ""}
-            value={rejectDialog.reasonId ? { id: rejectDialog.reasonId, reason: rejectDialog.reasonLabel } : null}
+            value={
+              rejectDialog.reasonId
+                ? { id: rejectDialog.reasonId, reason: rejectDialog.reasonLabel }
+                : null
+            }
             onChange={(e, v) =>
               setRejectDialog((prev) => ({
                 ...prev,
@@ -711,30 +673,13 @@ export default function PaymentAuditTable({ filterParams = {} }) {
             }
             placeholder="Search reason…"
           />
-          <p className="text-sm text-muted-foreground mt-3 mb-2">
-            Additional remarks (optional):
-          </p>
+          <p className="text-sm text-muted-foreground mt-3 mb-2">Additional remarks (optional):</p>
           <Input
             fullWidth
             multiline
             rows={2}
             value={rejectDialog.remarks}
-            onChange={(e) =>
-              setRejectDialog((prev) => ({ ...prev, remarks: e.target.value }))
-            }
-          />
-          <p className="text-sm text-muted-foreground mt-3 mb-2">
-            Payment proof (optional):
-          </p>
-          <input
-            key={rejectFileInputKey}
-            type="file"
-            accept=".pdf,image/*"
-            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              setRejectDialog((prev) => ({ ...prev, proofFile: file || null }));
-            }}
+            onChange={(e) => setRejectDialog((prev) => ({ ...prev, remarks: e.target.value }))}
           />
           <DialogFooter className="pt-4">
             <UiButton variant="outline" size="sm" onClick={handleCloseRejectDialog}>
@@ -747,7 +692,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
               disabled={!String(rejectDialog.reasonLabel || "").trim()}
             >
               <IconX className="size-4 mr-1.5" />
-              Reject Payment
+              Reject
             </UiButton>
           </DialogFooter>
         </DialogContent>

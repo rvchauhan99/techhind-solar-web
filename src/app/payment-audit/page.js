@@ -14,12 +14,24 @@ import Input from "@/components/common/Input";
 import OrderListQuickSearch from "@/components/common/OrderListQuickSearch";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import PaymentAuditTable from "./components/PaymentAuditTable";
+import B2bPaymentAuditTable from "./components/B2bPaymentAuditTable";
+import {
+  getStoredPaymentChannel,
+  setStoredPaymentChannel,
+} from "@/utils/paymentChannelPreference";
 
-const INITIAL_FILTERS = {
+const B2C_INITIAL_FILTERS = {
   start_date: "", end_date: "", branch_id: "", handled_by: "",
   payment_mode_id: "", status: null, order_number: "",
   receipt_number: "", customer_name: "", search: "",
 };
+
+const B2B_INITIAL_FILTERS = {
+  start_date: "", end_date: "", payment_mode_id: "", status: null,
+  order_no: "", receipt_number: "", client_name: "", search: "",
+};
+
+const INITIAL_FILTERS = B2C_INITIAL_FILTERS;
 
 const STATUS_OPTIONS = [
   { value: "pending_approval", label: "Pending Approval" },
@@ -30,7 +42,7 @@ const STATUS_OPTIONS = [
 const FILTER_LABELS = {
   start_date: "Date From", end_date: "Date To", branch_id: "Branch",
   handled_by: "Handled By", payment_mode_id: "Payment Mode", status: "Status",
-  order_number: "Order #", customer_name: "Customer",
+  order_number: "Order #", order_no: "Order #", customer_name: "Customer", client_name: "Client",
   receipt_number: "Receipt #", search: "Search",
 };
 
@@ -66,9 +78,15 @@ function getChips(filters) {
     }));
 }
 
+const CHANNEL_TABS = [
+  { value: "b2c", label: "B2C" },
+  { value: "b2b", label: "B2B" },
+];
+
 export default function PaymentAuditPage() {
-  const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
+  const [channel, setChannel] = useState(() => getStoredPaymentChannel("b2c"));
+  const [filters, setFilters] = useState(B2C_INITIAL_FILTERS);
+  const [appliedFilters, setAppliedFilters] = useState(B2C_INITIAL_FILTERS);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
@@ -87,9 +105,21 @@ export default function PaymentAuditPage() {
     setRefreshKey((k) => k + 1);
   };
 
+  const handleChannelChange = (ch) => {
+    const init = ch === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    setStoredPaymentChannel(ch);
+    setChannel(ch);
+    setFilters(init);
+    setAppliedFilters(init);
+    setActiveStatusTab(null);
+    setQuickSearch("");
+    setRefreshKey((k) => k + 1);
+  };
+
   const handleReset = () => {
-    setFilters(INITIAL_FILTERS);
-    setAppliedFilters(INITIAL_FILTERS);
+    const init = channel === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    setFilters(init);
+    setAppliedFilters(init);
     setActivePreset(null);
     setActiveStatusTab(null);
     setRefreshKey((k) => k + 1);
@@ -129,7 +159,8 @@ export default function PaymentAuditPage() {
   };
 
   const removeChip = (key) => {
-    const next = { ...appliedFilters, [key]: INITIAL_FILTERS[key] };
+    const init = channel === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    const next = { ...appliedFilters, [key]: init[key] };
     setFilters(next);
     setAppliedFilters(next);
     if (key === "status") setActiveStatusTab(null);
@@ -160,6 +191,22 @@ export default function PaymentAuditPage() {
               </div>
               <h1 className="text-sm font-bold tracking-tight text-slate-900">Payment Audit</h1>
               <span className="text-[11px] text-slate-400 hidden sm:inline">· Review &amp; Approve Payments</span>
+              <div className="flex gap-1 ml-2">
+                {CHANNEL_TABS.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => handleChannelChange(t.value)}
+                    className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                      channel === t.value
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-white text-slate-600 border-slate-200"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="flex items-center gap-1 text-[10px] text-slate-400">
@@ -236,7 +283,7 @@ export default function PaymentAuditPage() {
                 value={quickSearch}
                 onValueChange={handleQuickSearchChange}
                 isSearching={isSearching}
-                placeholder="Quick Search (Order/Receipt/Customer/Keyword)"
+                placeholder={channel === "b2b" ? "Quick Search (Order/Client/Receipt)" : "Quick Search (Order/Receipt/Customer/Keyword)"}
                 className="w-full sm:w-[320px] sm:ml-auto"
               />
             </div>
@@ -251,24 +298,28 @@ export default function PaymentAuditPage() {
                   label="Date To" name="end_date" value={filters.end_date || ""}
                   onChange={(e) => fc("end_date", e.target.value || null)}
                 />
-                <AutocompleteField
-                  usePortal
-                  name="branch_id" label="Branch"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
-                  referenceModel="company_branch.model"
-                  getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                  value={filters.branch_id ? { id: filters.branch_id } : null}
-                  onChange={(e, v) => fc("branch_id", v?.id ?? null)} placeholder="Search branch…"
-                />
-                <AutocompleteField
-                  usePortal
-                  name="handled_by" label="Handled By"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
-                  referenceModel="user.model"
-                  getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                  value={filters.handled_by ? { id: filters.handled_by } : null}
-                  onChange={(e, v) => fc("handled_by", v?.id ?? null)} placeholder="Search user…"
-                />
+                {channel === "b2c" && (
+                  <>
+                    <AutocompleteField
+                      usePortal
+                      name="branch_id" label="Branch"
+                      asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                      referenceModel="company_branch.model"
+                      getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                      value={filters.branch_id ? { id: filters.branch_id } : null}
+                      onChange={(e, v) => fc("branch_id", v?.id ?? null)} placeholder="Search branch…"
+                    />
+                    <AutocompleteField
+                      usePortal
+                      name="handled_by" label="Handled By"
+                      asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20 })}
+                      referenceModel="user.model"
+                      getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+                      value={filters.handled_by ? { id: filters.handled_by } : null}
+                      onChange={(e, v) => fc("handled_by", v?.id ?? null)} placeholder="Search user…"
+                    />
+                  </>
+                )}
                 <AutocompleteField
                   usePortal
                   name="payment_mode_id" label="Payment Mode"
@@ -286,14 +337,29 @@ export default function PaymentAuditPage() {
                   onChange={(e, v) => { fc("status", v?.length ? v.map((o) => o.value) : null); setActiveStatusTab(null); }}
                   placeholder="All Statuses"
                 />
-                <Input
-                  name="order_number" label="Order Number" value={filters.order_number || ""}
-                  onChange={(e) => fc("order_number", e.target.value || null)} placeholder="e.g. ORD-001"
-                />
-                <Input
-                  name="customer_name" label="Customer Name" value={filters.customer_name || ""}
-                  onChange={(e) => fc("customer_name", e.target.value || null)} placeholder="Search customer…"
-                />
+                {channel === "b2c" ? (
+                  <>
+                    <Input
+                      name="order_number" label="Order Number" value={filters.order_number || ""}
+                      onChange={(e) => fc("order_number", e.target.value || null)} placeholder="e.g. ORD-001"
+                    />
+                    <Input
+                      name="customer_name" label="Customer Name" value={filters.customer_name || ""}
+                      onChange={(e) => fc("customer_name", e.target.value || null)} placeholder="Search customer…"
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      name="order_no" label="Order No" value={filters.order_no || ""}
+                      onChange={(e) => fc("order_no", e.target.value || null)} placeholder="e.g. SO01"
+                    />
+                    <Input
+                      name="client_name" label="Client Name" value={filters.client_name || ""}
+                      onChange={(e) => fc("client_name", e.target.value || null)} placeholder="Search client…"
+                    />
+                  </>
+                )}
                 <Input
                   name="receipt_number" label="Receipt Number" value={filters.receipt_number || ""}
                   onChange={(e) => fc("receipt_number", e.target.value || null)} placeholder="e.g. RCP-001"
@@ -331,7 +397,11 @@ export default function PaymentAuditPage() {
 
           {/* ── Audit Table ─────────────────────────────────────────────────── */}
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            <PaymentAuditTable key={refreshKey} filterParams={appliedFilters} />
+            {channel === "b2b" ? (
+              <B2bPaymentAuditTable key={`b2b-${refreshKey}`} filterParams={appliedFilters} />
+            ) : (
+              <PaymentAuditTable key={`b2c-${refreshKey}`} filterParams={appliedFilters} />
+            )}
           </div>
 
         </div>
