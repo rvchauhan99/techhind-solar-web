@@ -15,6 +15,29 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
+const resolveLocationId = (value, options) => {
+    if (value == null || value === "") return "";
+    const trimmed = String(value).trim();
+    if (/^\d+$/.test(trimmed)) {
+        const n = parseInt(trimmed, 10);
+        if (!Number.isNaN(n) && n > 0) return n;
+    }
+    if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+    const needle = trimmed.toLowerCase();
+    if (!needle || !Array.isArray(options)) return "";
+    const match = options.find(
+        (o) => String(o?.name ?? o?.label ?? "").trim().toLowerCase() === needle
+    );
+    return match?.id != null ? match.id : "";
+};
+
+const toNullableLocationId = (value, options) => {
+    const resolved = resolveLocationId(value, options);
+    if (resolved === "" || resolved == null) return null;
+    const n = parseInt(resolved, 10);
+    return !Number.isNaN(n) && n > 0 ? n : null;
+};
+
 export default function OrderForm({
     defaultValues = {},
     quotationData = null, // Add quotationData prop
@@ -181,6 +204,21 @@ export default function OrderForm({
         loadDefaultState();
     }, [defaultValues, formData.state_id]);
 
+    // Resolve state/city names to numeric IDs once location masters are loaded
+    useEffect(() => {
+        if (!locationOptions.states.length && !locationOptions.cities.length) return;
+        setFormData((prev) => {
+            const nextStateId = resolveLocationId(prev.state_id, locationOptions.states);
+            const nextCityId = resolveLocationId(prev.city_id, locationOptions.cities);
+            if (nextStateId === prev.state_id && nextCityId === prev.city_id) return prev;
+            return {
+                ...prev,
+                ...(nextStateId !== "" ? { state_id: nextStateId } : {}),
+                ...(nextCityId !== "" ? { city_id: nextCityId } : {}),
+            };
+        });
+    }, [locationOptions.states, locationOptions.cities]);
+
     // Update form data when defaultValues change
     useEffect(() => {
         if (Object.keys(defaultValues).length > 0) {
@@ -196,14 +234,21 @@ export default function OrderForm({
                     } else {
                         // For all other fields (presumably strings/numbers), convert null to empty string
                         if (value !== undefined) {
-                            updated[key] = value === null ? '' : value;
+                            let v = value === null ? '' : value;
+                            if (key === "state_id" && locationOptions.states.length) {
+                                v = resolveLocationId(v, locationOptions.states) || v;
+                            }
+                            if (key === "city_id" && locationOptions.cities.length) {
+                                v = resolveLocationId(v, locationOptions.cities) || v;
+                            }
+                            updated[key] = v;
                         }
                     }
                 });
                 return updated;
             });
         }
-    }, [defaultValues]);
+    }, [defaultValues, locationOptions.states, locationOptions.cities]);
 
     // Auto-populate solar_panel_id and inverter_id from quotationData (prefer bom_snapshot, fallback to panel_product/inverter_product)
     useEffect(() => {
@@ -276,6 +321,13 @@ export default function OrderForm({
         if (!formData.address) newErrors.address = "Address is required";
         if (!formData.payment_type) newErrors.payment_type = "Payment type is required";
 
+        if (formData.state_id && toNullableLocationId(formData.state_id, locationOptions.states) == null) {
+            newErrors.state_id = "Please select a valid state";
+        }
+        if (formData.city_id && toNullableLocationId(formData.city_id, locationOptions.cities) == null) {
+            newErrors.city_id = "Please select a valid city";
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -283,7 +335,11 @@ export default function OrderForm({
     const handleSubmit = (e) => {
         e.preventDefault();
         if (validate()) {
-            onSubmit(formData);
+            onSubmit({
+                ...formData,
+                state_id: toNullableLocationId(formData.state_id, locationOptions.states),
+                city_id: toNullableLocationId(formData.city_id, locationOptions.cities),
+            });
         }
     };
 

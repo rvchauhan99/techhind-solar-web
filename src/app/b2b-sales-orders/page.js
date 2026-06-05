@@ -3,7 +3,19 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { IconFileDescription, IconPencil, IconTrash, IconFileTypePdf, IconChevronDown, IconCircleCheck, IconX } from "@tabler/icons-react";
+import {
+  IconFileDescription,
+  IconPencil,
+  IconTrash,
+  IconFileTypePdf,
+  IconChevronDown,
+  IconCircleCheck,
+  IconX,
+  IconCurrencyRupee,
+  IconDotsVertical,
+  IconFileText,
+} from "@tabler/icons-react";
+import { canCollectB2bPayment } from "@/utils/b2bOrderPaymentSummary";
 import { Button } from "@/components/ui/button";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import Loader from "@/components/common/Loader";
@@ -51,6 +63,7 @@ const COLUMN_FILTER_KEYS = [
   "grand_total",
   "grand_total_op",
   "grand_total_to",
+  "payment_outstanding",
 ];
 
 const formatSignedCurrency = (val) => {
@@ -70,8 +83,9 @@ const STATUS_OPTIONS = [
 const STATUS_LABELS = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label]));
 
 const getStatusBadgeVariant = (status) => {
-  if (status === "COMPLETED" || status === "CONFIRMED") return "default";
-  if (status === "PARTIAL_SHIPPED") return "outline";
+  if (status === "CONFIRMED") return "navy";
+  if (status === "COMPLETED") return "default";
+  if (status === "PARTIAL_SHIPPED") return "accent";
   if (status === "CANCELLED") return "destructive";
   return "secondary";
 };
@@ -281,14 +295,17 @@ export default function B2bSalesOrdersPage() {
         filterKey: "order_no",
         defaultFilterOperator: "contains",
         render: (row) => (
-          <Button
-            type="button"
-            variant="link"
-            className="text-sm p-0 h-auto text-left font-normal"
-            onClick={() => handleOpenSidebar(row)}
-          >
-            {row.order_no || row.id}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <IconFileText className="size-4 text-slate-400 shrink-0" />
+            <Button
+              type="button"
+              variant="link"
+              className="text-xs p-0 h-auto text-left font-semibold text-[#1b365d] hover:underline"
+              onClick={() => handleOpenSidebar(row)}
+            >
+              {row.order_no || row.id}
+            </Button>
+          </div>
         ),
       },
       {
@@ -341,39 +358,106 @@ export default function B2bSalesOrdersPage() {
         filterKey: "grand_total",
         filterKeyTo: "grand_total_to",
         defaultFilterOperator: "equals",
-        render: (row) => formatCurrency(row.final_amount ?? row.grand_total) || "-",
+        headerRender: () => <span className="ml-auto">Total</span>,
+        render: (row) => {
+          const totalVal = row.final_amount ?? row.grand_total ?? 0;
+          const outstandingVal = row.outstanding_balance ?? 0;
+          const receivedVal = Math.max(0, totalVal - outstandingVal);
+          const paidPct = totalVal > 0 ? Math.min(100, (receivedVal / totalVal) * 100) : 0;
+
+          return (
+            <div className="flex flex-col items-end gap-1 select-none">
+              <span className="font-semibold text-slate-800">{formatCurrency(totalVal)}</span>
+              {totalVal > 0 && (
+                <div className="flex items-center gap-1 w-16" title={`${paidPct.toFixed(0)}% Paid`}>
+                  <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200/80">
+                    <div
+                      className="bg-emerald-600 h-full rounded-full"
+                      style={{ width: `${paidPct}%` }}
+                    />
+                  </div>
+                  <span className="text-[9px] text-slate-500 font-medium shrink-0">{paidPct.toFixed(0)}%</span>
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        field: "outstanding_balance",
+        label: "Outstanding",
+        headerRender: () => <span className="ml-auto">Outstanding</span>,
+        render: (row) => {
+          const outstandingVal = row.outstanding_balance ?? 0;
+          if (outstandingVal > 0) {
+            return (
+              <div className="flex justify-end select-none">
+                <Badge variant="destructive" className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
+                  {formatCurrency(outstandingVal)}
+                </Badge>
+              </div>
+            );
+          }
+          return (
+            <div className="flex justify-end select-none">
+              <span className="text-xs text-emerald-600 font-semibold">
+                Fully Paid
+              </span>
+            </div>
+          );
+        },
       },
       {
         field: "actions",
         label: "Actions",
         isActionColumn: true,
         render: (row) => (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-0.5">
             <Button
               variant="ghost"
-              size="sm"
-              className="h-8 gap-1"
+              size="icon-sm"
+              className="size-8 text-slate-500 hover:text-slate-900"
               onClick={() => handleOpenSidebar(row)}
               title="View details"
             >
               <IconFileDescription className="size-4" />
-              <span className="hidden sm:inline">View</span>
             </Button>
+            
+            {currentPerm.can_update && row.status === "DRAFT" && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-slate-500 hover:text-[#00823b] hover:bg-[#00823b]/5"
+                onClick={() => handleEdit(row.id)}
+                title="Edit"
+              >
+                <IconPencil className="size-4" />
+              </Button>
+            )}
+
+            {canCollectB2bPayment(row) && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="size-8 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                title="Collect Payment"
+                onClick={() => router.push(`/b2b-sales-orders/view?id=${row.id}&tab=2`)}
+              >
+                <IconCurrencyRupee className="size-4" />
+              </Button>
+            )}
+
             <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center gap-1 rounded-md border border-input bg-background h-8 px-3 text-sm hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-                Actions
-                <IconChevronDown className="size-4" />
+              <DropdownMenuTrigger
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                aria-label="More actions"
+              >
+                <IconDotsVertical className="size-4" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {currentPerm.can_update && row.status === "DRAFT" && (
-                  <DropdownMenuItem onClick={() => handleEdit(row.id)}>
-                    <IconPencil className="size-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                )}
+              <DropdownMenuContent align="end" className="w-40">
                 {currentPerm.can_update && row.status === "DRAFT" && (
                   <DropdownMenuItem onClick={() => handleConfirmOrderClick(row)}>
-                    <IconCircleCheck className="size-4 mr-2" />
+                    <IconCircleCheck className="size-4 mr-2 text-emerald-600" />
                     Confirm Order
                   </DropdownMenuItem>
                 )}
@@ -396,7 +480,7 @@ export default function B2bSalesOrdersPage() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => handlePdfDownload(row.id)}>
-                  <IconFileTypePdf className="size-4 mr-2" />
+                  <IconFileTypePdf className="size-4 mr-2 text-blue-600" />
                   Download PDF
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -405,7 +489,7 @@ export default function B2bSalesOrdersPage() {
         ),
       },
     ],
-    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm]
+    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -612,6 +696,21 @@ export default function B2bSalesOrdersPage() {
         onAddClick={currentPerm.can_create ? handleAdd : undefined}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <div className="flex items-center gap-2 px-0.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={filters.payment_outstanding === "true" ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => {
+                const next = filters.payment_outstanding === "true" ? "" : "true";
+                setFilter("payment_outstanding", next);
+                setReloadTrigger((k) => k + 1);
+              }}
+            >
+              Payment outstanding
+            </Button>
+          </div>
           <PaginatedTable
             key={reloadTrigger}
             columns={columns}
