@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Box, Button } from "@mui/material";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import DownloadIcon from "@mui/icons-material/Download";
+import { Box } from "@mui/material";
+import { IconEye, IconDownload, IconWritingSign } from "@tabler/icons-react";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import { Button } from "@/components/ui/button";
 import confirmOrdersService from "@/services/confirmOrdersService";
 import { toastError } from "@/utils/toast";
 
@@ -23,17 +23,28 @@ const PREDEFINED_DOCUMENTS = [
         getSignedDownloadFilename: (orderNumber, orderId) =>
             `model-agreement-signed-${orderNumber || orderId}.pdf`,
     },
-    {
-        id: "warranty-card",
-        name: "Warranty Card",
-        getViewBlob: (orderId) =>
-            confirmOrdersService.getWarrantyCardPdf(orderId, { action: "view" }),
-        getDownloadBlob: (orderId) =>
-            confirmOrdersService.getWarrantyCardPdf(orderId, { action: "download" }),
-        getDownloadFilename: (orderNumber, orderId) =>
-            `warranty-card-${orderNumber || orderId}.pdf`,
-    },
 ];
+
+function IconActionButton({ label, onClick, disabled, children, className = "" }) {
+    return (
+        <div className="relative group shrink-0">
+            <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className={`size-7 border-slate-200 text-slate-600 hover:border-primary hover:text-primary ${className}`}
+                onClick={onClick}
+                disabled={disabled}
+                aria-label={label}
+            >
+                {children}
+            </Button>
+            <span className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-50 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[10px] text-white shadow">
+                {label}
+            </span>
+        </div>
+    );
+}
 
 export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
     const [loadingIds, setLoadingIds] = useState({});
@@ -83,7 +94,6 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
         [orderId, orderNumber, setLoading]
     );
 
-
     const handleDownloadWithSignatures = useCallback(
         async (doc) => {
             if (!orderId) return;
@@ -121,39 +131,37 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                 field: "actions",
                 label: "Actions",
                 isActionColumn: true,
+                stickyWidth: 120,
                 render: (row) => (
-                    <Box component="span" sx={{ display: "inline-flex", gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<VisibilityIcon />}
+                    <div
+                        className="flex items-center gap-1 flex-wrap"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <IconActionButton
+                            label="View"
                             onClick={() => handleView(row)}
                             disabled={loadingIds[`${row.id}-view`]}
                         >
-                            View
-                        </Button>
-                        <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<DownloadIcon />}
+                            <IconEye className="size-3.5" />
+                        </IconActionButton>
+                        <IconActionButton
+                            label="Download"
                             onClick={() => handleDownload(row)}
                             disabled={loadingIds[`${row.id}-download`]}
                         >
-                            Download
-                        </Button>
+                            <IconDownload className="size-3.5" />
+                        </IconActionButton>
                         {typeof row.getDownloadWithSignaturesBlob === "function" ? (
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                color="secondary"
-                                startIcon={<DownloadIcon />}
+                            <IconActionButton
+                                label="Download With Sign & Stamp"
                                 onClick={() => handleDownloadWithSignatures(row)}
                                 disabled={loadingIds[`${row.id}-download-signed`]}
+                                className="text-violet-600 hover:text-violet-700 hover:border-violet-400"
                             >
-                                Download With Sign & Stamp
-                            </Button>
+                                <IconWritingSign className="size-3.5" />
+                            </IconActionButton>
                         ) : null}
-                    </Box>
+                    </div>
                 ),
             },
         ],
@@ -169,7 +177,7 @@ export default function PredefinedDocumentsTab({ orderId, orderNumber }) {
                 showPagination={false}
                 initialPage={1}
                 initialLimit={Math.max(PREDEFINED_DOCUMENTS.length, 1)}
-                height="160px"
+                height="120px"
                 getRowKey={(row) => row.id}
             />
         </Box>
