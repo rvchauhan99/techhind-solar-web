@@ -76,6 +76,12 @@ const TRACKING_OPTIONS = [
   { value: "SERIAL", label: "SERIAL" },
 ];
 
+const STOCK_SORT_FIELD_MAP = {
+  total_available_display: "quantity_on_hand",
+  reserved_display: "quantity_reserved",
+  available_after_reserved_display: "after_reserve",
+};
+
 const LOW_STOCK_OPTIONS = [
   { value: "true", label: "Less Stock" },
   { value: "false", label: "OK" },
@@ -497,13 +503,13 @@ export default function StockPage() {
         render: (row) => row.warehouse?.name || "-",
       },
       {
-        field: "total_available_display",
+        field: "quantity_on_hand",
         label: "Total AVL",
         sortable: true,
         render: (row) => formatNumber(row.total_available_display),
       },
       {
-        field: "reserved_display",
+        field: "quantity_reserved",
         label: "Reserved",
         sortable: true,
         render: (row) =>
@@ -523,7 +529,7 @@ export default function StockPage() {
           ),
       },
       {
-        field: "available_after_reserved_display",
+        field: "after_reserve",
         label: "After Reserve",
         sortable: true,
         render: (row) => formatNumber(row.available_after_reserved_display),
@@ -656,8 +662,8 @@ export default function StockPage() {
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
         tracking_type: p.tracking_type || undefined,
         low_stock: p.low_stock !== undefined && p.low_stock !== "" ? p.low_stock : undefined,
-        sortBy: p.sortBy || "id",
-        sortOrder: p.sortOrder || "DESC",
+        sortBy: STOCK_SORT_FIELD_MAP[p.sortBy] || p.sortBy || "id",
+        sortOrder: String(p.sortOrder || "DESC").toUpperCase() === "ASC" ? "ASC" : "DESC",
       });
       const result = response?.result || response;
       return {

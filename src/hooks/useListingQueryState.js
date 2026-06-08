@@ -98,6 +98,7 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
       const next = buildSearchParams({
         sortBy: by || undefined,
         sortOrder: order || undefined,
+        page: undefined,
       });
       router.replace(`${pathname}${next.toString() ? `?${next.toString()}` : ""}`);
     },

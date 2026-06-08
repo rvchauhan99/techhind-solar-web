@@ -37,6 +37,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import CloseIcon from "@mui/icons-material/Close";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import inquiryService from "@/services/inquiryService";
 import followupService from "@/services/followupService";
 import inquiryDocumentsService from "@/services/inquiryDocumentsService";
@@ -68,6 +69,63 @@ const STATUS_COLUMNS = {
     Converted: { id: "converted", title: "Converted", color: "#6c757d" },
 };
 
+const QUOTATION_STATUS_CHIP = {
+    Converted: { color: "success", icon: true },
+    Sent: { color: "info" },
+    Draft: { color: "default" },
+    "Not Selected": { color: "warning" },
+};
+
+function QuotationStatusBadges({ row }) {
+    const status = row.status || "Draft";
+    const statusCfg = QUOTATION_STATUS_CHIP[status] || { color: "warning" };
+    const approvalStatus = row.approval_status || "Approved";
+
+    return (
+        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+            <Chip
+                size="small"
+                color={statusCfg.color}
+                variant={status === "Converted" ? "filled" : "outlined"}
+                icon={statusCfg.icon ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : undefined}
+                label={status}
+                sx={{
+                    height: 20,
+                    fontSize: "0.65rem",
+                    fontWeight: status === "Converted" ? 700 : 500,
+                    ...(status === "Converted" && {
+                        bgcolor: "#dcfce7",
+                        color: "#166534",
+                        border: "1px solid #86efac",
+                        "& .MuiChip-icon": { color: "#16a34a" },
+                    }),
+                }}
+            />
+            <Chip
+                size="small"
+                color={
+                    approvalStatus === "Approved"
+                        ? "success"
+                        : approvalStatus === "Rejected"
+                          ? "error"
+                          : "warning"
+                }
+                variant="outlined"
+                label={`Mgr: ${approvalStatus}`}
+                sx={{ height: 20, fontSize: "0.6rem" }}
+            />
+            {row.is_approved && (
+                <Chip
+                    size="small"
+                    color="success"
+                    variant="outlined"
+                    label="Finalized"
+                    sx={{ height: 20, fontSize: "0.6rem" }}
+                />
+            )}
+        </Stack>
+    );
+}
 
 function LoadingState() {
     return (
@@ -306,6 +364,7 @@ function InquiryDetailsContent() {
         const response = await quotationService.getQuotations({
             ...params,
             inquiry_id: id,
+            include_converted: true,
         });
         // Handle response structure - could be { result: { data, meta } } or { data, meta }
         if (response?.result) {
@@ -951,9 +1010,13 @@ function InquiryDetailsContent() {
                                             key={`quotations-${reloadTrigger}`}
                                             fetcher={fetchQuotationsByInquiry}
                                             initialPage={1}
-                                            initialLimit={10}
+                                            initialLimit={25}
+                                            showSearch={false}
                                             height="100%"
                                             getRowKey={(row) => row.id || Math.random()}
+                                            getRowClassName={(row) =>
+                                                row.status === "Converted" ? "bg-emerald-50/70" : ""
+                                            }
                                             columns={[
                                                 {
                                                     field: "action",
@@ -1006,7 +1069,7 @@ function InquiryDetailsContent() {
                                                 {
                                                     field: "status",
                                                     label: "Status",
-                                                    render: (row) => row.status || "-",
+                                                    render: (row) => <QuotationStatusBadges row={row} />,
                                                 },
                                                 {
                                                     field: "status_on",
