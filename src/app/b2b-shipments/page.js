@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { IconFileDescription, IconFileTypePdf, IconDotsVertical, IconReceipt } from "@tabler/icons-react";
+import { IconFileDescription, IconFileTypePdf, IconDotsVertical, IconReceipt, IconArrowBackUp } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -255,13 +255,19 @@ export default function B2bShipmentsPage() {
                     View Invoice
                   </DropdownMenuItem>
                 )}
+                {!row.is_reversed && currentPerm.can_create && (
+                  <DropdownMenuItem onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${row.id}`)}>
+                    <IconArrowBackUp className="size-4 mr-2" />
+                    Create Return
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         ),
       },
     ],
-    [handleOpenSidebar, handlePdfDownload, currentPerm, goToInvoice]
+    [handleOpenSidebar, handlePdfDownload, currentPerm, goToInvoice, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -303,10 +309,20 @@ export default function B2bShipmentsPage() {
             <IconFileTypePdf className="size-4 mr-1" />
             Download PDF
           </Button>
+          {!r.is_reversed && currentPerm.can_create && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${r.id}`)}
+            >
+              <IconArrowBackUp className="size-4 mr-1" />
+              Create Return
+            </Button>
+          )}
         </div>
       </div>
     );
-  }, [selectedRecord, handlePdfDownload, handleGenerateInvoice, creatingInvoice, currentPerm, goToInvoice]);
+  }, [selectedRecord, handlePdfDownload, creatingInvoice, currentPerm, goToInvoice, router]);
 
   return (
     <ProtectedRoute>
