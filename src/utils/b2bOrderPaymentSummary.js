@@ -19,5 +19,7 @@ export function getB2bOrderOutstandingAmount(order) {
 export const B2B_PAYMENT_ELIGIBLE_STATUSES = ["CONFIRMED", "PARTIAL_SHIPPED", "COMPLETED"];
 
 export function canCollectB2bPayment(order) {
-  return order && B2B_PAYMENT_ELIGIBLE_STATUSES.includes(order.status);
+  if (!order) return false;
+  if (typeof order.can_collect_payment === "boolean") return order.can_collect_payment;
+  return B2B_PAYMENT_ELIGIBLE_STATUSES.includes(order.status);
 }
