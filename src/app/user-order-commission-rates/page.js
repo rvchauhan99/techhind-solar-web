@@ -60,12 +60,17 @@ function findModuleByPermissionKey(modules, moduleKey) {
 }
 
 const COLUMN_FILTER_KEYS = [
-  "user_id",
-  "user_id_op",
-  "order_type_id",
-  "order_type_id_op",
-  "branch_id",
-  "branch_id_op",
+  "user_name",
+  "user_name_op",
+  "order_type_name",
+  "order_type_name_op",
+  "branch_name",
+  "branch_name_op",
+  "project_scheme_name",
+  "project_scheme_name_op",
+  "effective_from",
+  "effective_to",
+  "effective_from_op",
 ];
 
 function fmtDate(d) {
@@ -154,6 +159,7 @@ export default function UserOrderCommissionRatesPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      if (q?.trim()) exportParams.q = q.trim();
       const blob = await userOrderCommissionRateService.exportUserOrderCommissionRates(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -170,7 +176,7 @@ export default function UserOrderCommissionRatesPage() {
     } finally {
       setExporting(false);
     }
-  }, [filters, currentPerm.can_read]);
+  }, [filters, q, currentPerm.can_read]);
 
   const handleSampleCsv = useCallback(async () => {
     try {
@@ -278,50 +284,59 @@ export default function UserOrderCommissionRatesPage() {
     () => [
       {
         field: "user_name",
-        label: "User ID",
+        label: "User",
         sortable: false,
-        filterType: "number",
-        filterKey: "user_id",
-        operatorKey: "user_id_op",
-        defaultFilterOperator: "equals",
-        render: (row) => row.user_name ?? row.user_id ?? "-",
+        filterType: "text",
+        filterKey: "user_name",
+        operatorKey: "user_name_op",
+        defaultFilterOperator: "contains",
+        render: (row) => row.user_name ?? "-",
       },
       {
         field: "order_type_name",
-        label: "Type ID",
+        label: "Type",
         sortable: false,
-        filterType: "number",
-        filterKey: "order_type_id",
-        operatorKey: "order_type_id_op",
-        defaultFilterOperator: "equals",
-        render: (row) => row.order_type_name ?? row.order_type_id ?? "-",
+        filterType: "text",
+        filterKey: "order_type_name",
+        operatorKey: "order_type_name_op",
+        defaultFilterOperator: "contains",
+        render: (row) => row.order_type_name ?? "-",
       },
       {
         field: "branch_name",
-        label: "Branch ID",
+        label: "Branch",
         sortable: false,
-        filterType: "number",
-        filterKey: "branch_id",
-        operatorKey: "branch_id_op",
-        defaultFilterOperator: "equals",
-        render: (row) => row.branch_name ?? row.branch_id ?? "-",
+        filterType: "text",
+        filterKey: "branch_name",
+        operatorKey: "branch_name_op",
+        defaultFilterOperator: "contains",
+        render: (row) => row.branch_name ?? "-",
       },
       {
         field: "project_scheme_name",
         label: "Scheme",
         sortable: false,
+        filterType: "text",
+        filterKey: "project_scheme_name",
+        operatorKey: "project_scheme_name_op",
+        defaultFilterOperator: "contains",
         render: (row) => row.project_scheme_name ?? "-",
       },
       {
         field: "effective_from",
         label: "From",
-        sortable: false,
+        sortable: true,
+        filterType: "date",
+        filterKey: "effective_from",
+        filterKeyTo: "effective_to",
+        operatorKey: "effective_from_op",
+        defaultFilterOperator: "inRange",
         render: (row) => fmtDate(row.effective_from),
       },
       {
         field: "effective_to",
         label: "To",
-        sortable: false,
+        sortable: true,
         render: (row) => fmtDate(row.effective_to),
       },
       {
@@ -421,9 +436,17 @@ export default function UserOrderCommissionRatesPage() {
         q: p.q || undefined,
         sortBy: p.sortBy || "id",
         sortOrder: p.sortOrder || "DESC",
-        user_id: p.user_id || undefined,
-        order_type_id: p.order_type_id || undefined,
-        branch_id: p.branch_id || undefined,
+        user_name: p.user_name || undefined,
+        user_name_op: p.user_name_op || undefined,
+        order_type_name: p.order_type_name || undefined,
+        order_type_name_op: p.order_type_name_op || undefined,
+        branch_name: p.branch_name || undefined,
+        branch_name_op: p.branch_name_op || undefined,
+        project_scheme_name: p.project_scheme_name || undefined,
+        project_scheme_name_op: p.project_scheme_name_op || undefined,
+        effective_from: p.effective_from || undefined,
+        effective_to: p.effective_to || undefined,
+        effective_from_op: p.effective_from_op || undefined,
       });
       const result = response?.result || response;
       return {
@@ -489,13 +512,13 @@ export default function UserOrderCommissionRatesPage() {
             moduleKey={PERMISSION_MODULE_KEY}
             columns={columns}
             fetcher={fetcher}
-            showSearch={false}
+            showSearch={true}
             showPagination={false}
             height="calc(100vh - 200px)"
             onTotalChange={setTotalCount}
             columnFilterValues={columnFilterValues}
             onColumnFilterChange={handleColumnFilterChange}
-            filterParams={{ q: undefined, ...filterParams }}
+            filterParams={filterParams}
             page={page}
             limit={limit}
             q={q}
@@ -572,7 +595,7 @@ export default function UserOrderCommissionRatesPage() {
               <p className="text-muted-foreground text-sm">
                 Use the sample CSV headers. Each row creates one rate. User column: name, email, mobile, or
                 exported &quot;Name &lt;email&gt;&quot; — not database ids. Optional masters: order type, branch,
-                and project scheme by name or code.
+                and project scheme by name or code. Effective dates: DD-MM-YYYY (optional).
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={handleSampleCsv}>

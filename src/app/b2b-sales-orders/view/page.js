@@ -330,7 +330,11 @@ export default function B2bSalesOrderViewPage() {
                       <div className="flex flex-col items-center justify-center text-center p-8 text-slate-500">
                         <IconInfoCircle className="size-8 text-slate-400 mb-2" />
                         <p className="text-sm font-medium">Payment collection not available.</p>
-                        <p className="text-xs text-slate-400 mt-1">Please confirm the order first to collect payments.</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {order?.status === "DRAFT" && !order?.allow_payment_for_draft
+                            ? "Please confirm the order first to collect payments."
+                            : "Payments cannot be collected for this order status."}
+                        </p>
                       </div>
                     )}
                   </TabsContent>

@@ -101,25 +101,26 @@ const getStockFromCache = (stockCache, warehouseId, productId) => {
   return stockCache[key];
 };
 
+const getAvailableAfterReserved = (onHand, reserved) => Number(onHand || 0) - Number(reserved || 0);
+
 const getStockNumbers = (stockRow) => {
-  const available =
-    stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
-      ? Number(stockRow.quantity_available)
+  const onHand =
+    stockRow && stockRow.quantity_on_hand != null && !Number.isNaN(Number(stockRow.quantity_on_hand))
+      ? Number(stockRow.quantity_on_hand)
       : 0;
   const reserved =
     stockRow && stockRow.quantity_reserved != null && !Number.isNaN(Number(stockRow.quantity_reserved))
       ? Number(stockRow.quantity_reserved)
       : 0;
-  return { available, reserved, hasRow: !!stockRow };
+  return { onHand, reserved, hasRow: !!stockRow };
 };
 
-const buildStockSnapshot = (stockRow, orderQty = 0) => {
-  const { available, reserved, hasRow } = getStockNumbers(stockRow);
-  const qty = Number(orderQty) || 0;
+const buildStockSnapshot = (stockRow) => {
+  const { onHand, reserved, hasRow } = getStockNumbers(stockRow);
   return {
-    stock_available: available,
+    stock_on_hand: onHand,
     stock_reserved: reserved,
-    stock_after_reservation: Math.max(0, available - qty),
+    stock_after_reservation: getAvailableAfterReserved(onHand, reserved),
     stock_has_row: hasRow,
   };
 };
@@ -127,7 +128,6 @@ const buildStockSnapshot = (stockRow, orderQty = 0) => {
 const computeStockDisplay = ({
   warehouseId,
   productId,
-  orderQty = 0,
   stockCache = {},
   stockFetchingKeys = {},
   item = null,
@@ -146,49 +146,51 @@ const computeStockDisplay = ({
   }
 
   const cached = getStockFromCache(stockCache, warehouseId, pid);
-  const qty = Number(orderQty) || 0;
 
   if (cached !== undefined) {
-    const { available, reserved, hasRow } = getStockNumbers(cached);
+    const { onHand, reserved, hasRow } = getStockNumbers(cached);
     if (hasRow) {
       return {
         kind: "values",
-        available,
+        totalAvl: onHand,
         reserved,
-        afterReservation: Math.max(0, available - qty),
+        afterReserve: getAvailableAfterReserved(onHand, reserved),
       };
     }
     return { kind: "message", message: "No stock found for selected warehouse", warning: true };
   }
 
-  if (allowSnapshotFallback && item && (item.stock_has_row || item.stock_available != null)) {
-    const snapAvailable = Number(item.stock_available) || 0;
+  if (allowSnapshotFallback && item && (item.stock_has_row || item.stock_on_hand != null || item.stock_available != null)) {
+    const snapOnHand =
+      item.stock_on_hand != null
+        ? Number(item.stock_on_hand)
+        : Number(item.stock_available) || 0;
     const snapReserved = Number(item.stock_reserved) || 0;
     const snapAfter =
       item.stock_after_reservation != null
         ? Number(item.stock_after_reservation)
-        : Math.max(0, snapAvailable - qty);
+        : getAvailableAfterReserved(snapOnHand, snapReserved);
     return {
       kind: "values",
-      available: snapAvailable,
+      totalAvl: snapOnHand,
       reserved: snapReserved,
-      afterReservation: snapAfter,
+      afterReserve: snapAfter,
     };
   }
 
   return { kind: "loading" };
 };
 
-const StockValueLines = ({ available, reserved, afterReservation }) => (
+const StockValueLines = ({ totalAvl, reserved, afterReserve }) => (
   <div className="flex flex-col gap-1 text-xs">
     <div>
-      <span className="text-muted-foreground">Available:</span> {available}
+      <span className="text-muted-foreground">Total AVL:</span> {totalAvl}
     </div>
     <div>
       <span className="text-muted-foreground">Reserved:</span> {reserved}
     </div>
     <div>
-      <span className="text-muted-foreground">After reservation:</span> {afterReservation}
+      <span className="text-muted-foreground">After Reserve:</span> {afterReserve}
     </div>
   </div>
 );
@@ -213,7 +215,6 @@ function StockDetailsInline({
   const display = computeStockDisplay({
     warehouseId,
     productId,
-    orderQty,
     stockCache,
     stockFetchingKeys,
   });
@@ -255,7 +256,7 @@ function StockDetailsInline({
         Stock:
       </Typography>
       <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3 }}>
-        Available: {display.available}
+        Total AVL: {display.totalAvl}
       </Typography>
       <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3, color: "text.disabled" }}>
         ·
@@ -267,7 +268,7 @@ function StockDetailsInline({
         ·
       </Typography>
       <Typography variant="caption" sx={{ fontSize: 11, lineHeight: 1.3 }}>
-        After reservation: {display.afterReservation}
+        After Reserve: {display.afterReserve}
       </Typography>
     </Box>
   );
@@ -295,7 +296,6 @@ function StockDetailsViewButton({
   const display = computeStockDisplay({
     warehouseId,
     productId,
-    orderQty,
     stockCache,
     stockFetchingKeys,
     item,
@@ -328,9 +328,9 @@ function StockDetailsViewButton({
         )}
         {display.kind === "values" && (
           <StockValueLines
-            available={display.available}
+            totalAvl={display.totalAvl}
             reserved={display.reserved}
-            afterReservation={display.afterReservation}
+            afterReserve={display.afterReserve}
           />
         )}
       </PopoverContent>
@@ -739,7 +739,7 @@ export default function B2bSalesOrderForm({
       cacheKey && Object.prototype.hasOwnProperty.call(stockCache, cacheKey)
         ? stockCache[cacheKey]
         : null;
-    const stockSnap = buildStockSnapshot(stockRow, currentItem.quantity);
+    const stockSnap = buildStockSnapshot(stockRow);
     setFormData((p) => ({
       ...p,
       items: [
