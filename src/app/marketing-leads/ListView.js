@@ -19,6 +19,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { toastError, toastSuccess } from "@/utils/toast";
 import {
   AlertDialog,
@@ -30,11 +32,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const normalizeRoleName = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
@@ -89,7 +86,7 @@ const getPriorityBadgeVariant = (priority) => {
 export default function ListView() {
   const router = useRouter();
   const { user } = useAuth();
-  const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
+  const canDeleteMarketingLead = useRoleAccess(RBAC_CONFIG_KEYS.MARKETING_LEADS_DELETE);
   const listingState = useListingQueryState({
     defaultLimit: 25,
     filterKeys: LEAD_LIST_FILTER_KEYS,
@@ -401,7 +398,7 @@ export default function ListView() {
               <ListItemText>Edit</ListItemText>
             </MenuItem>
           )}
-          {isSuperAdmin &&
+          {canDeleteMarketingLead &&
             menuLead &&
             !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
               <MenuItem onClick={handleDeleteClick} sx={{ color: "error.main" }}>

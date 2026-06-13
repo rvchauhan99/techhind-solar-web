@@ -46,6 +46,8 @@ import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -1073,6 +1075,7 @@ function OrderViewPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
+    const canAmendOrder = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND);
     const orderId = searchParams.get("id");
     const initialTab = parseInt(searchParams.get("tab")) || null; // Get tab from URL or default to 0
 
@@ -1114,8 +1117,6 @@ function OrderViewPageContent() {
     const outstandingAmount = getOrderOutstandingAmount(orderData);
     const maxPaymentAmount = Math.max(0, outstandingAmount);
     const projectCostAmount = getOrderProjectCostAmount(orderData);
-    const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
     console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {

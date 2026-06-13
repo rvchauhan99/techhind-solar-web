@@ -24,6 +24,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import Input from "@/components/common/Input";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { toastError, toastSuccess } from "@/utils/toast";
 import {
   AlertDialog,
@@ -35,11 +37,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-const normalizeRoleName = (s) =>
-  String(s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
 import moment from "moment";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -78,7 +75,7 @@ function buildBoardState(leads = []) {
 export default function KanbanBoard({ leads = [], onRefresh }) {
   const router = useRouter();
   const { user } = useAuth();
-  const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
+  const canDeleteMarketingLead = useRoleAccess(RBAC_CONFIG_KEYS.MARKETING_LEADS_DELETE);
   const [query, setQuery] = useState("");
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuLead, setMenuLead] = useState(null);
@@ -542,7 +539,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
             <ListItemText primary="Edit" />
           </MenuItem>
         )}
-        {isSuperAdmin &&
+        {canDeleteMarketingLead &&
           menuLead &&
           !NON_EDITABLE_STATUSES.includes(menuLead.status) && (
             <MenuItem onClick={handleDeleteClick} sx={{ color: "error.main" }}>

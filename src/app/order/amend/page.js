@@ -11,6 +11,8 @@ import OrderForm from "../components/OrderForm";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { toastError, toastSuccess } from "@/utils/toast";
 import EstimateGenerated from "@/app/confirm-orders/components/EstimateGenerated";
 import EstimatePaid from "@/app/confirm-orders/components/EstimatePaid";
@@ -25,11 +27,6 @@ import ChallanTabs from "@/app/confirm-orders/view/components/ChallanTabs";
 import NewChallanForm from "@/app/confirm-orders/view/components/NewChallanForm";
 import PreviousChallans from "@/app/confirm-orders/view/components/PreviousChallans";
 import NetMeterApplyTabs from "@/app/confirm-orders/view/components/NetMeterApplyTabs";
-
-const normalizeRoleName = (value) =>
-    String(value || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
 
 const STATIC_STAGE_TABS = Object.freeze([
     { key: "basic", label: "Basic Details" },
@@ -101,14 +98,14 @@ function AmendOrderPageContent() {
     const [currentPassword, setCurrentPassword] = useState("");
     const pendingActionRef = useRef(null);
 
-    const roleName = normalizeRoleName(user?.role?.name);
-    const isAllowedRole = roleName === "ba" || roleName === "superadmin";
+    const canAmendOrder = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND);
+    const canMarkStageCompleteRole = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND_STAGE_COMPLETE);
     const currentPerm = useMemo(
         () => (currentModuleId ? modulePermissions?.[currentModuleId] || null : null),
         [modulePermissions, currentModuleId]
     );
     const hasUpdatePermission = currentPerm ? currentPerm.can_update === true : true;
-    const isSuperAdmin = roleName === "superadmin";
+    const isAllowedRole = canAmendOrder;
     const visiblePipelineStages = useMemo(
         () => getVisiblePipelineStages(orderData?.stages),
         [orderData?.stages]
@@ -124,7 +121,7 @@ function AmendOrderPageContent() {
         ? (orderData?.stages?.[activeStageKey] || "locked")
         : null;
     const canMarkComplete =
-        isSuperAdmin &&
+        canMarkStageCompleteRole &&
         isPipelineStage &&
         activeStageStatus !== "completed";
 

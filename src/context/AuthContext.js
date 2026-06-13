@@ -12,11 +12,13 @@ import {
   setStoredProfile,
   clearStoredProfile,
 } from "@/lib/authStorage";
+import { mergeRbacConfigs } from "@/lib/platformRoleAccess";
 
 export const AuthContext = createContext();
 
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [rbacConfigs, setRbacConfigs] = useState(() => mergeRbacConfigs());
   const [modulePermissions, setModulePermissions] = useState({});
   const [currentModuleId, setCurrentModuleId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +71,7 @@ export default function AuthProvider({ children }) {
         const storedProfile = getStoredProfile();
         if (storedProfile) {
           setUser(storedProfile);
+          setRbacConfigs(mergeRbacConfigs(storedProfile.rbac_configs));
           setLoading(false);
           return;
         }
@@ -77,6 +80,7 @@ export default function AuthProvider({ children }) {
           if (res?.status && res?.data?.result) {
             const profile = res.data.result;
             setUser(profile);
+            setRbacConfigs(mergeRbacConfigs(profile.rbac_configs));
             setStoredProfile(profile);
           } else {
             setUser(null);
@@ -96,6 +100,7 @@ export default function AuthProvider({ children }) {
         const storedProfile = getStoredProfile();
         if (accessToken && storedProfile) {
           setUser(storedProfile);
+          setRbacConfigs(mergeRbacConfigs(storedProfile.rbac_configs));
           setLoading(false);
           return;
         }
@@ -105,6 +110,7 @@ export default function AuthProvider({ children }) {
         if (res?.status && res?.data?.result) {
           const profile = res.data.result;
           setUser(profile);
+          setRbacConfigs(mergeRbacConfigs(profile.rbac_configs));
           setStoredProfile(profile);
         } else {
           setUser(null);
@@ -128,6 +134,7 @@ export default function AuthProvider({ children }) {
       clearStoredProfile();
       clearTokens();
       setUser(null);
+      setRbacConfigs(mergeRbacConfigs());
       router.replace("/auth/login");
     }
   };
@@ -188,8 +195,10 @@ export default function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         user,
+        rbacConfigs,
         logout,
         setUser,
+        setRbacConfigs,
         loading,
         modulePermissions,
         currentModuleId,

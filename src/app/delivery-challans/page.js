@@ -29,10 +29,14 @@ import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { formatDate } from "@/utils/dataTableUtils";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 
 export default function DeliveryChallanListPage() {
     const router = useRouter();
     const { user } = useAuth();
+    const canReverseChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_REVERSE);
+    const canPartialReturnChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_PARTIAL_RETURN);
 
     const [filters, setFilters] = useState({});
     const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -277,12 +281,6 @@ export default function DeliveryChallanListPage() {
         setSelectedIsReversed(false);
     };
 
-    const normalizeRoleName = (s) => String(s || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
-
-    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
-
     const allowedStageKeys = new Set([
         "assign_fabricator_and_installer",
         "fabrication",
@@ -293,9 +291,16 @@ export default function DeliveryChallanListPage() {
         normalizeStageKey(selectedOrderStageKey)
     );
 
+    const isPartialReturnAllowed =
+        !!selectedChallanId &&
+        canPartialReturnChallan &&
+        isStageAllowed &&
+        !selectedOrderInstallationCompleted &&
+        !selectedIsReversed;
+
     const isReverseAllowed =
         !!selectedChallanId &&
-        isSuperAdmin &&
+        canReverseChallan &&
         isStageAllowed &&
         !selectedOrderInstallationCompleted &&
         !selectedIsReversed;
@@ -450,7 +455,7 @@ export default function DeliveryChallanListPage() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={!isReverseAllowed}
+                            disabled={!isPartialReturnAllowed}
                             onClick={() =>
                                 navigateToPartialReturn(selectedChallanId)
                             }
