@@ -14,6 +14,9 @@ export const updateRoleMaster = (id, payload) => apiClient.put(`/role-master/${i
 
 export const deleteRoleMaster = (id) => apiClient.delete(`/role-master/${id}`).then((r) => r.data);
 
+export const cloneRoleMaster = (id, payload = {}) =>
+  apiClient.post(`/role-master/${id}/clone`, payload).then((r) => r.data);
+
 export default {
   listRoleMasters,
   exportRoleMasters,
@@ -21,4 +24,5 @@ export default {
   createRoleMaster,
   updateRoleMaster,
   deleteRoleMaster,
+  cloneRoleMaster,
 };

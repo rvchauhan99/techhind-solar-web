@@ -31,14 +31,11 @@ import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 
 /** Number of days after planner completion during which the planner remains editable. */
 const PLANNER_EDITABLE_DAYS = 100;
-
-const normalizeRoleName = (s) =>
-    String(s || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "");
 
 const normalizeProductTypeName = (s) => (s || "").toLowerCase().trim().replace(/\s+/g, "_");
 
@@ -178,7 +175,7 @@ function computePlannerCostPreviewFromInputs({
     removedLineAdjustments,
     manualFinalPayable,
     isManualOverride,
-    isSuperAdmin,
+    hasPlannerElevatedAccess,
 }) {
     const baseProjectCost = Number(projectCost) || 0;
     const qtyNum = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
@@ -287,7 +284,7 @@ function computePlannerCostPreviewFromInputs({
     const autoProjectCost = baseProjectCost + lines.reduce((sum, line) => sum + line.deltaCost, 0);
     const manual = manualFinalPayable === "" ? null : Number(manualFinalPayable);
     const finalProjectCost =
-        isSuperAdmin && isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
+        hasPlannerElevatedAccess && isManualOverride && Number.isFinite(manual) ? manual : autoProjectCost;
     return {
         baseProjectCost,
         autoProjectCost,
@@ -317,7 +314,8 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const pathname = usePathname();
     const isReadOnly = pathname?.startsWith("/closed-orders") || pathname?.startsWith("/cancelled-orders");
     const { user } = useAuth();
-    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
+    const hasPlannerElevatedAccess = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_PLANNER_ELEVATED);
+    const hasPlannerSaveWhenRestricted = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_PLANNER_SAVE_RESTRICTED);
     // All material checkboxes (planned_has_*) default to true; sync from orderData uses ?? true.
     const [formData, setFormData] = useState({
         planned_delivery_date: "",
@@ -381,8 +379,8 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     }, []);
 
     useEffect(() => {
-        if (!isSuperAdmin) setIsManualOverride(false);
-    }, [isSuperAdmin]);
+        if (!hasPlannerElevatedAccess) setIsManualOverride(false);
+    }, [hasPlannerElevatedAccess]);
 
     useEffect(() => {
         let cancelled = false;
@@ -626,7 +624,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                 removedLineAdjustments,
                 manualFinalPayable,
                 isManualOverride,
-                isSuperAdmin,
+                hasPlannerElevatedAccess,
             });
             const previewCapacityKwForSave = computeBomCapacityPreviewKw(planForSave);
 
@@ -709,7 +707,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
             const parsedManualOverride = Number(manualFinalPayable);
             const hasManualOverrideValue =
                 !skipCostEffectsOnce &&
-                isSuperAdmin &&
+                hasPlannerElevatedAccess &&
                 isManualOverride &&
                 manualFinalPayable !== "" &&
                 Number.isFinite(parsedManualOverride) &&
@@ -866,11 +864,11 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
     const warehouseSelected = Boolean(formData?.planned_warehouse_id);
     const warehouseLocked = Boolean(orderData?.planned_warehouse_id);
     const isBomEditingBlocked = !warehouseLocked;
-    const isPlannerSaveBlocked = plannerAmendmentSuperadminOnly && !isSuperAdmin;
+    const isPlannerSaveBlocked = plannerAmendmentSuperadminOnly && !hasPlannerSaveWhenRestricted;
 
     const hasNoBom = !orderData?.bom_snapshot?.length;
     const showImportFromProject =
-        isSuperAdmin && hasNoBom && !isReadOnly && !isPlannerLocked && !isBomEditingBlocked;
+        hasPlannerElevatedAccess && hasNoBom && !isReadOnly && !isPlannerLocked && !isBomEditingBlocked;
 
     useEffect(() => {
         if (showImportFromProject && projectPricesWithBom.length === 0 && !loadingProjectPrices) {
@@ -1211,7 +1209,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                 removedLineAdjustments,
                 manualFinalPayable,
                 isManualOverride,
-                isSuperAdmin,
+                hasPlannerElevatedAccess,
             }),
         [
             orderData?.project_cost,
@@ -1221,7 +1219,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
             purchasePriceByProductId,
             manualFinalPayable,
             isManualOverride,
-            isSuperAdmin,
+            hasPlannerElevatedAccess,
         ]
     );
 
@@ -1420,7 +1418,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                             </div>
                             <div
                                 className={`rounded border p-1.5 md:p-1.5 text-xs ${
-                                    isSuperAdmin && isManualOverride
+                                    hasPlannerElevatedAccess && isManualOverride
                                         ? "border-amber-300 bg-amber-50"
                                         : "border-emerald-200 bg-emerald-50"
                                 }`}
@@ -1434,10 +1432,10 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                             setManualFinalPayable(e.target.value);
                                             setIsManualOverride(true);
                                         }}
-                                        disabled={isPlannerLocked || isReadOnly || !isSuperAdmin || isBomEditingBlocked}
+                                        disabled={isPlannerLocked || isReadOnly || !hasPlannerElevatedAccess || isBomEditingBlocked}
                                         className="w-full border border-input rounded px-1 py-0.5 bg-background disabled:opacity-60"
                                     />
-                                    {isSuperAdmin && isManualOverride && !isPlannerLocked && !isReadOnly && !isBomEditingBlocked && (
+                                    {hasPlannerElevatedAccess && isManualOverride && !isPlannerLocked && !isReadOnly && !isBomEditingBlocked && (
                                         <button
                                             type="button"
                                             className="px-2 py-0.5 text-[11px] border rounded hover:bg-muted"
@@ -1450,7 +1448,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                     )}
                                 </div>
                                 <div className="text-[11px] text-muted-foreground mt-1">
-                                    {!isSuperAdmin
+                                    {!hasPlannerElevatedAccess
                                         ? "Only superadmin can set manual override."
                                         : isBomEditingBlocked
                                           ? "Lock warehouse first to enable planner cost amendments."
@@ -1593,7 +1591,7 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                 const amountIncl = adjQty * unitIncl;
 
                                                 const isPlannerAdded = !!line.planner_added;
-                                                const canEditRow = isSuperAdmin || isPlannerAdded;
+                                                const canEditRow = hasPlannerElevatedAccess || isPlannerAdded;
 
                                                 return (
                                                     <tr
@@ -1839,11 +1837,11 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                         <span className="text-[11px] text-muted-foreground">Preview</span>
                                                     </div>
                                                     <div className="mt-1 grid grid-cols-2 md:grid-cols-6 gap-2 text-[11px]">
-                                                        <div><span className="text-muted-foreground">Unit Excl</span><br />{isSuperAdmin || item.planner_added ? Number(item.unit_excl || 0).toFixed(2) : "—"}</div>
-                                                        <div><span className="text-muted-foreground">Unit Incl</span><br />{isSuperAdmin || item.planner_added ? Number(item.unit_incl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Unit Excl</span><br />{hasPlannerElevatedAccess || item.planner_added ? Number(item.unit_excl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Unit Incl</span><br />{hasPlannerElevatedAccess || item.planner_added ? Number(item.unit_incl || 0).toFixed(2) : "—"}</div>
                                                         <div><span className="text-muted-foreground">GST Mode</span><br />{item.gst_mode || "—"}</div>
-                                                        <div><span className="text-muted-foreground">Amt Excl</span><br />{isSuperAdmin || item.planner_added ? Number(item.amount_excl || 0).toFixed(2) : "—"}</div>
-                                                        <div><span className="text-muted-foreground">Amt Incl</span><br />{isSuperAdmin || item.planner_added ? Number(item.amount_incl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Amt Excl</span><br />{hasPlannerElevatedAccess || item.planner_added ? Number(item.amount_excl || 0).toFixed(2) : "—"}</div>
+                                                        <div><span className="text-muted-foreground">Amt Incl</span><br />{hasPlannerElevatedAccess || item.planner_added ? Number(item.amount_incl || 0).toFixed(2) : "—"}</div>
                                                         <div><span className="text-muted-foreground">Cost Basis</span><br />{item.gst_mode === "EXCLUDING_GST" ? "Excl GST" : "Incl GST"}</div>
                                                     </div>
                                                 </div>
@@ -1983,16 +1981,16 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                         </div>
 
                                         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-1 text-[11px]">
-                                            <div><span className="text-muted-foreground">Unit Excl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "EXCLUDING_GST" ? entry.unit_price_base : entry.line_amount_excluding_gst && qtyDelta ? Number(entry.line_amount_excluding_gst) / qtyDelta : null) : "—"}</div>
-                                            <div><span className="text-muted-foreground">Unit Incl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "INCLUDING_GST" ? entry.unit_price_base : entry.line_amount_including_gst && qtyDelta ? Number(entry.line_amount_including_gst) / qtyDelta : null) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Unit Excl</span><br />{hasPlannerElevatedAccess || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "EXCLUDING_GST" ? entry.unit_price_base : entry.line_amount_excluding_gst && qtyDelta ? Number(entry.line_amount_excluding_gst) / qtyDelta : null) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Unit Incl</span><br />{hasPlannerElevatedAccess || entry.metadata?.planner_added ? formatMoneyOrDash(entry.unit_price_base && entry.gst_mode === "INCLUDING_GST" ? entry.unit_price_base : entry.line_amount_including_gst && qtyDelta ? Number(entry.line_amount_including_gst) / qtyDelta : null) : "—"}</div>
                                             <div><span className="text-muted-foreground">GST Mode</span><br />{entry.gst_mode || "—"}</div>
-                                            <div><span className="text-muted-foreground">Amt Excl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_excluding_gst) : "—"}</div>
-                                            <div><span className="text-muted-foreground">Amt Incl</span><br />{isSuperAdmin || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_including_gst) : "—"}</div>
-                                            <div><span className="text-muted-foreground">Project Cost</span><br />{isSuperAdmin ? `${formatMoneyOrDash(entry.project_cost_before)} → ${formatMoneyOrDash(entry.project_cost_after)}` : "—"}</div>
+                                            <div><span className="text-muted-foreground">Amt Excl</span><br />{hasPlannerElevatedAccess || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_excluding_gst) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Amt Incl</span><br />{hasPlannerElevatedAccess || entry.metadata?.planner_added ? formatMoneyOrDash(entry.line_amount_including_gst) : "—"}</div>
+                                            <div><span className="text-muted-foreground">Project Cost</span><br />{hasPlannerElevatedAccess ? `${formatMoneyOrDash(entry.project_cost_before)} → ${formatMoneyOrDash(entry.project_cost_after)}` : "—"}</div>
                                         </div>
                                         <div className="mt-1 text-[11px]">
                                             <span className="text-muted-foreground">Final Payable:</span>{" "}
-                                            <span>{isSuperAdmin ? `${formatMoneyOrDash(entry.final_payable_before)} → ${formatMoneyOrDash(entry.final_payable_after)}` : "—"}</span>
+                                            <span>{hasPlannerElevatedAccess ? `${formatMoneyOrDash(entry.final_payable_before)} → ${formatMoneyOrDash(entry.final_payable_after)}` : "—"}</span>
                                         </div>
                                     </Paper>
                                 );
