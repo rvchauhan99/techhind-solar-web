@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { IconEye, IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconEye, IconPencil, IconTrash, IconCopy } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Loader from "@/components/common/Loader";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
@@ -34,6 +34,8 @@ import roleModuleService from "@/services/roleModuleService";
 import RoleForm from "./components/RoleForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const COLUMN_FILTER_KEYS = ["name", "name_op", "description", "description_op", "status"];
 
@@ -80,6 +82,10 @@ export default function RoleListPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const [roleToClone, setRoleToClone] = useState(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloning, setCloning] = useState(false);
 
   // Load modules when needed (called from dialog handlers)
   const loadModules = async () => {
@@ -137,6 +143,39 @@ export default function RoleListPage() {
       toast.error(error.response?.data?.message || "Failed to delete role");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleOpenCloneDialog = useCallback((row) => {
+    setRoleToClone({ id: row.id, name: row.name });
+    setCloneName(`${row.name} (Copy)`);
+    setCloneDialogOpen(true);
+  }, []);
+
+  const handleCloseCloneDialog = useCallback(() => {
+    setCloneDialogOpen(false);
+    setRoleToClone(null);
+    setCloneName("");
+  }, []);
+
+  const handleCloneConfirm = async () => {
+    if (!roleToClone) return;
+    const trimmedName = cloneName.trim();
+    if (!trimmedName) {
+      toast.error("Role name is required");
+      return;
+    }
+    setCloning(true);
+    try {
+      const response = await roleService.cloneRoleMaster(roleToClone.id, { name: trimmedName });
+      const createdName = response?.result?.role?.name || response?.data?.role?.name || trimmedName;
+      toast.success(`Role cloned as "${createdName}"`);
+      handleCloseCloneDialog();
+      setTableKey((prev) => prev + 1);
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to clone role");
+    } finally {
+      setCloning(false);
     }
   };
 
@@ -267,6 +306,18 @@ export default function RoleListPage() {
                 <IconPencil className="size-4" />
               </Button>
             )}
+            {(perms || currentPerm)?.can_create && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8"
+                onClick={() => handleOpenCloneDialog(row)}
+                title="Clone Role"
+                aria-label="Clone Role"
+              >
+                <IconCopy className="size-4" />
+              </Button>
+            )}
             {(perms || currentPerm)?.can_delete && (
               <Button
                 size="icon"
@@ -286,7 +337,7 @@ export default function RoleListPage() {
         ),
       },
     ],
-    [currentPerm, handleOpenEditModal, handleOpenSidebar]
+    [currentPerm, handleOpenEditModal, handleOpenSidebar, handleOpenCloneDialog]
   );
 
   const handleOpenAddModal = async () => {
@@ -573,6 +624,34 @@ export default function RoleListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={cloneDialogOpen} onOpenChange={(open) => !open && handleCloseCloneDialog()}>
+        <DialogContent className="max-w-sm gap-3">
+          <DialogHeader className="gap-1">
+            <DialogTitle>Clone Role</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="clone-role-name" className="text-xs">
+              Name
+            </Label>
+            <Input
+              id="clone-role-name"
+              value={cloneName}
+              onChange={(e) => setCloneName(e.target.value)}
+              disabled={cloning}
+              className="h-8"
+            />
+          </div>
+          <DialogFooter className="pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={handleCloseCloneDialog} disabled={cloning}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" loading={cloning} onClick={handleCloneConfirm}>
+              Clone
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ProtectedRoute>
   );
 }

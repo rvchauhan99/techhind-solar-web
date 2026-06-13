@@ -37,6 +37,8 @@ import { formatDate } from "@/utils/dataTableUtils";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
 import { toastError } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 
 const statusVariantMap = {
   pending: "secondary",
@@ -97,6 +99,7 @@ export default function ListView({
 }) {
   const router = useRouter();
   const { user } = useAuth();
+  const canAmendOrder = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND);
   const listingState = useListingQueryState({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -116,8 +119,6 @@ export default function ListView({
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
 
   const getStatusVariant = (status) => statusVariantMap[status] || "secondary";
-  const normalizedRoleName = String(user?.role?.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const canAmendOrder = normalizedRoleName === "ba" || normalizedRoleName === "superadmin";
 
   const filterParams = useMemo(() => {
     const entries = Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "");
