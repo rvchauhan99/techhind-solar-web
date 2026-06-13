@@ -55,6 +55,8 @@ import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import userMasterService from "@/services/userMasterService";
 import mastersService from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import CloseIcon from "@mui/icons-material/Close";
 import {
     getOrderOutstandingAmount,
@@ -215,6 +217,7 @@ function ConfirmedOrderViewPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
     const { user } = useAuth();
+    const canChangeHandledBy = useRoleAccess(RBAC_CONFIG_KEYS.CONFIRM_ORDERS_CHANGE_HANDLED_BY);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -236,12 +239,6 @@ function ConfirmedOrderViewPageContent() {
     const [reassignReason, setReassignReason] = useState("");
     const [reassigning, setReassigning] = useState(false);
     const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
-
-    const normalizeRoleName = (s) =>
-        String(s || "")
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "");
-    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
 
     const fetchOrderData = useCallback(async () => {
         if (!orderId) {
@@ -306,7 +303,7 @@ function ConfirmedOrderViewPageContent() {
     }, [orderId]);
 
     useEffect(() => {
-        if (!isSuperAdmin) return;
+        if (!canChangeHandledBy) return;
         let mounted = true;
         const loadUsers = async () => {
             try {
@@ -337,7 +334,7 @@ function ConfirmedOrderViewPageContent() {
         return () => {
             mounted = false;
         };
-    }, [isSuperAdmin]);
+    }, [canChangeHandledBy]);
 
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
@@ -658,7 +655,7 @@ function ConfirmedOrderViewPageContent() {
                     >
                         Order Details
                     </Button>
-                    {isSuperAdmin && (
+                    {canChangeHandledBy && (
                         <Button
                             variant="outlined"
                             size="small"

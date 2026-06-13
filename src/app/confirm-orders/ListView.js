@@ -48,6 +48,8 @@ import { toastError } from "@/utils/toast";
 import { toastSuccess } from "@/utils/toast";
 import userMasterService from "@/services/userMasterService";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
@@ -102,6 +104,8 @@ const isOrderFullyCompleted = (row) => {
 export default function ListView() {
     const router = useRouter();
     const { user } = useAuth();
+    const canReleaseStockRole = useRoleAccess(RBAC_CONFIG_KEYS.CONFIRM_ORDERS_RELEASE_STOCK);
+    const canChangeHandledByRole = useRoleAccess(RBAC_CONFIG_KEYS.CONFIRM_ORDERS_CHANGE_HANDLED_BY);
     const listingState = useListingQueryState({
         defaultLimit: 25,
         filterKeys: ORDER_LIST_FILTER_KEYS,
@@ -167,11 +171,7 @@ export default function ListView() {
         [filters, setFilters]
     );
 
-    const normalizeRoleName = (s) =>
-        String(s || "")
-            .toLowerCase()
-            .replace(/[^a-z0-9]/g, "");
-    const isSuperAdmin = normalizeRoleName(user?.role?.name) === "superadmin";
+    const canChangeHandledBy = canChangeHandledByRole;
 
     const userOptionById = useMemo(() => {
         const map = new Map();
@@ -180,7 +180,7 @@ export default function ListView() {
     }, [handledByUsers]);
 
     useEffect(() => {
-        if (!isSuperAdmin) return;
+        if (!canChangeHandledBy) return;
         let mounted = true;
         const loadUsers = async () => {
             try {
@@ -211,7 +211,7 @@ export default function ListView() {
         return () => {
             mounted = false;
         };
-    }, [isSuperAdmin]);
+    }, [canChangeHandledBy]);
 
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
@@ -416,7 +416,7 @@ export default function ListView() {
             bomLines.length > 0 &&
             !row?.has_stock_reservation
         );
-        const canReleaseStock = Boolean(isSuperAdmin && row?.has_stock_reservation);
+        const canReleaseStock = Boolean(canReleaseStockRole && row?.has_stock_reservation);
 
         return (
             <Paper
@@ -491,7 +491,7 @@ export default function ListView() {
                         >
                             <DescriptionIcon sx={{ fontSize: 16 }} />
                         </IconButton>
-                        {isSuperAdmin && (
+                        {canChangeHandledBy && (
                             <IconButton
                                 size="small"
                                 title="Change Handled By"
