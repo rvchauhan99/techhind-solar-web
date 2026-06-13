@@ -33,7 +33,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import ProductForm from "./components/ProductForm";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
-import { formatCurrency } from "@/utils/dataTableUtils";
+import { formatCurrency, formatDate } from "@/utils/dataTableUtils";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 
 const COLUMN_FILTER_KEYS = [
@@ -63,6 +63,16 @@ const COLUMN_FILTER_KEYS = [
   "min_stock_quantity_to",
   "is_active",
   "visibility",
+  "created_by_name",
+  "created_by_name_op",
+  "updated_by_name",
+  "updated_by_name_op",
+  "created_at",
+  "created_at_op",
+  "created_at_to",
+  "updated_at",
+  "updated_at_op",
+  "updated_at_to",
 ];
 
 const IS_ACTIVE_OPTIONS = [
@@ -394,6 +404,44 @@ export default function ProductPage() {
         render: (row) => (row.is_active ? "Yes" : "No"),
       },
       {
+        field: "created_by_name",
+        label: "Created By",
+        sortable: false,
+        filterType: "text",
+        filterKey: "created_by_name",
+        defaultFilterOperator: "contains",
+        render: (row) => row.created_by_name || "-",
+      },
+      {
+        field: "created_at",
+        label: "Created At",
+        sortable: true,
+        filterType: "date",
+        filterKey: "created_at",
+        filterKeyTo: "created_at_to",
+        defaultFilterOperator: "inRange",
+        render: (row) => formatDate(row.created_at) || "-",
+      },
+      {
+        field: "updated_by_name",
+        label: "Updated By",
+        sortable: false,
+        filterType: "text",
+        filterKey: "updated_by_name",
+        defaultFilterOperator: "contains",
+        render: (row) => row.updated_by_name || "-",
+      },
+      {
+        field: "updated_at",
+        label: "Updated At",
+        sortable: true,
+        filterType: "date",
+        filterKey: "updated_at",
+        filterKeyTo: "updated_at_to",
+        defaultFilterOperator: "inRange",
+        render: (row) => formatDate(row.updated_at) || "-",
+      },
+      {
         field: "actions",
         label: "Actions",
         sortable: false,
@@ -480,6 +528,16 @@ export default function ProductPage() {
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
         is_active: p.is_active !== undefined && p.is_active !== "" ? p.is_active : undefined,
         visibility: p.visibility || "active",
+        created_by_name: p.created_by_name || undefined,
+        created_by_name_op: p.created_by_name_op || undefined,
+        updated_by_name: p.updated_by_name || undefined,
+        updated_by_name_op: p.updated_by_name_op || undefined,
+        created_at: p.created_at || undefined,
+        created_at_op: p.created_at_op || undefined,
+        created_at_to: p.created_at_to || undefined,
+        updated_at: p.updated_at || undefined,
+        updated_at_op: p.updated_at_op || undefined,
+        updated_at_to: p.updated_at_to || undefined,
       });
       const result = response.result || response;
       return {
@@ -591,6 +649,12 @@ export default function ProductPage() {
             <p className="text-sm">{p.product_description}</p>
           </>
         )}
+        <hr className="border-border" />
+        <p className="text-xs font-semibold text-muted-foreground">Audit</p>
+        <p className="text-sm">Created By: {p.created_by_name || "-"}</p>
+        <p className="text-sm">Created At: {formatDate(p.created_at) || "-"}</p>
+        <p className="text-sm">Updated By: {p.updated_by_name || "-"}</p>
+        <p className="text-sm">Updated At: {formatDate(p.updated_at) || "-"}</p>
       </div>
     );
   }, [loadingRecord, selectedProduct]);
