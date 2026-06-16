@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
     Paper,
     Button,
@@ -46,7 +46,7 @@ import OrderNumberLink from "@/components/common/OrderNumberLink";
 import OrderIssuedSerialsDialog from "@/components/common/OrderIssuedSerialsDialog";
 import { toastError } from "@/utils/toast";
 import { toastSuccess } from "@/utils/toast";
-import userMasterService from "@/services/userMasterService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
@@ -94,6 +94,17 @@ const getVisibleStages = (stagesStatus) => {
     return STAGES.filter((stage) => !SUBSIDY_STAGE_KEYS.has(stage.key));
 };
 
+const getUserOptionLabel = (opt) =>
+    opt?.name ?? opt?.label ?? opt?.username ?? (opt?.id != null ? String(opt.id) : "");
+
+const isHandledByChangeApplied = (updated, selectedId, priorId) => {
+    if (!updated || updated.reassignment_noop) return false;
+    const persistedId = Number(updated.handledBy?.id ?? updated.handled_by);
+    const selected = Number(selectedId);
+    const prior = Number(priorId);
+    return Number.isFinite(persistedId) && persistedId === selected && persistedId !== prior;
+};
+
 const isOrderFullyCompleted = (row) => {
     if (row.current_stage_key === "order_completed") return true;
     const stages = row.stages || {};
@@ -121,9 +132,8 @@ export default function ListView() {
     const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
     const [reassigning, setReassigning] = useState(false);
     const [selectedOrderForReassign, setSelectedOrderForReassign] = useState(null);
-    const [handledByUsers, setHandledByUsers] = useState([]);
-    const [handledByLoading, setHandledByLoading] = useState(false);
     const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
+    const [hasExplicitHandledBySelection, setHasExplicitHandledBySelection] = useState(false);
     const [reassignReason, setReassignReason] = useState("");
     const [reassignReloadFn, setReassignReloadFn] = useState(null);
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
@@ -173,46 +183,6 @@ export default function ListView() {
 
     const canChangeHandledBy = canChangeHandledByRole;
 
-    const userOptionById = useMemo(() => {
-        const map = new Map();
-        for (const item of handledByUsers) map.set(Number(item.id), item);
-        return map;
-    }, [handledByUsers]);
-
-    useEffect(() => {
-        if (!canChangeHandledBy) return;
-        let mounted = true;
-        const loadUsers = async () => {
-            try {
-                setHandledByLoading(true);
-                const response = await userMasterService.listUserMasters({
-                    page: 1,
-                    limit: 1000,
-                    status: "active",
-                    sortBy: "name",
-                    sortOrder: "ASC",
-                });
-                const rows = response?.result?.data || [];
-                if (!mounted) return;
-                setHandledByUsers(
-                    rows.map((u) => ({
-                        id: Number(u.id),
-                        name: u.name || `User ${u.id}`,
-                    }))
-                );
-            } catch (err) {
-                if (!mounted) return;
-                toastError(err?.response?.data?.message || "Failed to load users");
-            } finally {
-                if (mounted) setHandledByLoading(false);
-            }
-        };
-        loadUsers();
-        return () => {
-            mounted = false;
-        };
-    }, [canChangeHandledBy]);
-
     const handleMenuOpen = (event, id) => {
         setMenuAnchor(event.currentTarget);
         setMenuOrderId(id);
@@ -227,11 +197,13 @@ export default function ListView() {
         if (!order?.id) return;
         setSelectedOrderForReassign(order);
         setReassignReloadFn(() => (typeof reloadFn === "function" ? reloadFn : null));
-        const preselected = userOptionById.get(Number(order.handled_by)) || null;
-        setSelectedHandledByUser(preselected);
+        setSelectedHandledByUser(
+            order.handled_by != null ? { id: Number(order.handled_by) } : null
+        );
+        setHasExplicitHandledBySelection(false);
         setReassignReason("");
         setChangeHandledByOpen(true);
-    }, [userOptionById]);
+    }, []);
 
     const closeChangeHandledByDialog = useCallback(() => {
         if (reassigning) return;
@@ -239,6 +211,7 @@ export default function ListView() {
         setSelectedOrderForReassign(null);
         setReassignReloadFn(null);
         setSelectedHandledByUser(null);
+        setHasExplicitHandledBySelection(false);
         setReassignReason("");
     }, [reassigning]);
 
@@ -271,26 +244,48 @@ export default function ListView() {
 
     const submitChangeHandledBy = useCallback(async (reload) => {
         if (!selectedOrderForReassign?.id || !selectedHandledByUser?.id) return;
+        if (!hasExplicitHandledBySelection) {
+            toastError("Please select a user from the dropdown list");
+            return;
+        }
         if (Number(selectedHandledByUser.id) === Number(selectedOrderForReassign.handled_by)) {
             toastError("Please select a different user");
             return;
         }
+        const priorHandledBy = Number(selectedOrderForReassign.handled_by);
         try {
             setReassigning(true);
-            await confirmOrdersService.changeHandledBy(selectedOrderForReassign.id, {
+            const response = await confirmOrdersService.changeHandledBy(selectedOrderForReassign.id, {
                 handled_by: selectedHandledByUser.id,
                 reason: reassignReason?.trim() || undefined,
             });
+            const updated = response?.result || response;
+            if (!isHandledByChangeApplied(updated, selectedHandledByUser.id, priorHandledBy)) {
+                toastError(
+                    updated?.message ||
+                        "Handled By was not changed. Please select a different user from the dropdown."
+                );
+                return;
+            }
             toastSuccess("Handled By updated successfully");
             closeChangeHandledByDialog();
             const effectiveReload = typeof reload === "function" ? reload : reassignReloadFn;
-            if (typeof effectiveReload === "function") effectiveReload();
+            if (typeof effectiveReload === "function") {
+                await effectiveReload();
+            }
         } catch (err) {
             toastError(err?.response?.data?.message || "Failed to update Handled By");
         } finally {
             setReassigning(false);
         }
-    }, [selectedOrderForReassign, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, reassignReloadFn]);
+    }, [
+        selectedOrderForReassign,
+        selectedHandledByUser,
+        hasExplicitHandledBySelection,
+        reassignReason,
+        closeChangeHandledByDialog,
+        reassignReloadFn,
+    ]);
 
     const handleOpenDetails = useCallback((row) => {
         setSelectedOrder(row);
@@ -816,14 +811,24 @@ export default function ListView() {
                         name="handled_by"
                         label="Handled By"
                         required
-                        options={handledByUsers}
-                        loading={handledByLoading}
+                        asyncLoadOptions={(q) =>
+                            getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                        }
+                        referenceModel="user.model"
                         value={selectedHandledByUser}
-                        onChange={(_, next) => setSelectedHandledByUser(next)}
-                        getOptionLabel={(option) => option?.name || option?.label || ""}
-                        placeholder="Select handled by"
+                        onChange={(_, next) => {
+                            setSelectedHandledByUser(next || null);
+                            setHasExplicitHandledBySelection(true);
+                        }}
+                        getOptionLabel={getUserOptionLabel}
+                        placeholder="Type to search and select..."
                         size="small"
                     />
+                    {hasExplicitHandledBySelection && selectedHandledByUser?.id != null && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                            Selected: {getUserOptionLabel(selectedHandledByUser)} (ID: {selectedHandledByUser.id})
+                        </Typography>
+                    )}
                     <Input
                         name="reassign_reason"
                         className="mt-2"
@@ -844,6 +849,7 @@ export default function ListView() {
                         variant="contained"
                         disabled={
                             reassigning ||
+                            !hasExplicitHandledBySelection ||
                             !selectedHandledByUser?.id ||
                             Number(selectedHandledByUser?.id) === Number(selectedOrderForReassign?.handled_by)
                         }

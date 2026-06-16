@@ -11,6 +11,23 @@ import Container from "@/components/container";
 import quotationTemplateService from "@/services/quotationTemplateService";
 import { Button as ThemeButton } from "@/components/ui/button";
 
+const DISTRIBUTOR_LOGO_RULES = {
+  minWidth: 80,
+  maxWidth: 3000,
+  minHeight: 24,
+  maxHeight: 1200,
+  minAspectRatio: 1.3,
+  maxAspectRatio: 8,
+};
+
+const DISTRIBUTOR_FIELDS = [
+  { key: "distributor_1", label: "Distributor logo 1" },
+  { key: "distributor_2", label: "Distributor logo 2" },
+  { key: "distributor_3", label: "Distributor logo 3" },
+];
+
+const DISTRIBUTOR_HELP = "Wide partner logo recommended. Accepted: width 80–3000 px, height 24–1200 px, landscape (aspect ratio 1.3–8). Image is auto-fitted to the PDF slot. PNG with transparent background recommended.";
+
 const IMAGE_FIELDS = [
   { key: "default_background", label: "Default background image", help: "Used when page-wise background is not set" },
   { key: "default_footer", label: "Default footer image" },
@@ -20,6 +37,42 @@ const IMAGE_FIELDS = [
     help: "A4 portrait ratio (e.g. 1240×1754 px). For full-page look, use an image that fills the frame; avoid large white margins.",
   })),
 ];
+
+function buildDistributorLogoRangeMessage(width, height) {
+  const { minWidth, maxWidth, minHeight, maxHeight, minAspectRatio, maxAspectRatio } = DISTRIBUTOR_LOGO_RULES;
+  return `Logo must be ${minWidth}–${maxWidth} px wide, ${minHeight}–${maxHeight} px tall, landscape (aspect ratio ${minAspectRatio}–${maxAspectRatio}). Yours: ${width}×${height}.`;
+}
+
+function validateDistributorLogo(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const { naturalWidth: width, naturalHeight: height } = img;
+      const { minWidth, maxWidth, minHeight, maxHeight, minAspectRatio, maxAspectRatio } = DISTRIBUTOR_LOGO_RULES;
+      if (width < minWidth || width > maxWidth || height < minHeight || height > maxHeight) {
+        reject(new Error(buildDistributorLogoRangeMessage(width, height)));
+        return;
+      }
+      const aspectRatio = width / height;
+      if (aspectRatio < minAspectRatio || aspectRatio > maxAspectRatio) {
+        reject(new Error(buildDistributorLogoRangeMessage(width, height)));
+        return;
+      }
+      resolve();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Invalid image file"));
+    };
+    img.src = url;
+  });
+}
+
+function isDistributorField(fieldKey) {
+  return fieldKey.startsWith("distributor_");
+}
 
 export default function QuotationTemplateConfigPage() {
   const router = useRouter();
@@ -53,7 +106,17 @@ export default function QuotationTemplateConfigPage() {
   const handleFileChange = async (fieldKey, e) => {
     const file = e?.target?.files?.[0];
     if (!file || !id) return;
-    e.target.value = ""; // reset so same file can be selected again
+    e.target.value = "";
+
+    if (isDistributorField(fieldKey)) {
+      try {
+        await validateDistributorLogo(file);
+      } catch (err) {
+        toast.error(err.message || "Invalid image dimensions");
+        return;
+      }
+    }
+
     setUploading((p) => ({ ...p, [fieldKey]: true }));
     try {
       const res = await quotationTemplateService.uploadTemplateConfigImage(id, fieldKey, file);
@@ -96,6 +159,16 @@ export default function QuotationTemplateConfigPage() {
           page_backgrounds: Object.keys(existingPageBackgrounds).length ? existingPageBackgrounds : null,
           page_backgrounds_data: null,
         };
+      } else if (isDistributorField(fieldKey)) {
+        const slot = fieldKey.replace("distributor_", "");
+        const existingLogos =
+          template?.config?.authorized_distributor_logos && typeof template.config.authorized_distributor_logos === "object"
+            ? { ...template.config.authorized_distributor_logos }
+            : {};
+        delete existingLogos[slot];
+        payload = {
+          authorized_distributor_logos: Object.keys(existingLogos).length ? existingLogos : null,
+        };
       }
 
       const res = await quotationTemplateService.updateTemplateConfig(id, payload);
@@ -118,7 +191,71 @@ export default function QuotationTemplateConfigPage() {
       const num = fieldKey.replace("page_", "");
       return config.page_backgrounds?.[num] ?? null;
     }
+    if (isDistributorField(fieldKey)) {
+      const slot = fieldKey.replace("distributor_", "");
+      return config.authorized_distributor_logos?.[slot] ?? null;
+    }
     return null;
+  };
+
+  const renderImageCard = ({ key, label, help, accept = "image/*" }) => {
+    const value = getConfigValue(key);
+    const isUploading = uploading[key];
+    return (
+      <Grid item xs={12} sm={6} key={key}>
+        <Card variant="outlined" sx={{ p: 1.5 }}>
+          <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              {label}
+            </Typography>
+            {help && (
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                {help}
+              </Typography>
+            )}
+            {value && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, wordBreak: "break-all" }}>
+                {value}
+              </Typography>
+            )}
+            <input
+              type="file"
+              accept={accept}
+              className="hidden"
+              ref={(el) => { fileInputRefs.current[key] = el; }}
+              disabled={isUploading}
+              onChange={(e) => handleFileChange(key, e)}
+            />
+            <div className="flex items-center gap-1">
+              <ThemeButton
+                type="button"
+                variant="outline"
+                size="sm"
+                loading={isUploading}
+                className="gap-1"
+                onClick={() => fileInputRefs.current[key]?.click()}
+              >
+                <CloudUploadIcon sx={{ fontSize: 18 }} />
+                {value ? "Replace" : "Upload"}
+              </ThemeButton>
+              {value && (
+                <ThemeButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploading}
+                  className="gap-1 text-red-600 border-red-300 hover:text-red-700 hover:border-red-400"
+                  onClick={() => handleRemoveImage(key)}
+                >
+                  <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                  Remove
+                </ThemeButton>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </Grid>
+    );
   };
 
   if (!id) {
@@ -155,66 +292,25 @@ export default function QuotationTemplateConfigPage() {
             <Typography variant="body2" color="text.secondary">
               Upload images for quotation PDF. They are stored in the bucket as public. Default background is used when a page-specific one is not set. For full-page backgrounds (e.g. Page 2), use A4 portrait aspect ratio (~0.7) so the image fills the page without large empty sides.
             </Typography>
+
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                Authorized Distributor Logos (Page 1)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                Shown top-right on the cover page with an &quot;Authorized Distributor of&quot; badge. {DISTRIBUTOR_HELP}
+              </Typography>
+              <Grid container spacing={2}>
+                {DISTRIBUTOR_FIELDS.map((field) => renderImageCard({
+                  ...field,
+                  help: DISTRIBUTOR_HELP,
+                  accept: "image/png,image/jpeg",
+                }))}
+              </Grid>
+            </Box>
+
             <Grid container spacing={2}>
-              {IMAGE_FIELDS.map(({ key, label, help }) => {
-                const value = getConfigValue(key);
-                const isUploading = uploading[key];
-                return (
-                  <Grid item xs={12} sm={6} key={key}>
-                    <Card variant="outlined" sx={{ p: 1.5 }}>
-                      <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                          {label}
-                        </Typography>
-                        {help && (
-                          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                            {help}
-                          </Typography>
-                        )}
-                        {value && (
-                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1, wordBreak: "break-all" }}>
-                            {value}
-                          </Typography>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          ref={(el) => { fileInputRefs.current[key] = el; }}
-                          disabled={isUploading}
-                          onChange={(e) => handleFileChange(key, e)}
-                        />
-                        <div className="flex items-center gap-1">
-                          <ThemeButton
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            loading={isUploading}
-                            className="gap-1"
-                            onClick={() => fileInputRefs.current[key]?.click()}
-                          >
-                            <CloudUploadIcon sx={{ fontSize: 18 }} />
-                            {value ? "Replace" : "Upload"}
-                          </ThemeButton>
-                          {value && (
-                            <ThemeButton
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={isUploading}
-                              className="gap-1 text-red-600 border-red-300 hover:text-red-700 hover:border-red-400"
-                              onClick={() => handleRemoveImage(key)}
-                            >
-                              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
-                              Remove
-                            </ThemeButton>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                );
-              })}
+              {IMAGE_FIELDS.map((field) => renderImageCard(field))}
             </Grid>
           </Box>
         )}
