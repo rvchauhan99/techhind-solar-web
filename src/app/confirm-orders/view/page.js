@@ -52,8 +52,7 @@ import { toastError, toastSuccess } from "@/utils/toast";
 import CustomerProjectDetails from "./components/CustomerProjectDetails";
 import orderService from "@/services/orderService";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
-import userMasterService from "@/services/userMasterService";
-import mastersService from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
@@ -63,6 +62,17 @@ import {
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
+
+const getUserOptionLabel = (opt) =>
+    opt?.name ?? opt?.label ?? opt?.username ?? (opt?.id != null ? String(opt.id) : "");
+
+const isHandledByChangeApplied = (updated, selectedId, priorId) => {
+    if (!updated || updated.reassignment_noop) return false;
+    const persistedId = Number(updated.handledBy?.id ?? updated.handled_by);
+    const selected = Number(selectedId);
+    const prior = Number(priorId);
+    return Number.isFinite(persistedId) && persistedId === selected && persistedId !== prior;
+};
 
 const getValidationStatusMeta = (status) => {
     const s = String(status || "").toLowerCase();
@@ -233,9 +243,8 @@ function ConfirmedOrderViewPageContent() {
     const [cancelling, setCancelling] = useState(false);
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
     const [changeHandledByOpen, setChangeHandledByOpen] = useState(false);
-    const [handledByUsers, setHandledByUsers] = useState([]);
-    const [handledByLoading, setHandledByLoading] = useState(false);
     const [selectedHandledByUser, setSelectedHandledByUser] = useState(null);
+    const [hasExplicitHandledBySelection, setHasExplicitHandledBySelection] = useState(false);
     const [reassignReason, setReassignReason] = useState("");
     const [reassigning, setReassigning] = useState(false);
     const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
@@ -302,40 +311,6 @@ function ConfirmedOrderViewPageContent() {
         };
     }, [orderId]);
 
-    useEffect(() => {
-        if (!canChangeHandledBy) return;
-        let mounted = true;
-        const loadUsers = async () => {
-            try {
-                setHandledByLoading(true);
-                const response = await userMasterService.listUserMasters({
-                    page: 1,
-                    limit: 1000,
-                    status: "active",
-                    sortBy: "name",
-                    sortOrder: "ASC",
-                });
-                const rows = response?.result?.data || [];
-                if (!mounted) return;
-                setHandledByUsers(
-                    rows.map((u) => ({
-                        id: Number(u.id),
-                        name: u.name || `User ${u.id}`,
-                    }))
-                );
-            } catch (err) {
-                if (!mounted) return;
-                toastError(err?.response?.data?.message || "Failed to load users");
-            } finally {
-                if (mounted) setHandledByLoading(false);
-            }
-        };
-        loadUsers();
-        return () => {
-            mounted = false;
-        };
-    }, [canChangeHandledBy]);
-
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
     };
@@ -394,31 +369,59 @@ function ConfirmedOrderViewPageContent() {
 
     const openChangeHandledByDialog = useCallback(() => {
         if (!orderData?.id) return;
-        const preselected = handledByUsers.find((u) => Number(u.id) === Number(orderData.handled_by)) || null;
-        setSelectedHandledByUser(preselected);
+        setSelectedHandledByUser(
+            orderData.handled_by != null ? { id: Number(orderData.handled_by) } : null
+        );
+        setHasExplicitHandledBySelection(false);
         setReassignReason("");
         setChangeHandledByOpen(true);
-    }, [orderData, handledByUsers]);
+    }, [orderData]);
 
     const closeChangeHandledByDialog = useCallback(() => {
         if (reassigning) return;
         setChangeHandledByOpen(false);
         setSelectedHandledByUser(null);
+        setHasExplicitHandledBySelection(false);
         setReassignReason("");
     }, [reassigning]);
 
     const submitChangeHandledBy = useCallback(async () => {
         if (!orderData?.id || !selectedHandledByUser?.id) return;
+        if (!hasExplicitHandledBySelection) {
+            toastError("Please select a user from the dropdown list");
+            return;
+        }
         if (Number(selectedHandledByUser.id) === Number(orderData.handled_by)) {
             toastError("Please select a different user");
             return;
         }
+        const priorHandledBy = Number(orderData.handled_by);
         try {
             setReassigning(true);
-            await confirmOrdersService.changeHandledBy(orderData.id, {
+            const response = await confirmOrdersService.changeHandledBy(orderData.id, {
                 handled_by: selectedHandledByUser.id,
                 reason: reassignReason?.trim() || undefined,
             });
+            const updated = response?.result || response;
+            if (!isHandledByChangeApplied(updated, selectedHandledByUser.id, priorHandledBy)) {
+                toastError(
+                    updated?.message ||
+                        "Handled By was not changed. Please select a different user from the dropdown."
+                );
+                return;
+            }
+            const newHandledBy = updated?.handled_by ?? selectedHandledByUser.id;
+            const newHandledByName =
+                updated?.handled_by_name ?? updated?.handledBy?.name ?? getUserOptionLabel(selectedHandledByUser);
+            setOrderData((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          handled_by: newHandledBy,
+                          handled_by_name: newHandledByName,
+                      }
+                    : prev
+            );
             toastSuccess("Handled By updated successfully");
             closeChangeHandledByDialog();
             await fetchOrderData();
@@ -427,7 +430,14 @@ function ConfirmedOrderViewPageContent() {
         } finally {
             setReassigning(false);
         }
-    }, [orderData, selectedHandledByUser, reassignReason, closeChangeHandledByDialog, fetchOrderData]);
+    }, [
+        orderData,
+        selectedHandledByUser,
+        hasExplicitHandledBySelection,
+        reassignReason,
+        closeChangeHandledByDialog,
+        fetchOrderData,
+    ]);
 
     const pipelineStages = useMemo(() => orderData?.stages || DEFAULT_STAGE_STATUS, [orderData?.stages]);
     const visibleStages = useMemo(() => getVisibleStages(pipelineStages), [pipelineStages]);
@@ -797,16 +807,26 @@ function ConfirmedOrderViewPageContent() {
                 <DialogTitle sx={{ py: 1 }}>Change Handled By</DialogTitle>
                 <DialogContent sx={{ pt: "8px !important" }}>
                     <AutocompleteField
-                        options={handledByUsers}
-                        loading={handledByLoading}
+                        asyncLoadOptions={(q) =>
+                            getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                        }
+                        referenceModel="user.model"
                         value={selectedHandledByUser}
-                        onChange={(e, v) => setSelectedHandledByUser(v || null)}
-                        getOptionLabel={(o) => o?.name || ""}
-                        placeholder="Select active user"
+                        onChange={(e, v) => {
+                            setSelectedHandledByUser(v || null);
+                            setHasExplicitHandledBySelection(true);
+                        }}
+                        getOptionLabel={getUserOptionLabel}
+                        placeholder="Type to search and select..."
                         label="Handled By"
                         name="handled_by"
                         required
                     />
+                    {hasExplicitHandledBySelection && selectedHandledByUser?.id != null && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                            Selected: {getUserOptionLabel(selectedHandledByUser)} (ID: {selectedHandledByUser.id})
+                        </Typography>
+                    )}
                     <Box mt={1}>
                         <Input
                             name="reassign_reason"
@@ -826,7 +846,12 @@ function ConfirmedOrderViewPageContent() {
                         size="small"
                         variant="contained"
                         onClick={submitChangeHandledBy}
-                        disabled={reassigning || !selectedHandledByUser?.id}
+                        disabled={
+                            reassigning ||
+                            !hasExplicitHandledBySelection ||
+                            !selectedHandledByUser?.id ||
+                            Number(selectedHandledByUser.id) === Number(orderData?.handled_by)
+                        }
                     >
                         {reassigning ? "Updating..." : "Update"}
                     </Button>
