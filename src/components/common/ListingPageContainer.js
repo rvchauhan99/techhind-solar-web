@@ -30,6 +30,8 @@ import FilterBar from "@/components/common/FilterBar";
  */
 export default function ListingPageContainer({
   title,
+  subtitle,
+  actions,
   fullWidth = false,
   addButtonLabel,
   onAddClick,
@@ -51,42 +53,49 @@ export default function ListingPageContainer({
 }) {
   return (
     <Container className={`flex flex-col gap-1 py-1 h-full min-h-0 ${fullWidth ? "w-full max-w-none" : "max-w-[1536px] mx-auto"}`}>
-      <div className="flex flex-shrink-0 justify-between items-center gap-2 border-b border-border pb-1.5">
-        <h1 className="text-lg font-semibold text-[#1b365d] tracking-tight">{title}</h1>
+      <div className="flex flex-shrink-0 justify-between items-start gap-2 border-b border-border pb-1.5">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-[#1b365d] tracking-tight">{title}</h1>
+          {subtitle ? <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p> : null}
+        </div>
         <div className="flex items-center gap-1.5">
-          {onSecondaryClick && secondaryButtonLabel && (
-            <Button onClick={onSecondaryClick} size="sm" variant="outline" className="gap-1">
-              {secondaryButtonLabel}
-            </Button>
-          )}
-          {onExportClick && exportButtonLabel && (
-            <Button
-              onClick={onExportClick}
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              disabled={exportDisabled}
-              loading={exportLoading}
-            >
-              <IconDownload className="size-4" />
-              {exportButtonLabel}
-            </Button>
-          )}
-          {onSampleCsvClick && sampleCsvButtonLabel && (
-            <Button onClick={onSampleCsvClick} size="sm" variant="outline" className="gap-1">
-              {sampleCsvButtonLabel}
-            </Button>
-          )}
-          {onImportClick && importButtonLabel && (
-            <Button onClick={onImportClick} size="sm" variant="outline" className="gap-1">
-              {importButtonLabel}
-            </Button>
-          )}
-          {onAddClick && addButtonLabel && (
-            <Button onClick={onAddClick} size="sm" className="gap-1">
-              <IconPlus className="size-4" />
-              {addButtonLabel}
-            </Button>
+          {actions ?? (
+            <>
+              {onSecondaryClick && secondaryButtonLabel && (
+                <Button onClick={onSecondaryClick} size="sm" variant="outline" className="gap-1">
+                  {secondaryButtonLabel}
+                </Button>
+              )}
+              {onExportClick && exportButtonLabel && (
+                <Button
+                  onClick={onExportClick}
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={exportDisabled}
+                  loading={exportLoading}
+                >
+                  <IconDownload className="size-4" />
+                  {exportButtonLabel}
+                </Button>
+              )}
+              {onSampleCsvClick && sampleCsvButtonLabel && (
+                <Button onClick={onSampleCsvClick} size="sm" variant="outline" className="gap-1">
+                  {sampleCsvButtonLabel}
+                </Button>
+              )}
+              {onImportClick && importButtonLabel && (
+                <Button onClick={onImportClick} size="sm" variant="outline" className="gap-1">
+                  {importButtonLabel}
+                </Button>
+              )}
+              {onAddClick && addButtonLabel && (
+                <Button onClick={onAddClick} size="sm" className="gap-1">
+                  <IconPlus className="size-4" />
+                  {addButtonLabel}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
