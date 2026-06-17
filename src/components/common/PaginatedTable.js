@@ -248,6 +248,13 @@ export default function PaginatedTable({
         total: res.meta.total || 0,
         page: res.meta.page || 1,
       };
+    // backward-compatible shape: { data: [...], total, page? }
+    if (res.data && typeof res.total !== "undefined")
+      return {
+        data: res.data,
+        total: Number(res.total || 0),
+        page: res.page || 1,
+      };
     // sendSuccess uses { status, message, result }
     if (res.result && Array.isArray(res.result))
       return { data: res.result, total: res.result.length, page: 1 };
@@ -308,8 +315,8 @@ export default function PaginatedTable({
     fetcherRef.current = fetcher;
   }, [fetcher]);
 
-  // Use ref to track loading state to prevent concurrent loads
-  const loadingRef = React.useRef(false);
+  // Track latest request so stale responses do not overwrite newer results.
+  const latestRequestIdRef = React.useRef(0);
 
   const effectiveQ = isControlled ? (controlledQ ?? "") : debouncedQuery;
   const filterParamsRef = React.useRef(filterParams);
@@ -324,9 +331,8 @@ export default function PaginatedTable({
 
   const load = React.useCallback(
     async (p = page, l = rowsPerPage, q = effectiveQ, sBy = sortBy, sOrder = sortOrder) => {
-      if (loadingRef.current) return;
-
-      loadingRef.current = true;
+      const requestId = latestRequestIdRef.current + 1;
+      latestRequestIdRef.current = requestId;
       setLoading(true);
       try {
         const apiPage = p + 1;
@@ -341,6 +347,7 @@ export default function PaginatedTable({
           fetcherParams.sortOrder = sOrder;
         }
         const res = await fetcherRef.current(fetcherParams);
+        if (requestId !== latestRequestIdRef.current) return;
         const { data, total } = normalize(res);
         const rowsData = data || [];
         setRows(rowsData);
@@ -352,6 +359,7 @@ export default function PaginatedTable({
           onRowsChange(rowsData);
         }
       } catch (err) {
+        if (requestId !== latestRequestIdRef.current) return;
         console.error("PaginatedTable load error:", err);
         setRows([]);
         setTotalCount(0);
@@ -361,8 +369,9 @@ export default function PaginatedTable({
           onRowsChange([]);
         }
       } finally {
-        loadingRef.current = false;
-        setLoading(false);
+        if (requestId === latestRequestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [page, rowsPerPage, effectiveQ, sortBy, sortOrder, onRowsChange, onTotalChange]
@@ -375,8 +384,8 @@ export default function PaginatedTable({
   }, [debouncedQuery, isControlled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
-    load(page, rowsPerPage, debouncedQuery, sortBy, sortOrder);
-  }, [page, rowsPerPage, debouncedQuery, sortBy, sortOrder, load, filterParamsKey]);
+    load(page, rowsPerPage, effectiveQ, sortBy, sortOrder);
+  }, [page, rowsPerPage, effectiveQ, sortBy, sortOrder, load, filterParamsKey]);
 
   const handleChangePage = (event, newPage) => {
     if (isControlled && onControlledPageChange) {
@@ -397,7 +406,7 @@ export default function PaginatedTable({
     }
   };
 
-  const reload = () => load(page, rowsPerPage, debouncedQuery, sortBy, sortOrder);
+  const reload = () => load(page, rowsPerPage, effectiveQ, sortBy, sortOrder);
 
   const handleSortClick = (field) => {
     if (sortBy === field) {
