@@ -396,7 +396,7 @@ function AmendOrderPageContent() {
                 </Box>
             )}
 
-            {activeStageKey === "basic" && <OrderForm defaultValues={orderData || {}} onSubmit={handleBasicSubmit} />}
+            {activeStageKey === "basic" && <OrderForm defaultValues={orderData || {}} onSubmit={handleBasicSubmit} amendMode />}
             {activeStageKey === "estimate_generated" && <EstimateGenerated orderId={orderId} orderData={orderData} onSuccess={fetchOrderData} amendMode />}
             {activeStageKey === "estimate_paid" && (
                 <EstimatePaid orderId={orderId} orderData={orderData} orderDocuments={orderDocuments} onSuccess={fetchOrderData} amendMode />
