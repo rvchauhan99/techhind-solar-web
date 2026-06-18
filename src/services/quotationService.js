@@ -60,6 +60,9 @@ export const getPdfJobStatus = (jobId) =>
 export const downloadPdfJob = (jobId) =>
     apiClient.get(`/quotation/pdf/jobs/${jobId}/download`, { responseType: "blob" }).then((r) => r.data);
 
+export const getPdfStatus = () =>
+    apiClient.get("/quotation/pdf/status").then((r) => r.data);
+
 export default {
     getQuotations,
     exportQuotations,
@@ -80,5 +83,6 @@ export default {
     pdfGenerate,
     createPdfJob,
     getPdfJobStatus,
-    downloadPdfJob
+    downloadPdfJob,
+    getPdfStatus
 };
