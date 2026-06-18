@@ -38,6 +38,15 @@ const toNullableLocationId = (value, options) => {
     return !Number.isNaN(n) && n > 0 ? n : null;
 };
 
+const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
+    if (!channelPartner || channelPartner === "") return null;
+    if (!handledBy) return null;
+    if (String(handledBy) === String(channelPartner)) {
+        return "Channel Partner cannot be the same as Handled By";
+    }
+    return null;
+};
+
 export default function OrderForm({
     defaultValues = {},
     quotationData = null, // Add quotationData prop
@@ -285,13 +294,28 @@ export default function OrderForm({
         } else {
             setFormData((prev) => ({ ...prev, [field]: value }));
         }
-        if (errors[field]) {
+
+        if (field === "handled_by" || field === "channel_partner_id") {
+            const nextHandledBy = field === "handled_by" ? value : formData.handled_by;
+            const nextChannelPartner = field === "channel_partner_id" ? value : formData.channel_partner_id;
+            const cpError = channelPartnerMustDifferFromHandledBy(nextHandledBy, nextChannelPartner);
+            setErrors((prev) => {
+                const updated = { ...prev };
+                if (cpError) {
+                    updated.channel_partner_id = cpError;
+                } else {
+                    delete updated.channel_partner_id;
+                }
+                return updated;
+            });
+        } else if (errors[field]) {
             setErrors((prev) => {
                 const newErrors = { ...prev };
                 delete newErrors[field];
                 return newErrors;
             });
         }
+
         if (serverError && onClearServerError) {
             onClearServerError();
         }
@@ -327,6 +351,14 @@ export default function OrderForm({
         }
         if (formData.city_id && toNullableLocationId(formData.city_id, locationOptions.cities) == null) {
             newErrors.city_id = "Please select a valid city";
+        }
+
+        const cpError = channelPartnerMustDifferFromHandledBy(
+            formData.handled_by,
+            formData.channel_partner_id
+        );
+        if (cpError) {
+            newErrors.channel_partner_id = cpError;
         }
 
         setErrors(newErrors);
@@ -454,7 +486,9 @@ export default function OrderForm({
                             value={formData.channel_partner_id ? { id: formData.channel_partner_id } : null}
                             onChange={(e, newValue) => handleChange("channel_partner_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
-                            disabled={!!formData.inquiry_id}
+                            error={!!errors.channel_partner_id}
+                            helperText={errors.channel_partner_id}
+                            disabled={!!formData.inquiry_id && !amendMode}
                         />
                         <AutocompleteField
                             name="project_scheme_id"
