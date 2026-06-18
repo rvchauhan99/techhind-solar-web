@@ -40,7 +40,7 @@ import { Textarea } from "@/components/ui/textarea";
 const quotationFetchInFlight = new Set();
 const pdfFetchInFlight = new Set();
 const PDF_POLL_TIMEOUT_FALLBACK_MS = 240000;
-const PDF_POLL_DELAY_MIN_MS = 1500;
+const PDF_POLL_DELAY_MIN_MS = 800;
 const PDF_POLL_DELAY_MAX_MS = 5000;
 const PDF_TAKING_LONGER_THRESHOLD_MS = 25000;
 
@@ -101,6 +101,7 @@ export default function QuotationDetail() {
     const [pdfUrl, setPdfUrl] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfTakingLonger, setPdfTakingLonger] = useState(false);
+    const [pdfQueueHint, setPdfQueueHint] = useState("");
     const [iframeReady, setIframeReady] = useState(false);
     const [error, setError] = useState(null);
     const [approveDialogOpen, setApproveDialogOpen] = useState(false);
@@ -196,7 +197,7 @@ export default function QuotationDetail() {
         }
     };
 
-    const waitForPdfJobCompletion = useCallback(async (jobId, controller, pollTimeoutMs, { onTakingLong } = {}) => {
+    const waitForPdfJobCompletion = useCallback(async (jobId, controller, pollTimeoutMs, { onTakingLong, onQueueHint } = {}) => {
         const startedAt = Date.now();
         let attempts = 0;
         let allowedTimeoutMs = Math.max(PDF_POLL_TIMEOUT_FALLBACK_MS, Number(pollTimeoutMs) || 0);
@@ -223,6 +224,18 @@ export default function QuotationDetail() {
             if (!takingLongNotified && elapsed >= PDF_TAKING_LONGER_THRESHOLD_MS && onTakingLong) {
                 takingLongNotified = true;
                 onTakingLong();
+                try {
+                    const statusRes = await quotationService.getPdfStatus();
+                    const payload = statusRes?.result || statusRes?.data || statusRes;
+                    const pending = payload?.queue?.pending;
+                    const active = payload?.runner?.activeChildren;
+                    const parts = [];
+                    if (pending != null) parts.push(`${pending} queued`);
+                    if (active != null) parts.push(`${active} rendering`);
+                    if (parts.length) onQueueHint?.(parts.join(", "));
+                } catch (_) {
+                    // ignore status fetch errors during poll
+                }
             }
             attempts += 1;
             const delayMs = Math.min(
@@ -246,6 +259,7 @@ export default function QuotationDetail() {
 
         setPdfLoading(true);
         setPdfTakingLonger(false);
+        setPdfQueueHint("");
         setIframeReady(false);
         try {
             const createRes = await quotationService.createPdfJob(id);
@@ -259,6 +273,7 @@ export default function QuotationDetail() {
             if (!alreadyDone && jobId) {
                 await waitForPdfJobCompletion(jobId, controller, pdfPollTimeoutRef.current, {
                     onTakingLong: () => setPdfTakingLonger(true),
+                    onQueueHint: (hint) => setPdfQueueHint(hint),
                 });
             }
             const blob = jobId
@@ -283,6 +298,7 @@ export default function QuotationDetail() {
             if (!controller.signal.aborted) {
                 setPdfLoading(false);
                 setPdfTakingLonger(false);
+                setPdfQueueHint("");
             }
         }
     }, [id, waitForPdfJobCompletion]);
@@ -772,6 +788,7 @@ export default function QuotationDetail() {
                             {pdfTakingLonger && (
                                 <Typography sx={{ mt: 1, color: "#888", fontSize: "0.875rem" }}>
                                     PDF is taking longer than usual. Please wait…
+                                    {pdfQueueHint ? ` (${pdfQueueHint})` : ""}
                                 </Typography>
                             )}
                         </Box>
