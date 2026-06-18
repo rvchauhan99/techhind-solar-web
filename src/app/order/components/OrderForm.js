@@ -46,6 +46,7 @@ export default function OrderForm({
     loading = false,
     serverError = null,
     onClearServerError,
+    amendMode = false,
 }) {
     const [formData, setFormData] = useState({
         // Order details
@@ -392,7 +393,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.inquiry_by}
                             helperText={errors.inquiry_by}
-                            disabled={!!formData.inquiry_id}
+                            disabled={!!formData.inquiry_id && !amendMode}
                             required
                         />
                         <AutocompleteField
@@ -406,7 +407,7 @@ export default function OrderForm({
                             placeholder="Type to search..."
                             error={!!errors.handled_by}
                             helperText={errors.handled_by}
-                            disabled={!!formData.inquiry_id}
+                            disabled={!!formData.inquiry_id && !amendMode}
                             required
                         />
                         <Input
