@@ -483,10 +483,18 @@ export default function POInwardForm({
     });
 
     const [errors, setErrors] = useState({});
-    const [warehouses, setWarehouses] = useState([]);
+    const [managedWarehouses, setManagedWarehouses] = useState([]);
+    const [managedWarehousesLoading, setManagedWarehousesLoading] = useState(true);
     const [selectedPO, setSelectedPO] = useState(null);
     const [poLoading, setPoLoading] = useState(false);
     const [collapsedCardItems, setCollapsedCardItems] = useState(new Set());
+
+    const managedWarehouseIds = managedWarehouses.map((w) => w.id).filter(Boolean);
+    const canTransact = managedWarehouseIds.length > 0;
+    const warehouseDisplayName =
+        selectedPO?.shipTo?.name ||
+        managedWarehouses.find((w) => w.id === parseInt(formData.warehouse_id, 10))?.name ||
+        "";
 
     // Serial dialog state — only index stored here; all serial state lives in dialog
     const [serialDialogIndex, setSerialDialogIndex] = useState(null);
@@ -501,6 +509,24 @@ export default function POInwardForm({
             return next;
         });
     };
+
+    useEffect(() => {
+        const loadManaged = async () => {
+            try {
+                setManagedWarehousesLoading(true);
+                const res = await companyService.getManagedWarehouses();
+                const list = res?.result ?? res?.data ?? res ?? [];
+                setManagedWarehouses(Array.isArray(list) ? list : []);
+            } catch (err) {
+                console.error("Failed to load managed warehouses", err);
+                toastError(err?.response?.data?.message || "Failed to load managed warehouses");
+                setManagedWarehouses([]);
+            } finally {
+                setManagedWarehousesLoading(false);
+            }
+        };
+        loadManaged();
+    }, []);
 
     useEffect(() => {
         if (defaultValues && Object.keys(defaultValues).length > 0) {
@@ -530,22 +556,8 @@ export default function POInwardForm({
             const result = response.result || response;
             setSelectedPO(result);
 
-            if (result.bill_to_id) {
-                try {
-                    const warehousesRes = await companyService.listWarehouses(parseInt(result.bill_to_id));
-                    const wh = warehousesRes?.result || warehousesRes?.data || warehousesRes || [];
-                    const whArr = Array.isArray(wh) ? wh : [];
-                    setWarehouses(whArr);
-                    if (result.ship_to_id) {
-                        const found = whArr.find((w) => w.id === parseInt(result.ship_to_id));
-                        if (found) {
-                            setFormData((prev) => ({ ...prev, warehouse_id: result.ship_to_id.toString() }));
-                        }
-                    }
-                } catch (err) {
-                    console.error("Failed to load warehouses", err);
-                    setWarehouses([]);
-                }
+            if (result.ship_to_id) {
+                setFormData((prev) => ({ ...prev, warehouse_id: result.ship_to_id.toString() }));
             }
 
             if (result.items && result.items.length > 0) {
@@ -579,6 +591,19 @@ export default function POInwardForm({
             }
         } catch (err) {
             console.error("Failed to load purchase order", err);
+            const status = err?.response?.status;
+            const msg =
+                status === 403
+                    ? err?.response?.data?.message || "You are not a manager of the warehouse for this purchase order"
+                    : err?.response?.data?.message || err?.message || "Failed to load purchase order";
+            toastError(msg);
+            setSelectedPO(null);
+            setFormData((prev) => ({
+                ...prev,
+                purchase_order_id: "",
+                warehouse_id: "",
+                items: [],
+            }));
         } finally {
             setPoLoading(false);
             loadingPORef.current = false;
@@ -590,7 +615,6 @@ export default function POInwardForm({
         if (name === "purchase_order_id") {
             setFormData((prev) => ({ ...prev, [name]: value, warehouse_id: "", items: [] }));
             setSelectedPO(null);
-            setWarehouses([]);
             if (value) loadPurchaseOrder(value);
         } else {
             setFormData((prev) => ({
@@ -813,6 +837,11 @@ export default function POInwardForm({
                             {serverError}
                         </Alert>
                     )}
+                    {!managedWarehousesLoading && !canTransact && (
+                        <Alert severity="warning" sx={{ mb: 1 }}>
+                            You are not assigned as a warehouse manager. Contact your administrator to create PO inwards.
+                        </Alert>
+                    )}
 
                     {/* ── Receipt Fields ─────────────────────────────────────── */}
                     <div className="w-full">
@@ -820,11 +849,15 @@ export default function POInwardForm({
                             <AutocompleteField
                                 name="purchase_order_id"
                                 label="Purchase Order"
-                                asyncLoadOptions={(q) =>
-                                    getReferenceOptionsSearch("purchaseOrder.model", {
-                                        q, limit: 20, status_in: "APPROVED,PARTIAL_RECEIVED",
-                                    })
-                                }
+                                asyncLoadOptions={(q) => {
+                                    if (managedWarehouseIds.length === 0) return Promise.resolve([]);
+                                    return getReferenceOptionsSearch("purchaseOrder.model", {
+                                        q,
+                                        limit: 20,
+                                        status_in: "APPROVED,PARTIAL_RECEIVED",
+                                        ship_to_id_in: managedWarehouseIds.join(","),
+                                    });
+                                }}
                                 referenceModel="purchaseOrder.model"
                                 getOptionLabel={(po) =>
                                     po?.label ?? `${po?.po_number ?? po?.id ?? ""} - ${po?.supplier?.supplier_name ?? ""}`
@@ -834,25 +867,21 @@ export default function POInwardForm({
                                     handleChange({ target: { name: "purchase_order_id", value: newValue?.id ?? "" } });
                                 }}
                                 placeholder="Type to search PO…"
-                                disabled={!!(defaultValues && defaultValues.id)}
+                                disabled={!!(defaultValues && defaultValues.id) || !canTransact || managedWarehousesLoading}
                                 required
                                 error={!!errors.purchase_order_id}
                                 helperText={errors.purchase_order_id}
                             />
 
-                            <AutocompleteField
-                                name="warehouse_id"
+                            <Input
+                                fullWidth
+                                name="warehouse_display"
                                 label="Warehouse"
-                                options={warehouses}
-                                getOptionLabel={(w) => w?.name ?? w?.label ?? ""}
-                                value={warehouses.find((w) => w.id === formData.warehouse_id) || (formData.warehouse_id ? { id: formData.warehouse_id } : null)}
-                                onChange={(e, newValue) =>
-                                    handleChange({ target: { name: "warehouse_id", value: newValue?.id ?? "" } })
-                                }
-                                placeholder="Select warehouse…"
+                                value={warehouseDisplayName}
+                                disabled
                                 required
                                 error={!!errors.warehouse_id}
-                                helperText={errors.warehouse_id}
+                                helperText={errors.warehouse_id || (selectedPO ? "Receiving warehouse from purchase order" : "Select a purchase order")}
                             />
 
                             <DateField
@@ -1252,7 +1281,13 @@ export default function POInwardForm({
                             Cancel
                         </Button>
                     )}
-                    <LoadingButton type="submit" size="sm" loading={loading} className="min-w-[140px]">
+                    <LoadingButton
+                        type="submit"
+                        size="sm"
+                        loading={loading}
+                        className="min-w-[140px]"
+                        disabled={!canTransact || managedWarehousesLoading}
+                    >
                         {defaultValues?.id ? "Update Receipt" : "Create Receipt"}
                     </LoadingButton>
                 </FormActions>

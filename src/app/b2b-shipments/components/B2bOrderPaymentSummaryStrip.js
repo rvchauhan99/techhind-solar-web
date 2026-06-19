@@ -10,7 +10,6 @@ import {
   Grid,
   Chip,
   Collapse,
-  IconButton,
   Table,
   TableBody,
   TableCell,
@@ -179,6 +178,7 @@ export default function B2bOrderPaymentSummaryStrip({ order }) {
           component="button"
           type="button"
           onClick={togglePayments}
+          aria-expanded={paymentsExpanded}
           sx={{
             display: "inline-flex",
             alignItems: "center",
@@ -193,9 +193,11 @@ export default function B2bOrderPaymentSummaryStrip({ order }) {
           }}
         >
           Recent payments
-          <IconButton size="small" sx={{ p: 0.25 }} tabIndex={-1}>
-            {paymentsExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-          </IconButton>
+          {paymentsExpanded ? (
+            <ExpandLessIcon fontSize="small" sx={{ fontSize: "1rem" }} />
+          ) : (
+            <ExpandMoreIcon fontSize="small" sx={{ fontSize: "1rem" }} />
+          )}
         </Box>
       </Box>
 
