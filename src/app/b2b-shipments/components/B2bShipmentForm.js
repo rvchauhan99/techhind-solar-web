@@ -16,7 +16,7 @@ import {
     Chip,
     Card,
     CardContent,
-    FormHelperText,
+FormHelperText,
     CircularProgress,
     Collapse,
     TextField,
@@ -42,6 +42,7 @@ import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import stockService from "@/services/stockService";
+import companyService from "@/services/companyService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
 const compactCardContentSx = { p: 1, "&:last-child": { pb: 1 } };
@@ -57,7 +58,8 @@ function buildLinesFromOrderItems(items, stockByProductId = {}) {
         const productType = p?.productType || p?.product_type;
         const requiredQty = parseInt(item.quantity, 10) || 0;
         const shipped = parseInt(item.shipped_quantity, 10) || 0;
-        const pending = Math.max(0, requiredQty - shipped);
+        const returned = parseInt(item.returned_quantity ?? item.returned_qty, 10) || 0;
+        const pending = Math.max(0, requiredQty - shipped + returned);
         const stockRow = stockByProductId[item.product_id];
         const available =
             stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
@@ -72,6 +74,8 @@ function buildLinesFromOrderItems(items, stockByProductId = {}) {
             make_name: p?.product_make_name || p?.make_name || "",
             required_qty: requiredQty,
             shipped_qty: shipped,
+            returned_qty: returned,
+            net_delivered_qty: Math.max(0, shipped - returned),
             pending_qty: pending,
             available_qty: available,
             unit_name: unitName,
@@ -94,6 +98,11 @@ export default function B2bShipmentForm({
     const [availableOrders, setAvailableOrders] = useState([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
+    const [managedWarehouses, setManagedWarehouses] = useState([]);
+    const [managedWarehousesLoading, setManagedWarehousesLoading] = useState(true);
+
+    const managedWarehouseIds = managedWarehouses.map((w) => w.id).filter(Boolean);
+    const canTransact = managedWarehouseIds.length > 0;
 
     const [formData, setFormData] = useState({
         shipment_date: new Date().toISOString().split("T")[0],
@@ -182,7 +191,11 @@ export default function B2bShipmentForm({
             });
         } catch (err) {
             console.error("Failed to load order for shipment:", err);
-            const msg = err?.response?.data?.message || err?.message || "Failed to load order";
+            const status = err?.response?.status;
+            const msg =
+                status === 403
+                    ? err?.response?.data?.message || "You are not a manager of the planned warehouse for this order"
+                    : err?.response?.data?.message || err?.message || "Failed to load order";
             setOrder(null);
             setLines([]);
             setAvailableSerialsByLineIndex({});
@@ -195,10 +208,24 @@ export default function B2bShipmentForm({
     useEffect(() => {
         const init = async () => {
             try {
+                setManagedWarehousesLoading(true);
                 setOrdersLoading(true);
                 setInitialLoading(false);
+
+                const whRes = await companyService.getManagedWarehouses();
+                const whList = whRes?.result ?? whRes?.data ?? whRes ?? [];
+                const warehouses = Array.isArray(whList) ? whList : [];
+                setManagedWarehouses(warehouses);
+
+                const warehouseIds = warehouses.map((w) => w.id).filter(Boolean);
+                if (warehouseIds.length === 0) {
+                    setAvailableOrders([]);
+                    return;
+                }
+
                 const res = await b2bSalesOrderService.getB2bSalesOrders({
                     status_in: "CONFIRMED,PARTIAL_SHIPPED",
+                    planned_warehouse_id_in: warehouseIds.join(","),
                     limit: 200,
                 });
                 const r = res?.result ?? res;
@@ -209,6 +236,7 @@ export default function B2bShipmentForm({
                 toastError(err?.response?.data?.message || err?.message || "Failed to load orders");
                 setAvailableOrders([]);
             } finally {
+                setManagedWarehousesLoading(false);
                 setOrdersLoading(false);
             }
         };
@@ -634,7 +662,7 @@ export default function B2bShipmentForm({
         ...o,
     }));
 
-    if (initialLoading && !ordersLoading) {
+    if ((initialLoading || managedWarehousesLoading) && !ordersLoading) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 200 }}>
                 <CircularProgress />
@@ -646,6 +674,11 @@ export default function B2bShipmentForm({
         <Box component="form" onSubmit={handleSubmit} onKeyDown={preventEnterSubmit} noValidate>
             <FormContainer>
                 <Box sx={{ p: { xs: 1.5, sm: 1 } }}>
+                    {!canTransact && (
+                        <Alert severity="warning" sx={{ mb: 1 }}>
+                            You are not assigned as a warehouse manager. Contact your administrator to create shipments.
+                        </Alert>
+                    )}
                     {serverError && (
                         <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
                             {serverError}
@@ -681,7 +714,7 @@ export default function B2bShipmentForm({
                                             required
                                             error={!!errors.order_id}
                                             helperText={errors.order_id}
-                                            disabled={ordersLoading || availableOrders.length === 0}
+                                            disabled={!canTransact || ordersLoading || availableOrders.length === 0}
                                         />
                                     ) : (
                                         <Input
@@ -812,6 +845,7 @@ export default function B2bShipmentForm({
                                                                 { label: "Ordered", value: line.required_qty },
                                                                 { label: "Avail", value: Number(line.available_qty) || 0 },
                                                                 { label: "Shipped", value: line.shipped_qty },
+                                                                { label: "Ret.", value: line.returned_qty ?? 0 },
                                                             ].map(({ label, value }) => (
                                                                 <Box key={label}>
                                                                     <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
@@ -952,6 +986,7 @@ export default function B2bShipmentForm({
                                                         <TableCell align="right"><strong>Ordered</strong></TableCell>
                                                         <TableCell align="right"><strong>Avail.</strong></TableCell>
                                                         <TableCell align="right"><strong>Shipped</strong></TableCell>
+                                                        <TableCell align="right"><strong>Ret.</strong></TableCell>
                                                         <TableCell align="right"><strong>Rem.</strong></TableCell>
                                                         <TableCell align="right" sx={{ minWidth: 110 }}><strong>Ship Now</strong></TableCell>
                                                         <TableCell sx={{ minWidth: 120 }}><strong>Serials</strong></TableCell>
@@ -997,6 +1032,7 @@ export default function B2bShipmentForm({
                                                                     <TableCell sx={compactCellSx} align="right">{line.required_qty}</TableCell>
                                                                     <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
                                                                     <TableCell sx={compactCellSx} align="right">{line.shipped_qty}</TableCell>
+                                                                    <TableCell sx={compactCellSx} align="right">{line.returned_qty ?? 0}</TableCell>
                                                                     <TableCell sx={compactCellSx} align="right">
                                                                         <Typography variant="body2" fontWeight="medium" color={line.pending_qty > 0 ? "warning.main" : "success.main"}>
                                                                             {line.pending_qty} {line.unit_name || ""}
@@ -1164,7 +1200,7 @@ export default function B2bShipmentForm({
                         type="submit"
                         loading={loading}
                         className="min-w-[120px] min-h-[44px] touch-manipulation"
-                        disabled={!order}
+                        disabled={!canTransact || !order}
                     >
                         Create Shipment
                     </LoadingButton>

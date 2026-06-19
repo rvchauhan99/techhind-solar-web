@@ -44,6 +44,9 @@ export const listWarehouses = (companyId = null) => {
   return apiClient.get("/company/warehouses", { params }).then((r) => r.data);
 };
 
+export const getManagedWarehouses = () =>
+  apiClient.get("/company/warehouses/managed").then((r) => r.data);
+
 export const createWarehouse = (payload) =>
   apiClient.post("/company/warehouses", payload).then((r) => r.data);
 
@@ -96,6 +99,7 @@ export default {
   getBranchManagers,
   setBranchManagers,
   listWarehouses,
+  getManagedWarehouses,
   createWarehouse,
   updateWarehouse,
   deleteWarehouse,
