@@ -19,6 +19,7 @@ import {
   hasLineAdjustments,
   formatAdjustmentBadge,
 } from "../utils/settlementMoney";
+import { formatOrderNumberFromRow } from "../utils/formatOrderNumberLabel";
 
 function fmtDate(v) {
   if (!v) return "—";
@@ -204,7 +205,7 @@ export default function CommissionSettlementReviewDrawer({
                 <ul className="text-[10px] list-disc pl-4 space-y-0.5">
                   {(orderOffsets.length ? orderOffsets : getOffsetOrders(lines)).map((o) => (
                     <li key={o.order_id}>
-                      {o.order_number || `Order #${o.order_id}`}: outstanding ₹{" "}
+                      {formatOrderNumberFromRow(o, { emptyFallback: `Order #${o.order_id}` })}: outstanding ₹{" "}
                       {fmtMoney(o.outstanding_at_approve ?? o.order_outstanding)} · deduction ₹{" "}
                       {fmtMoney(o.deduction_amount)}
                       {o.payment_id ? ` · payment #${o.payment_id}` : ""}
@@ -277,10 +278,10 @@ export default function CommissionSettlementReviewDrawer({
                               className="text-primary font-medium hover:underline"
                               onClick={() => openOrder(ln.order_id)}
                             >
-                              {ln.order_number || ln.order_id}
+                              {formatOrderNumberFromRow(ln)}
                             </button>
                           ) : (
-                            ln.order_number || "—"
+                            formatOrderNumberFromRow(ln)
                           )}
                         </td>
                         <td className="px-2 py-1 whitespace-nowrap">{fmtDate(ln.order_date)}</td>

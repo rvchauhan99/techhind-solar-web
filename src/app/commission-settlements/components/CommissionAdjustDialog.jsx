@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import commissionSettlementService from "@/services/commissionSettlementService";
 import { deriveAdjustmentPreview, fmtMoney } from "../utils/settlementMoney";
+import { formatOrderNumberFromRow } from "../utils/formatOrderNumberLabel";
 
 function roundMoney(n) {
   const v = Number(n);
@@ -100,7 +101,7 @@ export default function CommissionAdjustDialog({ open, row, onClose, onSaved }) 
         <div className="grid grid-cols-2 gap-2 text-[11px] rounded border border-slate-100 bg-slate-50/80 p-2">
           <div>
             <span className="text-muted-foreground">Order</span>
-            <p className="font-medium">{row.order_number || row.order_id}</p>
+            <p className="font-medium">{formatOrderNumberFromRow(row)}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Beneficiary</span>

@@ -37,6 +37,7 @@ import {
   hasOutstandingOffset,
   getOffsetOrders,
 } from "../utils/settlementMoney";
+import { formatOrderNumberFromRow } from "../utils/formatOrderNumberLabel";
 import {
   countActiveFilterFields,
   clearFilterField,
@@ -445,7 +446,7 @@ export default function CommissionPayoutPage() {
       },
       { field: "id", label: "ID", sortable: false, width: 64, render: (row) => row.id },
       { field: "settlement_number", label: "Settlement", sortable: false, render: (row) => row.settlement_number || "—" },
-      { field: "order_number", label: "Order", sortable: false, render: (row) => row.order_number || "—" },
+      { field: "order_number", label: "Order", sortable: false, render: (row) => formatOrderNumberFromRow(row) },
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "—" },
       { field: "role", label: "Role", sortable: false, render: (row) => row.role || "—" },
       {
@@ -825,7 +826,7 @@ export default function CommissionPayoutPage() {
                   <ul className="text-[10px] list-disc pl-4 space-y-0.5 mt-1">
                     {(preview.order_offsets || getOffsetOrders(preview.lines)).map((o) => (
                       <li key={o.order_id}>
-                        {o.order_number || `Order #${o.order_id}`}: deduction ₹{" "}
+                        {formatOrderNumberFromRow(o, { emptyFallback: `Order #${o.order_id}` })}: deduction ₹{" "}
                         {fmtMoney(o.deduction_amount ?? o.order_outstanding)}
                       </li>
                     ))}
