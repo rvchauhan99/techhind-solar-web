@@ -43,6 +43,7 @@ import {
   hasLineAdjustments,
   adjustmentRowBorderClass,
 } from "../utils/settlementMoney";
+import { formatOrderNumberFromRow } from "../utils/formatOrderNumberLabel";
 import {
   countActiveFilterFields,
   clearFilterField,
@@ -380,7 +381,7 @@ export default function CommissionUnsettledPage() {
         ),
       },
       { field: "id", label: "ID", sortable: false, width: 64, render: (row) => row.id },
-      { field: "order_number", label: "Order", sortable: false, render: (row) => row.order_number || "-" },
+      { field: "order_number", label: "Order", sortable: false, render: (row) => formatOrderNumberFromRow(row, { emptyFallback: "-" }) },
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "-" },
       { field: "role", label: "Role", sortable: false, render: (row) => row.role || "-" },
       {
@@ -781,7 +782,7 @@ export default function CommissionUnsettledPage() {
                     <ul className="text-[10px] list-disc pl-4 space-y-0.5">
                       {(preview.order_offsets || getOffsetOrders(preview.lines)).map((o) => (
                         <li key={o.order_id}>
-                          {o.order_number || `Order #${o.order_id}`}: outstanding ₹{" "}
+                          {formatOrderNumberFromRow(o, { emptyFallback: `Order #${o.order_id}` })}: outstanding ₹{" "}
                           {fmtMoney(o.order_outstanding)} → deduction ₹{" "}
                           {fmtMoney(o.deduction_amount ?? o.order_outstanding)}
                         </li>
@@ -832,7 +833,7 @@ export default function CommissionUnsettledPage() {
                       }`}
                     >
                       <span>
-                        {ln.order_number} · {ln.role}
+                        {formatOrderNumberFromRow(ln)} · {ln.role}
                         {ln.adjustment_type ? (
                           <span
                             className={`ml-1 text-[9px] font-semibold ${

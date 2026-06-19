@@ -11,6 +11,7 @@ import {
   payableAmount,
   hasOutstandingOffset,
 } from "../utils/settlementMoney";
+import { formatOrderNumberFromRow } from "../utils/formatOrderNumberLabel";
 
 export default function CommissionSettlementDetailDialog({
   open,
@@ -82,7 +83,7 @@ export default function CommissionSettlementDetailDialog({
               {(detail.lines || []).map((ln) => (
                 <div key={ln.id} className="flex justify-between gap-2">
                   <span>
-                    {ln.order_number} · {ln.role} · {ln.beneficiary_name}
+                    {formatOrderNumberFromRow(ln)} · {ln.role} · {ln.beneficiary_name}
                   </span>
                   <span className="tabular-nums text-right shrink-0">
                     {Number(ln.line_deduction) > 0 ? (

@@ -77,6 +77,8 @@ export function getOffsetOrders(lines) {
       byOrder.set(ln.order_id, {
         order_id: ln.order_id,
         order_number: ln.order_number,
+        capacity_kw: ln.capacity_kw,
+        project_scheme_name: ln.project_scheme_name,
         order_outstanding: ln.order_outstanding,
         combined_commission_on_order: ln.combined_commission_on_order,
         outstanding_offset_warning: ln.outstanding_offset_warning,

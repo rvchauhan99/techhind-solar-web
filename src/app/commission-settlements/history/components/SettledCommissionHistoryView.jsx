@@ -17,6 +17,7 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import commissionSettlementService from "@/services/commissionSettlementService";
 import { toast } from "sonner";
 import { stripReferenceLabelsFromFilters } from "../../utils/filterChips";
+import { formatOrderNumberFromRow } from "../../utils/formatOrderNumberLabel";
 import {
   XAxis,
   YAxis,
@@ -234,7 +235,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
             className="text-primary text-[11px] font-medium hover:underline"
             onClick={() => openOrder(r.order_id)}
           >
-            {r.order_number || r.order_id}
+            {formatOrderNumberFromRow(r)}
           </button>
         ),
       },
@@ -269,7 +270,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
             className="text-primary text-[11px] font-medium hover:underline"
             onClick={() => openOrder(r.order_id)}
           >
-            {r.order_number || r.order_id}
+            {formatOrderNumberFromRow(r)}
           </button>
         ),
       },
