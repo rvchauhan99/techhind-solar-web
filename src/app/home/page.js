@@ -9,10 +9,11 @@ import AnalyticsCharts from "../erp-dashboard/components/AnalyticsCharts";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import OrderListFilterPanel, {
     EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES,
+    DATE_FILTER_FIELD_OPTIONS,
 } from "@/components/common/OrderListFilterPanel";
-import { IconCalendar, IconRefresh, IconFilter } from "@tabler/icons-react";
-import { Badge } from "@/components/ui/badge";
+import { IconCalendar, IconRefresh } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import Select, { MenuItem } from "@/components/common/Select";
 
 const DATE_PRESETS = [
     { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
@@ -33,6 +34,7 @@ function getInitialHomeFilters() {
         ...dates,
         status: "confirmed",
         current_stage_key: "",
+        date_filter_field: "order_date",
     };
 }
 
@@ -81,6 +83,15 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
         setFilters((prev) => ({ ...prev, ...dates }));
         setActivePreset(preset.label);
     };
+
+    const handleDateFilterFieldChange = (value) => {
+        setFilters((prev) => ({ ...prev, date_filter_field: value || "order_date" }));
+        setActivePreset(null);
+    };
+
+    const dateFilterFieldLabel =
+        DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === (filters.date_filter_field || "order_date"))?.label
+        || "Order Date";
 
     const handleOpenFilterFromTable = () => {
         setFilterPanelOpen(true);
@@ -179,7 +190,23 @@ export function DashboardPageContent({ dashboardApiBase = "/order" }) {
                                     </button>
                                 );
                             })}
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 ml-1">
+                            <div className="flex items-center gap-1 ml-0.5">
+                                <span className="text-[10px] text-slate-400 whitespace-nowrap">Filtered by:</span>
+                                <Select
+                                    name="date_filter_field"
+                                    value={filters.date_filter_field || "order_date"}
+                                    onChange={(e) => handleDateFilterFieldChange(e.target.value)}
+                                    className="min-w-[9.5rem]"
+                                    size="small"
+                                >
+                                    {DATE_FILTER_FIELD_OPTIONS.map((opt) => (
+                                        <MenuItem key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </div>
+                            <span className="flex items-center gap-1 text-[10px] text-slate-400" title={`Quick range for ${dateFilterFieldLabel}`}>
                                 <IconCalendar size={11} /> Quick:
                             </span>
                             {DATE_PRESETS.map((p) => (
