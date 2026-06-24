@@ -53,6 +53,11 @@ const MODULE_CONFIG = {
   },
 };
 
+const TYPE_LABELS = {
+  lead_assigned: "Assigned",
+  lead_reassigned: "Reassigned",
+};
+
 // ── Validated redirect URL map ────────────────────────────────────────────────
 // Ensures we always navigate to a real route regardless of what backend sends.
 function resolveRedirectUrl(mod, referenceId, redirect_url) {
@@ -83,9 +88,11 @@ export default function NotificationCard({ notification, onRead, onDismiss, onCl
     action_label,
     reference_id,
     reference_number,
+    type,
   } = notification || {};
 
   const cfg = MODULE_CONFIG[mod] || MODULE_CONFIG.inquiry;
+  const typeLabel = TYPE_LABELS[type] || null;
   const Icon = cfg.icon;
   const resolvedUrl = resolveRedirectUrl(mod, reference_id, redirect_url);
 
@@ -178,6 +185,23 @@ export default function NotificationCard({ notification, onRead, onDismiss, onCl
               "& .MuiChip-label": { px: 0.75 },
             }}
           />
+          {typeLabel && (
+            <Chip
+              label={typeLabel}
+              size="small"
+              sx={{
+                height: 16,
+                fontSize: "0.625rem",
+                fontWeight: 600,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                color: "text.secondary",
+                bgcolor: "action.hover",
+                px: 0.25,
+                "& .MuiChip-label": { px: 0.75 },
+              }}
+            />
+          )}
           {reference_number && (
             <Typography
               component="span"
