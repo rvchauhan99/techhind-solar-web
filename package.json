@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "docs:screenshots": "node docs/platform-handbook/scripts/discover-demo-ids.mjs && node docs/platform-handbook/scripts/capture-screenshots.mjs",
+    "docs:pdf": "bash docs/platform-handbook/scripts/build-pdf.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
@@ -44,6 +46,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "marked": "^15.0.7",
+    "playwright": "^1.52.0",
     "tailwindcss": "^4"
   }
 }

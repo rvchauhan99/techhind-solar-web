@@ -5,3 +5,11 @@ node_modules
 !.env.example
 .env.local
 .DS_Store
+docs/platform-handbook/output/*.pdf
+docs/platform-handbook/output/combined-handbook.md
+docs/platform-handbook/output/handbook-preview.html
+docs/platform-handbook/combined-handbook.md
+docs/platform-handbook/scripts/demo-ids.json
+docs/platform-handbook/scripts/storageState.json
+docs/platform-handbook/assets/screenshots/pdfs/
+docs/platform-handbook/scripts/coverage-report.json
