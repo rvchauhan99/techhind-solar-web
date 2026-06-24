@@ -93,6 +93,7 @@ const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
 export const DATE_FILTER_FIELD_OPTIONS = [
   { value: "order_date", label: "Order Date" },
   { value: "delivery_date", label: "Delivery Date (Last Challan)" },
+  { value: "delivery_date_first_challan", label: "Delivery Date (First Challan)" },
   { value: "installation_date", label: "Installation Date" },
   { value: "netmeter_installed_date", label: "Netmeter Installed Date" },
   { value: "subsidy_disbursed_date", label: "Subsidy Disbursed Date" },
