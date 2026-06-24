@@ -36,6 +36,7 @@ const FILTER_KEYS = [
   "order_number",
   "order_date_from",
   "order_date_to",
+  "date_filter_field",
   "delivery_status",
   "delivery_date_from",
   "delivery_date_to",
@@ -88,6 +89,14 @@ const CHANNEL_PARTNER_NA_OPTION = {
 };
 
 const EMPTY_VALUES = Object.fromEntries(FILTER_KEYS.map((k) => [k, ""]));
+
+export const DATE_FILTER_FIELD_OPTIONS = [
+  { value: "order_date", label: "Order Date" },
+  { value: "delivery_date", label: "Delivery Date" },
+  { value: "installation_date", label: "Installation Date" },
+  { value: "netmeter_installed_date", label: "Netmeter Installed Date" },
+  { value: "subsidy_disbursed_date", label: "Subsidy Disbursed Date" },
+];
 
 export default function OrderListFilterPanel({
   open: controlledOpen,
@@ -192,8 +201,14 @@ export default function OrderListFilterPanel({
     [effectiveExcludeKeys, showStatus]
   );
 
+  const isFilterValueActive = useCallback((key, val) => {
+    if (val == null || val === "") return false;
+    if (key === "date_filter_field" && String(val) === "order_date") return false;
+    return true;
+  }, []);
+
   const activeCount = Object.entries(values || {}).filter(
-    ([key, v]) => isKeyVisible(key) && v != null && v !== ""
+    ([key, v]) => isKeyVisible(key) && isFilterValueActive(key, v)
   ).length;
 
   const [quickSearch, setQuickSearch] = useState("");
@@ -240,6 +255,7 @@ export default function OrderListFilterPanel({
       order_number: "Order No",
       order_date_from: "Date From",
       order_date_to: "Date To",
+      date_filter_field: "Filtered By",
       delivery_status: "Delivery Status",
       delivery_date_from: "Delivery Date From",
       delivery_date_to: "Delivery Date To",
@@ -252,8 +268,13 @@ export default function OrderListFilterPanel({
     };
 
     return Object.entries(values || {})
-      .filter(([key, val]) => isKeyVisible(key) && val != null && val !== "")
-      .map(([key]) => labels[key] || key);
+      .filter(([key, val]) => isKeyVisible(key) && isFilterValueActive(key, val))
+      .map(([key, val]) => {
+        if (key === "date_filter_field") {
+          return DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === val)?.label || labels[key] || key;
+        }
+        return labels[key] || key;
+      });
   };
 
   const appliedSummary = getAppliedFiltersSummary();
@@ -452,8 +473,22 @@ export default function OrderListFilterPanel({
             </>
           )}
           <Input name="order_number" label="Order Number" placeholder="Search..." value={localValues.order_number} onChange={(e) => handleChange("order_number", e.target.value)} />
-          <DateField name="order_date_from" label="Order Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
-          <DateField name="order_date_to" label="Order Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
+          {variant === "dashboard" && (
+            <Select
+              name="date_filter_field"
+              label="Filtered By"
+              value={localValues.date_filter_field || "order_date"}
+              onChange={(e) => handleChange("date_filter_field", e.target.value)}
+            >
+              {DATE_FILTER_FIELD_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </Select>
+          )}
+          <DateField name="order_date_from" label="Date From" value={localValues.order_date_from} onChange={(e) => handleChange("order_date_from", e.target.value)} />
+          <DateField name="order_date_to" label="Date To" value={localValues.order_date_to} onChange={(e) => handleChange("order_date_to", e.target.value)} />
           {(variant === "confirm" || variant === "closed" || variant === "cancelled" || variant === "dashboard") && (
             <Select
               name="delivery_status"
