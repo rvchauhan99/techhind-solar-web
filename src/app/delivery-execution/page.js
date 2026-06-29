@@ -28,6 +28,7 @@ import GroupIcon from "@mui/icons-material/Group";
 import AddIcon from "@mui/icons-material/Add";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import LocalPrintshopIcon from "@mui/icons-material/LocalPrintshop";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ import {
   formatKw,
   getPrimaryPhone,
 } from "@/utils/orderFormatters";
+import { printPlanningBomByOrderId } from "@/utils/challanPrintUtils";
 
 const COLUMNS = [
   { key: "pending", title: "Pending", headerBg: "#dc2626", chipBg: "#b91c1c" },
@@ -147,6 +149,7 @@ export default function DeliveryExecutionPage() {
   const [forceCompleteDialogOpen, setForceCompleteDialogOpen] = useState(false);
   const [forceCompleteOrder, setForceCompleteOrder] = useState(null);
   const [forceCompleteLoading, setForceCompleteLoading] = useState(false);
+  const [printingPickingListOrderId, setPrintingPickingListOrderId] = useState(null);
   const router = useRouter();
 
   const handleQuickSearchChange = useCallback((val) => {
@@ -297,6 +300,16 @@ export default function DeliveryExecutionPage() {
     }
   };
 
+  const handlePrintPickingList = async (order) => {
+    if (!order?.id || printingPickingListOrderId != null) return;
+    setPrintingPickingListOrderId(order.id);
+    try {
+      await printPlanningBomByOrderId(order.id);
+    } finally {
+      setPrintingPickingListOrderId(null);
+    }
+  };
+
   const handleMenuOpen = (event, order) => {
     event.stopPropagation();
     setMenuAnchor(event.currentTarget);
@@ -325,6 +338,11 @@ export default function DeliveryExecutionPage() {
 
   const handleMenuNewChallan = () => {
     if (menuOrder?.id) handleCreateChallan(menuOrder.id);
+    handleMenuClose();
+  };
+
+  const handleMenuPrintPickingList = () => {
+    if (menuOrder) handlePrintPickingList(menuOrder);
     handleMenuClose();
   };
 
@@ -617,6 +635,22 @@ export default function DeliveryExecutionPage() {
                           </Typography>
                         )}
                         <PlannerRemarksSnippet text={o.planned_remarks} />
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={
+                            printingPickingListOrderId === o.id ? (
+                              <CircularProgress size={14} color="inherit" />
+                            ) : (
+                              <LocalPrintshopIcon fontSize="small" />
+                            )
+                          }
+                          disabled={printingPickingListOrderId != null}
+                          onClick={() => handlePrintPickingList(o)}
+                          sx={{ mt: 0.5, py: 0.25, fontSize: "0.72rem", textTransform: "none" }}
+                        >
+                          Print Picking List
+                        </Button>
                       </Box>
                     </Paper>
                   ))}
@@ -779,6 +813,12 @@ export default function DeliveryExecutionPage() {
             <ListItemText primary="New Challan" />
           </MenuItem>
         )}
+        <MenuItem onClick={handleMenuPrintPickingList}>
+          <ListItemIcon>
+            <LocalPrintshopIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Print Picking List" />
+        </MenuItem>
         {showForceComplete && (
           <MenuItem onClick={handleMenuForceCompleteDelivery}>
             <ListItemIcon>

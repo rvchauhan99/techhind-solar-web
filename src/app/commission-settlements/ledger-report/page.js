@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -114,7 +114,7 @@ function countActive(f) {
 }
 
 export default function CommissionLedgerReportPage() {
-  const { user, fetchPermissionForModule } = useAuth();
+  const { user, modulePermissions, fetchPermissionForModule } = useAuth();
   const permModule = useMemo(
     () => findModuleByPermissionKey(user?.modules || [], PERMISSION_MODULE_KEY),
     [user?.modules]
@@ -123,6 +123,38 @@ export default function CommissionLedgerReportPage() {
   useEffect(() => {
     if (permModule?.id) fetchPermissionForModule(permModule.id);
   }, [permModule?.id, fetchPermissionForModule]);
+
+  const currentPerm = modulePermissions?.[permModule?.id] || {};
+  const isMyTeamScope = currentPerm.listing_criteria === "my_team";
+  const myTeamDefaultAppliedRef = useRef(false);
+
+  const buildDefaultFilters = () => {
+    if (isMyTeamScope && user?.id) {
+      return {
+        ...INITIAL_FILTERS,
+        beneficiary_user_id: user.id,
+        beneficiary_label: user.name || user.email || "",
+      };
+    }
+    return { ...INITIAL_FILTERS };
+  };
+
+  useEffect(() => {
+    if (myTeamDefaultAppliedRef.current || !permModule?.id) return;
+    const perm = modulePermissions?.[permModule.id];
+    if (!perm) return;
+    if (perm.listing_criteria === "my_team" && user?.id) {
+      const defaults = {
+        ...INITIAL_FILTERS,
+        beneficiary_user_id: user.id,
+        beneficiary_label: user.name || user.email || "",
+      };
+      setFilters(defaults);
+      setAppliedFilters(defaults);
+      setRefreshKey((k) => k + 1);
+    }
+    myTeamDefaultAppliedRef.current = true;
+  }, [permModule?.id, modulePermissions, user]);
 
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
@@ -149,8 +181,9 @@ export default function CommissionLedgerReportPage() {
   };
 
   const handleReset = () => {
-    setFilters(INITIAL_FILTERS);
-    setAppliedFilters(INITIAL_FILTERS);
+    const empty = buildDefaultFilters();
+    setFilters(empty);
+    setAppliedFilters(empty);
     setSelectedStatuses([]);
     setActivePreset(null);
     setRefreshKey((k) => k + 1);
@@ -257,25 +290,32 @@ export default function CommissionLedgerReportPage() {
             {filtersOpen && (
               <div className="space-y-2 border-t border-slate-100 px-3 py-2.5">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                  <AutocompleteField
-                    usePortal
-                    name="beneficiary_user_id"
-                    label="Beneficiary *"
-                    asyncLoadOptions={(q) =>
-                      getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
-                    }
-                    referenceModel="user.model"
-                    getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
-                    value={masterAutocompleteValue(
-                      filters.beneficiary_user_id,
-                      filters.beneficiary_label
+                  <div className="space-y-0.5">
+                    <AutocompleteField
+                      usePortal
+                      name="beneficiary_user_id"
+                      label="Beneficiary *"
+                      asyncLoadOptions={(q) =>
+                        getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                      }
+                      referenceModel="user.model"
+                      getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+                      value={masterAutocompleteValue(
+                        filters.beneficiary_user_id,
+                        filters.beneficiary_label
+                      )}
+                      onChange={(e, v) => {
+                        fc("beneficiary_user_id", v?.id ?? null);
+                        fc("beneficiary_label", referenceAutocompleteDisplay(v));
+                      }}
+                      placeholder="Search user…"
+                    />
+                    {isMyTeamScope && (
+                      <p className="text-[10px] text-slate-400">
+                        My Team scope — select a team member beneficiary.
+                      </p>
                     )}
-                    onChange={(e, v) => {
-                      fc("beneficiary_user_id", v?.id ?? null);
-                      fc("beneficiary_label", referenceAutocompleteDisplay(v));
-                    }}
-                    placeholder="Search user…"
-                  />
+                  </div>
                   <DateField
                     label="From"
                     name="date_from"

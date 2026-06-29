@@ -53,6 +53,10 @@ import {
   canCollectB2bPayment,
 } from "@/utils/b2bOrderPaymentSummary";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import { getB2bOrderCancelEligibility } from "@/utils/b2bOrderCancelEligibility";
+import B2bCancelOrderDialog from "@/app/b2b-sales-orders/components/B2bCancelOrderDialog";
 import B2bReceivePaymentForm from "./components/B2bReceivePaymentForm";
 import B2bPreviousPaymentsTable from "./components/B2bPreviousPaymentsTable";
 
@@ -72,7 +76,8 @@ export default function B2bSalesOrderViewPage() {
     };
   }, [modulePermissions, currentModuleId]);
 
-  // Tab mapping logic
+  const canCancelConfirmed = useRoleAccess(RBAC_CONFIG_KEYS.B2B_SALES_ORDER_CANCEL_CONFIRMED);
+
   const getTabFromParam = useCallback((param) => {
     if (param === "3" || param === "previous") return "previous";
     if (param === "2" || param === "receive") return "receive";
@@ -89,6 +94,15 @@ export default function B2bSalesOrderViewPage() {
   const [cancelOrderDialogOpen, setCancelOrderDialogOpen] = useState(false);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const cancelEligibility = useMemo(
+    () =>
+      getB2bOrderCancelEligibility(order, {
+        canUpdate: currentPerm.can_update,
+        canCancelConfirmed,
+      }),
+    [order, currentPerm.can_update, canCancelConfirmed]
+  );
 
   useEffect(() => {
     setTab(getTabFromParam(tabParam));
@@ -152,10 +166,10 @@ export default function B2bSalesOrderViewPage() {
     }
   };
 
-  const handleCancelOrder = async () => {
+  const handleCancelOrder = async (payload = {}) => {
     setCancellingOrder(true);
     try {
-      await cancelB2bSalesOrder(orderId);
+      await cancelB2bSalesOrder(orderId, payload);
       toast.success("Order cancelled successfully");
       setCancelOrderDialogOpen(false);
       loadOrder();
@@ -254,6 +268,18 @@ export default function B2bSalesOrderViewPage() {
                   Cancel Order
                 </Button>
               </>
+            )}
+            {cancelEligibility.canCancel && order?.status !== "DRAFT" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-destructive border-destructive hover:bg-destructive/10"
+                onClick={() => setCancelOrderDialogOpen(true)}
+              >
+                <IconX className="size-4" />
+                {cancelEligibility.buttonLabel}
+              </Button>
             )}
             {order && (
               <Button
@@ -482,29 +508,14 @@ export default function B2bSalesOrderViewPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={cancelOrderDialogOpen} onOpenChange={setCancelOrderDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancel Order?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to cancel this order? The order will be marked as cancelled. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={cancellingOrder}>No</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleCancelOrder();
-                }}
-                disabled={cancellingOrder}
-                className="bg-destructive hover:bg-destructive/90 text-white"
-              >
-                {cancellingOrder ? "Cancelling..." : "Yes, Cancel Order"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <B2bCancelOrderDialog
+          open={cancelOrderDialogOpen}
+          onOpenChange={setCancelOrderDialogOpen}
+          order={order}
+          eligibility={cancelEligibility}
+          onConfirm={handleCancelOrder}
+          loading={cancellingOrder}
+        />
       </div>
     </ProtectedRoute>
   );

@@ -44,6 +44,7 @@ import stockService from "@/services/stockService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import challanService from "@/services/challanService";
+import { printPlanningBomByOrderId } from "@/utils/challanPrintUtils";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -109,6 +110,7 @@ export default function DeliveryChallanForm({
     const [initialLoading, setInitialLoading] = useState(true);
     const [serialScanRequired, setSerialScanRequired] = useState(true);
     const [configLoading, setConfigLoading] = useState(true);
+    const [printingPlanningBom, setPrintingPlanningBom] = useState(false);
 
     const [formData, setFormData] = useState({
         challan_date: new Date().toISOString().split("T")[0],
@@ -1034,6 +1036,16 @@ export default function DeliveryChallanForm({
         onSubmit(payload);
     };
 
+    const handlePrintPlanningBom = async () => {
+        if (!order?.id || lines.length === 0) return;
+        setPrintingPlanningBom(true);
+        try {
+            await printPlanningBomByOrderId(order.id);
+        } finally {
+            setPrintingPlanningBom(false);
+        }
+    };
+
     // ── Computed values ────────────────────────────────────────────────
     const totalShipNow = lines.reduce((sum, l) => sum + (Number(l.ship_now) || 0), 0);
     const totalRemaining = lines.reduce((sum, l) => sum + (l.pending_qty || 0), 0);
@@ -1188,10 +1200,19 @@ export default function DeliveryChallanForm({
                     {/* ─── Section 2: BOM Lines ───────────────────────────── */}
                     <Card data-bom-section>
                         <CardContent sx={compactCardContentSx}>
-                            <Box sx={COMPACT_SECTION_HEADER_STYLE}>
+                            <Box sx={{ ...COMPACT_SECTION_HEADER_STYLE, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <Typography variant="subtitle2" fontWeight={600}>
                                     BOM Lines
                                 </Typography>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!order?.id || lines.length === 0 || printingPlanningBom}
+                                    onClick={handlePrintPlanningBom}
+                                >
+                                    {printingPlanningBom ? "Printing..." : "Print Picking List"}
+                                </Button>
                             </Box>
                             {errors.items && (
                                 <Alert severity="error" sx={{ mb: 1 }}>

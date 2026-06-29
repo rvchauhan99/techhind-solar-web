@@ -43,9 +43,13 @@ import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import { getB2bOrderCancelEligibility } from "@/utils/b2bOrderCancelEligibility";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { Badge } from "@/components/ui/badge";
 import B2bSalesOrderDetailsContent from "./components/B2bSalesOrderDetailsContent";
+import B2bCancelOrderDialog from "./components/B2bCancelOrderDialog";
 
 const COLUMN_FILTER_KEYS = [
   "order_no",
@@ -104,6 +108,7 @@ export default function B2bSalesOrdersPage() {
     can_update: false,
     can_delete: false,
   };
+  const canCancelConfirmed = useRoleAccess(RBAC_CONFIG_KEYS.B2B_SALES_ORDER_CANCEL_CONFIRMED);
 
   const router = useRouter();
   const listingState = useListingQueryState({
@@ -222,28 +227,53 @@ export default function B2bSalesOrdersPage() {
     setCancelOrderDialogOpen(true);
   }, []);
 
-  const handleCancelOrderConfirm = useCallback(async () => {
-    if (!orderToCancel?.id) return;
-    setCancellingOrder(true);
-    try {
-      await b2bSalesOrderService.cancelB2bSalesOrder(orderToCancel.id);
-      setCancelOrderDialogOpen(false);
-      setOrderToCancel(null);
-      toast.success("Order cancelled");
-      setReloadTrigger((p) => p + 1);
-      if (selectedRecord?.id === orderToCancel.id) {
-        setSidebarOpen(false);
-        setSelectedRecord(null);
-        setOrderDetails(null);
-      } else {
-        setSelectedRecord((r) => (r?.id === orderToCancel.id ? { ...r, status: "CANCELLED" } : r));
+  const handleCancelOrderConfirm = useCallback(
+    async (payload = {}) => {
+      if (!orderToCancel?.id) return;
+      setCancellingOrder(true);
+      try {
+        const res = await b2bSalesOrderService.cancelB2bSalesOrder(orderToCancel.id, payload);
+        const updated = res?.result ?? res;
+        setCancelOrderDialogOpen(false);
+        setOrderToCancel(null);
+        toast.success("Order cancelled");
+        setReloadTrigger((p) => p + 1);
+        if (selectedRecord?.id === orderToCancel.id) {
+          if (updated) {
+            setOrderDetails(updated);
+            setSelectedRecord(updated);
+          } else {
+            setSidebarOpen(false);
+            setSelectedRecord(null);
+            setOrderDetails(null);
+          }
+        }
+      } catch (err) {
+        toast.error(err.response?.data?.message || "Failed to cancel order");
+      } finally {
+        setCancellingOrder(false);
       }
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to cancel order");
-    } finally {
-      setCancellingOrder(false);
-    }
-  }, [orderToCancel, selectedRecord?.id]);
+    },
+    [orderToCancel, selectedRecord?.id]
+  );
+
+  const orderToCancelEligibility = useMemo(
+    () =>
+      getB2bOrderCancelEligibility(orderToCancel, {
+        canUpdate: currentPerm.can_update,
+        canCancelConfirmed,
+      }),
+    [orderToCancel, currentPerm.can_update, canCancelConfirmed]
+  );
+
+  const selectedRecordCancelEligibility = useMemo(
+    () =>
+      getB2bOrderCancelEligibility(orderDetails || selectedRecord, {
+        canUpdate: currentPerm.can_update,
+        canCancelConfirmed,
+      }),
+    [orderDetails, selectedRecord, currentPerm.can_update, canCancelConfirmed]
+  );
 
   const handlePdfDownload = useCallback(async (id) => {
     try {
@@ -411,7 +441,12 @@ export default function B2bSalesOrdersPage() {
         field: "actions",
         label: "Actions",
         isActionColumn: true,
-        render: (row) => (
+        render: (row) => {
+          const cancelEligibility = getB2bOrderCancelEligibility(row, {
+            canUpdate: currentPerm.can_update,
+            canCancelConfirmed,
+          });
+          return (
           <div className="flex items-center justify-end gap-0.5">
             <Button
               variant="ghost"
@@ -470,6 +505,15 @@ export default function B2bSalesOrdersPage() {
                     Cancel Order
                   </DropdownMenuItem>
                 )}
+                {cancelEligibility.canCancel && row.status !== "DRAFT" && (
+                  <DropdownMenuItem
+                    onClick={() => handleCancelOrderClick(row)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <IconX className="size-4 mr-2" />
+                    {cancelEligibility.buttonLabel}
+                  </DropdownMenuItem>
+                )}
                 {currentPerm.can_delete && row.status === "DRAFT" && (
                   <DropdownMenuItem
                     onClick={() => handleDeleteClick(row)}
@@ -486,10 +530,11 @@ export default function B2bSalesOrdersPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        ),
+          );
+        },
       },
     ],
-    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, router]
+    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -761,6 +806,17 @@ export default function B2bSalesOrdersPage() {
                     </Button>
                   </>
                 )}
+                {selectedRecordCancelEligibility.canCancel && selectedRecord?.status !== "DRAFT" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => handleCancelOrderClick(orderDetails || selectedRecord)}
+                  >
+                    <IconX className="size-4 mr-1" />
+                    {selectedRecordCancelEligibility.buttonLabel}
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => handlePdfDownload(selectedRecord.id)}>
                   <IconFileTypePdf className="size-4 mr-1" />
                   Download PDF
@@ -789,22 +845,14 @@ export default function B2bSalesOrdersPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <AlertDialog open={cancelOrderDialogOpen} onOpenChange={setCancelOrderDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Cancel order?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to cancel this order? The order will be marked as cancelled. Only draft orders can be cancelled.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={cancellingOrder}>No</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" onClick={handleCancelOrderConfirm} disabled={cancellingOrder}>
-                {cancellingOrder ? "Cancelling…" : "Yes, cancel order"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <B2bCancelOrderDialog
+          open={cancelOrderDialogOpen}
+          onOpenChange={setCancelOrderDialogOpen}
+          order={orderToCancel}
+          eligibility={orderToCancelEligibility}
+          onConfirm={handleCancelOrderConfirm}
+          loading={cancellingOrder}
+        />
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>

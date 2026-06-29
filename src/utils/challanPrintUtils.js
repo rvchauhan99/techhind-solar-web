@@ -24,3 +24,16 @@ export const printChallanById = async (challanId) => {
         return false;
     }
 };
+
+export const printPlanningBomByOrderId = async (orderId) => {
+    try {
+        const { blob, filename } = await challanService.downloadPlanningBomPDF(orderId);
+        downloadBlob(blob, filename);
+        return true;
+    } catch (error) {
+        const message =
+            error?.response?.data?.message || error?.message || "Failed to download picking list PDF";
+        toastError(message);
+        return false;
+    }
+};

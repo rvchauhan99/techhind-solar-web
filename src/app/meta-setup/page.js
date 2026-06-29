@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,10 @@ import {
 } from "@tabler/icons-react";
 import { toastSuccess, toastError } from "@/utils/toast";
 import metaService from "@/services/metaService";
+import Select, { MenuItem } from "@/components/common/Select";
+import MultiSelect from "@/components/common/MultiSelect";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { IconUsers } from "@tabler/icons-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -98,9 +102,18 @@ function StatusPill({ ok, label }) {
 
 // ─── FormRow ──────────────────────────────────────────────────────────────────
 
-function FormRow({ form }) {
+function formatManagerSummary(form) {
+  const managers = form.form_managers || [];
+  if (managers.length === 0) return null;
+  const names = managers.map((m) => m.name).filter(Boolean).join(", ");
+  if (managers.length === 1) return `Manager: ${names}`;
+  return `Managers: ${names} (round-robin)`;
+}
+
+function FormRow({ form, onConfigure }) {
   const [pulling, setPulling] = useState(false);
   const [lastResult, setLastResult] = useState(null);
+  const managerSummary = formatManagerSummary(form);
 
   const handlePull = async () => {
     setPulling(true);
@@ -127,6 +140,34 @@ function FormRow({ form }) {
           Form ID: {form.form_id}
           {form.form_status ? ` · ${form.form_status}` : ""}
         </p>
+        {managerSummary ? (
+          <p className="mt-0.5 text-xs text-blue-700">
+            {managerSummary}
+            {onConfigure ? (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  className="font-medium underline hover:no-underline"
+                  onClick={() => onConfigure(form)}
+                >
+                  Configure
+                </button>
+              </>
+            ) : null}
+          </p>
+        ) : onConfigure ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            No auto-assignment ·{" "}
+            <button
+              type="button"
+              className="font-medium text-blue-700 underline hover:no-underline"
+              onClick={() => onConfigure(form)}
+            >
+              Configure
+            </button>
+          </p>
+        ) : null}
         {lastResult && (
           <p
             className={`mt-0.5 text-xs ${lastResult.type === "success" ? "text-green-600" : "text-red-500"}`}
@@ -151,7 +192,7 @@ function FormRow({ form }) {
 
 // ─── PageRow ──────────────────────────────────────────────────────────────────
 
-function PageRow({ page, onChanged }) {
+function PageRow({ page, onChanged, onConfigureForm }) {
   const [expanded, setExpanded] = useState(false);
   const [forms, setForms] = useState([]);
   const [formsLoading, setFormsLoading] = useState(false);
@@ -308,7 +349,13 @@ function PageRow({ page, onChanged }) {
               No forms found. Click <strong>"Sync Forms"</strong> to fetch from Facebook.
             </div>
           ) : (
-            forms.map((form) => <FormRow key={form.id} form={form} />)
+            forms.map((form) => (
+              <FormRow
+                key={form.id}
+                form={form}
+                onConfigure={onConfigureForm ? () => onConfigureForm(page, form) : null}
+              />
+            ))
           )}
         </div>
       )}
@@ -316,9 +363,240 @@ function PageRow({ page, onChanged }) {
   );
 }
 
+// ─── Form Auto Assignment ─────────────────────────────────────────────────────
+
+function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
+  const [pages, setPages] = useState([]);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [selectedPageId, setSelectedPageId] = useState("");
+  const [forms, setForms] = useState([]);
+  const [formsLoading, setFormsLoading] = useState(false);
+  const [selectedFormId, setSelectedFormId] = useState("");
+  const [managerIds, setManagerIds] = useState([]);
+  const [managerOptions, setManagerOptions] = useState([]);
+  const [configLoading, setConfigLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadPages = useCallback(async () => {
+    if (!accounts?.length) {
+      setPages([]);
+      return;
+    }
+    setPagesLoading(true);
+    try {
+      const results = await Promise.all(
+        accounts.map((acc) => metaService.listPages(acc.id).catch(() => []))
+      );
+      const merged = results.flat().filter(Boolean);
+      const byId = new Map();
+      for (const page of merged) {
+        if (page?.id != null) byId.set(page.id, page);
+      }
+      setPages(Array.from(byId.values()));
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to load pages");
+      setPages([]);
+    } finally {
+      setPagesLoading(false);
+    }
+  }, [accounts]);
+
+  useEffect(() => {
+    loadPages();
+  }, [loadPages]);
+
+  useEffect(() => {
+    if (focus?.pageId) {
+      setSelectedPageId(String(focus.pageId));
+    }
+    if (focus?.formId) {
+      setSelectedFormId(String(focus.formId));
+    }
+    if (focus?.pageId || focus?.formId) {
+      sectionRef?.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focus, sectionRef]);
+
+  useEffect(() => {
+    if (!selectedPageId) {
+      setForms([]);
+      setSelectedFormId("");
+      return;
+    }
+    let cancelled = false;
+    setFormsLoading(true);
+    metaService
+      .listForms(Number(selectedPageId))
+      .then((data) => {
+        if (!cancelled) setForms(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toastError(err?.response?.data?.message || "Failed to load forms");
+          setForms([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setFormsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPageId]);
+
+  useEffect(() => {
+    if (!selectedFormId) {
+      setManagerIds([]);
+      setManagerOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setConfigLoading(true);
+    metaService
+      .getFormAutoAssignment(Number(selectedFormId))
+      .then((data) => {
+        if (cancelled) return;
+        const ids = Array.isArray(data?.user_ids) ? data.user_ids : [];
+        setManagerIds(ids);
+        const opts = (data?.managers || []).map((m) => ({
+          value: m.id,
+          label: m.name || `User #${m.id}`,
+        }));
+        setManagerOptions(opts);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toastError(err?.response?.data?.message || "Failed to load assignment config");
+          setManagerIds([]);
+          setManagerOptions([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setConfigLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFormId]);
+
+  const handleSave = async () => {
+    if (!selectedFormId) {
+      toastError("Select a lead form first");
+      return;
+    }
+    setSaving(true);
+    try {
+      await metaService.saveFormAutoAssignment(Number(selectedFormId), {
+        user_ids: managerIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+      });
+      toastSuccess("Form auto-assignment saved");
+      onSaved?.();
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to save assignment");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!accounts?.length) return null;
+
+  return (
+    <div
+      ref={sectionRef}
+      className="relative z-30 mb-4 shrink-0 overflow-visible rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm"
+    >
+        <div className="mb-2 flex items-center gap-2">
+          <IconUsers className="h-4 w-4 text-blue-600" />
+          <h2 className="text-sm font-semibold">Form-wise Auto Assignment</h2>
+        </div>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Assign incoming Meta leads to one or more Form Managers. Multiple managers use round-robin.
+        </p>
+        <div className="relative z-30 grid gap-2 overflow-visible md:grid-cols-2 lg:grid-cols-4">
+          <Select
+            label="Meta Page"
+            size="small"
+            value={selectedPageId}
+            onChange={(e) => {
+              setSelectedPageId(e.target.value);
+              setSelectedFormId("");
+            }}
+            disabled={pagesLoading}
+            displayEmpty
+          >
+            <MenuItem value="">
+              <em>{pagesLoading ? "Loading pages…" : "Select page"}</em>
+            </MenuItem>
+            {pages.map((page) => (
+              <MenuItem key={page.id} value={String(page.id)}>
+                {page.page_name || page.page_id}
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            label="Meta Lead Form"
+            size="small"
+            value={selectedFormId}
+            onChange={(e) => setSelectedFormId(e.target.value)}
+            disabled={!selectedPageId || formsLoading}
+            displayEmpty
+          >
+            <MenuItem value="">
+              <em>
+                {!selectedPageId
+                  ? "Select page first"
+                  : formsLoading
+                    ? "Loading forms…"
+                    : "Select form"}
+              </em>
+            </MenuItem>
+            {forms.map((form) => (
+              <MenuItem key={form.id} value={String(form.id)}>
+                {form.form_name || form.form_id}
+              </MenuItem>
+            ))}
+          </Select>
+          <div className="relative z-40 overflow-visible md:col-span-2">
+            <MultiSelect
+              name="form_managers"
+              label="Form Managers"
+              size="small"
+              placeholder="Select one or more managers"
+              value={managerIds}
+              options={managerOptions}
+              searchable
+              asyncLoadOptions={(q) =>
+                getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+              }
+              disabled={!selectedFormId || configLoading}
+              onChange={(e) => {
+                const next = Array.isArray(e.target.value) ? e.target.value : [];
+                setManagerIds(next);
+                setManagerOptions((prev) => {
+                  const map = new Map((prev || []).map((o) => [String(o.value), o]));
+                  for (const id of next) {
+                    if (!map.has(String(id))) {
+                      map.set(String(id), { value: id, label: `User #${id}` });
+                    }
+                  }
+                  return Array.from(map.values());
+                });
+              }}
+            />
+          </div>
+        </div>
+        <div className="mt-2 flex justify-end">
+          <Button size="sm" disabled={!selectedFormId || saving || configLoading} onClick={handleSave}>
+            {saving ? "Saving…" : "Save Configuration"}
+          </Button>
+        </div>
+    </div>
+  );
+}
+
 // ─── AccountSection ───────────────────────────────────────────────────────────
 
-function AccountSection({ account, onDisconnect }) {
+function AccountSection({ account, onDisconnect, onConfigureForm }) {
   const [pages, setPages] = useState([]);
   const [pagesLoading, setPagesLoading] = useState(false);
   const [pagesSyncing, setPagesSyncing] = useState(false);
@@ -417,7 +695,12 @@ function AccountSection({ account, onDisconnect }) {
               </div>
             ) : (
               pages.map((page) => (
-                <PageRow key={page.id} page={page} onChanged={loadPages} />
+                <PageRow
+                  key={page.id}
+                  page={page}
+                  onChanged={loadPages}
+                  onConfigureForm={onConfigureForm}
+                />
               ))
             )}
           </div>
@@ -436,6 +719,13 @@ export default function MetaSetupPage() {
   const [error, setError] = useState(null);
   const [disconnectDialog, setDisconnectDialog] = useState({ open: false, account: null });
   const [disconnecting, setDisconnecting] = useState(false);
+  const [assignmentFocus, setAssignmentFocus] = useState({ pageId: null, formId: null });
+  const [assignmentRefreshKey, setAssignmentRefreshKey] = useState(0);
+  const assignmentSectionRef = useRef(null);
+
+  const handleConfigureForm = useCallback((page, form) => {
+    setAssignmentFocus({ pageId: page.id, formId: form.id });
+  }, []);
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -577,12 +867,19 @@ export default function MetaSetupPage() {
             </Button>
           </div>
         ) : (
-          <div className="flex-1 space-y-4 pb-6">
+          <div className="flex-1 space-y-4 overflow-visible pb-6">
+            <FormAutoAssignmentSection
+              accounts={accounts}
+              focus={assignmentFocus}
+              sectionRef={assignmentSectionRef}
+              onSaved={() => setAssignmentRefreshKey((k) => k + 1)}
+            />
             {accounts.map((acc) => (
               <AccountSection
-                key={acc.id}
+                key={`${acc.id}-${assignmentRefreshKey}`}
                 account={acc}
                 onDisconnect={(a) => setDisconnectDialog({ open: true, account: a })}
+                onConfigureForm={handleConfigureForm}
               />
             ))}
           </div>

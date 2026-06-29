@@ -9,6 +9,7 @@ export const RBAC_CONFIG_KEYS = {
   CONFIRM_ORDERS_CHANGE_HANDLED_BY: "rbac.confirm_orders.change_handled_by.allowed_roles",
   CHALLAN_REVERSE: "rbac.challan.reverse.allowed_roles",
   CHALLAN_PARTIAL_RETURN: "rbac.challan.partial_return.allowed_roles",
+  B2B_SALES_ORDER_CANCEL_CONFIRMED: "rbac.b2b_sales_order.cancel_confirmed.allowed_roles",
   STOCK_REPORT_EMAIL_RECIPIENTS: "rbac.stock_report.email_recipient_roles",
 };
 
@@ -23,6 +24,7 @@ export const DEFAULT_RBAC_CONFIGS = {
   [RBAC_CONFIG_KEYS.CONFIRM_ORDERS_CHANGE_HANDLED_BY]: "SuperAdmin",
   [RBAC_CONFIG_KEYS.CHALLAN_REVERSE]: "SuperAdmin",
   [RBAC_CONFIG_KEYS.CHALLAN_PARTIAL_RETURN]: "SuperAdmin",
+  [RBAC_CONFIG_KEYS.B2B_SALES_ORDER_CANCEL_CONFIRMED]: "SuperAdmin",
   [RBAC_CONFIG_KEYS.STOCK_REPORT_EMAIL_RECIPIENTS]: "SuperAdmin",
 };
 
