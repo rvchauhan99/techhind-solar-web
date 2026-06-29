@@ -144,6 +144,7 @@ export default function B2bSalesOrderDetailsContent({
                   <th className="text-right p-2">Ordered</th>
                   <th className="text-right p-2">Shipped</th>
                   <th className="text-right p-2">Returned</th>
+                  <th className="text-right p-2">Cancelled</th>
                   <th className="text-right p-2">Pending</th>
                   <th className="text-right p-2">Rate</th>
                   <th className="text-right p-2">Disc %</th>
@@ -166,6 +167,7 @@ export default function B2bSalesOrderDetailsContent({
                       <td className="p-2 text-right">{it.ordered_qty ?? it.quantity ?? "-"}</td>
                       <td className="p-2 text-right">{it.shipped_qty ?? it.shipped_quantity ?? 0}</td>
                       <td className="p-2 text-right">{it.returned_qty ?? 0}</td>
+                      <td className="p-2 text-right">{it.cancelled_qty ?? it.cancelled_quantity ?? 0}</td>
                       <td className="p-2 text-right">{it.pending_qty ?? (it.quantity != null ? Number(it.quantity) : "-")}</td>
                       <td className="p-2 text-right">{formatCurrency(it.unit_rate) ?? "-"}</td>
                       <td className="p-2 text-right">{it.discount_percent ?? 0}</td>
@@ -224,6 +226,30 @@ export default function B2bSalesOrderDetailsContent({
           <p className="text-sm text-muted-foreground italic">No attachments</p>
         )}
       </div>
+
+      {o.cancelled_at && (
+        <div className="border-t pt-3 space-y-1 text-sm">
+          <p className="text-xs font-semibold text-muted-foreground">Cancellation Details</p>
+          <p>
+            <span className="text-muted-foreground">Reason: </span>
+            {o.cancellation_reason_name || o.cancellation_reason || "-"}
+          </p>
+          {o.cancellation_remarks && (
+            <p>
+              <span className="text-muted-foreground">Remarks: </span>
+              {o.cancellation_remarks}
+            </p>
+          )}
+          <p>
+            <span className="text-muted-foreground">Cancelled by: </span>
+            {o.cancelled_by_name || "-"}
+          </p>
+          <p>
+            <span className="text-muted-foreground">Cancelled at: </span>
+            {formatDate(o.cancelled_at) ?? "-"}
+          </p>
+        </div>
+      )}
 
       {!readOnly && canUpdate && o.status === "DRAFT" && (
         <div className="border-t pt-4 flex flex-wrap gap-2">
