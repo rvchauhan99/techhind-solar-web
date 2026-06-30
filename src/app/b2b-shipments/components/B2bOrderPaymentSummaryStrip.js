@@ -26,6 +26,7 @@ import {
   getB2bOrderPayableAmount,
   getB2bOrderReceivedAmount,
   getB2bOrderOutstandingAmount,
+  getB2bOrderOutstandingDisplay,
   canCollectB2bPayment,
 } from "@/utils/b2bOrderPaymentSummary";
 import b2bOrderPaymentsService from "@/services/b2bOrderPaymentsService";
@@ -53,6 +54,7 @@ export default function B2bOrderPaymentSummaryStrip({ order }) {
   const payableAmount = useMemo(() => getB2bOrderPayableAmount(order), [order]);
   const totalReceived = useMemo(() => getB2bOrderReceivedAmount(order), [order]);
   const outstanding = useMemo(() => getB2bOrderOutstandingAmount(order), [order]);
+  const outstandingDisplay = useMemo(() => getB2bOrderOutstandingDisplay(order), [order]);
   const openingBalance = Number(order?.opening_balance_collected ?? 0);
   const paymentsSum = Number(order?.payments_sum ?? 0);
   const canPay = canCollectB2bPayment(order);
@@ -162,7 +164,7 @@ export default function B2bOrderPaymentSummaryStrip({ order }) {
         </Alert>
       )}
 
-      {outstanding === 0 && payableAmount > 0 && (
+      {outstandingDisplay.type === "fully_paid" && (
         <Alert severity="success" sx={{ mt: 0.75, py: 0.25, "& .MuiAlert-message": { py: 0.25, fontSize: "0.75rem" } }}>
           Order fully paid.
         </Alert>

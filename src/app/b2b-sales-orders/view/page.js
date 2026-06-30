@@ -50,6 +50,7 @@ import {
   getB2bOrderPayableAmount,
   getB2bOrderReceivedAmount,
   getB2bOrderOutstandingAmount,
+  getB2bOrderOutstandingDisplay,
   canCollectB2bPayment,
 } from "@/utils/b2bOrderPaymentSummary";
 import { useAuth } from "@/hooks/useAuth";
@@ -129,6 +130,7 @@ export default function B2bSalesOrderViewPage() {
   const payableAmount = useMemo(() => getB2bOrderPayableAmount(order), [order]);
   const totalReceived = useMemo(() => getB2bOrderReceivedAmount(order), [order]);
   const outstanding = useMemo(() => getB2bOrderOutstandingAmount(order), [order]);
+  const outstandingDisplay = useMemo(() => getB2bOrderOutstandingDisplay(order), [order]);
   const maxPaymentAmount = Math.max(0, outstanding);
   const canPay = canCollectB2bPayment(order);
 
@@ -472,7 +474,7 @@ export default function B2bSalesOrderViewPage() {
                       <IconCurrencyRupee className="size-4 mr-1.5" />
                       Collect Payment
                     </Button>
-                  ) : outstanding === 0 && payableAmount > 0 ? (
+                  ) : outstandingDisplay.type === "fully_paid" ? (
                     <div className="w-full text-center py-2 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-md border border-emerald-200">
                       ✓ Order Fully Paid
                     </div>

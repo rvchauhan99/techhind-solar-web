@@ -15,7 +15,11 @@ import {
   IconDotsVertical,
   IconFileText,
 } from "@tabler/icons-react";
-import { canCollectB2bPayment } from "@/utils/b2bOrderPaymentSummary";
+import {
+  canCollectB2bPayment,
+  getB2bOrderOutstandingDisplay,
+  getB2bOrderPaymentProgress,
+} from "@/utils/b2bOrderPaymentSummary";
 import { Button } from "@/components/ui/button";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import Loader from "@/components/common/Loader";
@@ -391,22 +395,20 @@ export default function B2bSalesOrdersPage() {
         headerRender: () => <span className="ml-auto">Total</span>,
         render: (row) => {
           const totalVal = row.final_amount ?? row.grand_total ?? 0;
-          const outstandingVal = row.outstanding_balance ?? 0;
-          const receivedVal = Math.max(0, totalVal - outstandingVal);
-          const paidPct = totalVal > 0 ? Math.min(100, (receivedVal / totalVal) * 100) : 0;
+          const { showProgress, paidPercent } = getB2bOrderPaymentProgress(row);
 
           return (
             <div className="flex flex-col items-end gap-1 select-none">
               <span className="font-semibold text-slate-800">{formatCurrency(totalVal)}</span>
-              {totalVal > 0 && (
-                <div className="flex items-center gap-1 w-16" title={`${paidPct.toFixed(0)}% Paid`}>
+              {showProgress && (
+                <div className="flex items-center gap-1 w-16" title={`${paidPercent.toFixed(0)}% Paid`}>
                   <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200/80">
                     <div
                       className="bg-emerald-600 h-full rounded-full"
-                      style={{ width: `${paidPct}%` }}
+                      style={{ width: `${paidPercent}%` }}
                     />
                   </div>
-                  <span className="text-[9px] text-slate-500 font-medium shrink-0">{paidPct.toFixed(0)}%</span>
+                  <span className="text-[9px] text-slate-500 font-medium shrink-0">{paidPercent.toFixed(0)}%</span>
                 </div>
               )}
             </div>
@@ -418,20 +420,29 @@ export default function B2bSalesOrdersPage() {
         label: "Outstanding",
         headerRender: () => <span className="ml-auto">Outstanding</span>,
         render: (row) => {
-          const outstandingVal = row.outstanding_balance ?? 0;
-          if (outstandingVal > 0) {
+          const display = getB2bOrderOutstandingDisplay(row);
+          if (display.type === "outstanding") {
             return (
               <div className="flex justify-end select-none">
                 <Badge variant="destructive" className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
-                  {formatCurrency(outstandingVal)}
+                  {formatCurrency(display.amount)}
                 </Badge>
+              </div>
+            );
+          }
+          if (display.type === "fully_paid") {
+            return (
+              <div className="flex justify-end select-none">
+                <span className="text-xs text-emerald-600 font-semibold">
+                  {display.label}
+                </span>
               </div>
             );
           }
           return (
             <div className="flex justify-end select-none">
-              <span className="text-xs text-emerald-600 font-semibold">
-                Fully Paid
+              <span className="text-xs text-slate-400 font-medium">
+                {display.label}
               </span>
             </div>
           );
