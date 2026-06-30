@@ -72,56 +72,52 @@ export default function B2bCancelOrderDialog({
   };
 
   const title = isRemaining ? "Cancel remaining quantity?" : "Cancel order?";
-  const description = requiresReason ? (
-    <div className="space-y-3 text-sm">
-      {isRemaining && order && (
-        <p>
-          Remaining open quantity will be cancelled. Shipped quantities will not be affected.
-          {eligibility?.totalPendingQty != null ? (
-            <span className="block mt-1 font-medium">Pending qty to cancel: {eligibility.totalPendingQty}</span>
-          ) : null}
-        </p>
-      )}
-      {!isRemaining && (
-        <p>This will cancel the entire order. This action cannot be undone.</p>
-      )}
-      <AutocompleteField
-        options={cancelReasonOptions}
-        loading={cancelReasonLoading}
-        value={cancelReasonOptions.find((o) => String(o.id) === String(cancelReasonId)) || null}
-        onChange={(e, v) => setCancelReasonId(v?.id || "")}
-        getOptionLabel={(o) => o?.label || o?.reason || ""}
-        placeholder="Select cancellation reason"
-        label="Reason"
-        name="cancellation_reason_id"
-        required
-        fullWidth
-      />
-      <Input
-        fullWidth
-        label="Remarks (optional)"
-        name="cancellation_remarks"
-        value={cancelRemarks}
-        onChange={(e) => setCancelRemarks(e.target.value)}
-        multiline
-        rows={3}
-      />
-    </div>
-  ) : (
-    <p className="text-sm">
-      Are you sure you want to cancel this draft order? The order will be marked as cancelled.
-    </p>
-  );
+
+  const descriptionText = requiresReason
+    ? isRemaining
+      ? "Remaining open quantity will be cancelled. Shipped quantities will not be affected."
+      : "This will cancel the entire order. This action cannot be undone."
+    : "Are you sure you want to cancel this draft order? The order will be marked as cancelled.";
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <div>{description}</div>
-          </AlertDialogDescription>
+          <AlertDialogDescription>{descriptionText}</AlertDialogDescription>
         </AlertDialogHeader>
+
+        {requiresReason && (
+          <div className="space-y-3 text-sm">
+            {isRemaining && eligibility?.totalPendingQty != null && (
+              <p className="font-medium text-foreground">
+                Pending qty to cancel: {eligibility.totalPendingQty}
+              </p>
+            )}
+            <AutocompleteField
+              options={cancelReasonOptions}
+              loading={cancelReasonLoading}
+              value={cancelReasonOptions.find((o) => String(o.id) === String(cancelReasonId)) || null}
+              onChange={(e, v) => setCancelReasonId(v?.id || "")}
+              getOptionLabel={(o) => o?.label || o?.reason || ""}
+              placeholder="Select cancellation reason"
+              label="Reason"
+              name="cancellation_reason_id"
+              required
+              fullWidth
+            />
+            <Input
+              fullWidth
+              label="Remarks (optional)"
+              name="cancellation_remarks"
+              value={cancelRemarks}
+              onChange={(e) => setCancelRemarks(e.target.value)}
+              multiline
+              rows={3}
+            />
+          </div>
+        )}
+
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>No</AlertDialogCancel>
           <AlertDialogAction
