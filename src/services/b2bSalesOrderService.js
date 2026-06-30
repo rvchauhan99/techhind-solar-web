@@ -21,8 +21,8 @@ export const deleteB2bSalesOrder = (id) =>
 export const confirmB2bSalesOrder = (id) =>
   apiClient.put(`/b2b-sales-orders/${id}/confirm`).then((r) => r.data);
 
-export const cancelB2bSalesOrder = (id) =>
-  apiClient.put(`/b2b-sales-orders/${id}/cancel`).then((r) => r.data);
+export const cancelB2bSalesOrder = (id, payload = {}) =>
+  apiClient.put(`/b2b-sales-orders/${id}/cancel`, payload).then((r) => r.data);
 
 export const getNextB2bSalesOrderNumber = () =>
   apiClient.get("/b2b-sales-orders/next-number").then((r) => r.data);

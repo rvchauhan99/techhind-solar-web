@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -45,7 +45,11 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import b2bSalesOrderLinesReportService from "@/services/b2bSalesOrderLinesReportService";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import B2bSalesOrderDetailsContent from "@/app/b2b-sales-orders/components/B2bSalesOrderDetailsContent";
+import B2bCancelOrderDialog from "@/app/b2b-sales-orders/components/B2bCancelOrderDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import { getB2bOrderCancelEligibility } from "@/utils/b2bOrderCancelEligibility";
 import { toastError } from "@/utils/toast";
 import { formatInrCompact, formatInrFull } from "@/utils/currencyFormatters";
 
@@ -188,6 +192,7 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     can_update: false,
     can_delete: false,
   };
+  const canCancelConfirmed = useRoleAccess(RBAC_CONFIG_KEYS.B2B_SALES_ORDER_CANCEL_CONFIRMED);
 
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -327,24 +332,27 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     setCancelOrderDialogOpen(true);
   }, []);
 
-  const handleCancelOrderConfirm = useCallback(async () => {
-    if (!orderToCancel?.id) return;
-    setCancellingOrder(true);
-    try {
-      await b2bSalesOrderService.cancelB2bSalesOrder(orderToCancel.id);
-      toast.success("Order cancelled");
-      setCancelOrderDialogOpen(false);
-      setOrderToCancel(null);
-      setLocalRefreshKey((prev) => prev + 1);
-      if (selectedOrderId === orderToCancel.id) {
-        handleCloseSidebar();
+  const handleCancelOrderConfirm = useCallback(
+    async (payload = {}) => {
+      if (!orderToCancel?.id) return;
+      setCancellingOrder(true);
+      try {
+        await b2bSalesOrderService.cancelB2bSalesOrder(orderToCancel.id, payload);
+        toast.success("Order cancelled");
+        setCancelOrderDialogOpen(false);
+        setOrderToCancel(null);
+        setLocalRefreshKey((prev) => prev + 1);
+        if (selectedOrderId === orderToCancel.id) {
+          await loadOrderDetails(orderToCancel.id);
+        }
+      } catch (err) {
+        toastError(err?.response?.data?.message || "Failed to cancel order");
+      } finally {
+        setCancellingOrder(false);
       }
-    } catch (err) {
-      toastError(err?.response?.data?.message || "Failed to cancel order");
-    } finally {
-      setCancellingOrder(false);
-    }
-  }, [orderToCancel, selectedOrderId, handleCloseSidebar]);
+    },
+    [orderToCancel, selectedOrderId, loadOrderDetails]
+  );
 
   const handlePdfDownload = useCallback(async (orderId) => {
     if (!orderId) return;
@@ -445,6 +453,16 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
       render: (row) => <span className="text-[10px] font-semibold text-emerald-700">{number(row.shipped_quantity)}</span>,
     },
     {
+      field: "cancelled_quantity",
+      label: "Cancelled",
+      sortable: true,
+      render: (row) => (
+        <span className={`text-[10px] font-semibold ${Number(row.cancelled_quantity) > 0 ? "text-red-600" : "text-slate-500"}`}>
+          {number(row.cancelled_quantity)}
+        </span>
+      ),
+    },
+    {
       field: "pending_quantity",
       label: "Pending",
       sortable: true,
@@ -479,6 +497,22 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
   ];
 
   const selectedOrder = orderDetails || selectedOrderSummary;
+  const orderToCancelEligibility = useMemo(
+    () =>
+      getB2bOrderCancelEligibility(orderToCancel, {
+        canUpdate: currentPerm.can_update,
+        canCancelConfirmed,
+      }),
+    [orderToCancel, currentPerm.can_update, canCancelConfirmed]
+  );
+  const selectedOrderCancelEligibility = useMemo(
+    () =>
+      getB2bOrderCancelEligibility(selectedOrder, {
+        canUpdate: currentPerm.can_update,
+        canCancelConfirmed,
+      }),
+    [selectedOrder, currentPerm.can_update, canCancelConfirmed]
+  );
 
   return (
     <div className="space-y-2">
@@ -637,6 +671,17 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
                     </Button>
                   </>
                 )}
+                {selectedOrderCancelEligibility.canCancel && selectedOrder?.status !== "DRAFT" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() => handleCancelOrderClick(orderDetails || selectedOrder)}
+                  >
+                    <IconX className="size-4 mr-1" />
+                    {selectedOrderCancelEligibility.buttonLabel}
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" onClick={() => handlePdfDownload(selectedOrderId)}>
                   <IconFileTypePdf className="size-4 mr-1" />
                   Download PDF
@@ -672,22 +717,14 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={cancelOrderDialogOpen} onOpenChange={setCancelOrderDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel order?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to cancel this order? The order will be marked as cancelled. Only draft orders can be cancelled.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={cancellingOrder}>No</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={handleCancelOrderConfirm} disabled={cancellingOrder}>
-              {cancellingOrder ? "Cancelling..." : "Yes, cancel order"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <B2bCancelOrderDialog
+        open={cancelOrderDialogOpen}
+        onOpenChange={setCancelOrderDialogOpen}
+        order={orderToCancel}
+        eligibility={orderToCancelEligibility}
+        onConfirm={handleCancelOrderConfirm}
+        loading={cancellingOrder}
+      />
     </div>
   );
 }

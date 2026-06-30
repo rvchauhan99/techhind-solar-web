@@ -45,6 +45,18 @@ export const downloadChallanPDF = (id) =>
             };
         });
 
+export const downloadPlanningBomPDF = (orderId) =>
+    apiClient
+        .get(`/challan/order/${orderId}/planning-bom/pdf`, { responseType: "blob" })
+        .then((r) => {
+            const disposition = r.headers?.["content-disposition"] || "";
+            const match = disposition.match(/filename="?([^"]+)"?/i);
+            return {
+                blob: r.data,
+                filename: match?.[1] || `bom-picking-list-${orderId}.pdf`,
+            };
+        });
+
 export default {
     getChallans,
     getChallanById,
@@ -58,4 +70,5 @@ export default {
     getDeliveryStatus,
     getSerialScanRequired,
     downloadChallanPDF,
+    downloadPlanningBomPDF,
 };

@@ -39,6 +39,12 @@ export const unsubscribePage = (pageId) =>
 export const syncLeads = (formId) =>
   apiClient.post(`/meta/forms/${formId}/sync-leads`).then((r) => r.data);
 
+export const getFormAutoAssignment = (formId) =>
+  apiClient.get(`/meta/forms/${formId}/auto-assignment`).then((r) => r.data?.data ?? null);
+
+export const saveFormAutoAssignment = (formId, payload) =>
+  apiClient.put(`/meta/forms/${formId}/auto-assignment`, payload).then((r) => r.data);
+
 const metaService = {
   initiateOAuth,
   listAccounts,
@@ -51,6 +57,8 @@ const metaService = {
   subscribePage,
   unsubscribePage,
   syncLeads,
+  getFormAutoAssignment,
+  saveFormAutoAssignment,
 };
 
 export default metaService;
