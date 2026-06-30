@@ -44,6 +44,7 @@ import b2bClientService from "@/services/b2bClientService";
 import companyService from "@/services/companyService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { formatCurrency, formatDate } from "@/utils/dataTableUtils";
+import { getB2bOrderOutstandingDisplay } from "@/utils/b2bOrderPaymentSummary";
 import { toast } from "sonner";
 
 const STATUS_TABS = [
@@ -464,20 +465,29 @@ export default function B2bPaymentOutstandingPanel() {
       label: "Outstanding",
       headerRender: () => <span className="ml-auto">Outstanding</span>,
       render: (row) => {
-        const outstandingVal = row.outstanding_balance ?? 0;
-        if (outstandingVal > 0) {
+        const display = getB2bOrderOutstandingDisplay(row);
+        if (display.type === "outstanding") {
           return (
             <div className="flex justify-end select-none">
               <Badge variant="destructive" className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
-                {formatCurrency(outstandingVal)}
+                {formatCurrency(display.amount)}
               </Badge>
+            </div>
+          );
+        }
+        if (display.type === "fully_paid") {
+          return (
+            <div className="flex justify-end select-none">
+              <span className="text-xs text-emerald-600 font-semibold">
+                {display.label}
+              </span>
             </div>
           );
         }
         return (
           <div className="flex justify-end select-none">
-            <span className="text-xs text-emerald-600 font-semibold">
-              Fully Paid
+            <span className="text-xs text-slate-400 font-medium">
+              {display.label}
             </span>
           </div>
         );
