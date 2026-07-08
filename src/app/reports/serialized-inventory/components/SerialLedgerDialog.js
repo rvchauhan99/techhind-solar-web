@@ -26,6 +26,25 @@ import serializedInventoryService from "@/services/serializedInventoryService";
 import { toastError } from "@/utils/toast";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 
+const TRANSACTION_TYPE_LABELS = {
+  TRANSFER_IN: "Stock Transfer In",
+  TRANSFER_OUT: "Stock Transfer Out",
+  PO_INWARD: "PO Inward",
+  PO_RETURN: "PO Return",
+  DELIVERY_CHALLAN_OUT: "Delivery Challan Out",
+  DELIVERY_CHALLAN_CANCEL_IN: "Delivery Challan Cancel",
+  DELIVERY_CHALLAN_RETURN_IN: "Delivery Challan Return",
+  B2B_SHIPMENT_OUT: "B2B Shipment Out",
+  B2B_SHIPMENT_CANCEL_IN: "B2B Shipment Cancel",
+  B2B_SHIPMENT_RETURN_IN: "B2B Shipment Return",
+};
+
+const getTransactionLabel = (transactionType) =>
+  TRANSACTION_TYPE_LABELS[transactionType] || transactionType || "-";
+
+const getLedgerRemarks = (entry) =>
+  entry.reason || entry.transaction_reference_no || "-";
+
 export default function SerialLedgerDialog({ open, onClose, serialId, serialNumber }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
@@ -78,7 +97,7 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
 
       const rows = data.ledger_entries.map((entry) => [
         new Date(entry.performed_at).toLocaleString(),
-        entry.transaction_type || "",
+        getTransactionLabel(entry.transaction_type),
         entry.movement_type || "",
         entry.opening_quantity || 0,
         entry.quantity || 0,
@@ -87,7 +106,7 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
         entry.gst_percent || "",
         entry.amount || "",
         entry.performed_by || "",
-        entry.reason || "",
+        getLedgerRemarks(entry),
       ]);
 
       const csvContent = [
@@ -175,7 +194,7 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
                             {new Date(entry.performed_at).toLocaleString()}
                           </TableCell>
                           <TableCell>
-                            <Chip label={entry.transaction_type} size="small" color="primary" />
+                            <Chip label={getTransactionLabel(entry.transaction_type)} size="small" color="primary" />
                           </TableCell>
                           <TableCell>
                             <Chip
@@ -197,7 +216,7 @@ export default function SerialLedgerDialog({ open, onClose, serialId, serialNumb
                             {entry.amount ? `₹${parseFloat(entry.amount).toFixed(2)}` : "-"}
                           </TableCell>
                           <TableCell>{entry.performed_by || "-"}</TableCell>
-                          <TableCell>{entry.reason || "-"}</TableCell>
+                          <TableCell>{getLedgerRemarks(entry)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

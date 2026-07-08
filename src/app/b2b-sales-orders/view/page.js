@@ -51,6 +51,9 @@ import {
   getB2bOrderReceivedAmount,
   getB2bOrderOutstandingAmount,
   getB2bOrderOutstandingDisplay,
+  getB2bOrderCommittedAmount,
+  getB2bOrderCommittedOutstandingAmount,
+  getB2bOrderAllowOverpayment,
   canCollectB2bPayment,
 } from "@/utils/b2bOrderPaymentSummary";
 import { useAuth } from "@/hooks/useAuth";
@@ -131,7 +134,14 @@ export default function B2bSalesOrderViewPage() {
   const totalReceived = useMemo(() => getB2bOrderReceivedAmount(order), [order]);
   const outstanding = useMemo(() => getB2bOrderOutstandingAmount(order), [order]);
   const outstandingDisplay = useMemo(() => getB2bOrderOutstandingDisplay(order), [order]);
-  const maxPaymentAmount = Math.max(0, outstanding);
+  const totalCommitted = useMemo(() => getB2bOrderCommittedAmount(order), [order]);
+  const committedOutstanding = useMemo(
+    () => getB2bOrderCommittedOutstandingAmount(order),
+    [order]
+  );
+  const allowOverpayment = useMemo(() => getB2bOrderAllowOverpayment(order), [order]);
+  const pendingCommitted = Math.max(0, totalCommitted - totalReceived);
+  const maxPaymentAmount = allowOverpayment ? Number.POSITIVE_INFINITY : Math.max(0, committedOutstanding);
   const canPay = canCollectB2bPayment(order);
 
   const paidPercentage = useMemo(() => {
@@ -350,9 +360,11 @@ export default function B2bSalesOrderViewPage() {
                       <B2bReceivePaymentForm
                         orderId={orderId}
                         onPaymentSaved={handlePaymentSaved}
-                        maxPaymentAmount={maxPaymentAmount}
+                        maxPaymentAmount={Number.isFinite(maxPaymentAmount) ? maxPaymentAmount : 0}
                         totalReceivedAmount={totalReceived}
+                        totalCommittedAmount={totalCommitted}
                         payableAmount={payableAmount}
+                        allowOverpayment={allowOverpayment}
                       />
                     ) : (
                       <div className="flex flex-col items-center justify-center text-center p-8 text-slate-500">
@@ -372,7 +384,7 @@ export default function B2bSalesOrderViewPage() {
                       refreshKey={paymentsRefreshKey}
                       canUpdate={currentPerm.can_update}
                       canDelete={currentPerm.can_delete}
-                      maxPaymentAmount={maxPaymentAmount}
+                      maxPaymentAmount={Number.isFinite(maxPaymentAmount) ? maxPaymentAmount : Math.max(0, committedOutstanding)}
                       onPaymentsChanged={handlePaymentSaved}
                     />
                   </TabsContent>
@@ -415,6 +427,17 @@ export default function B2bSalesOrderViewPage() {
                         {formatCurrency(outstanding)}
                       </span>
                     </div>
+                    {committedOutstanding < 0 && (
+                      <p className="text-[11px] text-amber-600 font-medium">
+                        Pending + approved payments exceed order by{" "}
+                        {formatCurrency(Math.abs(committedOutstanding))}
+                      </p>
+                    )}
+                    {pendingCommitted > 0 && committedOutstanding >= 0 && (
+                      <p className="text-[11px] text-slate-500">
+                        Pending (awaiting approval): {formatCurrency(pendingCommitted)}
+                      </p>
+                    )}
                   </div>
 
                   {/* Progress bar */}

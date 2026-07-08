@@ -8,6 +8,7 @@ import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import StockTransferForm from "../components/StockTransferForm";
 import stockTransferService from "@/services/stockTransferService";
+import { getApiErrorMessage } from "@/utils/toast";
 
 function EditStockTransferContent() {
   const router = useRouter();
@@ -56,7 +57,7 @@ function EditStockTransferContent() {
       setDefaultValues(transformedData);
     } catch (error) {
       console.error("Error fetching stock transfer:", error);
-      const msg = error?.response?.data?.message || "Failed to load stock transfer";
+      const msg = getApiErrorMessage(error, "Failed to load stock transfer");
       setServerError(msg);
       toast.error(msg);
     } finally {
@@ -76,10 +77,7 @@ function EditStockTransferContent() {
         router.push("/stock-transfers");
       }, 1000);
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to update stock transfer";
+      const errorMessage = getApiErrorMessage(err, "Failed to update stock transfer");
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {

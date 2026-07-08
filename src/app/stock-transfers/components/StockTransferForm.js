@@ -18,7 +18,6 @@ import {
   Chip,
   Checkbox,
   FormControlLabel,
-  Autocomplete,
   TextField,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -691,38 +690,27 @@ export default function StockTransferForm({
                   return isSerial && formData.from_warehouse_id && quantity > 0 ? (
                     <>
                       <Grid item size={{ xs: 12, md: 5 }}>
-                        <Autocomplete
+                        <AutocompleteField
                           multiple
                           options={availableSerials}
                           getOptionLabel={(option) => option.serial_number || ""}
                           value={availableSerials.filter((s) =>
-                            currentItem.serials.some((sel) => sel.stock_serial_id === s.id)
+                            currentItem.serials.some(
+                              (sel) => Number(sel.stock_serial_id) === Number(s.id)
+                            )
                           )}
-                          onChange={(e, newValue) => {
-                            handleSerialSelection(newValue);
-                          }}
+                          onChange={(e, newValue) => handleSerialSelection(newValue)}
                           loading={loadingSerials}
                           disabled={loadingSerials || !formData.from_warehouse_id}
-                          renderInput={(params) => (
-                            <Input
-                              {...params}
-                              label={`Select ${quantity} Serial${quantity > 1 ? "s" : ""}`}
-                              error={!!itemErrors.serials}
-                              helperText={itemErrors.serials || `${currentItem.serials.length} / ${quantity} selected`}
-                              placeholder={loadingSerials ? "Loading serials..." : "Select serial numbers"}
-                            />
-                          )}
-                          renderTags={(value, getTagProps) =>
-                            value.map((option, index) => (
-                              <Chip
-                                {...getTagProps({ index })}
-                                key={option.id}
-                                label={option.serial_number}
-                                size="small"
-                              />
-                            ))
+                          label={`Select ${quantity} Serial${quantity > 1 ? "s" : ""}`}
+                          error={!!itemErrors.serials}
+                          helperText={
+                            itemErrors.serials ||
+                            `${currentItem.serials.length} / ${quantity} selected`
                           }
-                          limitTags={3}
+                          placeholder={
+                            loadingSerials ? "Loading serials..." : "Select serial numbers"
+                          }
                         />
                       </Grid>
                       <Grid item size={{ xs: 12, md: "auto" }}>
@@ -795,6 +783,9 @@ export default function StockTransferForm({
                       const quantity = item.transfer_quantity || item.quantity;
                       const serials = item.serials || [];
                       const isSerial = product && product.serial_required;
+                      const productError = errors[`item_${index}_product`];
+                      const quantityError = errors[`item_${index}_quantity`];
+                      const serialsError = errors[`item_${index}_serials`];
                       
                       return (
                         <TableRow key={index}>
@@ -811,10 +802,20 @@ export default function StockTransferForm({
                                   sx={{ mt: 0.5 }}
                                 />
                               )}
+                              {productError && (
+                                <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                                  {productError}
+                                </Typography>
+                              )}
                             </Box>
                           </TableCell>
                           <TableCell align="right" sx={{ fontWeight: "bold" }}>
                             {quantity}
+                            {quantityError && (
+                              <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5, fontWeight: "normal" }}>
+                                {quantityError}
+                              </Typography>
+                            )}
                           </TableCell>
                           <TableCell>
                             {isSerial && serials.length > 0 ? (
@@ -835,6 +836,11 @@ export default function StockTransferForm({
                               </Box>
                             ) : (
                               <Typography variant="body2" color="text.secondary">N/A</Typography>
+                            )}
+                            {serialsError && (
+                              <Typography variant="caption" color="error" display="block" sx={{ mt: 0.5 }}>
+                                {serialsError}
+                              </Typography>
                             )}
                           </TableCell>
                           <TableCell>
