@@ -8,6 +8,7 @@ import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import StockTransferForm from "../components/StockTransferForm";
 import stockTransferService from "@/services/stockTransferService";
+import { getApiErrorMessage } from "@/utils/toast";
 
 function AddStockTransferContent() {
   const router = useRouter();
@@ -25,10 +26,7 @@ function AddStockTransferContent() {
         router.push("/stock-transfers");
       }, 1000);
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.message ||
-        err.message ||
-        "Failed to create stock transfer";
+      const errorMessage = getApiErrorMessage(err, "Failed to create stock transfer");
       setServerError(errorMessage);
       toast.error(errorMessage);
     } finally {

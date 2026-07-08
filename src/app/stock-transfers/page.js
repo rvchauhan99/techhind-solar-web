@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import stockTransferService from "@/services/stockTransferService";
+import { getApiErrorMessage } from "@/utils/toast";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
@@ -327,7 +328,7 @@ export default function StockTransferPage() {
       toast.success("Stock transfer approved successfully. Stock quantities and inventory ledger have been updated.");
     } catch (error) {
       console.error("Approve error:", error);
-      toast.error(error.response?.data?.message || error.message || "Failed to approve stock transfer");
+      toast.error(getApiErrorMessage(error, "Failed to approve stock transfer"));
     } finally {
       setApproving(false);
     }
@@ -344,7 +345,7 @@ export default function StockTransferPage() {
       toast.success("Stock transfer marked as received successfully");
     } catch (error) {
       console.error("Receive error:", error);
-      toast.error(error.response?.data?.message || error.message || "Failed to receive stock transfer");
+      toast.error(getApiErrorMessage(error, "Failed to receive stock transfer"));
     } finally {
       setReceiving(false);
     }
@@ -389,16 +390,33 @@ export default function StockTransferPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1.5 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1.5 text-left font-semibold">Serials</th>
                     <th className="px-2 py-1.5 text-right font-semibold">Qty</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {t.items.map((item, index) => (
+                  {t.items.map((item, index) => {
+                    const serialNumbers = (item.serials || [])
+                      .map((s) => s.stockSerial?.serial_number || s.serial_number)
+                      .filter(Boolean);
+                    const isSerialProduct = item.product?.serial_required || item.serial_required;
+                    const serialsDisplay =
+                      serialNumbers.length > 0
+                        ? serialNumbers.length <= 3
+                          ? serialNumbers.join(", ")
+                          : `${serialNumbers.slice(0, 3).join(", ")} +${serialNumbers.length - 3} more`
+                        : isSerialProduct
+                          ? "—"
+                          : "N/A";
+
+                    return (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{item.product?.product_name || "-"}</td>
+                      <td className="px-2 py-1.5 text-xs text-muted-foreground">{serialsDisplay}</td>
                       <td className="px-2 py-1.5 text-right">{item.transfer_quantity}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
