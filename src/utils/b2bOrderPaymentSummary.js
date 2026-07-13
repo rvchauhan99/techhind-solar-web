@@ -22,6 +22,27 @@ export function resolveB2bOrderPayableAmount(order) {
   return getB2bOrderPayableAmount(order);
 }
 
+export function getB2bOrderCommittedAmount(order) {
+  if (order?.total_committed != null && order.total_committed !== "") {
+    return Number(order.total_committed) || 0;
+  }
+  return getB2bOrderReceivedAmount(order);
+}
+
+export function getB2bOrderCommittedOutstandingAmount(order) {
+  if (order?.committed_outstanding != null && order.committed_outstanding !== "") {
+    return Number(order.committed_outstanding);
+  }
+  return resolveB2bOrderPayableAmount(order) - getB2bOrderCommittedAmount(order);
+}
+
+export function getB2bOrderAllowOverpayment(order) {
+  if (typeof order?.allow_overpayment === "boolean") return order.allow_overpayment;
+  if (order?.allow_overpayment == null) return false;
+  const s = String(order.allow_overpayment).trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "on";
+}
+
 export function getB2bOrderOutstandingDisplay(order) {
   const outstanding = getB2bOrderOutstandingAmount(order);
   const payable = resolveB2bOrderPayableAmount(order);

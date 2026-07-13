@@ -15,7 +15,9 @@ export default function B2bReceivePaymentForm({
   onPaymentSaved,
   maxPaymentAmount = 0,
   totalReceivedAmount = 0,
+  totalCommittedAmount = 0,
   payableAmount = 0,
+  allowOverpayment = false,
 }) {
   const [formData, setFormData] = useState({
     b2b_sales_order_id: orderId,
@@ -65,10 +67,20 @@ export default function B2bReceivePaymentForm({
       const EPS = 1e-6;
       if (!formData.date_of_payment) newErrors.date_of_payment = "Required";
       const payAmount = parseFloat(String(formData.payment_amount || "").replace(/,/g, ""));
+      const committedBase = totalCommittedAmount || totalReceivedAmount;
+      const nextCommitted = committedBase + payAmount;
       if (!formData.payment_amount || !Number.isFinite(payAmount) || Math.abs(payAmount) < EPS) {
         newErrors.payment_amount = "Required non-zero amount";
-      } else if (payAmount > 0 && maxPaymentAmount > 0 && payAmount > maxPaymentAmount + EPS) {
-        newErrors.payment_amount = `Cannot exceed outstanding Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`;
+      } else if (nextCommitted < -EPS) {
+        newErrors.payment_amount =
+          "Adjustment cannot exceed recorded receipts (total cannot go below zero).";
+      } else if (!allowOverpayment && payAmount > 0 && maxPaymentAmount >= 0 && payAmount > maxPaymentAmount + EPS) {
+        newErrors.payment_amount =
+          `Approved + pending cannot exceed order value (max Rs. ${maxPaymentAmount.toLocaleString("en-IN")} additional).`;
+      } else if (!allowOverpayment && nextCommitted > payableAmount + EPS) {
+        const cap = Math.round((payableAmount - committedBase) * 100) / 100;
+        newErrors.payment_amount =
+          `Approved + pending cannot exceed order value (max Rs. ${cap.toLocaleString("en-IN")} additional).`;
       }
       if (!formData.payment_mode_id) newErrors.payment_mode_id = "Required";
       if (!formData.company_bank_account_id) newErrors.company_bank_account_id = "Required";
@@ -78,6 +90,13 @@ export default function B2bReceivePaymentForm({
       }
       if (payAmount < 0) {
         const ok = window.confirm("Negative amount reduces recorded receipts. Continue?");
+        if (!ok) return;
+      }
+      if (allowOverpayment && payAmount > 0 && nextCommitted > payableAmount + EPS) {
+        const overBy = Math.round((nextCommitted - payableAmount) * 100) / 100;
+        const ok = window.confirm(
+          `This payment would push approved + pending receipts above the order amount by Rs. ${overBy.toLocaleString("en-IN")}. Save anyway?`
+        );
         if (!ok) return;
       }
       const fd = new FormData();
@@ -108,7 +127,8 @@ export default function B2bReceivePaymentForm({
     }
   };
 
-  const canRecord = maxPaymentAmount > 0 || totalReceivedAmount > 0;
+  const canRecord =
+    allowOverpayment || maxPaymentAmount > 0 || totalReceivedAmount > 0 || totalCommittedAmount > 0;
 
   return (
     <div className="p-2 space-y-2">
@@ -129,7 +149,12 @@ export default function B2bReceivePaymentForm({
           value={formData.payment_amount}
           onChange={(e) => handleChange("payment_amount", e.target.value)}
           error={!!errors.payment_amount}
-          helperText={errors.payment_amount || `Outstanding max Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`}
+          helperText={
+            errors.payment_amount ||
+            (allowOverpayment
+              ? "Overpayment allowed"
+              : `Max Rs. ${Number(maxPaymentAmount || 0).toLocaleString("en-IN")} (approved + pending)`)
+          }
         />
         <AutocompleteField
           name="payment_mode_id"
