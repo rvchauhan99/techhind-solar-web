@@ -32,6 +32,7 @@ const FILTER_KEYS = [
   "inquiry_source_id",
   "project_scheme_id",
   "handled_by",
+  "inquiry_by",
   "channel_partner_id",
   "order_number",
   "order_date_from",
@@ -251,6 +252,7 @@ export default function OrderListFilterPanel({
       inquiry_source_id: "Source",
       project_scheme_id: "Project Scheme",
       handled_by: "User",
+      inquiry_by: "Inquiry By",
       channel_partner_id: "Channel Partner",
       current_stage_key: "Stage",
       order_number: "Order No",
@@ -405,6 +407,19 @@ export default function OrderListFilterPanel({
             getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
             value={localValues.handled_by ? { id: localValues.handled_by } : null}
             onChange={(e, v) => handleChange("handled_by", v?.id ? String(v.id) : "")}
+            placeholder="Search user…"
+          />
+          <AutocompleteField
+            usePortal={true}
+            name="inquiry_by"
+            label="Inquiry By"
+            asyncLoadOptions={(q) =>
+              getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })
+            }
+            referenceModel="user.model"
+            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            value={localValues.inquiry_by ? { id: localValues.inquiry_by } : null}
+            onChange={(e, v) => handleChange("inquiry_by", v?.id ? String(v.id) : "")}
             placeholder="Search user…"
           />
           <AutocompleteField
