@@ -40,6 +40,9 @@ import {
     getOrderOutstandingAmount,
     getOrderReceivedAmount,
     getOrderProjectCostAmount,
+    getOrderCommittedAmount,
+    getOrderCommittedOutstandingAmount,
+    getOrderAllowOverpayment,
 } from "@/utils/orderPaymentSummary";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
@@ -332,7 +335,9 @@ function ReceivePaymentForm({
     orderDocumentTypes = [],
     maxPaymentAmount = 0,
     totalReceivedAmount = 0,
+    totalCommittedAmount = 0,
     projectCostAmount = 0,
+    allowOverpayment = false,
 }) {
     const [formData, setFormData] = useState({
         order_id: orderId,
@@ -406,20 +411,19 @@ function ReceivePaymentForm({
             const EPS = 1e-6;
             if (!formData.date_of_payment) newErrors.date_of_payment = "Date of Payment is required";
             const payAmount = parseFloat(String(formData.payment_amount || "").replace(/,/g, ""));
+            const nextCommitted = totalCommittedAmount + payAmount;
             if (!formData.payment_amount || !Number.isFinite(payAmount) || Math.abs(payAmount) < EPS) {
                 newErrors.payment_amount = "Payment Amount is required and must be non-zero";
-            } else if (payAmount > 0 && maxPaymentAmount > 0 && payAmount > maxPaymentAmount + EPS) {
-                newErrors.payment_amount = `Cannot exceed outstanding Rs. ${maxPaymentAmount.toLocaleString("en-IN")}`;
-            } else {
-                const nextTotal = totalReceivedAmount + payAmount;
-                if (nextTotal < -EPS) {
-                    newErrors.payment_amount =
-                        "Adjustment cannot exceed recorded receipts (total cannot go below zero).";
-                } else if (nextTotal > projectCostAmount + EPS) {
-                    const cap = Math.round((projectCostAmount - totalReceivedAmount) * 100) / 100;
-                    newErrors.payment_amount =
-                        `Total receipts cannot exceed order value (max Rs. ${cap.toLocaleString("en-IN")} additional).`;
-                }
+            } else if (nextCommitted < -EPS) {
+                newErrors.payment_amount =
+                    "Adjustment cannot exceed recorded receipts (total cannot go below zero).";
+            } else if (!allowOverpayment && payAmount > 0 && maxPaymentAmount >= 0 && payAmount > maxPaymentAmount + EPS) {
+                newErrors.payment_amount =
+                    `Approved + pending cannot exceed order value (max Rs. ${maxPaymentAmount.toLocaleString("en-IN")} additional).`;
+            } else if (!allowOverpayment && nextCommitted > projectCostAmount + EPS) {
+                const cap = Math.round((projectCostAmount - totalCommittedAmount) * 100) / 100;
+                newErrors.payment_amount =
+                    `Approved + pending cannot exceed order value (max Rs. ${cap.toLocaleString("en-IN")} additional).`;
             }
             if (!formData.payment_mode_id) newErrors.payment_mode_id = "Payment Mode is required";
             if (!formData.company_bank_account_id) newErrors.company_bank_account_id = "Company Bank Account is required";
@@ -433,6 +437,17 @@ function ReceivePaymentForm({
             if (payAmount < 0) {
                 const ok = window.confirm(
                     "Negative amount is a reversal/adjustment: it reduces recorded receipts for this order. Save anyway?"
+                );
+                if (!ok) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            if (allowOverpayment && payAmount > 0 && nextCommitted > projectCostAmount + EPS) {
+                const overBy = Math.round((nextCommitted - projectCostAmount) * 100) / 100;
+                const ok = window.confirm(
+                    `This payment would push approved + pending receipts above the order amount by Rs. ${overBy.toLocaleString("en-IN")}. Save anyway?`
                 );
                 if (!ok) {
                     setLoading(false);
@@ -502,9 +517,11 @@ function ReceivePaymentForm({
         }
     };
 
-    const canRecordPayment = maxPaymentAmount > 0 || totalReceivedAmount > 0;
-    const minPaymentAmount = -totalReceivedAmount;
-    const maxPaymentField = projectCostAmount - totalReceivedAmount;
+    const canRecordPayment = allowOverpayment || maxPaymentAmount > 0 || totalReceivedAmount > 0 || totalCommittedAmount > 0;
+    const minPaymentAmount = -totalCommittedAmount;
+    const maxPaymentField = allowOverpayment
+        ? null
+        : Math.max(0, projectCostAmount - totalCommittedAmount);
 
     return (
         <Box p={2}>
@@ -535,12 +552,18 @@ function ReceivePaymentForm({
                         helperText={
                             errors.payment_amount
                             || (canRecordPayment
-                                ? `Range Rs. ${minPaymentAmount.toLocaleString("en-IN")} to Rs. ${maxPaymentField.toLocaleString("en-IN")} (use negative to reverse)`
+                                ? (allowOverpayment
+                                    ? `Min Rs. ${minPaymentAmount.toLocaleString("en-IN")} (overpayment allowed; use negative to reverse)`
+                                    : `Range Rs. ${minPaymentAmount.toLocaleString("en-IN")} to Rs. ${Number(maxPaymentField || 0).toLocaleString("en-IN")} (use negative to reverse)`)
                                 : "No receipts to adjust and no outstanding")
                         }
                         inputProps={
                             canRecordPayment
-                                ? { min: minPaymentAmount, max: maxPaymentField, step: "any" }
+                                ? {
+                                    min: minPaymentAmount,
+                                    ...(maxPaymentField != null ? { max: maxPaymentField } : {}),
+                                    step: "any",
+                                }
                                 : { min: 0, max: 0, step: "any" }
                         }
                     />
@@ -1115,8 +1138,14 @@ function OrderViewPageContent() {
     const visibleTabs = getVisibleTabs();
     const totalReceivedAmount = getOrderReceivedAmount(orderData);
     const outstandingAmount = getOrderOutstandingAmount(orderData);
-    const maxPaymentAmount = Math.max(0, outstandingAmount);
+    const totalCommittedAmount = getOrderCommittedAmount(orderData);
+    const committedOutstandingAmount = getOrderCommittedOutstandingAmount(orderData);
+    const allowOverpayment = getOrderAllowOverpayment(orderData);
+    const maxPaymentAmount = allowOverpayment
+        ? Number.POSITIVE_INFINITY
+        : Math.max(0, committedOutstandingAmount);
     const projectCostAmount = getOrderProjectCostAmount(orderData);
+    const pendingCommittedAmount = Math.max(0, totalCommittedAmount - totalReceivedAmount);
     console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {
@@ -1519,6 +1548,17 @@ function OrderViewPageContent() {
                                         Over-recorded by Rs. {Math.abs(outstandingAmount).toLocaleString("en-IN")}
                                     </Typography>
                                 )}
+                                {committedOutstandingAmount < 0 && (
+                                    <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
+                                        Pending + approved payments exceed order by Rs.{" "}
+                                        {Math.abs(committedOutstandingAmount).toLocaleString("en-IN")}
+                                    </Typography>
+                                )}
+                                {pendingCommittedAmount > 0 && committedOutstandingAmount >= 0 && (
+                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
+                                        Pending (awaiting approval): Rs. {pendingCommittedAmount.toLocaleString("en-IN")}
+                                    </Typography>
+                                )}
                             </Box>
                         </Paper>
                     </Grid>
@@ -1566,9 +1606,11 @@ function OrderViewPageContent() {
                                         orderId={orderId}
                                         onPaymentSaved={handlePaymentSaved}
                                         orderDocumentTypes={orderDocumentTypes}
-                                        maxPaymentAmount={maxPaymentAmount}
+                                        maxPaymentAmount={Number.isFinite(maxPaymentAmount) ? maxPaymentAmount : 0}
                                         totalReceivedAmount={totalReceivedAmount}
+                                        totalCommittedAmount={totalCommittedAmount}
                                         projectCostAmount={projectCostAmount}
+                                        allowOverpayment={allowOverpayment}
                                     />
                                 )}
                             </TabPanel>
