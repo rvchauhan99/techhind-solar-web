@@ -30,6 +30,7 @@ const FILTER_KEYS = [
   "inquiry_source_id",
   "project_scheme_id",
   "handled_by",
+  "inquiry_by",
   "channel_partner_id",
   "order_number",
   "order_date_from",
@@ -217,6 +218,23 @@ export default function OrderListFilterDialog({
             placeholder="All users"
             value={localValues.handled_by}
             onChange={(e) => handleChange("handled_by", e.target.value)}
+            size="small"
+            fullWidth
+            disabled={loadingOptions}
+          >
+            <MenuItem value="">All</MenuItem>
+            {userOptions.map((u) => (
+              <MenuItem key={u.id} value={String(u.id)}>
+                {u.name ?? u.label ?? `User #${u.id}`}
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            name="inquiry_by"
+            label="Inquiry By"
+            placeholder="All users"
+            value={localValues.inquiry_by}
+            onChange={(e) => handleChange("inquiry_by", e.target.value)}
             size="small"
             fullWidth
             disabled={loadingOptions}
