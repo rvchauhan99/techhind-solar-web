@@ -20,6 +20,28 @@ export const previewPayout = (payload) =>
 export const createPayout = (payload) =>
   apiClient.post(`${base}/payout`, payload).then((r) => r.data);
 
+export const createPayoutRequest = createPayout;
+
+export const listPayoutRequests = (params) =>
+  apiClient.get(`${base}/payout`, { params }).then((r) => r.data);
+
+export const getPayoutRequestById = (id) =>
+  apiClient.get(`${base}/payout/${id}`).then((r) => r.data);
+
+export const approvePayoutRequest = (id, payload) =>
+  apiClient.post(`${base}/payout/${id}/approve`, payload || {}).then((r) => r.data);
+
+export const rejectPayoutRequest = (id, payload) =>
+  apiClient.post(`${base}/payout/${id}/reject`, payload || {}).then((r) => r.data);
+
+export const confirmPayoutPayment = (id, payload) =>
+  apiClient.post(`${base}/payout/${id}/confirm-payment`, payload || {}).then((r) => r.data);
+
+export const downloadPayoutVoucher = (id) =>
+  apiClient
+    .get(`${base}/payout/${id}/voucher`, { responseType: "blob" })
+    .then((r) => r.data);
+
 export const getCommissionDashboardSummary = () =>
   apiClient.get(`${base}/ledger/dashboard-summary`).then((r) => r.data);
 
@@ -73,6 +95,13 @@ export default {
   getApprovedLedgerSummary,
   previewPayout,
   createPayout,
+  createPayoutRequest,
+  listPayoutRequests,
+  getPayoutRequestById,
+  approvePayoutRequest,
+  rejectPayoutRequest,
+  confirmPayoutPayment,
+  downloadPayoutVoucher,
   getCommissionDashboardSummary,
   adjustCommissionLedgerEntry,
   previewCommissionSettlement,

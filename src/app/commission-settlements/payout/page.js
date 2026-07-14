@@ -129,11 +129,16 @@ export default function CommissionPayoutPage() {
   const [payoutOpen, setPayoutOpen] = useState(false);
   const [preview, setPreview] = useState(null);
   const [remarks, setRemarks] = useState("");
-  const [bankReference, setBankReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [selectingAll, setSelectingAll] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [detailSettlementId, setDetailSettlementId] = useState(null);
+  const [approvedPayouts, setApprovedPayouts] = useState([]);
+  const [confirmPayOpen, setConfirmPayOpen] = useState(false);
+  const [confirmPayRow, setConfirmPayRow] = useState(null);
+  const [confirmRemarks, setConfirmRemarks] = useState("");
+  const [confirmBankReference, setConfirmBankReference] = useState("");
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -216,9 +221,24 @@ export default function CommissionPayoutPage() {
     }
   }, [filterParams]);
 
+  const loadApprovedPayouts = useCallback(async () => {
+    try {
+      const res = await commissionSettlementService.listPayoutRequests({
+        status: "approved",
+        page: 1,
+        limit: 50,
+      });
+      const result = res?.result ?? res;
+      setApprovedPayouts(result?.data || []);
+    } catch {
+      setApprovedPayouts([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadSummary();
-  }, [loadSummary, refreshKey]);
+    loadApprovedPayouts();
+  }, [loadSummary, loadApprovedPayouts, refreshKey]);
 
   const selectedPayable = useMemo(() => {
     let total = 0;
@@ -393,29 +413,58 @@ export default function CommissionPayoutPage() {
     if (rejectBlockedSelection()) return;
     setSubmitting(true);
     try {
-      const utr = bankReference.trim();
-      if (utr.length < 4) {
-        toast.error("Enter UTR / bank reference (at least 4 characters)");
-        return;
-      }
-      await commissionSettlementService.createPayout({
+      await commissionSettlementService.createPayoutRequest({
         ledger_entry_ids: ids,
-        bank_reference: utr,
         remarks: remarks.trim() || undefined,
       });
-      toast.success("Payout recorded — lines settled");
+      toast.success("Payout request created — pending approval");
       setPayoutOpen(false);
       setPreview(null);
       setRemarks("");
-      setBankReference("");
       setSelected(new Set());
       setLockedBeneficiaryId(null);
       setRefreshKey((k) => k + 1);
       loadSummary();
+      loadApprovedPayouts();
     } catch (e) {
-      toast.error(e?.response?.data?.message || e?.message || "Payout failed");
+      toast.error(e?.response?.data?.message || e?.message || "Payout request failed");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openConfirmPayment = (row) => {
+    setConfirmPayRow(row);
+    setConfirmBankReference("");
+    setConfirmRemarks("");
+    setConfirmPayOpen(true);
+  };
+
+  const submitConfirmPayment = async () => {
+    if (!confirmPayRow?.id) return;
+    const utr = confirmBankReference.trim();
+    if (utr.length < 4) {
+      toast.error("Enter UTR / bank reference (at least 4 characters)");
+      return;
+    }
+    setConfirmSubmitting(true);
+    try {
+      await commissionSettlementService.confirmPayoutPayment(confirmPayRow.id, {
+        bank_reference: utr,
+        remarks: confirmRemarks.trim() || undefined,
+      });
+      toast.success("Payment confirmed — payout marked paid");
+      setConfirmPayOpen(false);
+      setConfirmPayRow(null);
+      setConfirmBankReference("");
+      setConfirmRemarks("");
+      setRefreshKey((k) => k + 1);
+      loadSummary();
+      loadApprovedPayouts();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || e?.message || "Confirm payment failed");
+    } finally {
+      setConfirmSubmitting(false);
     }
   };
 
@@ -551,7 +600,7 @@ export default function CommissionPayoutPage() {
               </div>
               <div>
                 <h1 className="text-base font-bold leading-tight tracking-tight">Commission payout</h1>
-                <p className="text-[11px] text-slate-500">Approved (unpaid) lines · Record payment</p>
+                <p className="text-[11px] text-slate-500">Approved (unpaid) lines · Create payout request</p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -692,8 +741,8 @@ export default function CommissionPayoutPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground px-0.5">
-            One bank transfer = one payout = one person. Enter the bank UTR/reference when confirming.
-            Outstanding was adjusted at batch approval; you may pay lines partially — other lines stay approved until paid.
+            One bank transfer = one payout request = one person. Create a request for Super Admin approval;
+            after approval, enter UTR below to confirm payment.
           </p>
 
           {/* Action bar */}
@@ -746,7 +795,7 @@ export default function CommissionPayoutPage() {
                   onClick={openPayout}
                   disabled={!selected.size || hasBlockedSelected}
                 >
-                  Payout selected ({selected.size})
+                  Create Payout Request ({selected.size})
                 </Button>
               )}
               <Button
@@ -760,6 +809,46 @@ export default function CommissionPayoutPage() {
               </Button>
             </div>
           </div>
+
+          {approvedPayouts.length > 0 && (
+            <Card className="rounded-xl border-emerald-200 bg-white px-3 py-2 shadow-sm">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-semibold text-slate-800">Approved for payment</h2>
+                  <p className="text-[10px] text-muted-foreground">Enter UTR and confirm payment</p>
+                </div>
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                  {approvedPayouts.length}
+                </Badge>
+              </div>
+              <div className="space-y-1">
+                {approvedPayouts.map((row) => (
+                  <div
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-100 bg-slate-50/80 px-2 py-1.5"
+                  >
+                    <div className="min-w-0 text-[11px]">
+                      <span className="font-semibold">{row.payout_number}</span>
+                      <span className="mx-1 text-muted-foreground">·</span>
+                      <span>{row.beneficiary_name || "—"}</span>
+                      <span className="mx-1 text-muted-foreground">·</span>
+                      <span className="tabular-nums font-medium">₹{fmtMoney(row.total_amount)}</span>
+                    </div>
+                    {canPayout && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => openConfirmPayment(row)}
+                      >
+                        Confirm Payment
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Table */}
           <PaginatedTable
@@ -802,7 +891,7 @@ export default function CommissionPayoutPage() {
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>
-              Payout summary
+              Create Payout Request
               {preview?.beneficiary_name ? (
                 <span className="block text-sm font-normal text-muted-foreground mt-0.5">
                   {preview.beneficiary_name}
@@ -867,18 +956,6 @@ export default function CommissionPayoutPage() {
                 }
               />
               <div className="space-y-1">
-                <Label className="text-xs">
-                  UTR / Bank reference <span className="text-destructive">*</span>
-                </Label>
-                <ShadcnInput
-                  value={bankReference}
-                  onChange={(e) => setBankReference(e.target.value)}
-                  className="h-8 text-sm"
-                  placeholder="NEFT / IMPS / UTR number"
-                  maxLength={64}
-                />
-              </div>
-              <div className="space-y-1">
                 <Label className="text-xs">Remarks (optional)</Label>
                 <ShadcnInput value={remarks} onChange={(e) => setRemarks(e.target.value)} className="h-8 text-sm" />
               </div>
@@ -890,13 +967,67 @@ export default function CommissionPayoutPage() {
                   type="button"
                   size="sm"
                   onClick={submitPayout}
-                  disabled={submitting || !canPayout || bankReference.trim().length < 4}
+                  disabled={submitting || !canPayout}
                 >
-                  {submitting ? "Processing…" : "Confirm payout"}
+                  {submitting ? "Submitting…" : "Create Payout Request"}
                 </Button>
               </div>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmPayOpen} onOpenChange={setConfirmPayOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Confirm Payment
+              {confirmPayRow?.payout_number ? (
+                <span className="block text-sm font-normal text-muted-foreground mt-0.5">
+                  {confirmPayRow.payout_number}
+                  {confirmPayRow.beneficiary_name ? ` · ${confirmPayRow.beneficiary_name}` : ""}
+                </span>
+              ) : null}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-xs text-muted-foreground">
+              Net payable: <span className="font-semibold text-foreground">₹{fmtMoney(confirmPayRow?.total_amount)}</span>
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">
+                UTR / Bank reference <span className="text-destructive">*</span>
+              </Label>
+              <ShadcnInput
+                value={confirmBankReference}
+                onChange={(e) => setConfirmBankReference(e.target.value)}
+                className="h-8 text-sm"
+                placeholder="NEFT / IMPS / UTR number"
+                maxLength={64}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Remarks (optional)</Label>
+              <ShadcnInput
+                value={confirmRemarks}
+                onChange={(e) => setConfirmRemarks(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmPayOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={submitConfirmPayment}
+                disabled={confirmSubmitting || confirmBankReference.trim().length < 4}
+              >
+                {confirmSubmitting ? "Processing…" : "Confirm Payment"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
