@@ -15,21 +15,23 @@ import {
 
 let refreshPromise = null;
 
-// Strict baseURL: never allow empty - fail fast in all environments
-const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL;
-if (!baseURL || typeof baseURL !== "string" || baseURL.trim() === "") {
-  throw new Error(
-    "[axios] NEXT_PUBLIC_API_BASE_URL is required. Add it to .env (e.g. NEXT_PUBLIC_API_BASE_URL=http://localhost:9090/api) and restart the dev server."
-  );
-}
+const MISSING_API_BASE_URL_MSG =
+  "[axios] NEXT_PUBLIC_API_BASE_URL is required. Add it to .env / Vercel env (e.g. NEXT_PUBLIC_API_BASE_URL=https://api.example.com/api) and rebuild.";
 
 function getApiBaseUrl() {
   const url = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!url || typeof url !== "string" || url.trim() === "") {
-    throw new Error("[axios] NEXT_PUBLIC_API_BASE_URL is not configured.");
+    throw new Error(MISSING_API_BASE_URL_MSG);
   }
-  return url;
+  return url.trim();
 }
+
+// Do not throw at module load — Next.js prerender (e.g. /_not-found) imports
+// this via root layout. Validate when a request actually runs.
+const baseURL =
+  typeof process.env.NEXT_PUBLIC_API_BASE_URL === "string"
+    ? process.env.NEXT_PUBLIC_API_BASE_URL.trim()
+    : "";
 
 /** Origin + path prefix for static/assets (no /api). Use for document/image URLs. */
 export function getAssetBaseUrl() {
@@ -46,7 +48,7 @@ export function resolveDocumentUrl(path) {
 }
 
 const axiosInstance = axios.create({
-  baseURL,
+  baseURL: baseURL || undefined,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
 });
@@ -79,6 +81,15 @@ function getCurrentOpenedModuleRoute() {
   }
   return bestMatch;
 }
+
+// Fail on first request if API base URL was not set at build/runtime
+axiosInstance.interceptors.request.use((config) => {
+  const url = getApiBaseUrl();
+  if (!config.baseURL) {
+    config.baseURL = url;
+  }
+  return config;
+}, (error) => Promise.reject(error));
 
 // Let FormData requests set Content-Type with boundary (required for multipart uploads)
 axiosInstance.interceptors.request.use((config) => {

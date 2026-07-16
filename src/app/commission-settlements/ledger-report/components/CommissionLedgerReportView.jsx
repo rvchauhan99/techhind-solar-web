@@ -29,12 +29,14 @@ const INR = (v) =>
 const STATUS_STYLES = {
   in_settlement: "bg-sky-50 text-sky-700 border-sky-200",
   approved: "bg-violet-50 text-violet-700 border-violet-200",
+  in_payout: "bg-amber-50 text-amber-800 border-amber-200",
   settled: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
 const STATUS_LABELS = {
   in_settlement: "In settlement",
   approved: "Approved",
+  in_payout: "In payout",
   settled: "Settled",
 };
 
@@ -223,7 +225,7 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
             sub="Payable outstanding"
           />
           <KpiCard label="In settlement" value={INR(summary?.in_settlement_amount)} sub="Pending approval" />
-          <KpiCard label="Approved" value={INR(summary?.approved_amount)} sub="Awaiting payout" />
+          <KpiCard label="Approved" value={INR(summary?.approved_amount)} sub="Awaiting / in payout" />
           <KpiCard label="Settled" value={INR(summary?.settled_credit_amount)} sub="Paid commission credits" />
         </div>
       </Card>
@@ -334,6 +336,13 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
                           className={`inline-block rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
                             STATUS_STYLES[row.settlement_status] || "bg-slate-50 text-slate-500 border-slate-200"
                           }`}
+                          title={
+                            row.payout_number
+                              ? row.bank_reference
+                                ? `${row.payout_number} · UTR ${row.bank_reference}`
+                                : row.payout_number
+                              : undefined
+                          }
                         >
                           {STATUS_LABELS[row.settlement_status] || row.settlement_status}
                         </span>
@@ -342,12 +351,12 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
                           className={`inline-block rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${
                             row.txn_subtype === "deduction" || row.txn_subtype === "offset"
                               ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-violet-50 text-violet-700 border-violet-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
                           }`}
                         >
                           {row.txn_subtype === "deduction" || row.txn_subtype === "offset"
                             ? "Deduction"
-                            : "Payout"}
+                            : "Paid"}
                         </span>
                       ) : null}
                     </td>
