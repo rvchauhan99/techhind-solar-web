@@ -212,6 +212,7 @@ export default function CommissionPayoutReviewDrawer({
                     <th className="px-2 py-1.5 font-semibold">Order</th>
                     <th className="px-2 py-1.5 font-semibold">Settlement</th>
                     <th className="px-2 py-1.5 font-semibold">Role</th>
+                    <th className="px-2 py-1.5 font-semibold">Line status</th>
                     <th className="px-2 py-1.5 font-semibold text-right">Amount</th>
                   </tr>
                 </thead>
@@ -229,6 +230,15 @@ export default function CommissionPayoutReviewDrawer({
                       </td>
                       <td className="px-2 py-1.5">{l.settlement_number || "—"}</td>
                       <td className="px-2 py-1.5">{l.role || "—"}</td>
+                      <td className="px-2 py-1.5">
+                        {l.settlement_status === "in_payout"
+                          ? "In payout"
+                          : l.settlement_status === "settled"
+                            ? "Settled"
+                            : l.settlement_status === "approved"
+                              ? "Approved"
+                              : l.settlement_status || "—"}
+                      </td>
                       <td className="px-2 py-1.5 text-right tabular-nums">
                         ₹{fmtMoney(l.line_net_amount ?? l.amount)}
                       </td>
