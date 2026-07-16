@@ -100,6 +100,7 @@ const ROLE_OPTIONS = [
 const STATUS_CHIPS = [
   { value: "in_settlement", label: "In settlement" },
   { value: "approved", label: "Approved" },
+  { value: "in_payout", label: "In payout" },
   { value: "settled", label: "Settled" },
 ];
 
