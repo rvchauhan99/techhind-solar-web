@@ -125,7 +125,19 @@ export default function RoleModuleListPage() {
         filterType: "text",
         filterKey: "module_name",
         defaultFilterOperator: "contains",
-        render: (row) => row.module?.name || row.module_id || "-",
+        render: (row) => {
+          const name = row.module?.name || row.module_id || "-";
+          const key = row.module?.key;
+          if (!key) return name;
+          return (
+            <span title={key}>
+              {name}
+              <span className="text-muted-foreground ml-1 text-xs font-mono">
+                · {key}
+              </span>
+            </span>
+          );
+        },
       },
       {
         field: "can_create",
