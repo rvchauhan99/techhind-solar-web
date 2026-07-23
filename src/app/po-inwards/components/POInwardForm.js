@@ -910,6 +910,7 @@ export default function POInwardForm({
                                 onChange={handleChange}
                                 error={!!errors.supplier_invoice_date}
                                 helperText={errors.supplier_invoice_date}
+                                maxDate={new Date().toISOString().split("T")[0]}
                             />
 
 
