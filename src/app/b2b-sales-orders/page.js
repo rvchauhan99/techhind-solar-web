@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Tooltip } from "@mui/material";
 import {
   IconFileDescription,
   IconPencil,
@@ -67,6 +68,8 @@ const COLUMN_FILTER_KEYS = [
   "ship_to_name_op",
   "planned_warehouse_name",
   "planned_warehouse_name_op",
+  "remarks",
+  "remarks_op",
   "status",
   "grand_total",
   "grand_total_op",
@@ -375,6 +378,24 @@ export default function B2bSalesOrdersPage() {
         filterKey: "planned_warehouse_name",
         defaultFilterOperator: "contains",
         render: (row) => row.plannedWarehouse?.name || "-",
+      },
+      {
+        field: "remarks",
+        label: "Remarks",
+        filterType: "text",
+        filterKey: "remarks",
+        defaultFilterOperator: "contains",
+        width: 120,
+        maxWidth: 120,
+        render: (row) => {
+          const text = String(row.remarks ?? "").trim();
+          if (!text) return <span className="text-xs text-muted-foreground">-</span>;
+          return (
+            <Tooltip title={text} placement="top" enterDelay={400}>
+              <span className="text-xs truncate block max-w-[120px] cursor-default">{text}</span>
+            </Tooltip>
+          );
+        },
       },
       {
         field: "status",

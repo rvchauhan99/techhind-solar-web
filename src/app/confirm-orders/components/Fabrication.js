@@ -482,6 +482,7 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
                                 error={!!fieldErrors.fabrication_start_date}
                                 helperText={fieldErrors.fabrication_start_date}
                                 disabled={disabled}
+                                maxDate={moment().format("YYYY-MM-DD")}
                             />
                             <DateField
                                 name="fabrication_end_date"
@@ -493,6 +494,7 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
                                 error={!!fieldErrors.fabrication_end_date}
                                 helperText={fieldErrors.fabrication_end_date}
                                 disabled={disabled}
+                                maxDate={moment().format("YYYY-MM-DD")}
                             />
                         </FormGrid>
 

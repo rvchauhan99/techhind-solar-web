@@ -35,6 +35,14 @@ export default function SiteVisitForm({
   onClearServerError = () => { },
   onCancel = null,
 }) {
+  const todayYYYYMMDD = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   const [formData, setFormData] = useState({
     inquiry_id: "",
     isFromInquiry: false,
@@ -52,7 +60,7 @@ export default function SiteVisitForm({
     inverter_size_capacity: "",
     earthing_cable_size_location: "",
     do_not_send_message: false,
-    visit_date: "",
+    visit_date: todayYYYYMMDD(),
     visited_by: "",
     visit_assign_to: "",
     schedule_on: "",
@@ -97,7 +105,9 @@ export default function SiteVisitForm({
         inverter_size_capacity: defaultValues.inverter_size_capacity ?? "",
         earthing_cable_size_location: defaultValues.earthing_cable_size_location ?? "",
         do_not_send_message: defaultValues.do_not_send_message ?? false,
-        visit_date: defaultValues.visit_date ?? "",
+        visit_date: defaultValues.visit_date
+          ? String(defaultValues.visit_date).slice(0, 10)
+          : todayYYYYMMDD(),
         visited_by: defaultValues.visited_by ?? "",
         visit_assign_to: defaultValues.visit_assign_to ?? "",
         schedule_on: defaultValues.schedule_on ?? "",
@@ -259,6 +269,11 @@ export default function SiteVisitForm({
       if (!formData.next_reminder_date) {
         validationErrors.next_reminder_date = "Next reminder date is required";
       }
+      if (!formData.visit_date) {
+        validationErrors.visit_date = "Visit date is required";
+      } else if (formData.visit_date > todayYYYYMMDD()) {
+        validationErrors.visit_date = "Visit date cannot be in the future";
+      }
       if (!files.visit_photo) {
         validationErrors.visit_photo = "Visit photo is required";
       }
@@ -385,7 +400,11 @@ export default function SiteVisitForm({
                     return newErrors;
                   });
                 } else {
-                  // When switching to Visited, clear schedule errors
+                  // When switching to Visited, clear schedule errors and default visit_date
+                  setFormData((prev) => ({
+                    ...prev,
+                    visit_date: prev.visit_date || todayYYYYMMDD(),
+                  }));
                   setErrors((prev) => {
                     const newErrors = { ...prev };
                     delete newErrors.schedule_on;
@@ -560,6 +579,20 @@ export default function SiteVisitForm({
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
                 loading={loadingInquiries}
+              />
+            </Grid>
+
+            {/* Visit Date - transaction date (today default, no future) */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <DateField
+                name="visit_date"
+                label="Visit Date"
+                value={formData.visit_date}
+                onChange={handleChange}
+                required
+                error={!!errors.visit_date}
+                helperText={errors.visit_date}
+                maxDate={todayYYYYMMDD()}
               />
             </Grid>
 

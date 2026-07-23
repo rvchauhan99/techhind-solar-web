@@ -98,8 +98,8 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
     const [permissionCheckLoading, setPermissionCheckLoading] = useState(true);
     const [approvalRequiredConfig, setApprovalRequiredConfig] = useState(false);
     const [formData, setFormData] = useState({
-        installation_start_date: "",
-        installation_end_date: "",
+        installation_start_date: moment().format("YYYY-MM-DD"),
+        installation_end_date: moment().format("YYYY-MM-DD"),
         inverter_installation_location: "",
         earthing_type: "",
         wiring_type: "",
@@ -157,13 +157,14 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
             setProductNamesById(deliveredSerials?.product_names ?? {});
 
             if (data) {
+                const todayStr = moment().format("YYYY-MM-DD");
                 setFormData({
                     installation_start_date: data.installation_start_date
                         ? moment(data.installation_start_date).format("YYYY-MM-DD")
-                        : "",
+                        : todayStr,
                     installation_end_date: data.installation_end_date
                         ? moment(data.installation_end_date).format("YYYY-MM-DD")
-                        : "",
+                        : todayStr,
                     inverter_installation_location: data.inverter_installation_location || "",
                     earthing_type: data.earthing_type || "",
                     wiring_type: data.wiring_type || "",
@@ -190,6 +191,12 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                 }
                 setInstallationScans(scans);
             } else {
+                const todayStr = moment().format("YYYY-MM-DD");
+                setFormData((prev) => ({
+                    ...prev,
+                    installation_start_date: todayStr,
+                    installation_end_date: todayStr,
+                }));
                 setImages({});
                 setChecklist(DEFAULT_CHECKLIST);
                 setInstallationScans({});
@@ -1829,6 +1836,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 onChange={handleInputChange}
                                 fullWidth
                                 disabled={disabled}
+                                maxDate={moment().format("YYYY-MM-DD")}
                             />
                             <DateField
                                 name="installation_end_date"
@@ -1837,6 +1845,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
                                 onChange={handleInputChange}
                                 fullWidth
                                 disabled={disabled}
+                                maxDate={moment().format("YYYY-MM-DD")}
                             />
                             <AutocompleteField
                                 name="inverter_installation_location"
