@@ -1,7 +1,12 @@
 "use client";
 
-import { DashboardPageContent } from "../home/page";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
+import { DashboardPageContent } from "./DashboardPageContent";
 
 export default function ERPDashboardPage() {
-    return <DashboardPageContent dashboardApiBase="/order" />;
+    return (
+        <ProtectedRoute>
+            <DashboardPageContent dashboardApiBase="/home" />
+        </ProtectedRoute>
+    );
 }

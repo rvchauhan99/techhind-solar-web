@@ -1,7 +1,7 @@
 // context/AuthContext.js
 "use client";
 
-import { createContext, useState, useEffect, useCallback } from "react";
+import { createContext, useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import apiClient from "@/services/apiClient";
 import roleModuleService from "@/services/roleModuleService";
@@ -24,6 +24,8 @@ export default function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  /** Ensures modules/RBAC refresh once per session after cache hydrate (so migrations appear without re-login). */
+  const profileRefreshedRef = useRef(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -94,7 +96,9 @@ export default function AuthProvider({ children }) {
         return;
       }
 
-      // Non-auth routes: use cached profile when token + profile exist; else fetch
+      // Non-auth routes: hydrate from cache for fast paint, then refresh profile
+      // once per session so module/role_modules changes (e.g. Dashboard) appear
+      // without requiring logout.
       if (typeof window !== "undefined") {
         const accessToken = getAccessToken();
         const storedProfile = getStoredProfile();
@@ -102,7 +106,7 @@ export default function AuthProvider({ children }) {
           setUser(storedProfile);
           setRbacConfigs(mergeRbacConfigs(storedProfile.rbac_configs));
           setLoading(false);
-          return;
+          if (profileRefreshedRef.current) return;
         }
       }
       try {
@@ -112,6 +116,7 @@ export default function AuthProvider({ children }) {
           setUser(profile);
           setRbacConfigs(mergeRbacConfigs(profile.rbac_configs));
           setStoredProfile(profile);
+          profileRefreshedRef.current = true;
         } else {
           setUser(null);
         }
@@ -131,6 +136,7 @@ export default function AuthProvider({ children }) {
     } catch (err) {
       console.error("Logout failed", err);
     } finally {
+      profileRefreshedRef.current = false;
       clearStoredProfile();
       clearTokens();
       setUser(null);
