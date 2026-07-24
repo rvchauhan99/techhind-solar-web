@@ -63,14 +63,21 @@ const ALL_FILTER_KEYS = [
 
 const EMPTY_PAGE_FILTERS = Object.fromEntries(ALL_FILTER_KEYS.map((k) => [k, ""]));
 
-// ── Date quick presets ─────────────────────────────────────────────────────
+/** Local calendar YYYY-MM-DD (avoids UTC shift from toISOString near midnight IST) */
+function localYmd(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// ── Date quick presets (work-queue semantics) ─────────────────────────────
 const DATE_PRESETS = [
   {
     label: "Today",
-    fn: () => {
-      const d = new Date().toISOString().slice(0, 10);
-      return { next_follow_up_from: d, next_follow_up_to: d, reminder_view: "" };
-    },
+    // Due today OR fresh leads (no Next FU + never called)
+    fn: () => ({ reminder_view: "today", next_follow_up_from: "", next_follow_up_to: "" }),
   },
   {
     label: "Overdue",
@@ -81,13 +88,14 @@ const DATE_PRESETS = [
     fn: () => {
       const d = new Date();
       d.setDate(d.getDate() + 1);
-      const s = d.toISOString().slice(0, 10);
+      const s = localYmd(d);
       return { next_follow_up_from: s, next_follow_up_to: s, reminder_view: "" };
     },
   },
   {
     label: "All",
-    fn: () => ({ reminder_view: "all", next_follow_up_from: "", next_follow_up_to: "" }),
+    // No date constraint; clear reminder_view so no chip noise
+    fn: () => ({ reminder_view: "", next_follow_up_from: "", next_follow_up_to: "" }),
   },
 ];
 
@@ -138,42 +146,45 @@ function buildApiFilters(filters = {}) {
 export default function MarketingLeadFollowupPage() {
   const router = useRouter();
 
-  // ── Filter state ─────────────────────────────────────────────────────
-  const [filters, setFilters] = useState(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    return { ...EMPTY_PAGE_FILTERS, next_follow_up_from: todayStr, next_follow_up_to: todayStr };
-  });
+  // ── Filter / pagination state ───────────────────────────────────────
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_PAGE_FILTERS,
+    reminder_view: "today",
+  }));
   const [activePreset, setActivePreset] = useState("Today");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
 
   const handlePreset = useCallback((preset) => {
     const vals = preset.fn();
     setFilters((prev) => ({ ...prev, ...vals }));
     setActivePreset(preset.label);
+    setPage(1);
   }, []);
 
   const handleFilterApply = useCallback((panelValues) => {
     // panelValues come from LeadListFilterPanel — merge with our extra keys
     setFilters((prev) => ({ ...prev, ...panelValues }));
     setActivePreset(null); // clear preset label when manually filtering
+    setPage(1);
   }, []);
 
   const handleFilterClear = useCallback(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    setFilters({ ...EMPTY_PAGE_FILTERS, next_follow_up_from: todayStr, next_follow_up_to: todayStr });
+    setFilters({ ...EMPTY_PAGE_FILTERS, reminder_view: "today" });
     setActivePreset("Today");
+    setPage(1);
   }, []);
 
   // Extra fields local state (managed here, injected into panel as controlled fields)
   const handleExtraChange = useCallback((key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setActivePreset(null);
+    setPage(1);
   }, []);
 
   // ── Table / modal state ───────────────────────────────────────────────
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
@@ -633,13 +644,21 @@ export default function MarketingLeadFollowupPage() {
             filterParams={apiFilters}
             page={page}
             limit={limit}
+            onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+            onRowsPerPageChange={(v) => {
+              setLimit(v);
+              setPage(1);
+            }}
           />
           <PaginationControls
             page={page - 1}
             rowsPerPage={limit}
             totalCount={totalCount}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={setLimit}
+            onRowsPerPageChange={(v) => {
+              setLimit(v);
+              setPage(1);
+            }}
             rowsPerPageOptions={[20, 50, 100, 200]}
           />
         </div>
