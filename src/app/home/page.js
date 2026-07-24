@@ -1,299 +1,233 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
-import KPICards from "../erp-dashboard/components/KPICards";
-import PipelineBoard from "../erp-dashboard/components/PipelineBoard";
-import AlertPanel from "../erp-dashboard/components/AlertPanel";
-import OrdersTable from "../erp-dashboard/components/OrdersTable";
-import AnalyticsCharts from "../erp-dashboard/components/AnalyticsCharts";
-import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
-import OrderListFilterPanel, {
-    EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES,
-    DATE_FILTER_FIELD_OPTIONS,
-} from "@/components/common/OrderListFilterPanel";
-import { IconCalendar, IconRefresh } from "@tabler/icons-react";
-import { Button } from "@/components/ui/button";
-import Select, { MenuItem } from "@/components/common/Select";
+import { useMemo, useState, useEffect } from "react";
+import Link from "next/link";
+import { useAuth } from "@/hooks/useAuth";
+import { getIcon } from "@/utils/iconMapper";
+import { IconArrowRight, IconCircle, IconApps, IconSearch } from "@tabler/icons-react";
 
-const DATE_PRESETS = [
-    { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
-    { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: m.toISOString().split("T")[0], order_date_to: e.toISOString().split("T")[0] }; } },
-    { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
-    { label: "Last 30 Days", fn: () => { const d = new Date(), p = new Date(); p.setDate(p.getDate() - 30); return { order_date_from: p.toISOString().split("T")[0], order_date_to: d.toISOString().split("T")[0] }; } },
-    { label: "Last 6M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 6); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
-    { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
-];
-
-const DEFAULT_DATE_PRESET_LABEL = "Last 6M";
-
-function getInitialHomeFilters() {
-    const preset = DATE_PRESETS.find((p) => p.label === DEFAULT_DATE_PRESET_LABEL);
-    const dates = preset ? preset.fn() : { order_date_from: "", order_date_to: "" };
-    return {
-        ...ORDER_FILTER_EMPTY_VALUES,
-        ...dates,
-        status: "confirmed",
-        current_stage_key: "",
-        date_filter_field: "order_date",
-    };
+function getGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-/** Maps dashboard filters to API `kpi_scope` and KPI strip layout. */
-export function deriveHomeKpiScope(filters) {
-    const stage = String(filters?.current_stage_key ?? "").trim();
-    const st = filters?.status;
-    if (stage === "payment_outstanding") return "completed";
-    const customStage = stage && stage !== "order_completed";
-    if (customStage) return "all";
-    if (st === "pending" && !stage) return "pending";
-    if (st === "confirmed" && !stage) return "active";
-    if (st === "all" && stage === "order_completed") return "completed";
-    if (st === "cancelled" && !stage) return "cancelled";
-    if (st === "all" && !stage) return "all";
-    return "all";
+function flattenLeafModules(items, parents = []) {
+  const result = [];
+  if (!items?.length) return result;
+  for (const item of items) {
+    const pathNames = [...parents, item.name].filter(Boolean);
+    if (item.submodules?.length) {
+      result.push(...flattenLeafModules(item.submodules, pathNames));
+      continue;
+    }
+    if (item.route) {
+      result.push({
+        id: item.id,
+        name: item.name,
+        route: item.route,
+        icon: item.icon,
+        group: parents[0] || null,
+      });
+    }
+  }
+  return result;
 }
 
-export function DashboardPageContent({ dashboardApiBase = "/order" }) {
-    const [drawerOpen, setDrawerOpen] = useState(false);
-    const [selectedOrder, setSelectedOrder] = useState(null);
-    const [filters, setFilters] = useState(getInitialHomeFilters());
-    const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-    const [activePreset, setActivePreset] = useState(DEFAULT_DATE_PRESET_LABEL);
-    const filterPanelRef = useRef(null);
-    const ordersTableSectionRef = useRef(null);
+export default function HomeLandingPage() {
+  const { user, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [timeState, setTimeState] = useState({ date: "", time: "" });
 
-    const handleOpenDrawer = (order) => {
-        setSelectedOrder(order);
-        setDrawerOpen(true);
+  useEffect(() => {
+    setMounted(true);
+    
+    // Set initial time
+    const updateTime = () => {
+      const now = new Date();
+      setTimeState({
+        date: now.toLocaleDateString(undefined, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+        time: now.toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      });
     };
+    
+    updateTime();
+    // Optional: update time every minute
+    const interval = setInterval(updateTime, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-    const handleApplyFilters = (next) => {
-        setFilters((prev) => ({ ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) }));
-        setFilterPanelOpen(false);
-        setActivePreset(null);
-    };
+  const greeting = useMemo(() => getGreeting(), []);
+  const displayName = user?.name?.trim() || user?.email || "there";
+  const roleName = user?.role?.name || null;
 
-    const handleClearFilters = () => {
-        setFilters(getInitialHomeFilters());
-        setActivePreset(DEFAULT_DATE_PRESET_LABEL);
-    };
+  const allQuickLinks = useMemo(() => {
+    const leaves = flattenLeafModules(user?.modules || []);
+    return leaves;
+  }, [user?.modules]);
 
-    const handlePreset = (preset) => {
-        const dates = preset.fn();
-        setFilters((prev) => ({ ...prev, ...dates }));
-        setActivePreset(preset.label);
-    };
-
-    const handleDateFilterFieldChange = (value) => {
-        setFilters((prev) => ({ ...prev, date_filter_field: value || "order_date" }));
-        setActivePreset(null);
-    };
-
-    const dateFilterFieldLabel =
-        DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === (filters.date_filter_field || "order_date"))?.label
-        || "Order Date";
-
-    const handleOpenFilterFromTable = () => {
-        setFilterPanelOpen(true);
-        if (filterPanelRef.current) {
-            filterPanelRef.current.scrollIntoView({
-                behavior: "smooth",
-                block: "start",
-            });
-        }
-    };
-
-    const handleCardClick = (payload) => {
-        handleApplyFilters({ ...payload });
-        if (payload?.current_stage_key === "payment_outstanding" && ordersTableSectionRef.current) {
-            setTimeout(() => {
-                ordersTableSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 100);
-        }
-    };
-
-    const handleStageClick = (stageKey, payload) => {
-        handleApplyFilters({ current_stage_key: stageKey });
-    };
-
-    const homeKpiScope = useMemo(() => deriveHomeKpiScope(filters), [filters]);
-    const suppressPipelineAndAlerts =
-        homeKpiScope === "pending" || homeKpiScope === "cancelled";
-
-    return (
-        <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-            {/* Main Content Container - 1440px max width constrained layout for enterprise standard check */}
-            <div className="mx-auto max-w-[1440px] px-3 py-3 pb-8 space-y-2.5">
-
-                {/* Header Title + Inline Filter Panel */}
-                <div ref={filterPanelRef}>
-                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                        <div>
-                            <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">Operations Dashboard</h1>
-                            <p className="text-[11px] text-slate-500">
-                                Enterprise view of solar pipeline, orders, and fulfillment.
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400">
-                                Status:
-                            </span>
-                            {[
-                                {
-                                    value: "pending",
-                                    label: "Pending",
-                                    payload: { status: "pending", current_stage_key: "" },
-                                },
-                                {
-                                    value: "active",
-                                    label: "Active",
-                                    payload: { status: "confirmed", current_stage_key: "" },
-                                },
-                                {
-                                    value: "completed",
-                                    label: "Completed",
-                                    payload: { status: "all", current_stage_key: "order_completed" },
-                                },
-                                {
-                                    value: "cancelled",
-                                    label: "Cancelled",
-                                    payload: { status: "cancelled", current_stage_key: "" },
-                                },
-                                {
-                                    value: "all",
-                                    label: "All",
-                                    payload: { status: "all", current_stage_key: "" },
-                                },
-                            ].map((s) => {
-                                const stage = String(filters.current_stage_key ?? "").trim();
-                                const st = filters.status;
-                                const isAllTab = s.value === "all";
-                                const isSelected = isAllTab
-                                    ? st === "all" && !stage
-                                    : s.value === "pending"
-                                      ? st === "pending" && !stage
-                                      : s.value === "active"
-                                        ? st === "confirmed" && !stage
-                                        : s.value === "cancelled"
-                                          ? st === "cancelled" && !stage
-                                          : st === "all" && stage === "order_completed";
-                                return (
-                                    <button
-                                        key={s.value}
-                                        onClick={() => handleApplyFilters(s.payload)}
-                                        className={[
-                                            "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
-                                            isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
-                                        ].join(" ")}
-                                    >
-                                        {s.label}
-                                    </button>
-                                );
-                            })}
-                            <div className="flex items-center gap-1 ml-0.5">
-                                <span className="text-[10px] text-slate-400 whitespace-nowrap">Filtered by:</span>
-                                <Select
-                                    name="date_filter_field"
-                                    value={filters.date_filter_field || "order_date"}
-                                    onChange={(e) => handleDateFilterFieldChange(e.target.value)}
-                                    className="min-w-[9.5rem]"
-                                    size="small"
-                                >
-                                    {DATE_FILTER_FIELD_OPTIONS.map((opt) => (
-                                        <MenuItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </div>
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400" title={`Quick range for ${dateFilterFieldLabel}`}>
-                                <IconCalendar size={11} /> Quick:
-                            </span>
-                            {DATE_PRESETS.map((p) => (
-                                <button
-                                    key={p.label}
-                                    onClick={() => handlePreset(p)}
-                                    className={[
-                                        "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
-                                        activePreset === p.label
-                                            ? "bg-primary text-primary-foreground border-primary"
-                                            : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
-                                    ].join(" ")}
-                                >
-                                    {p.label}
-                                </button>
-                            ))}
-                            <div className="h-4 w-px bg-slate-200 mx-0.5" />
-                            <Button size="sm" variant="outline" onClick={handleClearFilters} className="h-7 text-xs gap-1 px-2">
-                                <IconRefresh size={11} /> Reset
-                            </Button>
-                        </div>
-                    </div>
-
-                    <OrderListFilterPanel
-                        open={filterPanelOpen}
-                        onToggle={setFilterPanelOpen}
-                        values={filters}
-                        onApply={handleApplyFilters}
-                        onClear={handleClearFilters}
-                        defaultOpen={false}
-                    />
-                </div>
-
-                {!suppressPipelineAndAlerts && (
-                    <AlertPanel filters={filters} dashboardApiBase={dashboardApiBase} />
-                )}
-
-                <KPICards
-                    filters={filters}
-                    dashboardApiBase={dashboardApiBase}
-                    onCardClick={handleCardClick}
-                    kpiScope={homeKpiScope}
-                />
-
-                {!suppressPipelineAndAlerts && (
-                    <div className="pt-1">
-                        <PipelineBoard
-                            filters={filters}
-                            onOrderSelect={handleOpenDrawer}
-                            onStageClick={handleStageClick}
-                            dashboardApiBase={dashboardApiBase}
-                        />
-                    </div>
-                )}
-
-                {/* CSS Grid for 12 columns layout to hold main content below */}
-                {/* Section 5 & 4 */}
-                <div className="grid grid-cols-12 gap-3 pt-1">
-
-                    {/* Section 5 - Analytics Section (Spans 12 columns by default, nested grid inside) */}
-                    <div className="col-span-12">
-                        <AnalyticsCharts filters={filters} dashboardApiBase={dashboardApiBase} />
-                    </div>
-
-                    {/* Section 4 - Orders Table (Data Heavy) */}
-                    <div className="col-span-12" ref={ordersTableSectionRef}>
-                        <OrdersTable
-                            filters={filters}
-                            onRowClick={handleOpenDrawer}
-                            onOpenFilter={handleOpenFilterFromTable}
-                            dashboardApiBase={dashboardApiBase}
-                        />
-                    </div>
-
-                </div>
-            </div>
-
-            {/* Order Details Drawer */}
-            <OrderDetailsDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-                order={selectedOrder}
-            />
-        </div>
+  const quickLinks = useMemo(() => {
+    if (!searchQuery.trim()) return allQuickLinks;
+    const lowerQuery = searchQuery.toLowerCase();
+    return allQuickLinks.filter(
+      (link) =>
+        link.name.toLowerCase().includes(lowerQuery) ||
+        link.group?.toLowerCase().includes(lowerQuery)
     );
-}
+  }, [allQuickLinks, searchQuery]);
 
-export default function HomePage() {
-    return <DashboardPageContent dashboardApiBase="/home" />;
+  if (loading && !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+          <p className="text-sm text-slate-500 font-medium animate-pulse">Loading workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen bg-[#f8fafc] overflow-x-hidden font-sans selection:bg-primary/20 selection:text-primary">
+      {/* Dynamic Background Elements */}
+      <div className="absolute top-0 left-0 w-full h-[60vh] bg-gradient-to-b from-primary/[0.06] via-primary/[0.02] to-transparent pointer-events-none" />
+      <div className="absolute -top-[15%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/[0.04] blur-[100px] pointer-events-none" />
+      <div className="absolute top-[5%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#1b365d]/[0.03] blur-[100px] pointer-events-none" />
+      
+      <div className="relative mx-auto max-w-[1440px] px-6 py-10 md:py-16 space-y-12">
+        {/* Header Section */}
+        <header className={`transition-all duration-700 ease-out transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-white shadow-sm shadow-primary/5">
+                <span className="text-xs font-bold tracking-widest text-primary uppercase">
+                  {roleName ? `${roleName} Workspace` : "Workspace"}
+                </span>
+              </div>
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+                {greeting}, <span className="text-primary">{displayName}</span> <span className="inline-block animate-wave origin-[70%_70%]">👋</span>
+              </h1>
+              <p className="text-base text-slate-600 max-w-2xl leading-relaxed font-medium">
+                Welcome to your personalized dashboard. Access your authorized modules seamlessly below.
+              </p>
+            </div>
+            
+            <div className={`hidden md:flex flex-col items-end transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+              <div className="text-3xl font-light text-slate-800 tracking-tight">
+                {timeState.time}
+              </div>
+              <div className="text-sm font-medium text-slate-500 mt-1">
+                {timeState.date}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Quick Access Section */}
+        <section className={`transition-all duration-700 ease-out delay-150 transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-xl text-primary shadow-sm border border-slate-100">
+                <IconApps size={22} stroke={1.5} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Quick Access
+                </h2>
+                <p className="text-sm text-slate-500 font-medium">
+                  {allQuickLinks.length} available module{allQuickLinks.length === 1 ? "" : "s"}
+                </p>
+              </div>
+            </div>
+            
+            {allQuickLinks.length > 0 && (
+              <div className="relative group max-w-sm w-full sm:w-auto">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                  <IconSearch size={18} stroke={1.5} className="text-slate-400 group-focus-within:text-primary transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search modules..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:w-72 pl-10 pr-4 py-2.5 bg-white/80 backdrop-blur-md border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-sm placeholder:text-slate-400"
+                />
+              </div>
+            )}
+          </div>
+
+          {allQuickLinks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 px-4 bg-white/60 backdrop-blur-md border border-slate-200 border-dashed rounded-[2rem]">
+              <div className="w-20 h-20 mb-6 rounded-full bg-slate-50 flex items-center justify-center shadow-inner border border-slate-100">
+                <IconCircle size={32} stroke={1.5} className="text-slate-400" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">No modules available</h3>
+              <p className="text-sm text-slate-500 max-w-sm text-center font-medium leading-relaxed">
+                You don't have access to any modules yet. Please contact your system administrator to assign roles and modules.
+              </p>
+            </div>
+          ) : quickLinks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 px-4 bg-white/40 rounded-3xl border border-slate-100">
+              <p className="text-slate-500 font-medium mb-3">No modules found matching "<span className="text-slate-800">{searchQuery}</span>"</p>
+              <button 
+                onClick={() => setSearchQuery("")}
+                className="text-sm text-white bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
+              {quickLinks.map((item, index) => {
+                const IconComponent = getIcon(item.icon) || IconCircle;
+                const delay = Math.min(index * 30, 400); // Staggered animation delay
+                
+                return (
+                  <Link
+                    key={`${item.id || item.route}-${item.name}`}
+                    href={item.route}
+                    style={{ transitionDelay: `${mounted ? delay : 0}ms` }}
+                    className={`group relative flex flex-col p-5 bg-white/90 backdrop-blur-md border border-white shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,130,59,0.12)] rounded-[1.25rem] hover:-translate-y-1.5 transition-all duration-300 transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'}`}
+                  >
+                    {/* Hover Glow Effect */}
+                    <div className="absolute inset-0 rounded-[1.25rem] bg-gradient-to-br from-primary/0 via-primary/0 to-primary/[0.03] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    
+                    <div className="relative flex items-start justify-between mb-5">
+                      <div className="flex items-center justify-center w-12 h-12 rounded-[14px] bg-slate-50 text-slate-600 group-hover:bg-primary group-hover:text-white group-hover:shadow-lg group-hover:shadow-primary/30 group-hover:scale-110 transition-all duration-300">
+                        <IconComponent size={24} stroke={1.5} />
+                      </div>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center bg-transparent group-hover:bg-primary/10 transition-colors duration-300">
+                        <IconArrowRight size={18} stroke={2} className="text-slate-300 group-hover:text-primary transform -translate-x-3 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300" />
+                      </div>
+                    </div>
+                    
+                    <div className="relative mt-auto">
+                      <h3 className="text-[15px] font-bold text-slate-800 leading-tight group-hover:text-primary transition-colors">
+                        {item.name}
+                      </h3>
+                      {item.group && (
+                        <p className="text-xs font-medium text-slate-400 mt-1.5 line-clamp-1 group-hover:text-slate-500 transition-colors">
+                          {item.group}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
 }
