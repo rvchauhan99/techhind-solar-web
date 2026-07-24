@@ -199,6 +199,7 @@ export default function LeadListFilterPanel({
       next_follow_up_from: "FU From",
       next_follow_up_to: "FU To",
       assigned_to: "Assigned",
+      reminder_view: "Queue",
     };
 
     return Object.entries(values || {})
