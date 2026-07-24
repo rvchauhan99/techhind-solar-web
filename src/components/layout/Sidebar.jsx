@@ -14,6 +14,7 @@ import {
   IconCircle,
   IconBell,
   IconMaximize,
+  IconHome,
 } from "@tabler/icons-react";
 import {
   DropdownMenu,
@@ -331,6 +332,19 @@ export default function Sidebar({
           {/* Nav: icon only, top-level */}
           <nav className="mb-4 flex flex-1 flex-col items-center gap-1">
             <Link
+              href="/home"
+              onClick={() => setSidebarOpen?.(false)}
+              title="Home"
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors border-l-2",
+                pathname === "/home"
+                  ? "bg-[#142847] text-white border-[#00823b]"
+                  : "border-transparent text-blue-100 hover:bg-[#142847] hover:text-white"
+              )}
+            >
+              <IconHome className="h-5 w-5" />
+            </Link>
+            <Link
               href="/search"
               onClick={() => setSidebarOpen?.(false)}
               title="Global search"
@@ -524,6 +538,20 @@ export default function Sidebar({
             </div>
           )}
         </div>
+
+        <Link
+          href="/home"
+          onClick={() => setSidebarOpen?.(false)}
+          className={cn(
+            "mb-3 flex w-full items-center gap-2 rounded-md border-l-4 px-3 py-1.5 text-left text-sm font-medium transition-colors",
+            pathname === "/home"
+              ? "border-[#00823b] bg-[#142847] text-white"
+              : "border-transparent text-blue-100 hover:bg-[#142847] hover:text-white"
+          )}
+        >
+          <IconHome className="h-5 w-5 shrink-0" />
+          <span className="flex-1 truncate">Home</span>
+        </Link>
 
         <Link
           href="/search"
