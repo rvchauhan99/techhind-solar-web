@@ -248,6 +248,10 @@ const iconMap = {
   b2b_sales_orders: IconShoppingCart,
   b2b_shipments: IconTruckDelivery,
   b2b_invoices: IconReceipt2,
+  handshake: IconUsersGroup,
+  event_available: IconCalendarEvent,
+  b2b_leads: IconUsersGroup,
+  b2b_lead_followup: IconCalendarEvent,
 };
 
 /**

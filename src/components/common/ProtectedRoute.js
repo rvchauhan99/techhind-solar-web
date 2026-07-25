@@ -6,7 +6,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { getAllowedRoutes, isPathAllowedByRoutes, normalizePath } from "@/lib/permissionUtils";
 
 /** Set to true to skip frontend module check (only backend will enforce). Revert to false when done testing. */
-const SKIP_FRONTEND_MODULE_CHECK = true;
+const SKIP_FRONTEND_MODULE_CHECK = false;
 
 /** Paths that do not require a module permission (always allowed when authenticated). */
 const PATH_WHITELIST = new Set([
@@ -17,6 +17,7 @@ const PATH_WHITELIST = new Set([
   "/marketing-leads/view",
   "/marketing-leads/analysis",
   "/marketing-leads/upload",
+  "/b2b-leads/analysis",
   "/access-denied",
 ]);
 
