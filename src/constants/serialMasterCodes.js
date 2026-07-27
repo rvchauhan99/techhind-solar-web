@@ -10,6 +10,7 @@ export const SERIAL_MASTER_CODE_OPTIONS = [
   { value: "CUSTOMERORDER", label: "CUSTOMERORDER — Customer Order" },
   { value: "CUSTOMERINQUIRY", label: "CUSTOMERINQUIRY — Customer Inquiry" },
   { value: "CUSTOMERLEAD", label: "CUSTOMERLEAD — Marketing Lead" },
+  { value: "B2BLEAD", label: "B2BLEAD — B2B Lead" },
   { value: "B2BSHIPMENT", label: "B2BSHIPMENT — B2B Shipment" },
   { value: "B2BINVOICE", label: "B2BINVOICE — B2B Invoice" },
   { value: "B2BSALESORDER", label: "B2BSALESORDER — B2B Sales Order" },

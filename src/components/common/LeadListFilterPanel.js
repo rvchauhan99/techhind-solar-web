@@ -69,6 +69,22 @@ function getDefaultFilterLast30Days() {
 
 const DEFAULT_FILTER_LAST_30_DAYS = getDefaultFilterLast30Days();
 
+const DEFAULT_STATUS_OPTIONS = [
+  { value: "new", label: "New" },
+  { value: "viewed", label: "Viewed" },
+  { value: "follow_up", label: "Follow Up" },
+  { value: "converted", label: "Converted" },
+  { value: "not_interested", label: "Not Interested" },
+  { value: "junk", label: "Junk" },
+];
+
+const DEFAULT_PRIORITY_OPTIONS = [
+  { value: "hot", label: "Hot" },
+  { value: "high", label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low", label: "Low" },
+];
+
 export default function LeadListFilterPanel({
   open: controlledOpen,
   onToggle,
@@ -85,6 +101,10 @@ export default function LeadListFilterPanel({
    * hideFields - array of field names to hide from the panel (e.g. ["created_from","created_to"]).
    */
   hideFields = [],
+  /** Override status MultiSelect options (e.g. B2B statuses). */
+  statusOptions = DEFAULT_STATUS_OPTIONS,
+  /** Override priority MultiSelect options (e.g. B2B without hot). */
+  priorityOptions = DEFAULT_PRIORITY_OPTIONS,
 }) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
@@ -306,116 +326,114 @@ export default function LeadListFilterPanel({
           )}
 
           {/* Campaign Filter (Async MultiSelect) */}
-          <MultiSelect
-            name="campaign_id"
-            label="Campaign"
-            placeholder="All campaigns"
-            options={[]}
-            value={
-              Array.isArray(localValues.campaign_id)
-                ? localValues.campaign_id
-                : localValues.campaign_id
-                  ? [localValues.campaign_id]
-                  : []
-            }
-            onChange={(e) => handleChange("campaign_id", e.target.value)}
-            disabled={loadingOptions}
-            searchable
-            searchPlaceholder="Search campaigns..."
-            asyncLoadOptions={(q, id) =>
-              mastersService
-                .getReferenceOptionsSearch("campaign.model", { q, id, limit: id ? 1 : 20 })
-                .then((res) => {
-                  const data = res?.result ?? res?.data ?? res;
-                  return Array.isArray(data)
-                    ? data.map((c) => ({
-                        value: String(c.id),
-                        label: c.name ?? `Campaign #${c.id}`,
-                      }))
-                    : [];
-                })
-            }
-          />
+          {!hideFields.includes("campaign_id") && (
+            <MultiSelect
+              name="campaign_id"
+              label="Campaign"
+              placeholder="All campaigns"
+              options={[]}
+              value={
+                Array.isArray(localValues.campaign_id)
+                  ? localValues.campaign_id
+                  : localValues.campaign_id
+                    ? [localValues.campaign_id]
+                    : []
+              }
+              onChange={(e) => handleChange("campaign_id", e.target.value)}
+              disabled={loadingOptions}
+              searchable
+              searchPlaceholder="Search campaigns..."
+              asyncLoadOptions={(q, id) =>
+                mastersService
+                  .getReferenceOptionsSearch("campaign.model", { q, id, limit: id ? 1 : 20 })
+                  .then((res) => {
+                    const data = res?.result ?? res?.data ?? res;
+                    return Array.isArray(data)
+                      ? data.map((c) => ({
+                          value: String(c.id),
+                          label: c.name ?? `Campaign #${c.id}`,
+                        }))
+                      : [];
+                  })
+              }
+            />
+          )}
 
-          <MultiSelect
-            name="status"
-            label="Status"
-            placeholder="All statuses"
-            options={[
-              { value: "new", label: "New" },
-              { value: "viewed", label: "Viewed" },
-              { value: "follow_up", label: "Follow Up" },
-              { value: "converted", label: "Converted" },
-              { value: "not_interested", label: "Not Interested" },
-              { value: "junk", label: "Junk" },
-            ]}
-            value={
-              Array.isArray(localValues.status)
-                ? localValues.status
-                : localValues.status
-                  ? [localValues.status]
-                  : []
-            }
-            onChange={(e) => handleChange("status", e.target.value)}
-          />
+          {!hideFields.includes("status") && (
+            <MultiSelect
+              name="status"
+              label="Status"
+              placeholder="All statuses"
+              options={statusOptions}
+              value={
+                Array.isArray(localValues.status)
+                  ? localValues.status
+                  : localValues.status
+                    ? [localValues.status]
+                    : []
+              }
+              onChange={(e) => handleChange("status", e.target.value)}
+            />
+          )}
 
-          <MultiSelect
-            name="priority"
-            label="Priority"
-            placeholder="All priorities"
-            options={[
-              { value: "hot", label: "Hot" },
-              { value: "high", label: "High" },
-              { value: "medium", label: "Medium" },
-              { value: "low", label: "Low" },
-            ]}
-            value={
-              Array.isArray(localValues.priority)
-                ? localValues.priority
-                : localValues.priority
-                  ? [localValues.priority]
-                  : []
-            }
-            onChange={(e) => handleChange("priority", e.target.value)}
-          />
+          {!hideFields.includes("priority") && (
+            <MultiSelect
+              name="priority"
+              label="Priority"
+              placeholder="All priorities"
+              options={priorityOptions}
+              value={
+                Array.isArray(localValues.priority)
+                  ? localValues.priority
+                  : localValues.priority
+                    ? [localValues.priority]
+                    : []
+              }
+              onChange={(e) => handleChange("priority", e.target.value)}
+            />
+          )}
 
-          <MultiSelect
-            name="branch_id"
-            label="Branch"
-            placeholder="All branches"
-            options={branchOptions.map((b) => ({
-              value: String(b.id),
-              label: b.name ?? b.label ?? b.id,
-            }))}
-            value={
-              Array.isArray(localValues.branch_id)
-                ? localValues.branch_id
-                : localValues.branch_id
-                  ? [localValues.branch_id]
-                  : []
-            }
-            onChange={(e) => handleChange("branch_id", e.target.value)}
-            disabled={loadingOptions}
-          />
+          {!hideFields.includes("branch_id") && (
+            <MultiSelect
+              name="branch_id"
+              label="Branch"
+              placeholder="All branches"
+              options={branchOptions.map((b) => ({
+                value: String(b.id),
+                label: b.name ?? b.label ?? b.id,
+              }))}
+              value={
+                Array.isArray(localValues.branch_id)
+                  ? localValues.branch_id
+                  : localValues.branch_id
+                    ? [localValues.branch_id]
+                    : []
+              }
+              onChange={(e) => handleChange("branch_id", e.target.value)}
+              disabled={loadingOptions}
+            />
+          )}
 
-          <MultiSelect
-            name="inquiry_source_id"
-            label="Source"
-            placeholder="All sources"
-            options={sourceOptions.map((s) => ({
-              value: String(s.id),
-              label: s.source_name ?? s.label ?? s.name ?? s.id,
-            }))}
-            value={
-              Array.isArray(localValues.inquiry_source_id)
-                ? localValues.inquiry_source_id
-                : localValues.inquiry_source_id
-                  ? [localValues.inquiry_source_id]
-                  : []
-            }
-            onChange={(e) => handleChange("inquiry_source_id", e.target.value)}
-            disabled={loadingOptions}
-          />
+          {!hideFields.includes("inquiry_source_id") && (
+            <MultiSelect
+              name="inquiry_source_id"
+              label="Source"
+              placeholder="All sources"
+              options={sourceOptions.map((s) => ({
+                value: String(s.id),
+                label: s.source_name ?? s.label ?? s.name ?? s.id,
+              }))}
+              value={
+                Array.isArray(localValues.inquiry_source_id)
+                  ? localValues.inquiry_source_id
+                  : localValues.inquiry_source_id
+                    ? [localValues.inquiry_source_id]
+                    : []
+              }
+              onChange={(e) => handleChange("inquiry_source_id", e.target.value)}
+              disabled={loadingOptions}
+            />
+          )}
 
           <MultiSelect
             name="assigned_to"
@@ -453,19 +471,23 @@ export default function LeadListFilterPanel({
             }
           />
 
-          <DateField
-            name="created_from"
-            label="Created From"
-            value={localValues.created_from}
-            onChange={(e) => handleChange("created_from", e.target.value)}
-          />
+          {!hideFields.includes("created_from") && (
+            <DateField
+              name="created_from"
+              label="Created From"
+              value={localValues.created_from}
+              onChange={(e) => handleChange("created_from", e.target.value)}
+            />
+          )}
 
-          <DateField
-            name="created_to"
-            label="Created To"
-            value={localValues.created_to}
-            onChange={(e) => handleChange("created_to", e.target.value)}
-          />
+          {!hideFields.includes("created_to") && (
+            <DateField
+              name="created_to"
+              label="Created To"
+              value={localValues.created_to}
+              onChange={(e) => handleChange("created_to", e.target.value)}
+            />
+          )}
 
           {!hideFields.includes("next_follow_up_from") && (
             <DateField
