@@ -203,6 +203,11 @@ export default function MarketingLeadsAssignPage() {
       render: (row) => row.inquiry_source_name || "-",
     },
     {
+      field: "campaign_name",
+      label: "Campaign",
+      render: (row) => row.campaign_name || "-",
+    },
+    {
       field: "created_at",
       label: "Created On",
       render: (row) =>
@@ -308,6 +313,7 @@ export default function MarketingLeadsAssignPage() {
 
           <div className="flex-1 min-h-[400px] border border-border shadow-sm rounded-md overflow-hidden flex flex-col bg-card relative z-0">
             <PaginatedTable
+              key={JSON.stringify(apiFilters)}
               columns={columns}
               fetcher={fetcher}
               filterParams={apiFilters}
