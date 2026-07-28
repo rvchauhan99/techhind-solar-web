@@ -121,6 +121,8 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         <DetailRow label="Date" value={formatDate(r.quotation_date)} />
         <DetailRow label="Valid Till" value={formatDate(r.valid_till)} />
         <DetailRow label="Created By" value={r.user?.name} />
+        <DetailRow label="Handled By" value={r.inquiry?.handledBy?.name} />
+        <DetailRow label="Inquiry By" value={r.inquiry?.inquiryBy?.name} />
         <DetailRow label="Branch" value={r.branch?.name} />
         <DetailRow label="Inquiry #" value={r.inquiry?.inquiry_number} />
       </div>
