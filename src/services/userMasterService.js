@@ -16,4 +16,7 @@ export const deleteUserMaster = (id) => apiClient.delete(`/user-master/${id}`).t
 export const setUserPassword = (userId, payload) =>
   apiClient.put(`/user-master/${userId}/set-password`, payload).then((r) => r.data);
 
-export default { listUserMasters, exportUserMasters, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, setUserPassword };
+export const unlockUser = (userId) =>
+  apiClient.put(`/user-master/${userId}/unlock`).then((r) => r.data);
+
+export default { listUserMasters, exportUserMasters, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, setUserPassword, unlockUser };

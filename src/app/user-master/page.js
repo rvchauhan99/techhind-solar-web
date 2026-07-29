@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { toast } from "sonner";
-import { IconTrash, IconEye, IconPencil, IconKey } from "@tabler/icons-react";
+import { IconTrash, IconEye, IconPencil, IconKey, IconLockOpen } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -69,6 +69,9 @@ export default function UserListPage() {
   const [resetPasswordNew, setResetPasswordNew] = useState("");
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
   const [resetPasswordErrors, setResetPasswordErrors] = useState({});
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+  const [userToUnlock, setUserToUnlock] = useState(null);
+  const [unlocking, setUnlocking] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -282,6 +285,20 @@ export default function UserListPage() {
                 >
                   <IconKey className="size-4" />
                 </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserToUnlock(row);
+                    setShowUnlockDialog(true);
+                  }}
+                  title="Unlock User"
+                  aria-label="Unlock User"
+                >
+                  <IconLockOpen className="size-4" />
+                </Button>
               </>
             )}
             {(perms || currentPerm)?.can_delete && (
@@ -428,6 +445,23 @@ export default function UserListPage() {
     }
   };
 
+  const handleUnlockConfirm = async () => {
+    if (!userToUnlock) return;
+    setUnlocking(true);
+    try {
+      await userService.unlockUser(userToUnlock.id);
+      setShowUnlockDialog(false);
+      toast.success(`User "${userToUnlock.name}" unlocked successfully`);
+      setUserToUnlock(null);
+    } catch (error) {
+      const errorMsg =
+        error.response?.data?.message || error.response?.data?.error || error.message || "Failed to unlock user";
+      toast.error(errorMsg);
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
   const sidebarContent = useMemo(() => {
     if (loadingRecord) {
       return (
@@ -451,20 +485,33 @@ export default function UserListPage() {
         <p className="text-sm">First Login: {u.first_login ? "Yes" : "No"}</p>
         {u.address && <p className="text-sm text-muted-foreground">{u.address}</p>}
         {currentPerm?.can_update && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full mt-2"
-            onClick={() => {
-              setUserToResetPassword(u);
-              setResetPasswordNew("");
-              setResetPasswordConfirm("");
-              setResetPasswordErrors({});
-              setShowResetPasswordDialog(true);
-            }}
-          >
-            Reset password
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2"
+              onClick={() => {
+                setUserToResetPassword(u);
+                setResetPasswordNew("");
+                setResetPasswordConfirm("");
+                setResetPasswordErrors({});
+                setShowResetPasswordDialog(true);
+              }}
+            >
+              Reset password
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full mt-2"
+              onClick={() => {
+                setUserToUnlock(u);
+                setShowUnlockDialog(true);
+              }}
+            >
+              Unlock user
+            </Button>
+          </>
         )}
       </div>
     );
@@ -619,6 +666,28 @@ export default function UserListPage() {
               onClick={handleDeleteConfirm}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={showUnlockDialog}
+        onOpenChange={(open) => !open && (setShowUnlockDialog(false), setUserToUnlock(null))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlock User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Clear temporary login lock for{" "}
+              <strong>&quot;{userToUnlock?.name}&quot;</strong>? They will be able to sign in
+              immediately if locked due to failed login attempts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={unlocking}>Cancel</AlertDialogCancel>
+            <AlertDialogAction size="sm" loading={unlocking} onClick={handleUnlockConfirm}>
+              Unlock
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
