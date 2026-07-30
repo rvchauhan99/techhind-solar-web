@@ -20,7 +20,8 @@ import {
   IconListDetails,
   IconFileDescription,
   IconCalendarDue,
-  IconInfoCircle
+  IconInfoCircle,
+  IconUserEdit,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -30,6 +31,7 @@ import FormGrid from "@/components/common/FormGrid";
 import DateField from "@/components/common/DateField";
 import Input from "@/components/common/Input";
 import Textarea from "@/components/common/Textarea";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import LoadingButton from "@/components/common/LoadingButton";
 import Loader from "@/components/common/Loader";
 import StatCard from "@/components/common/StatCard";
@@ -44,11 +46,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import b2bSalesPlanningService from "@/services/b2bSalesPlanningService";
+import { useAuth } from "@/hooks/useAuth";
 import { renderPlanStatusBadge } from "../page";
 import { useB2bSalesOrderSidebar } from "../components/useB2bSalesOrderSidebar";
 
-const OPEN_FOR_SO = new Set(["UPCOMING", "DUE_TODAY", "OVERDUE"]);
+const OPEN_FOR_SO = new Set(["UPCOMING", "DUE_TODAY", "OVERDUE", "PIPELINE", "PIPELINE_OVERDUE"]);
 const RESCHEDULABLE = new Set(["UPCOMING", "DUE_TODAY", "OVERDUE"]);
 const PIPELINE_STATUSES = new Set(["PIPELINE", "PIPELINE_OVERDUE"]);
 
@@ -73,13 +77,15 @@ export default function B2bSalesPlanDetailPage() {
   const router = useRouter();
   const id = Number(params?.id);
   const { openOrderSidebar, sidebar } = useB2bSalesOrderSidebar();
+  const { modulePermissions, currentModuleId } = useAuth();
+  const canUpdate = !!modulePermissions?.[currentModuleId]?.can_update;
 
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState(null);
   const [logs, setLogs] = useState([]);
   const [related, setRelated] = useState(null);
   const [config, setConfig] = useState({ pipeline_reasons: [] });
-  const [soTab, setSoTab] = useState("active");
+  const [soTab, setSoTab] = useState("plan");
 
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleRemarks, setRescheduleRemarks] = useState("");
@@ -88,6 +94,11 @@ export default function B2bSalesPlanDetailPage() {
   const [pipelineReason, setPipelineReason] = useState("");
   const [pipelineRemarks, setPipelineRemarks] = useState("");
   const [savingReason, setSavingReason] = useState(false);
+
+  const [reassignUserId, setReassignUserId] = useState("");
+  const [reassignUserName, setReassignUserName] = useState("");
+  const [reassignRemarks, setReassignRemarks] = useState("");
+  const [reassigning, setReassigning] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -108,6 +119,9 @@ export default function B2bSalesPlanDetailPage() {
       setRescheduleDate(p?.plan_date || "");
       setPipelineReason(p?.pipeline_reason || "");
       setPipelineRemarks(p?.pipeline_reason_remarks || "");
+      setReassignUserId(p?.assigned_to ? String(p.assigned_to) : "");
+      setReassignUserName(p?.assignedToUser?.name || "");
+      setReassignRemarks("");
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load plan");
       router.push("/b2b-sales-planning");
@@ -164,6 +178,30 @@ export default function B2bSalesPlanDetailPage() {
     }
   };
 
+  const handleReassign = async () => {
+    if (!reassignUserId) {
+      toast.error("Select a user to assign");
+      return;
+    }
+    if (Number(reassignUserId) === Number(plan?.assigned_to)) {
+      toast.error("Plan is already assigned to this user");
+      return;
+    }
+    setReassigning(true);
+    try {
+      await b2bSalesPlanningService.reassignB2bSalesPlan(id, {
+        assigned_to: Number(reassignUserId),
+        remarks: reassignRemarks.trim() || null,
+      });
+      toast.success("Plan reassigned");
+      await load();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to reassign");
+    } finally {
+      setReassigning(false);
+    }
+  };
+
   if (loading || !plan) {
     return (
       <ProtectedRoute>
@@ -177,7 +215,20 @@ export default function B2bSalesPlanDetailPage() {
   const cyclePlans = related?.plans || [];
   const activeOrders = related?.active_sales_orders || [];
   const completedOrders = related?.completed_sales_orders || [];
-  const soRows = soTab === "completed" ? completedOrders : activeOrders;
+  const planOrders =
+    related?.plan_sales_orders ||
+    plan?.linked_sales_orders ||
+    [];
+  const planOrderCount =
+    related?.plan_sales_order_count ??
+    plan?.linked_sales_order_count ??
+    planOrders.length;
+  const soRows =
+    soTab === "plan"
+      ? planOrders
+      : soTab === "completed"
+        ? completedOrders
+        : activeOrders;
 
   // Determine hero banner colors based on status
   const isDueToday = plan.status === "DUE_TODAY";
@@ -185,6 +236,7 @@ export default function B2bSalesPlanDetailPage() {
   const isUpcoming = plan.status === "UPCOMING";
   const isPipeline = plan.status === "PIPELINE";
   const isCompleted = plan.status === "COMPLETED";
+  const isBroken = plan.status === "BROKEN";
 
   let heroTheme = {
     bg: "bg-slate-100",
@@ -201,6 +253,8 @@ export default function B2bSalesPlanDetailPage() {
     heroTheme = { bg: "bg-blue-50", text: "text-blue-900", border: "border-blue-200", icon: <IconCalendarEvent className="size-6 text-blue-600" /> };
   } else if (isPipeline) {
     heroTheme = { bg: "bg-amber-50", text: "text-amber-900", border: "border-amber-200", icon: <IconClock className="size-6 text-amber-600" /> };
+  } else if (isBroken) {
+    heroTheme = { bg: "bg-rose-50", text: "text-rose-900", border: "border-rose-200", icon: <IconAlertTriangle className="size-6 text-rose-600" /> };
   } else if (isCompleted) {
     heroTheme = { bg: "bg-slate-100", text: "text-slate-900", border: "border-slate-200", icon: <IconCheck className="size-6 text-slate-600" /> };
   }
@@ -244,7 +298,7 @@ export default function B2bSalesPlanDetailPage() {
                 }
               >
                 <IconPlus className="size-4 mr-1.5" />
-                Create Scheduled SO
+                {PIPELINE_STATUSES.has(plan.status) ? "Add Scheduled SO" : "Create Scheduled SO"}
               </Button>
             )}
           </div>
@@ -276,10 +330,22 @@ export default function B2bSalesPlanDetailPage() {
               <StatCard
                 icon={<IconShoppingCart size={18} />}
                 label="Active Pipeline Ref"
-                value={plan.active_pipeline_reference || "—"}
+                value={
+                  plan.active_pipeline_reference
+                    ? planOrderCount > 1
+                      ? `${plan.active_pipeline_reference} +${planOrderCount - 1}`
+                      : plan.active_pipeline_reference
+                    : "—"
+                }
                 accentColor="#8b5cf6"
                 onClick={plan.active_sales_order_id ? () => openOrderSidebar({ id: plan.active_sales_order_id, order_no: plan.active_pipeline_reference }) : undefined}
-                subLabel={plan.shipment_status ? `Shipment: ${plan.shipment_status}` : undefined}
+                subLabel={
+                  planOrderCount > 0
+                    ? `${planOrderCount} linked SO${planOrderCount === 1 ? "" : "s"}${plan.shipment_status ? ` · ${plan.shipment_status}` : ""}`
+                    : plan.shipment_status
+                      ? `Shipment: ${plan.shipment_status}`
+                      : undefined
+                }
               />
             </FormGrid>
             {plan.remarks && (
@@ -304,6 +370,7 @@ export default function B2bSalesPlanDetailPage() {
                     // Dot color based on status
                     let dotColor = "bg-slate-300";
                     if (row.status === "COMPLETED") dotColor = "bg-slate-800";
+                    else if (row.status === "BROKEN") dotColor = "bg-rose-700";
                     else if (row.status === "DUE_TODAY") dotColor = "bg-emerald-500";
                     else if (row.status === "OVERDUE" || row.status === "PIPELINE_OVERDUE") dotColor = "bg-red-500";
                     else if (row.status === "UPCOMING") dotColor = "bg-blue-500";
@@ -379,6 +446,7 @@ export default function B2bSalesPlanDetailPage() {
               <FormSection title={<span className="flex items-center gap-1.5"><IconShoppingCart className="size-4 text-[#1b365d]"/> Related Sales Orders</span>}>
                 <div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg w-fit mt-2">
                   {[
+                    { key: "plan", label: "This Plan", count: planOrders.length },
                     { key: "active", label: "Active", count: activeOrders.length },
                     { key: "completed", label: "Completed", count: completedOrders.length },
                   ].map((tab) => (
@@ -423,7 +491,7 @@ export default function B2bSalesPlanDetailPage() {
                               <div className="bg-slate-100 p-3 rounded-full">
                                 <IconShoppingCart className="size-6 text-slate-400" />
                               </div>
-                              <p>No {soTab} sales orders found</p>
+                              <p>No {soTab === "plan" ? "plan-linked" : soTab} sales orders found</p>
                             </div>
                           </td>
                         </tr>
@@ -459,8 +527,8 @@ export default function B2bSalesPlanDetailPage() {
                 </div>
               </FormSection>
 
-              {/* 5 & 6. Action Cards (Reschedule / Pipeline Reason) */}
-              {(RESCHEDULABLE.has(plan.status) || PIPELINE_STATUSES.has(plan.status)) && (
+              {/* 5 & 6. Action Cards (Reschedule / Pipeline Reason / Reassign) */}
+              {(canUpdate || RESCHEDULABLE.has(plan.status) || PIPELINE_STATUSES.has(plan.status)) && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {RESCHEDULABLE.has(plan.status) && (
                     <div className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col h-full">
@@ -536,6 +604,51 @@ export default function B2bSalesPlanDetailPage() {
                             onClick={handleSaveReason}
                           >
                             Save Pipeline Details
+                          </LoadingButton>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {canUpdate && (
+                    <div className="border rounded-xl bg-white shadow-sm overflow-hidden flex flex-col h-full">
+                      <div className="bg-slate-50 px-4 py-3 border-b flex items-center gap-2">
+                        <IconUserEdit className="size-4 text-[#00823b]" />
+                        <h3 className="font-semibold text-sm text-slate-800">Reassign Plan</h3>
+                      </div>
+                      <div className="p-4 flex flex-col gap-3 flex-1">
+                        <AutocompleteField
+                          label="Assigned To *"
+                          referenceModel="user.model"
+                          asyncLoadOptions={(q) =>
+                            getReferenceOptionsSearch("user.model", { q, limit: 20 })
+                          }
+                          getOptionLabel={(u) => u?.name || u?.email || String(u?.id ?? "")}
+                          value={
+                            reassignUserId
+                              ? { id: Number(reassignUserId), name: reassignUserName }
+                              : null
+                          }
+                          onChange={(_e, v) => {
+                            setReassignUserId(v?.id ? String(v.id) : "");
+                            setReassignUserName(v?.name || "");
+                          }}
+                        />
+                        <Textarea
+                          label="Remarks (optional)"
+                          value={reassignRemarks}
+                          onChange={(e) => setReassignRemarks(e.target.value)}
+                          minRows={2}
+                          fullWidth
+                        />
+                        <div className="mt-auto pt-2">
+                          <LoadingButton
+                            type="button"
+                            className="w-full bg-[#00823b] hover:bg-[#00662e] text-white"
+                            loading={reassigning}
+                            onClick={handleReassign}
+                          >
+                            Save Assignee
                           </LoadingButton>
                         </div>
                       </div>

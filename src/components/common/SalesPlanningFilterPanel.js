@@ -22,6 +22,7 @@ export const STATUS_OPTIONS = [
   { value: "PIPELINE", label: "Pipeline" },
   { value: "PIPELINE_OVERDUE", label: "Pipeline Overdue" },
   { value: "COMPLETED", label: "Completed" },
+  { value: "BROKEN", label: "Broken" },
 ];
 
 export const EMPTY_SALES_PLANNING_FILTERS = {
