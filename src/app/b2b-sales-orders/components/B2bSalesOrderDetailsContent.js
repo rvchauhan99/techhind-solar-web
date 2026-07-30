@@ -95,6 +95,10 @@ export default function B2bSalesOrderDetailsContent({
           <p>{formatDate(o.order_date) ?? "-"}</p>
         </div>
         <div>
+          <p className="text-xs font-semibold text-muted-foreground">Due Date</p>
+          <p>{formatDate(o.due_date) ?? "—"}</p>
+        </div>
+        <div>
           <p className="text-xs font-semibold text-muted-foreground">Client</p>
           <p>{o.client?.client_name ?? "-"}</p>
         </div>

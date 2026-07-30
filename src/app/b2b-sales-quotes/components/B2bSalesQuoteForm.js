@@ -34,6 +34,13 @@ import companyService from "@/services/companyService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import {
+    ensureShipToOptions,
+    findShipToOption,
+    isVirtualBillingShipToId,
+    pickDefaultShipToId,
+    resolveShipToIdForPayload,
+} from "@/utils/b2bShipToOptions";
 
 const emptyCurrentItem = () => ({
     product_id: "",
@@ -194,12 +201,11 @@ export default function B2bSalesQuoteForm({
         });
     }, [defaultValues?.id]);
 
-    // Load ship-tos when client changes; pre-select default or first
+    // Load ship-tos when client changes; pre-select default or Billing Address
     useEffect(() => {
         if (!formData.client_id) {
             setShipTos([]);
             setClientDetails(null);
-            // setFormData((p) => ({ ...p, ship_to_id: "" })); // Removed to avoid infinite loops or clearing on initial load
             return;
         }
         b2bClientService
@@ -208,11 +214,18 @@ export default function B2bSalesQuoteForm({
                 const r = res?.result ?? res;
                 const data = r?.data ?? [];
                 setShipTos(data);
-                // Only auto-select if not in edit mode OR if client has changed from initial
-                const isInitialEditClient = defaultValues?.client_id && Number(formData.client_id) === Number(defaultValues.client_id);
-                if (!isInitialEditClient) {
-                    const defaultShipTo = data.find((s) => s.is_default) || data[0];
-                    setFormData((p) => ({ ...p, ship_to_id: defaultShipTo?.id ?? "" }));
+                const isEditingExistingOrder =
+                    !!defaultValues?.id && Number(formData.client_id) === Number(defaultValues.client_id);
+                if (!isEditingExistingOrder) {
+                    const options = ensureShipToOptions(data, null);
+                    const defaultId = pickDefaultShipToId(options);
+                    setFormData((p) => ({ ...p, ship_to_id: defaultId || "" }));
+                } else if (!defaultValues.ship_to_id) {
+                    const options = ensureShipToOptions(data, null);
+                    const defaultId = pickDefaultShipToId(options);
+                    if (defaultId) {
+                        setFormData((p) => (p.ship_to_id ? p : { ...p, ship_to_id: defaultId }));
+                    }
                 }
             })
             .catch(() => setShipTos([]));
@@ -223,7 +236,35 @@ export default function B2bSalesQuoteForm({
                 setClientDetails(r ?? null);
             })
             .catch(() => setClientDetails(null));
-    }, [formData.client_id]);
+    }, [formData.client_id, defaultValues?.id, defaultValues?.client_id, defaultValues?.ship_to_id]);
+
+    // When client details arrive, inject virtual Billing Address and auto-select if still empty
+    useEffect(() => {
+        if (!formData.client_id || !clientDetails) return;
+        const isEditingExistingOrder =
+            !!defaultValues?.id && Number(formData.client_id) === Number(defaultValues.client_id);
+        if (isEditingExistingOrder && defaultValues.ship_to_id) return;
+        const options = ensureShipToOptions(shipTos, clientDetails);
+        const defaultId = pickDefaultShipToId(options);
+        if (!defaultId) return;
+        setFormData((p) => {
+            if (p.ship_to_id && !isVirtualBillingShipToId(p.ship_to_id)) return p;
+            if (!p.ship_to_id || isVirtualBillingShipToId(p.ship_to_id)) {
+                if (String(p.ship_to_id) === String(defaultId)) return p;
+                if (!p.ship_to_id || (isVirtualBillingShipToId(p.ship_to_id) && !isVirtualBillingShipToId(defaultId))) {
+                    return { ...p, ship_to_id: defaultId };
+                }
+            }
+            return p;
+        });
+    }, [
+        formData.client_id,
+        clientDetails,
+        shipTos,
+        defaultValues?.id,
+        defaultValues?.client_id,
+        defaultValues?.ship_to_id,
+    ]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -379,7 +420,7 @@ export default function B2bSalesQuoteForm({
             quote_date: formData.quote_date,
             valid_till: formData.valid_till,
             client_id: Number(formData.client_id),
-            ship_to_id: formData.ship_to_id ? Number(formData.ship_to_id) : null,
+            ship_to_id: resolveShipToIdForPayload(formData.ship_to_id),
             payment_terms: formData.payment_terms || null,
             delivery_terms: formData.delivery_terms || null,
             remarks: formData.order_remarks || null,
@@ -429,7 +470,8 @@ export default function B2bSalesQuoteForm({
     }
 
     const totals = calculateTotals();
-    const selectedShipTo = shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null;
+    const shipToOptions = ensureShipToOptions(shipTos, clientDetails);
+    const selectedShipTo = findShipToOption(shipToOptions, formData.ship_to_id);
     const buyerState = String(selectedShipTo?.state || clientDetails?.billing_state || "").trim();
     const buyerGstin = String(clientDetails?.gstin || "").trim();
     const sellerGstinStateCode = companyGstin && companyGstin.length >= 2 ? companyGstin.slice(0, 2) : "";
@@ -500,9 +542,9 @@ export default function B2bSalesQuoteForm({
                                 <div className="lg:col-span-2">
                                     <AutocompleteField
                                         label="Ship To"
-                                        options={shipTos}
+                                        options={shipToOptions}
                                         getOptionLabel={(s) => s?.ship_to_name || s?.address || (s?.id ? `Ship-to #${s.id}` : "")}
-                                        value={shipTos.find((s) => s.id === parseInt(formData.ship_to_id)) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
+                                        value={findShipToOption(shipToOptions, formData.ship_to_id) || (formData.ship_to_id ? { id: formData.ship_to_id } : null)}
                                         onChange={(e, newValue) => handleChange({ target: { name: "ship_to_id", value: newValue?.id ?? "" } })}
                                         disabled={!formData.client_id}
                                     />
@@ -605,7 +647,7 @@ export default function B2bSalesQuoteForm({
                         {clientDetails && (
                             <BillToShipToDisplay
                                 billTo={clientDetails}
-                                shipTo={shipTos.find((s) => Number(s.id) === Number(formData.ship_to_id)) || null}
+                                shipTo={selectedShipTo}
                                 className="mt-0.5 mb-1"
                             />
                         )}
