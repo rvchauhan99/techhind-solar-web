@@ -82,6 +82,7 @@ export const QUICK_STATUS_TABS = [
   { key: "PIPELINE", label: "Pipeline", status: ["PIPELINE", "PIPELINE_OVERDUE"] },
   { key: "PIPELINE_OVERDUE", label: "Pipeline Overdue", status: ["PIPELINE_OVERDUE"] },
   { key: "COMPLETED", label: "Completed", status: ["COMPLETED"] },
+  { key: "BROKEN", label: "Broken", status: ["BROKEN"] },
 ];
 
 function normalizeStatus(status) {

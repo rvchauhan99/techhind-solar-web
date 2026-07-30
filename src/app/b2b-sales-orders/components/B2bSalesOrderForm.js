@@ -30,6 +30,7 @@ import FormGrid from "@/components/common/FormGrid";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import BillToShipToDisplay from "@/components/common/BillToShipToDisplay";
 import LoadingButton from "@/components/common/LoadingButton";
+import Checkbox from "@/components/common/Checkbox";
 import companyService from "@/services/companyService";
 import b2bClientService from "@/services/b2bClientService";
 import productService from "@/services/productService";
@@ -40,6 +41,7 @@ import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toastError } from "@/utils/toast";
+import Link from "next/link";
 import {
   ensureShipToOptions,
   findShipToOption,
@@ -415,10 +417,15 @@ export default function B2bSalesOrderForm({
     String(resolvedOrderType || "").toUpperCase() === "SCHEDULED" ||
     !!resolvedSalesPlanId;
   const linkedSalesPlanId = resolvedSalesPlanId;
+  /** Deep-link / plan-driven create — keep existing scheduled UX. */
+  const fromPlanningDeepLink = isScheduled && !!linkedSalesPlanId;
 
   const [plannedWarehouseId, setPlannedWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState([]);
   const [errors, setErrors] = useState({});
+  const [clientOpenPlan, setClientOpenPlan] = useState(null);
+  const [loadingClientPlan, setLoadingClientPlan] = useState(false);
+  const [addToPlanning, setAddToPlanning] = useState(false);
 
   // Direct order form state
   const [formData, setFormData] = useState({
@@ -542,10 +549,61 @@ export default function B2bSalesOrderForm({
     }
   }, [defaultValues?.planned_warehouse_id]);
 
+  // Normal SO create: detect client's open planning cycle (skip when already deep-linked from a plan).
+  useEffect(() => {
+    if (fromQuoteId || defaultValues?.id || fromPlanningDeepLink) {
+      setClientOpenPlan(null);
+      setAddToPlanning(false);
+      return;
+    }
+    const clientId = Number(formData.client_id);
+    if (!Number.isInteger(clientId) || clientId <= 0) {
+      setClientOpenPlan(null);
+      setAddToPlanning(false);
+      setLoadingClientPlan(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingClientPlan(true);
+    setAddToPlanning(false);
+    dueDatePrefillDoneRef.current = false;
+    (async () => {
+      try {
+        const res = await b2bSalesPlanningService.getOpenB2bSalesPlanForClient(clientId);
+        const plan = res?.result ?? null;
+        if (cancelled) return;
+        setClientOpenPlan(plan && plan.id ? plan : null);
+      } catch {
+        if (!cancelled) setClientOpenPlan(null);
+      } finally {
+        if (!cancelled) setLoadingClientPlan(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.client_id, fromQuoteId, defaultValues?.id, fromPlanningDeepLink]);
+
+  const effectiveSalesPlanId = fromPlanningDeepLink
+    ? linkedSalesPlanId
+    : clientOpenPlan?.id || null;
+  const willLinkToExistingPlan = !!effectiveSalesPlanId;
+  const willCreatePlanningCycle = !fromPlanningDeepLink && !clientOpenPlan && addToPlanning;
+  const effectiveIsScheduled =
+    fromPlanningDeepLink || willLinkToExistingPlan || willCreatePlanningCycle;
+
+  const showAddToPlanningPill =
+    !fromPlanningDeepLink &&
+    !fromQuoteId &&
+    !!formData.client_id &&
+    !loadingClientPlan &&
+    !clientOpenPlan;
+
   // Scheduled create: auto-fill due_date from plan_date (query fast-path, then plan fetch)
   useEffect(() => {
     if (fromQuoteId || defaultValues?.id) return;
-    if (!isScheduled || !linkedSalesPlanId) return;
+    const planIdForDue = linkedSalesPlanId || clientOpenPlan?.id;
+    if (!planIdForDue && !clientOpenPlan?.plan_date) return;
     if (dueDateTouchedRef.current || dueDatePrefillDoneRef.current) return;
     if (defaultValues?.due_date) return;
 
@@ -567,8 +625,17 @@ export default function B2bSalesOrderForm({
       };
     }
 
+    if (clientOpenPlan?.plan_date) {
+      applyDue(clientOpenPlan.plan_date);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!planIdForDue) return undefined;
+
     b2bSalesPlanningService
-      .getB2bSalesPlanById(linkedSalesPlanId)
+      .getB2bSalesPlanById(planIdForDue)
       .then((res) => {
         const plan = res?.result ?? res;
         applyDue(plan?.plan_date);
@@ -582,8 +649,8 @@ export default function B2bSalesOrderForm({
     fromQuoteId,
     defaultValues?.id,
     defaultValues?.due_date,
-    isScheduled,
     linkedSalesPlanId,
+    clientOpenPlan,
     queryPlanDate,
   ]);
 
@@ -1002,8 +1069,9 @@ export default function B2bSalesOrderForm({
         hsn_code: it.hsn_code || "",
       })),
       // Keep last so totals/items cannot overwrite scheduled link fields
-      order_type: isScheduled ? "SCHEDULED" : "NORMAL",
-      sales_plan_id: isScheduled && linkedSalesPlanId ? Number(linkedSalesPlanId) : null,
+      order_type: effectiveIsScheduled ? "SCHEDULED" : "NORMAL",
+      sales_plan_id: effectiveSalesPlanId ? Number(effectiveSalesPlanId) : null,
+      add_to_planning: willCreatePlanningCycle,
       due_date: formData.due_date || null,
     };
     setIsSubmittingLocal(true);
@@ -1135,10 +1203,12 @@ export default function B2bSalesOrderForm({
               {submitErrorMessage}
             </Alert>
           )}
-          {isScheduled && (
+          {fromPlanningDeepLink && (
             <Alert severity="info" sx={{ mb: 1 }}>
-              Scheduled Sales Order linked to plan #{linkedSalesPlanId}. Confirming this order will
-              move the plan to Pipeline.
+              Scheduled Sales Order linked to plan #{linkedSalesPlanId}. Confirming adds this order to
+              the plan Pipeline (multiple confirmed orders allowed). The next follow-up plan is
+              created after every confirmed order on the plan has at least one shipment (partial or
+              full). Draft/unconfirmed orders are skipped.
             </Alert>
           )}
 
@@ -1174,7 +1244,7 @@ export default function B2bSalesOrderForm({
                     formData.order_date &&
                     formData.due_date < formData.order_date
                       ? "Due date is before order date"
-                      : isScheduled
+                      : effectiveIsScheduled
                         ? "Defaults from plan date; you can change it"
                         : undefined
                   }
@@ -1190,7 +1260,7 @@ export default function B2bSalesOrderForm({
                     required
                     error={!!errors.client_id}
                     helperText={errors.client_id}
-                    disabled={isScheduled && !!defaultValues.client_id}
+                    disabled={fromPlanningDeepLink && !!defaultValues.client_id}
                   />
                 </div>
                 <div className="lg:col-span-2" data-field="ship_to_id">
@@ -1205,6 +1275,22 @@ export default function B2bSalesOrderForm({
                     helperText={errors.ship_to_id}
                   />
                 </div>
+              </FormGrid>
+
+              {!fromPlanningDeepLink && !fromQuoteId && clientOpenPlan?.id && (
+                <Alert severity="info" sx={{ mt: 1, mb: 0.5, py: 0.5 }}>
+                  In planning:{" "}
+                  <Link
+                    href={`/b2b-sales-planning/${clientOpenPlan.id}`}
+                    className="font-semibold underline"
+                  >
+                    {clientOpenPlan.plan_no || `#${clientOpenPlan.id}`}
+                  </Link>
+                  {" "}({clientOpenPlan.status}) — order will be Scheduled and linked.
+                </Alert>
+              )}
+
+              <FormGrid cols={6} className="mt-1">
                 <AutocompleteField
                   data-field="planned_warehouse_id"
                   label="Warehouse *"
@@ -1298,7 +1384,7 @@ export default function B2bSalesOrderForm({
                   />
                 </div>
 
-                {/* Third row: T&C + order remarks + PDF terms (single row when clauses exist) */}
+                {/* Third row: T&C + order remarks + PDF terms / Add to planning */}
                 {pdfTermsClauses.length > 0 ? (
                   <>
                     <div className="lg:col-span-2 [&_label]:mb-0.5">
@@ -1325,21 +1411,37 @@ export default function B2bSalesOrderForm({
                         className="min-h-[44px] py-1.5 text-xs leading-snug"
                       />
                     </div>
-                    <div className="lg:col-span-2 flex flex-col justify-end pb-0.5">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs whitespace-nowrap w-full"
-                        onClick={() => setPdfTermsDrawerOpen(true)}
-                      >
-                        PDF terms ({pdfTermsClauses.length})
-                      </Button>
+                    <div className="lg:col-span-2 flex flex-col justify-end gap-1 pb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        {showAddToPlanningPill && (
+                          <div
+                            className="flex-1 min-w-0 rounded border border-[#00823b]/40 bg-[#00823b]/10 px-2 py-1"
+                            title="Creates a sales plan and makes this order Scheduled."
+                          >
+                            <Checkbox
+                              name="add_to_planning"
+                              label="Add to planning"
+                              checked={addToPlanning}
+                              onChange={(e) => setAddToPlanning(!!e.target.checked)}
+                              className="[&_input]:border-[#00823b] [&_input]:border-2 [&_input]:bg-white [&_label]:text-[11px] [&_label]:font-semibold [&_label]:text-[#00662e]"
+                            />
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className={`h-8 text-xs whitespace-nowrap ${showAddToPlanningPill ? "shrink-0 px-2" : "w-full"}`}
+                          onClick={() => setPdfTermsDrawerOpen(true)}
+                        >
+                          PDF terms ({pdfTermsClauses.length})
+                        </Button>
+                      </div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div className="lg:col-span-3 [&_label]:mb-0.5">
+                    <div className={`${showAddToPlanningPill ? "lg:col-span-2" : "lg:col-span-3"} [&_label]:mb-0.5`}>
                       <Input
                         name="terms_remarks"
                         label="T&C Remarks"
@@ -1351,7 +1453,7 @@ export default function B2bSalesOrderForm({
                         className="min-h-[44px] py-1.5 text-xs leading-snug"
                       />
                     </div>
-                    <div className="lg:col-span-3 [&_label]:mb-0.5">
+                    <div className={`${showAddToPlanningPill ? "lg:col-span-2" : "lg:col-span-3"} [&_label]:mb-0.5`}>
                       <Input
                         name="order_remarks"
                         label="Order Remarks"
@@ -1363,6 +1465,22 @@ export default function B2bSalesOrderForm({
                         className="min-h-[44px] py-1.5 text-xs leading-snug"
                       />
                     </div>
+                    {showAddToPlanningPill && (
+                      <div className="lg:col-span-2 flex flex-col justify-end pb-0.5">
+                        <div
+                          className="rounded border border-[#00823b]/40 bg-[#00823b]/10 px-2 py-1"
+                          title="Creates a sales plan and makes this order Scheduled."
+                        >
+                          <Checkbox
+                            name="add_to_planning"
+                            label="Add to planning"
+                            checked={addToPlanning}
+                            onChange={(e) => setAddToPlanning(!!e.target.checked)}
+                            className="[&_input]:border-[#00823b] [&_input]:border-2 [&_input]:bg-white [&_label]:text-[11px] [&_label]:font-semibold [&_label]:text-[#00662e]"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </FormGrid>

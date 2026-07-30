@@ -62,6 +62,7 @@ const STATUS_LABEL = {
   PIPELINE: "Pipeline",
   PIPELINE_OVERDUE: "Pipeline Overdue",
   COMPLETED: "Completed",
+  BROKEN: "Broken",
 };
 
 const STAT_STATUS_TAB = Object.fromEntries(
