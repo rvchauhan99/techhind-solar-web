@@ -241,6 +241,11 @@ export default function B2bSalesOrderViewPage() {
                 B2B Order {order?.order_no || orderId}
               </h1>
               {order?.status && renderB2bSalesOrderStatusBadge(order.status)}
+              {String(order?.order_type || "").toUpperCase() === "SCHEDULED" && (
+                <Badge variant="navy" className="text-xs">
+                  Scheduled
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -471,6 +476,16 @@ export default function B2bSalesOrderViewPage() {
                       <div>
                         <div className="text-slate-400 text-[10px] uppercase font-semibold">Order Date</div>
                         <div className="text-slate-800 font-medium">{formatDate(order.order_date)}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <IconCalendar className="size-4 text-slate-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="text-slate-400 text-[10px] uppercase font-semibold">Due Date</div>
+                        <div className="text-slate-800 font-medium">
+                          {order.due_date ? formatDate(order.due_date) : "—"}
+                        </div>
                       </div>
                     </div>
 

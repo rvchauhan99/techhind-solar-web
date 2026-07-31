@@ -13,6 +13,9 @@ function AddB2bSalesOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const quoteId = searchParams.get("fromQuote");
+  const salesPlanId = searchParams.get("sales_plan_id");
+  const orderType = searchParams.get("order_type");
+  const clientId = searchParams.get("client_id");
 
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
@@ -38,17 +41,39 @@ function AddB2bSalesOrderContent() {
     }
   };
 
+  const isScheduled = String(orderType || "").toUpperCase() === "SCHEDULED" || !!salesPlanId;
+  const defaultValues = {};
+  if (clientId) defaultValues.client_id = parseInt(clientId, 10);
+  if (salesPlanId) defaultValues.sales_plan_id = parseInt(salesPlanId, 10);
+  if (isScheduled) defaultValues.order_type = "SCHEDULED";
+
   return (
     <ProtectedRoute>
-      <AddEditPageShell title={quoteId ? "Create Order from Quote" : "Add B2B Sales Order"} listHref="/b2b-sales-orders" listLabel="B2B Sales Orders">
+      <AddEditPageShell
+        title={
+          quoteId
+            ? "Create Order from Quote"
+            : isScheduled
+              ? "Add Scheduled Sales Order"
+              : "Add B2B Sales Order"
+        }
+        listHref="/b2b-sales-orders"
+        listLabel="B2B Sales Orders"
+      >
         <B2bSalesOrderForm
-          defaultValues={{}}
+          defaultValues={defaultValues}
           fromQuoteId={quoteId ? parseInt(quoteId, 10) : null}
+          salesPlanId={salesPlanId ? parseInt(salesPlanId, 10) : null}
+          orderType={isScheduled ? "SCHEDULED" : "NORMAL"}
           onSubmit={handleSubmit}
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-sales-orders")}
+          onCancel={() =>
+            router.push(
+              salesPlanId ? `/b2b-sales-planning/${salesPlanId}` : "/b2b-sales-orders"
+            )
+          }
         />
       </AddEditPageShell>
     </ProtectedRoute>
