@@ -6,6 +6,19 @@ export const getPOInwards = (params = {}) =>
 export const exportPOInwards = (params = {}) =>
   apiClient.get("/po-inwards/export", { params, responseType: "blob" }).then((r) => r.data);
 
+export const exportPOInwardById = (id) =>
+  apiClient
+    .get(`/po-inwards/${id}/export`, { responseType: "blob" })
+    .then((r) => {
+      const disposition = r.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const dateStamp = new Date().toISOString().split("T")[0];
+      return {
+        blob: r.data,
+        filename: match?.[1] || `po-inward-${id}-${dateStamp}.xlsx`,
+      };
+    });
+
 export const createPOInward = (payload) =>
   apiClient.post("/po-inwards", payload).then((r) => r.data);
 
@@ -31,6 +44,7 @@ export const validateSerials = ({ product_id, serial_numbers, po_inward_id }) =>
 export default {
   getPOInwards,
   exportPOInwards,
+  exportPOInwardById,
   createPOInward,
   getPOInwardById,
   getPODetailsForInward,
