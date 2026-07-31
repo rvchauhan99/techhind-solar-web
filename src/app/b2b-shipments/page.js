@@ -3,8 +3,16 @@
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { IconFileDescription, IconFileTypePdf, IconDotsVertical, IconReceipt, IconArrowBackUp } from "@tabler/icons-react";
+import {
+  IconFileDescription,
+  IconFileTypePdf,
+  IconDotsVertical,
+  IconReceipt,
+  IconArrowBackUp,
+  IconFileSpreadsheet,
+} from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +56,25 @@ const COLUMN_FILTER_KEYS = [
   "invoice_no_op",
 ];
 
+function splitSerials(raw) {
+  return String(raw || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function trackingLabel(item) {
+  const serials = splitSerials(item?.serials);
+  const tracking = String(
+    item?.product?.tracking_type ||
+      (item?.product?.serial_required || serials.length > 0 ? "SERIAL" : "LOT")
+  ).toUpperCase();
+  if (tracking === "SERIAL" || serials.length > 0) {
+    return `SERIAL (${serials.length} serials)`;
+  }
+  return "LOT";
+}
+
 export default function B2bShipmentsPage() {
   const { modulePermissions, currentModuleId } = useAuth();
   const currentPerm = modulePermissions?.[currentModuleId] || {
@@ -65,9 +92,11 @@ export default function B2bShipmentsPage() {
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [confirmGenerateInvoiceShipmentId, setConfirmGenerateInvoiceShipmentId] = useState(null);
+  const [detailExporting, setDetailExporting] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -95,9 +124,23 @@ export default function B2bShipmentsPage() {
     [filterParams, reloadTrigger]
   );
 
-  const handleOpenSidebar = useCallback((row) => {
-    setSelectedRecord(row);
+  const handleOpenSidebar = useCallback(async (rowOrId) => {
+    const id = typeof rowOrId === "object" ? rowOrId?.id : rowOrId;
+    if (!id) return;
+    setLoadingRecord(true);
     setSidebarOpen(true);
+    try {
+      const response = await b2bShipmentService.getB2bShipmentById(id);
+      const result = response?.result || response;
+      setSelectedRecord(result);
+    } catch (error) {
+      console.error("Error fetching shipment:", error);
+      toast.error(error.response?.data?.message || "Failed to load shipment");
+      setSidebarOpen(false);
+      setSelectedRecord(null);
+    } finally {
+      setLoadingRecord(false);
+    }
   }, []);
 
   const handleCloseSidebar = useCallback(() => {
@@ -156,6 +199,29 @@ export default function B2bShipmentsPage() {
       toast.error(err.response?.data?.message || "Failed to download PDF");
     }
   }, []);
+
+  const handleDetailExport = useCallback(async () => {
+    const id = selectedRecord?.id;
+    if (!id) return;
+    setDetailExporting(true);
+    try {
+      const { blob, filename } = await b2bShipmentService.exportB2bShipmentById(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Export completed");
+    } catch (err) {
+      console.error("Shipment export error:", err);
+      toast.error(err.response?.data?.message || err.message || "Failed to export shipment");
+    } finally {
+      setDetailExporting(false);
+    }
+  }, [selectedRecord?.id]);
 
   const columns = useMemo(
     () => [
@@ -270,59 +336,194 @@ export default function B2bShipmentsPage() {
     [handleOpenSidebar, handlePdfDownload, currentPerm, goToInvoice, router]
   );
 
-  const sidebarContent = useMemo(() => {
-    if (!selectedRecord) return null;
+  const detailHeaderActions = useMemo(() => {
+    if (!selectedRecord?.id || loadingRecord) return null;
     const r = selectedRecord;
     const invLoading = creatingInvoice === r.id;
     const existingInv = r.invoice || null;
     return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">{r.shipment_no || r.id}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Date</p>
-        <p className="text-sm">{formatDate(r.shipment_date) ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Order</p>
-        <p className="text-sm">{r.salesOrder?.order_no ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Client</p>
-        <p className="text-sm">{r.client?.client_name ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
-        <p className="text-sm">{r.warehouse?.name ?? "-"}</p>
-        <div className="pt-2 flex flex-col gap-2">
-          {existingInv?.id ? (
-            currentPerm.can_read && (
-              <Button size="sm" variant="outline" onClick={() => goToInvoice(existingInv)}>
-                View Invoice
-              </Button>
-            )
-          ) : (
-            currentPerm.can_create && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setConfirmGenerateInvoiceShipmentId(r.id)}
-                disabled={invLoading}
-              >
-                {invLoading ? "Generating..." : "Generate Invoice"}
-              </Button>
-            )
-          )}
-          <Button size="sm" onClick={() => handlePdfDownload(r.id)}>
-            <IconFileTypePdf className="size-4 mr-1" />
-            Download PDF
-          </Button>
-          {!r.is_reversed && currentPerm.can_create && (
+      <div className="flex items-center gap-1 flex-wrap justify-end max-w-[min(100%,28rem)]">
+        <Button size="sm" variant="outline" disabled={detailExporting} onClick={handleDetailExport}>
+          <IconFileSpreadsheet className="size-4 mr-1" />
+          {detailExporting ? "Exporting…" : "Export Excel"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => handlePdfDownload(r.id)}>
+          <IconFileTypePdf className="size-4 mr-1" />
+          PDF
+        </Button>
+        {existingInv?.id ? (
+          currentPerm.can_read && (
+            <Button size="sm" variant="outline" onClick={() => goToInvoice(existingInv)}>
+              <IconReceipt className="size-4 mr-1" />
+              Invoice
+            </Button>
+          )
+        ) : (
+          currentPerm.can_create && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${r.id}`)}
+              onClick={() => setConfirmGenerateInvoiceShipmentId(r.id)}
+              disabled={invLoading}
             >
-              <IconArrowBackUp className="size-4 mr-1" />
-              Create Return
+              <IconReceipt className="size-4 mr-1" />
+              {invLoading ? "…" : "Invoice"}
             </Button>
-          )}
-        </div>
+          )
+        )}
+        {!r.is_reversed && currentPerm.can_create && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${r.id}`)}
+          >
+            <IconArrowBackUp className="size-4 mr-1" />
+            Return
+          </Button>
+        )}
       </div>
     );
-  }, [selectedRecord, handlePdfDownload, creatingInvoice, currentPerm, goToInvoice, router]);
+  }, [
+    selectedRecord,
+    loadingRecord,
+    creatingInvoice,
+    currentPerm,
+    detailExporting,
+    handleDetailExport,
+    handlePdfDownload,
+    goToInvoice,
+    router,
+  ]);
+
+  const sidebarContent = useMemo(() => {
+    if (loadingRecord) {
+      return (
+        <div className="flex min-h-50 items-center justify-center">
+          <span className="text-muted-foreground text-sm">Loading...</span>
+        </div>
+      );
+    }
+    if (!selectedRecord) return null;
+    const r = selectedRecord;
+    const txt = (v) => (v === null || v === undefined || v === "" ? "-" : String(v));
+    const qty = (v) => (v === null || v === undefined ? "-" : v);
+    const items = Array.isArray(r.items) ? r.items : [];
+    const totalQty = items.reduce((sum, it) => sum + (parseInt(it.quantity, 10) || 0), 0);
+    const totalReturned = items.reduce((sum, it) => sum + (parseInt(it.returned_qty, 10) || 0), 0);
+    const shipToName =
+      r.shipTo?.ship_to_name || r.ship_to_name || r.client?.client_name || "-";
+    const shipToAddr = [
+      r.shipTo?.address,
+      r.shipTo?.city,
+      r.shipTo?.state,
+      r.shipTo?.pincode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    return (
+      <div className="pr-1 space-y-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-base">{txt(r.shipment_no || r.id)}</p>
+            {r.is_reversed ? (
+              <Badge variant="secondary" className="rounded-full px-2 py-0 text-xs">
+                Reversed
+              </Badge>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Date: {formatDate(r.shipment_date) ?? "-"} · Order: {txt(r.salesOrder?.order_no)}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-md border border-border p-2 space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">Client</p>
+            <p className="text-sm font-medium">{txt(r.client?.client_name)}</p>
+            <p className="text-xs text-muted-foreground">Code: {txt(r.client?.client_code)}</p>
+          </div>
+          <div className="rounded-md border border-border p-2 space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
+            <p className="text-sm font-medium">{txt(r.warehouse?.name)}</p>
+            <p className="text-xs text-muted-foreground">{txt(r.warehouse?.address)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border p-2 space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground">Ship To / Logistics</p>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+            <span className="text-muted-foreground">Ship To</span>
+            <span>{txt(shipToName)}</span>
+            <span className="text-muted-foreground">Address</span>
+            <span>{txt(shipToAddr)}</span>
+            <span className="text-muted-foreground">Transporter</span>
+            <span>{txt(r.transporter)}</span>
+            <span className="text-muted-foreground">Invoice</span>
+            <span>{txt(r.invoice?.invoice_no)}</span>
+            <span className="text-muted-foreground">Created By</span>
+            <span>{txt(r.createdBy?.name)}</span>
+          </div>
+          <div className="text-xs pt-1">
+            <p className="text-muted-foreground">Remarks</p>
+            <p className="text-sm">{txt(r.remarks)}</p>
+          </div>
+        </div>
+
+        {items.length > 0 && (
+          <div className="rounded-md border border-border overflow-hidden">
+            <div className="px-2 py-1.5 bg-muted/40 flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">Items ({items.length})</p>
+              <p className="text-xs text-muted-foreground">
+                Qty {totalQty}
+                {totalReturned > 0 ? ` · Returned ${totalReturned}` : ""}
+              </p>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-right font-semibold">Qty</th>
+                    <th className="px-2 py-1 text-right font-semibold">Returned</th>
+                    <th className="px-2 py-1 text-right font-semibold">Returnable</th>
+                    <th className="px-2 py-1 text-left font-semibold">Tracking</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item, index) => (
+                    <tr key={item.id || index} className="border-t border-border">
+                      <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.returned_qty ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.returnable_qty)}</td>
+                      <td className="px-2 py-1.5">{trackingLabel(item)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {Array.isArray(r.partial_returns) && r.partial_returns.length > 0 && (
+          <div className="rounded-md border border-border p-2 space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Returns ({r.partial_returns.length})
+            </p>
+            <div className="space-y-1">
+              {r.partial_returns.map((ret) => (
+                <p key={ret.id} className="text-xs">
+                  {txt(ret.return_no)} · {formatDate(ret.return_date) ?? "-"} · {txt(ret.status)} · qty{" "}
+                  {qty(ret.total_return_quantity)}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }, [selectedRecord, loadingRecord]);
 
   return (
     <ProtectedRoute>
@@ -360,7 +561,12 @@ export default function B2bShipmentsPage() {
           />
         </div>
 
-        <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Shipment Details">
+        <DetailsSidebar
+          open={sidebarOpen}
+          onClose={handleCloseSidebar}
+          title="Shipment Details"
+          headerActions={detailHeaderActions}
+        >
           {sidebarContent}
         </DetailsSidebar>
 
