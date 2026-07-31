@@ -36,6 +36,7 @@ import inquiryDocumentsService from "@/services/inquiryDocumentsService";
 import { Snackbar, Alert, CircularProgress } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { toastSuccess, toastError } from "@/utils/toast";
 
 const COLUMN_WIDTH = 330;
@@ -239,6 +240,13 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
   const handleViewInquiry = () => {
     if (menuInquiryId) {
       router.push(`/inquiry/${menuInquiryId}`);
+    }
+    handleMenuClose();
+  };
+
+  const handleViewInNewTab = () => {
+    if (menuInquiryId) {
+      window.open(`/inquiry/${menuInquiryId}`, "_blank", "noopener,noreferrer");
     }
     handleMenuClose();
   };
@@ -1044,6 +1052,12 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
             <VisibilityIcon fontSize="small" />
           </ListItemIcon>
           <ListItemText primary="View" />
+        </MenuItem>
+        <MenuItem onClick={handleViewInNewTab}>
+          <ListItemIcon>
+            <OpenInNewIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="View in New Tab" />
         </MenuItem>
         <MenuItem onClick={handleEdit}>
           <ListItemIcon>
