@@ -62,6 +62,9 @@ const COLUMN_FILTER_KEYS = [
   "order_date",
   "order_date_op",
   "order_date_to",
+  "due_date",
+  "due_date_op",
+  "due_date_to",
   "client_name",
   "client_name_op",
   "ship_to_name",
@@ -106,6 +109,13 @@ const renderOrderStatusBadge = (status) => (
     {STATUS_LABELS[status] || status || "Draft"}
   </Badge>
 );
+
+const renderOrderTypeBadge = (orderType) =>
+  String(orderType || "").toUpperCase() === "SCHEDULED" ? (
+    <Badge variant="navy" className="text-xs ml-1">
+      Scheduled
+    </Badge>
+  ) : null;
 
 export default function B2bSalesOrdersPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -356,6 +366,16 @@ export default function B2bSalesOrdersPage() {
         render: (row) => formatDate(row.order_date) || "-",
       },
       {
+        field: "due_date",
+        label: "Due Date",
+        sortable: true,
+        filterType: "date",
+        filterKey: "due_date",
+        filterKeyTo: "due_date_to",
+        defaultFilterOperator: "inRange",
+        render: (row) => formatDate(row.due_date) || "—",
+      },
+      {
         field: "client",
         label: "Client",
         filterType: "text",
@@ -403,7 +423,12 @@ export default function B2bSalesOrdersPage() {
         filterType: "select",
         filterKey: "status",
         filterOptions: STATUS_OPTIONS,
-        render: (row) => renderOrderStatusBadge(row.status),
+        render: (row) => (
+          <span className="inline-flex items-center flex-wrap gap-0.5">
+            {renderOrderStatusBadge(row.status)}
+            {renderOrderTypeBadge(row.order_type)}
+          </span>
+        ),
       },
       {
         field: "grand_total",
@@ -624,6 +649,10 @@ export default function B2bSalesOrdersPage() {
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Date</p>
             <p>{formatDate(o.order_date) ?? "-"}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground">Due Date</p>
+            <p>{formatDate(o.due_date) ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground">Client</p>
