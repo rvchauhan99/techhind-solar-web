@@ -20,10 +20,12 @@ import {
   IconPackage,
 } from "@tabler/icons-react";
 import B2bSalesOrderLinesFilters, {
+  DATE_FILTER_FIELD_OPTIONS,
   LINE_STATUS_OPTIONS,
   ORDER_STATUS_OPTIONS,
 } from "./components/B2bSalesOrderLinesFilters";
 import B2bSalesOrderLinesReport from "./components/B2bSalesOrderLinesReport";
+import Select, { MenuItem } from "@/components/common/Select";
 
 const getLast3MonthsDateRange = () => {
   const n = new Date();
@@ -37,6 +39,7 @@ const getLast3MonthsDateRange = () => {
 
 const BASE_FILTERS = {
   q: "",
+  date_filter_field: "order_date",
   order_date_from: "",
   order_date_to: "",
   status: null,
@@ -123,8 +126,17 @@ const QUICK_TABS = [
   { key: "done-orders", label: "Completed Orders", icon: IconCircleCheck, filters: { status: ["COMPLETED"] } },
 ];
 
+const getDateFieldLabel = (field) =>
+  DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === (field || "order_date"))?.label || "Order Date";
+
+const getDateRangeChipLabels = (field) => {
+  const base = getDateFieldLabel(field);
+  return { from: `${base} From`, to: `${base} To` };
+};
+
 const FILTER_LABELS = {
   q: "Quick",
+  date_filter_field: "Filtered By",
   order_date_from: "Order From",
   order_date_to: "Order To",
   status: "Order Status",
@@ -158,11 +170,24 @@ const optionLabel = (value, options) =>
 const getChipValue = (key, value) => {
   if (key === "status") return optionLabel(value, ORDER_STATUS_OPTIONS);
   if (key === "line_fulfillment_status") return optionLabel(value, LINE_STATUS_OPTIONS);
+  if (key === "date_filter_field") return getDateFieldLabel(value);
   return String(value);
 };
 
+const getChipLabel = (key, filters) => {
+  if (key === "order_date_from") return getDateRangeChipLabels(filters.date_filter_field).from;
+  if (key === "order_date_to") return getDateRangeChipLabels(filters.date_filter_field).to;
+  return FILTER_LABELS[key] || key;
+};
+
+const isActiveFilterValue = (key, value) => {
+  if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) return false;
+  if (key === "date_filter_field" && String(value) === "order_date") return false;
+  return true;
+};
+
 const countActive = (filters) =>
-  Object.values(filters || {}).filter((v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
+  Object.entries(filters || {}).filter(([key, v]) => isActiveFilterValue(key, v)).length;
 
 export default function B2bSalesOrderLinesReportPage() {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -176,13 +201,15 @@ export default function B2bSalesOrderLinesReportPage() {
   const quickSearchDebounceRef = useRef(null);
 
   const activeCount = countActive(appliedFilters);
+  const dateField = filters.date_filter_field || "order_date";
+  const dateFieldLabel = getDateFieldLabel(dateField);
   const chips = useMemo(
     () =>
       Object.entries(appliedFilters)
-        .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+        .filter(([key, v]) => isActiveFilterValue(key, v))
         .map(([key, value]) => ({
           key,
-          label: FILTER_LABELS[key] || key,
+          label: getChipLabel(key, appliedFilters),
           value: getChipValue(key, value),
         })),
     [appliedFilters]
@@ -236,6 +263,17 @@ export default function B2bSalesOrderLinesReportPage() {
     setAppliedFilters(next);
     setActivePreset(preset.label);
     setActiveTab("custom");
+    setRefreshKey((k) => k + 1);
+  };
+
+  const handleDateFieldChange = (value) => {
+    const next = {
+      ...filters,
+      date_filter_field: value || "order_date",
+      q: quickSearch,
+    };
+    setFilters(next);
+    setAppliedFilters(next);
     setRefreshKey((k) => k + 1);
   };
 
@@ -296,7 +334,27 @@ export default function B2bSalesOrderLinesReportPage() {
               </div>
             </div>
             <div className="flex items-center gap-1 flex-wrap">
-              <span className="flex items-center gap-1 text-[9px] text-slate-400">
+              <div className="flex items-center gap-1">
+                <span className="text-[9px] text-slate-400 whitespace-nowrap">Filtered by:</span>
+                <Select
+                  name="date_filter_field"
+                  value={dateField}
+                  onChange={(e) => handleDateFieldChange(e.target.value || "order_date")}
+                  className="min-w-[10rem]"
+                  size="small"
+                  clearable={false}
+                >
+                  {DATE_FILTER_FIELD_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </div>
+              <span
+                className="flex items-center gap-1 text-[9px] text-slate-400"
+                title={`Quick range for ${dateFieldLabel}`}
+              >
                 <IconCalendar size={10} /> Quick:
               </span>
               {DATE_PRESETS.map((preset) => (

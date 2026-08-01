@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { IconCircleCheck, IconEye, IconPencil } from "@tabler/icons-react";
+import { IconCircleCheck, IconEye, IconPencil, IconFileSpreadsheet } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
@@ -87,6 +87,7 @@ export default function POInwardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [detailExporting, setDetailExporting] = useState(false);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -145,6 +146,44 @@ export default function POInwardPage() {
       setExporting(false);
     }
   }, [filters]);
+
+  const handleDetailExport = useCallback(async () => {
+    const id = selectedPOInward?.id;
+    if (!id) return;
+    setDetailExporting(true);
+    try {
+      const { blob, filename } = await poInwardService.exportPOInwardById(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Export completed");
+    } catch (error) {
+      console.error("Detail export error:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to export PO Inward");
+    } finally {
+      setDetailExporting(false);
+    }
+  }, [selectedPOInward?.id]);
+
+  const detailHeaderActions = useMemo(() => {
+    if (!selectedPOInward?.id) return null;
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={detailExporting}
+        onClick={handleDetailExport}
+      >
+        <IconFileSpreadsheet className="size-4 mr-1" />
+        {detailExporting ? "Exporting…" : "Export Excel"}
+      </Button>
+    );
+  }, [selectedPOInward?.id, detailExporting, handleDetailExport]);
 
   // Default listing: newest first (id DESC) — same as other listing pages.
   const effectiveSortBy = sortBy || "id";
@@ -524,6 +563,7 @@ export default function POInwardPage() {
         open={sidebarOpen}
         onClose={handleCloseSidebar}
         title="PO Inward Details"
+        headerActions={detailHeaderActions}
       >
         {sidebarContent}
       </DetailsSidebar>

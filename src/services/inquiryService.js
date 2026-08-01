@@ -28,6 +28,9 @@ export const uploadInquiryCsv = (file) => {
     .then((r) => r.data);
 };
 
+export const getInquirySummary = (params = {}) =>
+  apiClient.get("/inquiry/reports/summary", { params }).then((r) => r.data);
+
 export default {
   getInquiries,
   exportInquiries,
@@ -36,6 +39,7 @@ export default {
   updateInquiry,
   downloadInquiryImportSample,
   uploadInquiryCsv,
+  getInquirySummary,
 };
 
 

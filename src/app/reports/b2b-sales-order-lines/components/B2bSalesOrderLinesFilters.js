@@ -24,6 +24,14 @@ export const LINE_STATUS_OPTIONS = [
   { value: "CANCELLED", label: "Cancelled" },
 ];
 
+export const DATE_FILTER_FIELD_OPTIONS = [
+  { value: "order_date", label: "Order Date" },
+  { value: "first_shipment_date", label: "First Shipment Date" },
+  { value: "last_shipment_date", label: "Last Shipment Date" },
+  { value: "created_at", label: "Created Date" },
+  { value: "due_date", label: "Due Date" },
+];
+
 const mapList = (res) => {
   const data = res?.result?.data ?? res?.result ?? res?.data ?? res ?? [];
   return Array.isArray(data) ? data : [];
@@ -31,6 +39,9 @@ const mapList = (res) => {
 
 export default function B2bSalesOrderLinesFilters({ filters, onFiltersChange }) {
   const fc = (name, value) => onFiltersChange?.({ ...filters, [name]: value });
+  const dateFieldLabel =
+    DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === (filters.date_filter_field || "order_date"))?.label ||
+    "Order Date";
 
   const loadProductOptions = async (q) => {
     const res = await productService.getProducts({
@@ -72,14 +83,14 @@ export default function B2bSalesOrderLinesFilters({ filters, onFiltersChange }) 
   return (
     <div className="border-t border-slate-100 px-2 py-1.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-1.5">
       <DateField
-        label="Order From"
+        label={`${dateFieldLabel} From`}
         name="order_date_from"
         value={filters.order_date_from || ""}
         onChange={(e) => fc("order_date_from", e.target.value || "")}
         size="small"
       />
       <DateField
-        label="Order To"
+        label={`${dateFieldLabel} To`}
         name="order_date_to"
         value={filters.order_date_to || ""}
         onChange={(e) => fc("order_date_to", e.target.value || "")}
