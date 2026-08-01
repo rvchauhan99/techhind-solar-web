@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -126,6 +127,10 @@ const toNum = (value) => Number(value || 0);
 const getAvailableAfterReserved = (onHand, reserved) => toNum(onHand) - toNum(reserved);
 
 export default function StockPage() {
+  const pathname = usePathname() || "";
+  const qtyOnly =
+    pathname === "/stocks-qty" || pathname.startsWith("/stocks-qty/");
+
   const listingState = useListingQueryState({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -477,149 +482,163 @@ export default function StockPage() {
   );
 
   const columns = useMemo(
-    () => [
-      {
-        field: "product",
-        label: "Product",
-        sortable: false,
-        render: (row) => row.product?.product_name || "-",
-      },
-      {
-        field: "product_type_name",
-        label: "Product Type",
-        sortable: false,
-        render: (row) => row.product_type_name || row.product?.productType?.name || "-",
-      },
-      {
-        field: "product_make_name",
-        label: "Make",
-        sortable: false,
-        render: (row) => row.product_make_name || row.product?.productMake?.name || "-",
-      },
-      {
-        field: "warehouse",
-        label: "Warehouse",
-        sortable: false,
-        render: (row) => row.warehouse?.name || "-",
-      },
-      {
-        field: "quantity_on_hand",
-        label: "Total AVL",
-        sortable: true,
-        render: (row) => formatNumber(row.total_available_display),
-      },
-      {
-        field: "quantity_reserved",
-        label: "Reserved",
-        sortable: true,
-        render: (row) =>
-          toNum(row.reserved_display) > 0 ? (
-            <button
-              type="button"
-              className="text-primary underline underline-offset-2 font-medium tabular-nums"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenReservedDetails(row);
-              }}
-            >
-              {formatNumber(row.reserved_display)}
-            </button>
-          ) : (
-            <span className="tabular-nums">{formatNumber(row.reserved_display)}</span>
+    () => {
+      const cols = [
+        {
+          field: "product",
+          label: "Product",
+          sortable: false,
+          render: (row) => row.product?.product_name || "-",
+        },
+        {
+          field: "product_type_name",
+          label: "Product Type",
+          sortable: false,
+          render: (row) => row.product_type_name || row.product?.productType?.name || "-",
+        },
+        {
+          field: "product_make_name",
+          label: "Make",
+          sortable: false,
+          render: (row) => row.product_make_name || row.product?.productMake?.name || "-",
+        },
+        {
+          field: "warehouse",
+          label: "Warehouse",
+          sortable: false,
+          render: (row) => row.warehouse?.name || "-",
+        },
+        {
+          field: "quantity_on_hand",
+          label: "Total AVL",
+          sortable: true,
+          render: (row) => formatNumber(row.total_available_display),
+        },
+        {
+          field: "quantity_reserved",
+          label: "Reserved",
+          sortable: true,
+          render: (row) =>
+            !qtyOnly && toNum(row.reserved_display) > 0 ? (
+              <button
+                type="button"
+                className="text-primary underline underline-offset-2 font-medium tabular-nums"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenReservedDetails(row);
+                }}
+              >
+                {formatNumber(row.reserved_display)}
+              </button>
+            ) : (
+              <span className="tabular-nums">{formatNumber(row.reserved_display)}</span>
+            ),
+        },
+        {
+          field: "after_reserve",
+          label: "After Reserve",
+          sortable: true,
+          render: (row) => formatNumber(row.available_after_reserved_display),
+        },
+      ];
+
+      if (!qtyOnly) {
+        cols.push(
+          {
+            field: "quantity_damaged",
+            label: "Damaged",
+            sortable: false,
+            render: (row) =>
+              toNum(row.quantity_damaged) > 0 ? (
+                <span className="text-red-600 font-semibold tabular-nums">
+                  {formatNumber(row.quantity_damaged)}
+                </span>
+              ) : (
+                <span className="text-muted-foreground tabular-nums">0</span>
+              ),
+          },
+          {
+            field: "last_purchase_price_excl_gst",
+            label: "Last Purchase Excl GST",
+            sortable: false,
+            render: (row) =>
+              row.last_purchase_price != null ? formatCurrency(row.last_purchase_price) : "-",
+          },
+          {
+            field: "last_purchase_price_incl_gst",
+            label: "Last Purchase Incl GST",
+            sortable: false,
+            render: (row) => {
+              if (row.last_purchase_price == null) return "-";
+              const last = toNum(row.last_purchase_price);
+              const gst = toNum(row.gst_percent);
+              return formatCurrency(last * (1 + gst / 100));
+            },
+          },
+          {
+            field: "avg_price_excl_gst",
+            label: "Avg Price Excl GST",
+            sortable: false,
+            render: (row) =>
+              row.avg_purchase_price != null ? formatCurrency(row.avg_purchase_price) : "-",
+          },
+          {
+            field: "avg_price_incl_gst",
+            label: "Avg Price Incl GST",
+            sortable: false,
+            render: (row) => {
+              const avg = toNum(row.avg_purchase_price);
+              const gst = toNum(row.gst_percent);
+              return formatCurrency(avg * (1 + gst / 100));
+            },
+          },
+          {
+            field: "stock_value",
+            label: "Stock Value Excl GST",
+            sortable: false,
+            render: (row) => (row.stock_value != null ? formatCurrency(row.stock_value) : "-"),
+          },
+          {
+            field: "stock_value_incl_gst",
+            label: "Stock Value Incl GST",
+            sortable: false,
+            render: (row) => {
+              const stockValue = toNum(row.stock_value);
+              const gst = toNum(row.gst_percent);
+              return formatCurrency(stockValue * (1 + gst / 100));
+            },
+          }
+        );
+      }
+
+      cols.push(
+        {
+          field: "tracking_type",
+          label: "Tracking",
+          sortable: true,
+          render: (row) => (
+            <Badge variant={row.tracking_type === "SERIAL" ? "default" : "secondary"} className="text-xs">
+              {row.tracking_type || "-"}
+            </Badge>
           ),
-      },
-      {
-        field: "after_reserve",
-        label: "After Reserve",
-        sortable: true,
-        render: (row) => formatNumber(row.available_after_reserved_display),
-      },
-      {
-        field: "quantity_damaged",
-        label: "Damaged",
-        sortable: false,
-        render: (row) =>
-          toNum(row.quantity_damaged) > 0 ? (
-            <span className="text-red-600 font-semibold tabular-nums">
-              {formatNumber(row.quantity_damaged)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground tabular-nums">0</span>
-          ),
-      },
-      {
-        field: "last_purchase_price_excl_gst",
-        label: "Last Purchase Excl GST",
-        sortable: false,
-        render: (row) =>
-          row.last_purchase_price != null ? formatCurrency(row.last_purchase_price) : "-",
-      },
-      {
-        field: "last_purchase_price_incl_gst",
-        label: "Last Purchase Incl GST",
-        sortable: false,
-        render: (row) => {
-          if (row.last_purchase_price == null) return "-";
-          const last = toNum(row.last_purchase_price);
-          const gst = toNum(row.gst_percent);
-          return formatCurrency(last * (1 + gst / 100));
         },
-      },
-      {
-        field: "avg_price_excl_gst",
-        label: "Avg Price Excl GST",
-        sortable: false,
-        render: (row) =>
-          row.avg_purchase_price != null ? formatCurrency(row.avg_purchase_price) : "-",
-      },
-      {
-        field: "avg_price_incl_gst",
-        label: "Avg Price Incl GST",
-        sortable: false,
-        render: (row) => {
-          const avg = toNum(row.avg_purchase_price);
-          const gst = toNum(row.gst_percent);
-          return formatCurrency(avg * (1 + gst / 100));
-        },
-      },
-      {
-        field: "stock_value",
-        label: "Stock Value Excl GST",
-        sortable: false,
-        render: (row) => (row.stock_value != null ? formatCurrency(row.stock_value) : "-"),
-      },
-      {
-        field: "stock_value_incl_gst",
-        label: "Stock Value Incl GST",
-        sortable: false,
-        render: (row) => {
-          const stockValue = toNum(row.stock_value);
-          const gst = toNum(row.gst_percent);
-          return formatCurrency(stockValue * (1 + gst / 100));
-        },
-      },
-      {
-        field: "tracking_type",
-        label: "Tracking",
-        sortable: true,
-        render: (row) => (
-          <Badge variant={row.tracking_type === "SERIAL" ? "default" : "secondary"} className="text-xs">
-            {row.tracking_type || "-"}
-          </Badge>
-        ),
-      },
-      {
-        field: "min_stock_quantity",
-        label: "Min Stock",
-        sortable: true,
-      },
-      {
-        field: "gst_percent",
-        label: "GST %",
-        sortable: false,
-        render: (row) => `${toNum(row.gst_percent)}%`,
-      },
-      {
+        {
+          field: "min_stock_quantity",
+          label: "Min Stock",
+          sortable: true,
+        }
+      );
+
+      if (!qtyOnly) {
+        cols.push({
+          field: "gst_percent",
+          label: "GST %",
+          sortable: false,
+          render: (row) => `${toNum(row.gst_percent)}%`,
+        });
+      }
+
+      cols.push({
         field: "status",
         label: "Status",
         sortable: false,
@@ -633,9 +652,11 @@ export default function StockPage() {
             </Badge>
           );
         },
-      },
-    ],
-    [handleOpenReservedDetails]
+      });
+
+      return cols;
+    },
+    [handleOpenReservedDetails, qtyOnly]
   );
 
   const fetcher = useMemo(
@@ -731,7 +752,7 @@ export default function StockPage() {
   return (
     <ProtectedRoute>
       <ListingPageContainer
-        title="iStock Dashboard"
+        title={qtyOnly ? "Stock Quantity" : "iStock Dashboard"}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}
@@ -744,8 +765,14 @@ export default function StockPage() {
                 <IconReportAnalytics size={16} className="text-indigo-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold leading-tight">Inventory Insights</h2>
-                <p className="text-[11px] text-muted-foreground">Product Type focus with GST-aware valuation</p>
+                <h2 className="text-sm font-semibold leading-tight">
+                  {qtyOnly ? "Quantity Insights" : "Inventory Insights"}
+                </h2>
+                <p className="text-[11px] text-muted-foreground">
+                  {qtyOnly
+                    ? "Stock quantities without price details"
+                    : "Product Type focus with GST-aware valuation"}
+                </p>
                 <p className="text-[11px] text-muted-foreground">
                   After Reserve = Total AVL - Reserved
                 </p>
@@ -1022,7 +1049,7 @@ export default function StockPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
+          <div className={`grid grid-cols-2 md:grid-cols-3 ${qtyOnly ? "xl:grid-cols-4" : "xl:grid-cols-6"} gap-2`}>
             <StatCard
               icon={<IconPackage size={16} />}
               label="Total Products"
@@ -1055,30 +1082,34 @@ export default function StockPage() {
               subLabel="Total AVL - Reserved"
               loading={summaryLoading}
             />
-            <StatCard
-              icon={<IconAlertTriangle size={16} />}
-              label="Damaged"
-              value={formatNumber(totals.total_damaged)}
-              accentColor="#ef4444"
-              subLabel="Posted DAMAGE adjustments"
-              loading={summaryLoading}
-            />
-            <StatCard
-              icon={<IconReportAnalytics size={16} />}
-              label="Value Excl GST"
-              value={formatCurrency(totals.total_stock_value_excl_gst)}
-              accentColor="#f59e0b"
-              subLabel={`Low Stock: ${formatNumber(totals.low_stock_count)}`}
-              loading={summaryLoading}
-            />
-            <StatCard
-              icon={<IconBuildingWarehouse size={16} />}
-              label="Value Incl GST"
-              value={formatCurrency(totals.total_stock_value_incl_gst)}
-              accentColor="#f97316"
-              subLabel={`Out of Stock: ${formatNumber(totals.out_of_stock_count)}`}
-              loading={summaryLoading}
-            />
+            {!qtyOnly && (
+              <>
+                <StatCard
+                  icon={<IconAlertTriangle size={16} />}
+                  label="Damaged"
+                  value={formatNumber(totals.total_damaged)}
+                  accentColor="#ef4444"
+                  subLabel="Posted DAMAGE adjustments"
+                  loading={summaryLoading}
+                />
+                <StatCard
+                  icon={<IconReportAnalytics size={16} />}
+                  label="Value Excl GST"
+                  value={formatCurrency(totals.total_stock_value_excl_gst)}
+                  accentColor="#f59e0b"
+                  subLabel={`Low Stock: ${formatNumber(totals.low_stock_count)}`}
+                  loading={summaryLoading}
+                />
+                <StatCard
+                  icon={<IconBuildingWarehouse size={16} />}
+                  label="Value Incl GST"
+                  value={formatCurrency(totals.total_stock_value_incl_gst)}
+                  accentColor="#f97316"
+                  subLabel={`Out of Stock: ${formatNumber(totals.out_of_stock_count)}`}
+                  loading={summaryLoading}
+                />
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
@@ -1089,6 +1120,7 @@ export default function StockPage() {
               loading={summaryLoading}
               isEmpty={productTypeChartData.length === 0}
               action={
+                qtyOnly ? null : (
                 <div className="flex items-center gap-1 rounded-full border border-border p-0.5">
                   <button
                     onClick={() => setValueMode("excl")}
@@ -1109,6 +1141,7 @@ export default function StockPage() {
                     Incl GST
                   </button>
                 </div>
+                )
               }
             >
               <ResponsiveContainer width="100%" height={240}>
@@ -1130,6 +1163,7 @@ export default function StockPage() {
                   <Bar dataKey="available" name="Available" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              {!qtyOnly && (
               <div className="px-2 pb-1 grid grid-cols-2 gap-1">
                 {productTypeChartData.slice(0, 4).map((item) => (
                   <div key={`ptype-value-${item.name}`} className="text-[10px] text-muted-foreground flex justify-between">
@@ -1140,6 +1174,7 @@ export default function StockPage() {
                   </div>
                 ))}
               </div>
+              )}
             </ChartCard>
 
             <ChartCard
@@ -1202,14 +1237,14 @@ export default function StockPage() {
                   <div className="p-2 text-xs text-muted-foreground">No summary rows found for selected filters.</div>
                 ) : (
                   <div className="max-h-64 overflow-auto scrollbar-thin">
-                    <div className="grid grid-cols-12 gap-1 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10">
-                      <div className="col-span-3">Product Type</div>
+                    <div className={`grid ${qtyOnly ? "grid-cols-8" : "grid-cols-12"} gap-1 px-3 py-1.5 bg-muted/50 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/50 sticky top-0 z-10`}>
+                      <div className={qtyOnly ? "col-span-3" : "col-span-3"}>Product Type</div>
                       <div className="col-span-1 text-right">SKUs</div>
                       <div className="col-span-1 text-right">Total AVL</div>
                       <div className="col-span-1 text-right">Available</div>
-                      <div className="col-span-1 text-right">Damaged</div>
-                      <div className="col-span-2 text-right">Value (Excl)</div>
-                      <div className="col-span-2 text-right">Value (Incl)</div>
+                      {!qtyOnly && <div className="col-span-1 text-right">Damaged</div>}
+                      {!qtyOnly && <div className="col-span-2 text-right">Value (Excl)</div>}
+                      {!qtyOnly && <div className="col-span-2 text-right">Value (Incl)</div>}
                       <div className="col-span-1 text-right">Health</div>
                     </div>
                     {(summary.by_product_type || []).map((row) => {
@@ -1219,7 +1254,7 @@ export default function StockPage() {
                           key={`summary-type-${row.product_type_id || row.product_type_name}`}
                           onClick={() => setProductTypeFilter(isActive ? "" : String(row.product_type_id || ""))}
                           className={[
-                            "grid grid-cols-12 gap-1 px-3 py-2 text-[11px] border-b last:border-b-0 border-border/40 cursor-pointer transition-colors",
+                            `grid ${qtyOnly ? "grid-cols-8" : "grid-cols-12"} gap-1 px-3 py-2 text-[11px] border-b last:border-b-0 border-border/40 cursor-pointer transition-colors`,
                             isActive ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-muted/50",
                           ].join(" ")}
                         >
@@ -1230,15 +1265,21 @@ export default function StockPage() {
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.product_count)}</div>
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.total_on_hand)}</div>
                           <div className="col-span-1 text-right tabular-nums">{formatNumber(row.total_available)}</div>
-                          <div className="col-span-1 text-right tabular-nums">
-                            {toNum(row.damaged_count) > 0 ? (
-                              <span className="text-red-600 font-semibold">{formatNumber(row.damaged_count)}</span>
-                            ) : (
-                              <span className="text-muted-foreground">0</span>
-                            )}
-                          </div>
-                          <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_excl_gst)}</div>
-                          <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_incl_gst)}</div>
+                          {!qtyOnly && (
+                            <div className="col-span-1 text-right tabular-nums">
+                              {toNum(row.damaged_count) > 0 ? (
+                                <span className="text-red-600 font-semibold">{formatNumber(row.damaged_count)}</span>
+                              ) : (
+                                <span className="text-muted-foreground">0</span>
+                              )}
+                            </div>
+                          )}
+                          {!qtyOnly && (
+                            <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_excl_gst)}</div>
+                          )}
+                          {!qtyOnly && (
+                            <div className="col-span-2 text-right tabular-nums font-medium">{formatCurrency(row.total_value_incl_gst)}</div>
+                          )}
                           <div className="col-span-1 text-right">
                             <Badge
                               variant={toNum(row.low_stock_count) > 0 ? "destructive" : "default"}
