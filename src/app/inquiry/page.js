@@ -12,7 +12,7 @@ import {
 import KanbanBoard from "./KanbanBoard";
 import ListView from "./ListView";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import inquiryService from "@/services/inquiryService";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -24,9 +24,34 @@ import {
   IconBan,
   IconDownload,
   IconUpload,
+  IconChartPie,
 } from "@tabler/icons-react";
 import Container from "@/components/container";
 import InquiryFilterPanel from "@/components/common/InquiryFilterPanel";
+
+const ANALYSIS_FILTER_KEYS = [
+  "status",
+  "handled_by",
+  "inquiry_source",
+  "branch_name",
+  "project_scheme",
+  "date_of_inquiry_from",
+  "date_of_inquiry_to",
+  "next_reminder_date_from",
+  "next_reminder_date_to",
+  "created_at_from",
+  "created_at_to",
+  "is_dead",
+];
+
+function filtersFromSearchParams(searchParams) {
+  const values = {};
+  ANALYSIS_FILTER_KEYS.forEach((key) => {
+    const v = searchParams.get(key);
+    if (v != null && String(v).trim() !== "") values[key] = v;
+  });
+  return values;
+}
 
 export default function InquiryPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -48,10 +73,34 @@ export default function InquiryPage() {
   const [importResult, setImportResult] = useState(null);
   const importFileInputRef = useRef(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const hydratedFromUrlRef = useRef(false);
 
   // --- Advanced Filter Panel state ---
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [filterValues, setFilterValues] = useState({});
+
+  // Hydrate filters from analysis drill-down query params (once)
+  useEffect(() => {
+    if (hydratedFromUrlRef.current) return;
+    const fromUrl = filtersFromSearchParams(searchParams);
+    if (Object.keys(fromUrl).length === 0) {
+      hydratedFromUrlRef.current = true;
+      return;
+    }
+    hydratedFromUrlRef.current = true;
+    const next = { ...fromUrl };
+    if (next.is_dead === "true") {
+      setShowDeadOnly(true);
+      setView("list");
+      delete next.is_dead;
+    }
+    if (next.status === "Converted" || next.status === "all") {
+      setView("list");
+    }
+    setFilterValues(next);
+    setReloadTrigger((prev) => prev + 1);
+  }, [searchParams]);
 
   // Build active filter params (strip empty values)
   const activeFilters = useCallback(() => {
@@ -156,6 +205,13 @@ export default function InquiryPage() {
                 New Inquiry
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={() => router.push("/inquiry/analysis")}
+            >
+              <IconChartPie className="mr-2 size-4" />
+              Analysis
+            </Button>
             <Button
               variant="outline"
               onClick={handleExport}

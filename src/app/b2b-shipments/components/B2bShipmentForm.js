@@ -59,7 +59,13 @@ function buildLinesFromOrderItems(items, stockByProductId = {}) {
         const requiredQty = parseInt(item.quantity, 10) || 0;
         const shipped = parseInt(item.shipped_quantity, 10) || 0;
         const returned = parseInt(item.returned_quantity ?? item.returned_qty, 10) || 0;
-        const pending = Math.max(0, requiredQty - shipped + returned);
+        const cancelled = parseInt(item.cancelled_quantity ?? item.cancelled_qty, 10) || 0;
+        // Prefer API pending (includes cancelled); fall back to same ERP formula
+        const pendingFromApi = item.pending_quantity ?? item.pending_qty;
+        const pending =
+            pendingFromApi != null && pendingFromApi !== ""
+                ? Math.max(0, parseInt(pendingFromApi, 10) || 0)
+                : Math.max(0, requiredQty - shipped + returned - cancelled);
         const stockRow = stockByProductId[item.product_id];
         const available =
             stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))

@@ -27,6 +27,19 @@ export const downloadB2bShipmentPDF = (id) =>
       };
     });
 
+export const exportB2bShipmentById = (id) =>
+  apiClient
+    .get(`/b2b-shipments/${id}/export`, { responseType: "blob" })
+    .then((r) => {
+      const disposition = r.headers?.["content-disposition"] || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const dateStamp = new Date().toISOString().split("T")[0];
+      return {
+        blob: r.data,
+        filename: match?.[1] || `b2b-shipment-${id}-${dateStamp}.xlsx`,
+      };
+    });
+
 export default {
   getB2bShipments,
   getB2bShipmentById,
@@ -34,4 +47,5 @@ export default {
   deleteB2bShipment,
   getNextB2bShipmentNumber,
   downloadB2bShipmentPDF,
+  exportB2bShipmentById,
 };
