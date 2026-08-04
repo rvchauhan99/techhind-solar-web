@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getInitialFormData, getInitialTechnicalRemarks } from "./quotationConfig";
 import { validateQuotation } from "./quotationValidation";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
+import { isIndiaCountry } from "@/components/common/AddressFields";
 
 const toNumber = (v) =>
     v === "" || v === null || v === undefined ? null : Number(v);
@@ -66,6 +67,19 @@ export function useQuotationState({ user, defaultValues = {} }) {
             const normalizedValue =
                 type === "checkbox" ? checked : value === undefined ? "" : value;
 
+            if (name === "state_id") {
+                setFormData((prev) => ({ ...prev, state_id: normalizedValue, city_id: "" }));
+                if (errors.state_id || errors.city_id) {
+                    setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.state_id;
+                        delete next.city_id;
+                        return next;
+                    });
+                }
+                return;
+            }
+
             if (name === "mobile_number" && normalizedValue && String(normalizedValue).trim() !== "") {
                 const phoneValidation = validateE164Phone(String(normalizedValue), { required: true });
                 if (!phoneValidation.isValid) {
@@ -122,6 +136,7 @@ export function useQuotationState({ user, defaultValues = {} }) {
 
     const buildPayload = useCallback(() => {
         const technicalRemarks = getInitialTechnicalRemarks(formData.technical_remarks);
+        const india = isIndiaCountry(formData.country);
         return {
             ...formData,
             technical_remarks: technicalRemarks,
@@ -129,8 +144,12 @@ export function useQuotationState({ user, defaultValues = {} }) {
             branch_id: toNumber(formData.branch_id),
             inquiry_id: toNumber(formData.inquiry_id),
             customer_id: toNumber(formData.customer_id),
-            state_id: toNumber(formData.state_id),
+            state_id: india ? toNumber(formData.state_id) : null,
+            state_text: india
+                ? formData.state_text || ""
+                : String(formData.state_text || "").trim(),
             city_id: toNumber(formData.city_id),
+            country: formData.country || "India",
             order_type_id: toNumber(formData.order_type_id),
             project_scheme_id: toNumber(formData.project_scheme_id),
             project_price_id: toNumber(formData.project_price_id),

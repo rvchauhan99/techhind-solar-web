@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toastError, toastSuccess } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 const REASON_TYPE_OPTIONS = [
   { value: "payment_rejection", label: "Payment Rejection" },
@@ -541,6 +542,22 @@ export default function MasterForm({
               error={hasError}
               helperText={hasError ? errors[fieldName] : null}
               placeholder="Select type..."
+            />
+          );
+        }
+
+        if (fieldName === "country") {
+          return (
+            <CountrySelect
+              key={fieldName}
+              name={fieldName}
+              label={displayLabel}
+              value={fieldValue || DEFAULT_COUNTRY}
+              onChange={handleChange}
+              disabled={viewMode}
+              required={isRequired && !viewMode}
+              error={hasError}
+              helperText={hasError ? errors[fieldName] : ""}
             />
           );
         }

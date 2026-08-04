@@ -185,29 +185,74 @@ export const validateE164Phone = (phone, { required = false } = {}) => {
 };
 
 /**
- * Validates pincode (Indian postal code)
- * Format: Exactly 6 digits
- * 
+ * Validates pincode (India 6-digit). Prefer validatePostalCode(value, country).
+ *
  * @param {string} pincode - Pincode to validate
  * @returns {object} - { isValid: boolean, message: string }
  */
-export const validatePincode = (pincode) => {
-  if (!pincode || pincode.trim() === "") {
-    return { isValid: true, message: "" }; // Optional field
+export const validatePincode = (pincode) => validatePostalCode(pincode, "India");
+
+/**
+ * Country-aware postal / ZIP / PIN validation. Empty is valid (optional).
+ * @param {string} value
+ * @param {string} [country]
+ * @returns {{ isValid: boolean, message: string }}
+ */
+export const validatePostalCode = (value, country = "India") => {
+  if (!value || String(value).trim() === "") {
+    return { isValid: true, message: "" };
+  }
+  const cleaned = String(value).trim();
+  const c = String(country || "India").trim().toLowerCase();
+
+  if (c === "india") {
+    if (!/^[0-9]{6}$/.test(cleaned)) {
+      return { isValid: false, message: "PIN Code must be exactly 6 digits" };
+    }
+    return { isValid: true, message: "" };
   }
 
-  const cleaned = pincode.trim();
-  
-  if (cleaned.length !== 6) {
-    return { isValid: false, message: "Pincode must be exactly 6 digits" };
+  if (c === "united states") {
+    if (!/^\d{5}(-\d{4})?$/.test(cleaned)) {
+      return { isValid: false, message: "ZIP Code must be 5 digits or ZIP+4 (e.g. 10001-1234)" };
+    }
+    return { isValid: true, message: "" };
   }
 
-  const pincodePattern = /^[0-9]{6}$/;
-  
-  if (!pincodePattern.test(cleaned)) {
-    return { isValid: false, message: "Pincode must contain only digits" };
+  if (c === "united kingdom") {
+    if (!/^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i.test(cleaned) || cleaned.length > 10) {
+      return { isValid: false, message: "Invalid UK postcode format" };
+    }
+    return { isValid: true, message: "" };
   }
 
+  if (c === "singapore") {
+    if (!/^\d{6}$/.test(cleaned)) {
+      return { isValid: false, message: "Singapore postal code must be 6 digits" };
+    }
+    return { isValid: true, message: "" };
+  }
+
+  if (c === "canada") {
+    if (!/^[A-Z]\d[A-Z]\s?\d[A-Z]\d$/i.test(cleaned)) {
+      return { isValid: false, message: "Invalid Canadian postal code (e.g. K1A 0B1)" };
+    }
+    return { isValid: true, message: "" };
+  }
+
+  if (c === "australia") {
+    if (!/^\d{4}$/.test(cleaned)) {
+      return { isValid: false, message: "Australian postcode must be 4 digits" };
+    }
+    return { isValid: true, message: "" };
+  }
+
+  if (cleaned.length > 20) {
+    return { isValid: false, message: "Postal code is too long (max 20)" };
+  }
+  if (!/^[A-Za-z0-9\s\-]+$/.test(cleaned)) {
+    return { isValid: false, message: "Postal code contains invalid characters" };
+  }
   return { isValid: true, message: "" };
 };
 

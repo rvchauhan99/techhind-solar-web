@@ -20,9 +20,10 @@ import {
   validateGSTIN,
   validatePAN,
   validateEmail,
+  validatePostalCode,
   derivePanFromGstin,
 } from "@/utils/validators";
-import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 import {
   B2B_PIPELINE_STAGE_OPTIONS,
   B2B_LOST_REASON_OPTIONS,
@@ -78,6 +79,7 @@ const emptyForm = {
   state_id: "",
   country: DEFAULT_COUNTRY,
   pincode: "",
+  state_text: "",
   requirement_description: "",
   expected_quantity: "",
   expected_budget: "",
@@ -137,7 +139,8 @@ export default function B2bLeadForm({
       assigned_to_name: dv.assigned_to_name || dv.assignedTo?.name || "",
       assigned_by_name: dv.assigned_by_name || dv.assignedBy?.name || "",
       state_id: dv.state_id || "",
-      state: dv.state || "",
+      state: dv.state || dv.state_text || "",
+      state_text: dv.state_text || dv.state || "",
       priority: dv.priority || "medium",
       country: dv.country || DEFAULT_COUNTRY,
       expected_purchase_date: dv.expected_purchase_date
@@ -153,9 +156,16 @@ export default function B2bLeadForm({
         const pan = derivePanFromGstin(value);
         if (pan && !prev.pan_number) next.pan_number = pan;
       }
+      if (key === "state") next.state_text = value;
+      if (key === "state_text") next.state = value;
       return next;
     });
     setErrors((prev) => ({ ...prev, [key]: undefined }));
+  };
+
+  const handleAddressChange = (e) => {
+    const { name, value } = e.target;
+    setField(name, value);
   };
 
   const validate = () => {
@@ -169,13 +179,23 @@ export default function B2bLeadForm({
       const emailRes = validateEmail(formData.email);
       if (emailRes && emailRes.isValid === false) next.email = emailRes.message || "Invalid email";
     }
-    if (formData.gstin) {
+    const india = isIndiaCountry(formData.country);
+    if (india) {
+      if (!formData.state_id) next.state_id = "State is required";
+    } else if (!String(formData.state || formData.state_text || "").trim()) {
+      next.state = "State / Province is required";
+    }
+    if (india && formData.gstin) {
       const gst = validateGSTIN(formData.gstin);
       if (!gst.isValid) next.gstin = gst.message;
     }
-    if (formData.pan_number) {
+    if (india && formData.pan_number) {
       const pan = validatePAN(formData.pan_number);
       if (!pan.isValid) next.pan_number = pan.message;
+    }
+    if (formData.pincode) {
+      const postal = validatePostalCode(formData.pincode, formData.country);
+      if (!postal.isValid) next.pincode = postal.message;
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -185,12 +205,16 @@ export default function B2bLeadForm({
     e.preventDefault();
     if (readOnly) return;
     if (!validate()) return;
+    const india = isIndiaCountry(formData.country);
     onSubmit?.({
       ...formData,
       country: formData.country || DEFAULT_COUNTRY,
       inquiry_source_id: formData.inquiry_source_id || null,
       assigned_to: formData.assigned_to || null,
-      state_id: formData.state_id || null,
+      state_id: india ? formData.state_id || null : null,
+      state: india
+        ? formData.state || formData.state_text || ""
+        : (formData.state || formData.state_text || "").trim(),
       number_of_branches:
         formData.number_of_branches === "" || formData.number_of_branches == null
           ? null
@@ -336,60 +360,44 @@ export default function B2bLeadForm({
                 onChange={(e) => setField("city", e.target.value)}
                 disabled={readOnly}
               />
-              <AutocompleteField
-                label="State"
-                referenceModel="state.model"
-                asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-                getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                value={
-                  formData.state_id
-                    ? { id: formData.state_id, name: formData.state }
-                    : formData.state ? { name: formData.state } : null
-                }
-                onChange={(_e, v) => {
-                  setField("state_id", v?.id ?? "");
-                  setField("state", v?.name ?? v?.label ?? "");
+              <AddressFields
+                values={formData}
+                onChange={handleAddressChange}
+                errors={errors}
+                fieldNames={{
+                  country: "country",
+                  state_id: "state_id",
+                  state: "state",
+                  pincode: "pincode",
                 }}
+                requiredState
                 disabled={readOnly}
               />
-              <div className="flex gap-2">
-                <Input
-                  className="flex-1"
-                  label="Pincode"
-                  value={formData.pincode}
-                  onChange={(e) => setField("pincode", e.target.value)}
-                  disabled={readOnly}
-                />
-                <CountrySelect
-                  className="flex-1"
-                  name="country"
-                  label="Country"
-                  value={formData.country}
-                  onChange={(e) => setField("country", e.target.value)}
-                  disabled={readOnly}
-                />
-              </div>
             </FormGrid>
           </FormCard>
 
           <FormCard title="Business Info">
             <FormGrid cols={2} className="gap-x-2 gap-y-1.5">
-              <Input
-                label="GSTIN"
-                value={formData.gstin}
-                onChange={(e) => setField("gstin", e.target.value.toUpperCase())}
-                error={!!errors.gstin}
-                helperText={errors.gstin}
-                disabled={readOnly}
-              />
-              <Input
-                label="PAN"
-                value={formData.pan_number}
-                onChange={(e) => setField("pan_number", e.target.value.toUpperCase())}
-                error={!!errors.pan_number}
-                helperText={errors.pan_number}
-                disabled={readOnly}
-              />
+              {isIndiaCountry(formData.country) && (
+                <>
+                  <Input
+                    label="GSTIN"
+                    value={formData.gstin}
+                    onChange={(e) => setField("gstin", e.target.value.toUpperCase())}
+                    error={!!errors.gstin}
+                    helperText={errors.gstin}
+                    disabled={readOnly}
+                  />
+                  <Input
+                    label="PAN"
+                    value={formData.pan_number}
+                    onChange={(e) => setField("pan_number", e.target.value.toUpperCase())}
+                    error={!!errors.pan_number}
+                    helperText={errors.pan_number}
+                    disabled={readOnly}
+                  />
+                </>
+              )}
               <Select
                 label="Business Type"
                 value={formData.business_type || ""}

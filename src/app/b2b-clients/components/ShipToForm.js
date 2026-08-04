@@ -5,11 +5,9 @@ import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
-import AutocompleteField from "@/components/common/AutocompleteField";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
-import { validatePincode } from "@/utils/validators";
+import { validatePostalCode } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 
 export default function ShipToForm({
   clientId,
@@ -65,18 +63,6 @@ export default function ShipToForm({
     if (serverError) onClearServerError();
   };
 
-  const handleBlur = (e) => {
-    const { name, value } = e.target;
-    if (name === "pincode" && value && value.trim() !== "") {
-      const pincodeValidation = validatePincode(value);
-      if (!pincodeValidation.isValid) {
-        setErrors((prev) => ({ ...prev, [name]: pincodeValidation.message }));
-        return;
-      }
-    }
-    setErrors((prev) => ({ ...prev, [name]: undefined }));
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
     if (serverError) onClearServerError();
@@ -84,11 +70,16 @@ export default function ShipToForm({
     if (!formData.address || formData.address.trim() === "") {
       validationErrors.address = "Address is required";
     }
-    if (!formData.state_id) {
-      validationErrors.state = "State selection is required";
+    const india = isIndiaCountry(formData.country);
+    if (india) {
+      if (!formData.state_id) {
+        validationErrors.state_id = "State is required";
+      }
+    } else if (!formData.state || String(formData.state).trim() === "") {
+      validationErrors.state = "State / Province is required";
     }
     if (formData.pincode && formData.pincode.trim() !== "") {
-      const pincodeValidation = validatePincode(formData.pincode);
+      const pincodeValidation = validatePostalCode(formData.pincode, formData.country);
       if (!pincodeValidation.isValid) validationErrors.pincode = pincodeValidation.message;
     }
     if (Object.keys(validationErrors).length > 0) {
@@ -101,7 +92,7 @@ export default function ShipToForm({
       city: formData.city?.trim() || null,
       district: formData.district?.trim() || null,
       state: formData.state?.trim() || null,
-      state_id: formData.state_id || null,
+      state_id: india ? formData.state_id || null : null,
       pincode: formData.pincode?.trim() || null,
       landmark: formData.landmark?.trim() || null,
       country: formData.country || DEFAULT_COUNTRY,
@@ -146,54 +137,19 @@ export default function ShipToForm({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input fullWidth name="city" label="City" value={formData.city} onChange={handleChange} />
           <Input fullWidth name="district" label="District" value={formData.district} onChange={handleChange} />
-          <AutocompleteField
-            name="state"
-            label="State"
-            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-            referenceModel="state.model"
-            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-            value={
-              formData.state_id
-                ? { id: formData.state_id, name: formData.state }
-                : formData.state
-                  ? { name: formData.state }
-                  : null
-            }
-            onChange={(e, newValue) =>
-              {
-                setFormData((prev) => ({
-                  ...prev,
-                  state_id: newValue?.id ?? "",
-                  state: (newValue?.name ?? newValue?.label ?? "").trim(),
-                }));
-                if (errors.state) setErrors((prev) => ({ ...prev, state: undefined }));
-                if (serverError) onClearServerError();
-              }
-            }
-            placeholder="Type to search..."
-            required
-            error={!!errors.state}
-            helperText={errors.state}
-          />
-          <Input
-            fullWidth
-            name="pincode"
-            label="Pincode"
-            value={formData.pincode}
+          <AddressFields
+            values={formData}
             onChange={handleChange}
-            onBlur={handleBlur}
-            error={!!errors.pincode}
-            helperText={errors.pincode}
-            inputProps={{ maxLength: 6 }}
+            errors={errors}
+            fieldNames={{
+              country: "country",
+              state_id: "state_id",
+              state: "state",
+              pincode: "pincode",
+            }}
+            requiredState
           />
           <Input fullWidth name="landmark" label="Landmark" value={formData.landmark} onChange={handleChange} />
-          <CountrySelect
-            fullWidth
-            name="country"
-            label="Country"
-            value={formData.country}
-            onChange={handleChange}
-          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input

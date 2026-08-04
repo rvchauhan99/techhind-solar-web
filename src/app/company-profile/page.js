@@ -35,7 +35,7 @@ import { getDefaultState, getDefaultBranch } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 
 export default function CompanyProfilePage() {
     const [company, setCompany] = useState(null);
@@ -95,6 +95,7 @@ export default function CompanyProfilePage() {
         address: "",
         city: "",
         state: "",
+        state_id: "",
         country: DEFAULT_COUNTRY,
         company_email: "",
         contact_number: "",
@@ -120,6 +121,7 @@ export default function CompanyProfilePage() {
         contact_no: "",
         gst_number: "",
         state_id: null,
+        state_text: "",
         billing_address_source: "branch",
         b2b_sales_contact_person: "",
         b2b_sales_contact_number: "",
@@ -133,6 +135,7 @@ export default function CompanyProfilePage() {
         contact_person: "",
         mobile: "",
         state_id: null,
+        state_text: "",
         email: "",
         phone_no: "",
         address: "",
@@ -195,6 +198,7 @@ export default function CompanyProfilePage() {
                 address: companyData.address || "",
                 city: companyData.city || "",
                 state: companyData.state || "",
+                state_id: companyData.state_id || "",
                 country: companyData.country || DEFAULT_COUNTRY,
                 company_email: companyData.company_email || "",
                 contact_number: companyData.contact_number || "",
@@ -330,7 +334,6 @@ export default function CompanyProfilePage() {
                 owner_number: "Owner Phone",
                 address: "Address",
                 city: "City",
-                state: "State",
                 company_email: "Company Email",
                 contact_number: "Contact Number",
             };
@@ -341,6 +344,16 @@ export default function CompanyProfilePage() {
                     validationErrors[field] = "This field is required";
                 }
             });
+
+            const india = isIndiaCountry(formData.country);
+            if (india) {
+                if (!formData.state_id && (!formData.state || formData.state.trim() === "")) {
+                    validationErrors.state = "State is required";
+                    if (!formData.state_id) validationErrors.state_id = "State is required";
+                }
+            } else if (!formData.state || formData.state.trim() === "") {
+                validationErrors.state = "State / Province is required";
+            }
 
             // Validate phone numbers
             if (formData.owner_number && formData.owner_number.trim() !== "") {
@@ -382,7 +395,12 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setErrors({});
 
-            const res = await companyService.updateCompanyProfile(formData);
+            const { state_id: _companyStateId, ...companyPayload } = formData;
+            const res = await companyService.updateCompanyProfile({
+                ...companyPayload,
+                state: formData.state?.trim() || "",
+                country: formData.country || DEFAULT_COUNTRY,
+            });
             const msg = res?.data?.message || res?.result?.message || "Company profile updated successfully";
             setSuccess(msg);
             toastSuccess(msg);
@@ -647,8 +665,6 @@ export default function CompanyProfilePage() {
                 address: "Address",
                 email: "Email",
                 contact_no: "Contact Number",
-                gst_number: "GST Number",
-                state_id: "State",
             };
 
             const validationErrors = {};
@@ -665,6 +681,23 @@ export default function CompanyProfilePage() {
                 }
             });
 
+            const india = isIndiaCountry(branchFormData.country);
+            if (india) {
+                if (!branchFormData.state_id || branchFormData.state_id === null || branchFormData.state_id === "") {
+                    validationErrors.state_id = "This field is required";
+                }
+                if (branchFormData.gst_number && branchFormData.gst_number.trim() !== "") {
+                    const gstValidation = validateGSTIN(branchFormData.gst_number);
+                    if (!gstValidation.isValid) {
+                        validationErrors.gst_number = gstValidation.message;
+                    }
+                } else {
+                    validationErrors.gst_number = "This field is required";
+                }
+            } else if (!branchFormData.state_text || String(branchFormData.state_text).trim() === "") {
+                validationErrors.state_text = "State / Province is required";
+            }
+
             // Validate contact_no (phone)
             if (branchFormData.contact_no && branchFormData.contact_no.trim() !== "") {
                 const phoneValidation = validatePhone(branchFormData.contact_no);
@@ -678,14 +711,6 @@ export default function CompanyProfilePage() {
                 const emailValidation = validateEmail(branchFormData.email);
                 if (!emailValidation.isValid) {
                     validationErrors.email = emailValidation.message;
-                }
-            }
-
-            // Validate gst_number
-            if (branchFormData.gst_number && branchFormData.gst_number.trim() !== "") {
-                const gstValidation = validateGSTIN(branchFormData.gst_number);
-                if (!gstValidation.isValid) {
-                    validationErrors.gst_number = gstValidation.message;
                 }
             }
 
@@ -712,13 +737,23 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setBranchErrors({});
 
+            const branchPayload = {
+                ...branchFormData,
+                country: branchFormData.country || DEFAULT_COUNTRY,
+                state_id: india ? branchFormData.state_id || null : null,
+                state_text: india
+                    ? branchFormData.state_text || ""
+                    : String(branchFormData.state_text || "").trim(),
+                gst_number: india ? branchFormData.gst_number?.trim() || "" : branchFormData.gst_number?.trim() || "",
+            };
+
             let msg;
             if (editingBranch) {
-                const res = await companyService.updateBranch(editingBranch.id, branchFormData);
+                const res = await companyService.updateBranch(editingBranch.id, branchPayload);
                 msg = res?.data?.message || res?.result?.message || "Branch updated successfully";
                 setSuccess(msg);
             } else {
-                const res = await companyService.createBranch(branchFormData);
+                const res = await companyService.createBranch(branchPayload);
                 msg = res?.data?.message || res?.result?.message || "Branch created successfully";
                 setSuccess(msg);
             }
@@ -733,6 +768,8 @@ export default function CompanyProfilePage() {
                 contact_no: "",
                 gst_number: "",
                 state_id: null,
+                state_text: "",
+                billing_address_source: "branch",
                 b2b_sales_contact_person: "",
                 b2b_sales_contact_number: "",
                 b2b_sales_contact_email: "",
@@ -762,6 +799,7 @@ export default function CompanyProfilePage() {
             contact_no: branch.contact_no || "",
             gst_number: branch.gst_number || "",
             state_id: branch.state_id || branch.state?.id || null,
+            state_text: branch.state_text || branch.state?.name || "",
             billing_address_source:
                 branch.billing_address_source === "company" ? "company" : "branch",
             b2b_sales_contact_person: branch.b2b_sales_contact_person ?? "",
@@ -810,6 +848,7 @@ export default function CompanyProfilePage() {
             contact_no: "",
             gst_number: "",
             state_id: null,
+            state_text: "",
             billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
@@ -833,6 +872,7 @@ export default function CompanyProfilePage() {
             contact_no: "",
             gst_number: "",
             state_id: null,
+            state_text: "",
             billing_address_source: "branch",
             b2b_sales_contact_person: "",
             b2b_sales_contact_number: "",
@@ -929,7 +969,15 @@ export default function CompanyProfilePage() {
             }
 
             if (!warehouseFormData.state_id || warehouseFormData.state_id === null || warehouseFormData.state_id === "") {
-                validationErrors.state_id = "This field is required";
+                if (isIndiaCountry(warehouseFormData.country)) {
+                    validationErrors.state_id = "This field is required";
+                }
+            }
+            if (
+                !isIndiaCountry(warehouseFormData.country) &&
+                (!warehouseFormData.state_text || String(warehouseFormData.state_text).trim() === "")
+            ) {
+                validationErrors.state_text = "State / Province is required";
             }
             if (!warehouseFormData.address || warehouseFormData.address.trim() === "") {
                 validationErrors.address = "This field is required";
@@ -948,13 +996,23 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setWarehouseErrors({});
 
+            const warehouseIndia = isIndiaCountry(warehouseFormData.country);
+            const warehousePayload = {
+                ...warehouseFormData,
+                country: warehouseFormData.country || DEFAULT_COUNTRY,
+                state_id: warehouseIndia ? warehouseFormData.state_id || null : null,
+                state_text: warehouseIndia
+                    ? warehouseFormData.state_text || ""
+                    : String(warehouseFormData.state_text || "").trim(),
+            };
+
             let msg;
             if (editingWarehouse) {
-                const res = await companyService.updateWarehouse(editingWarehouse.id, warehouseFormData);
+                const res = await companyService.updateWarehouse(editingWarehouse.id, warehousePayload);
                 msg = res?.data?.message || res?.result?.message || "Warehouse updated successfully";
                 setSuccess(msg);
             } else {
-                const res = await companyService.createWarehouse(warehouseFormData);
+                const res = await companyService.createWarehouse(warehousePayload);
                 msg = res?.data?.message || res?.result?.message || "Warehouse created successfully";
                 setSuccess(msg);
             }
@@ -966,6 +1024,7 @@ export default function CompanyProfilePage() {
                 contact_person: "",
                 mobile: "",
                 state_id: null,
+                state_text: "",
                 email: "",
                 phone_no: "",
                 address: "",
@@ -992,6 +1051,7 @@ export default function CompanyProfilePage() {
             contact_person: warehouse.contact_person || "",
             mobile: warehouse.mobile || "",
             state_id: warehouse.state_id || null,
+            state_text: warehouse.state_text || warehouse.state_name || "",
             email: warehouse.email || "",
             phone_no: warehouse.phone_no || "",
             address: warehouse.address || "",
@@ -1156,6 +1216,7 @@ export default function CompanyProfilePage() {
             contact_person: "",
             mobile: "",
             state_id: null,
+            state_text: "",
             email: "",
             phone_no: "",
             address: "",
@@ -2386,22 +2447,17 @@ export default function CompanyProfilePage() {
                                             error={!!errors.city}
                                             helperText={errors.city || ""}
                                         />
-                                        <Input
-                                            name="state"
-                                            label="State"
-                                            value={formData.state}
+                                        <AddressFields
+                                            values={formData}
                                             onChange={handleInputChange}
-                                            fullWidth
-                                            required
-                                            error={!!errors.state}
-                                            helperText={errors.state || ""}
-                                        />
-                                        <CountrySelect
-                                            name="country"
-                                            label="Country"
-                                            value={formData.country}
-                                            onChange={handleInputChange}
-                                            fullWidth
+                                            errors={errors}
+                                            fieldNames={{
+                                                country: "country",
+                                                state_id: "state_id",
+                                                state: "state",
+                                            }}
+                                            requiredState
+                                            showPostal={false}
                                         />
                                         <Input
                                             name="contact_number"
@@ -2647,12 +2703,17 @@ export default function CompanyProfilePage() {
                                             error={!!branchErrors.address}
                                             helperText={branchErrors.address || ""}
                                         />
-                                        <CountrySelect
-                                            name="country"
-                                            label="Country"
-                                            value={branchFormData.country}
+                                        <AddressFields
+                                            values={branchFormData}
                                             onChange={handleBranchInputChange}
-                                            fullWidth
+                                            errors={branchErrors}
+                                            fieldNames={{
+                                                country: "country",
+                                                state_id: "state_id",
+                                                state: "state_text",
+                                            }}
+                                            requiredState
+                                            showPostal={false}
                                         />
                                         <Input
                                             name="email"
@@ -2675,33 +2736,18 @@ export default function CompanyProfilePage() {
                                             error={!!branchErrors.contact_no}
                                             helperText={branchErrors.contact_no || ""}
                                         />
-                                        <Input
-                                            name="gst_number"
-                                            label="GST Number"
-                                            value={branchFormData.gst_number}
-                                            onChange={handleBranchInputChange}
-                                            fullWidth
-                                            required
-                                            error={!!branchErrors.gst_number}
-                                            helperText={branchErrors.gst_number || ""}
-                                        />
-                                        <AutocompleteField
-                                            name="state_id"
-                                            label="State"
-                                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-                                            referenceModel="state.model"
-                                            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                                            value={branchFormData.state_id ? { id: branchFormData.state_id } : null}
-                                            onChange={(e, newValue) =>
-                                                handleBranchInputChange({
-                                                    target: { name: "state_id", value: newValue?.id ?? newValue?.value ?? "" },
-                                                })
-                                            }
-                                            placeholder="Type to search..."
-                                            required
-                                            error={!!branchErrors.state_id}
-                                            helperText={branchErrors.state_id || ""}
-                                        />
+                                        {isIndiaCountry(branchFormData.country) && (
+                                            <Input
+                                                name="gst_number"
+                                                label="GST Number"
+                                                value={branchFormData.gst_number}
+                                                onChange={handleBranchInputChange}
+                                                fullWidth
+                                                required
+                                                error={!!branchErrors.gst_number}
+                                                helperText={branchErrors.gst_number || ""}
+                                            />
+                                        )}
                                         <div className="md:col-span-2 lg:col-span-3 space-y-1">
                                             <Select
                                                 name="billing_address_source"
@@ -2867,22 +2913,17 @@ export default function CompanyProfilePage() {
                                             error={!!warehouseErrors.mobile}
                                             helperText={warehouseErrors.mobile || ""}
                                         />
-                                        <AutocompleteField
-                                            name="state_id"
-                                            label="State"
-                                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-                                            referenceModel="state.model"
-                                            getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-                                            value={warehouseFormData.state_id ? { id: warehouseFormData.state_id } : null}
-                                            onChange={(e, newValue) =>
-                                                handleWarehouseInputChange({
-                                                    target: { name: "state_id", value: newValue?.id ?? newValue?.value ?? "" },
-                                                })
-                                            }
-                                            placeholder="Type to search..."
-                                            required
-                                            error={!!warehouseErrors.state_id}
-                                            helperText={warehouseErrors.state_id || ""}
+                                        <AddressFields
+                                            values={warehouseFormData}
+                                            onChange={handleWarehouseInputChange}
+                                            errors={warehouseErrors}
+                                            fieldNames={{
+                                                country: "country",
+                                                state_id: "state_id",
+                                                state: "state_text",
+                                            }}
+                                            requiredState
+                                            showPostal={false}
                                         />
                                         <Input
                                             name="email"
@@ -2914,13 +2955,6 @@ export default function CompanyProfilePage() {
                                             required
                                             error={!!warehouseErrors.address}
                                             helperText={warehouseErrors.address || ""}
-                                        />
-                                        <CountrySelect
-                                            name="country"
-                                            label="Country"
-                                            value={warehouseFormData.country}
-                                            onChange={handleWarehouseInputChange}
-                                            fullWidth
                                         />
                                         <AutocompleteField
                                             name="branch_id"

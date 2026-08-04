@@ -72,6 +72,7 @@ export function getInitialFormData(user, overrides = {}) {
         email: "",
         company_name: "",
         state_id: "",
+        state_text: "",
         city_id: "",
         pin_code: "",
         taluka: "",
