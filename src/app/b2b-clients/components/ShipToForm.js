@@ -9,6 +9,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { validatePincode } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 export default function ShipToForm({
   clientId,
@@ -28,7 +29,7 @@ export default function ShipToForm({
     state_id: "",
     pincode: "",
     landmark: "",
-    country: "India",
+    country: DEFAULT_COUNTRY,
     contact_person: "",
     phone: "",
     email: "",
@@ -47,7 +48,7 @@ export default function ShipToForm({
         state_id: defaultValues.state_id || "",
         pincode: defaultValues.pincode || "",
         landmark: defaultValues.landmark || "",
-        country: defaultValues.country || "India",
+        country: defaultValues.country || DEFAULT_COUNTRY,
         contact_person: defaultValues.contact_person || "",
         phone: defaultValues.phone || "",
         email: defaultValues.email || "",
@@ -103,7 +104,7 @@ export default function ShipToForm({
       state_id: formData.state_id || null,
       pincode: formData.pincode?.trim() || null,
       landmark: formData.landmark?.trim() || null,
-      country: formData.country?.trim() || "India",
+      country: formData.country || DEFAULT_COUNTRY,
       contact_person: formData.contact_person?.trim() || null,
       phone: formData.phone?.trim() || null,
       email: formData.email?.trim() || null,
@@ -186,7 +187,13 @@ export default function ShipToForm({
             inputProps={{ maxLength: 6 }}
           />
           <Input fullWidth name="landmark" label="Landmark" value={formData.landmark} onChange={handleChange} />
-          <Input fullWidth name="country" label="Country" value={formData.country} onChange={handleChange} />
+          <CountrySelect
+            fullWidth
+            name="country"
+            label="Country"
+            value={formData.country}
+            onChange={handleChange}
+          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input

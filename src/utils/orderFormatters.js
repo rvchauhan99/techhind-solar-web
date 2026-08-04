@@ -38,6 +38,7 @@ export const getFullOrderAddress = (order) => {
         order?.city_name,
         order?.state_name,
         order?.pin_code,
+        order?.country,
     ].filter((v) => v && String(v).trim() !== "");
     return parts.length ? parts.join(", ") : "-";
 };

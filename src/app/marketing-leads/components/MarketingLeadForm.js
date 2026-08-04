@@ -18,12 +18,16 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 export default function MarketingLeadForm(props) {
   const { defaultValues: propDefaultValues, onSubmit, loading } = props;
   const defaultValues = propDefaultValues || {};
   const router = useRouter();
-  const [formData, setFormData] = useState(defaultValues);
+  const [formData, setFormData] = useState({
+    ...defaultValues,
+    country: defaultValues.country || DEFAULT_COUNTRY,
+  });
   const [errors, setErrors] = useState({});
 
   const getOptionLabel = (opt) =>
@@ -56,6 +60,7 @@ export default function MarketingLeadForm(props) {
         : "",
       priority: dv?.priority || "medium",
       status: dv?.status || "new",
+      country: dv?.country || prev.country || DEFAULT_COUNTRY,
     }));
   }, [propDefaultValues]);
 
@@ -171,7 +176,7 @@ export default function MarketingLeadForm(props) {
     }
 
     setErrors({});
-    onSubmit(formData);
+    onSubmit({ ...formData, country: formData.country || DEFAULT_COUNTRY });
   };
 
   return (
@@ -393,6 +398,12 @@ export default function MarketingLeadForm(props) {
               name="pin_code"
               label="Pin Code"
               value={formData.pin_code || ""}
+              onChange={handleChange}
+            />
+            <CountrySelect
+              name="country"
+              label="Country"
+              value={formData.country}
               onChange={handleChange}
             />
           </FormGrid>

@@ -77,6 +77,7 @@ export function getInitialFormData(user, overrides = {}) {
         taluka: "",
         landmark_area: "",
         district: "",
+        country: "India",
         address: "",
         order_type_id: "",
         project_scheme_id: "",

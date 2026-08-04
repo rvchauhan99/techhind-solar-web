@@ -35,6 +35,7 @@ import { getDefaultState, getDefaultBranch } from "@/services/mastersService";
 import { validatePhone, validateEmail, validateGSTIN, formatPhone, formatToUpperCase } from "@/utils/validators";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 export default function CompanyProfilePage() {
     const [company, setCompany] = useState(null);
@@ -94,6 +95,7 @@ export default function CompanyProfilePage() {
         address: "",
         city: "",
         state: "",
+        country: DEFAULT_COUNTRY,
         company_email: "",
         contact_number: "",
         company_website: "",
@@ -113,6 +115,7 @@ export default function CompanyProfilePage() {
     const [branchFormData, setBranchFormData] = useState({
         name: "",
         address: "",
+        country: DEFAULT_COUNTRY,
         email: "",
         contact_no: "",
         gst_number: "",
@@ -133,6 +136,7 @@ export default function CompanyProfilePage() {
         email: "",
         phone_no: "",
         address: "",
+        country: DEFAULT_COUNTRY,
         branch_id: null,
         is_active: true,
     });
@@ -191,6 +195,7 @@ export default function CompanyProfilePage() {
                 address: companyData.address || "",
                 city: companyData.city || "",
                 state: companyData.state || "",
+                country: companyData.country || DEFAULT_COUNTRY,
                 company_email: companyData.company_email || "",
                 contact_number: companyData.contact_number || "",
                 company_website: companyData.company_website || "",
@@ -723,6 +728,7 @@ export default function CompanyProfilePage() {
             setBranchFormData({
                 name: "",
                 address: "",
+                country: DEFAULT_COUNTRY,
                 email: "",
                 contact_no: "",
                 gst_number: "",
@@ -751,6 +757,7 @@ export default function CompanyProfilePage() {
         setBranchFormData({
             name: branch.name || "",
             address: branch.address || "",
+            country: branch.country || DEFAULT_COUNTRY,
             email: branch.email || "",
             contact_no: branch.contact_no || "",
             gst_number: branch.gst_number || "",
@@ -798,6 +805,7 @@ export default function CompanyProfilePage() {
         setBranchFormData({
             name: "",
             address: "",
+            country: DEFAULT_COUNTRY,
             email: "",
             contact_no: "",
             gst_number: "",
@@ -820,6 +828,7 @@ export default function CompanyProfilePage() {
         setBranchFormData({
             name: "",
             address: "",
+            country: DEFAULT_COUNTRY,
             email: "",
             contact_no: "",
             gst_number: "",
@@ -960,6 +969,7 @@ export default function CompanyProfilePage() {
                 email: "",
                 phone_no: "",
                 address: "",
+                country: DEFAULT_COUNTRY,
                 branch_id: null,
                 is_active: true,
             });
@@ -985,6 +995,7 @@ export default function CompanyProfilePage() {
             email: warehouse.email || "",
             phone_no: warehouse.phone_no || "",
             address: warehouse.address || "",
+            country: warehouse.country || DEFAULT_COUNTRY,
             branch_id: warehouse.branch_id ?? warehouse.branch?.id ?? null,
             is_active: warehouse.is_active !== undefined ? warehouse.is_active : true,
         });
@@ -1148,6 +1159,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            country: DEFAULT_COUNTRY,
             branch_id: null,
             is_active: true,
         };
@@ -1192,6 +1204,7 @@ export default function CompanyProfilePage() {
             email: "",
             phone_no: "",
             address: "",
+            country: DEFAULT_COUNTRY,
             branch_id: null,
             is_active: true,
         });
@@ -1420,6 +1433,10 @@ export default function CompanyProfilePage() {
                                     <div>
                                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">State</dt>
                                         <dd className="mt-0.5 font-medium">{formData.state || "—"}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Country</dt>
+                                        <dd className="mt-0.5 font-medium">{formData.country || "—"}</dd>
                                     </div>
                                     <div>
                                         <dt className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Contact Number</dt>
@@ -2379,6 +2396,13 @@ export default function CompanyProfilePage() {
                                             error={!!errors.state}
                                             helperText={errors.state || ""}
                                         />
+                                        <CountrySelect
+                                            name="country"
+                                            label="Country"
+                                            value={formData.country}
+                                            onChange={handleInputChange}
+                                            fullWidth
+                                        />
                                         <Input
                                             name="contact_number"
                                             label="Contact Number"
@@ -2622,6 +2646,13 @@ export default function CompanyProfilePage() {
                                             required
                                             error={!!branchErrors.address}
                                             helperText={branchErrors.address || ""}
+                                        />
+                                        <CountrySelect
+                                            name="country"
+                                            label="Country"
+                                            value={branchFormData.country}
+                                            onChange={handleBranchInputChange}
+                                            fullWidth
                                         />
                                         <Input
                                             name="email"
@@ -2883,6 +2914,13 @@ export default function CompanyProfilePage() {
                                             required
                                             error={!!warehouseErrors.address}
                                             helperText={warehouseErrors.address || ""}
+                                        />
+                                        <CountrySelect
+                                            name="country"
+                                            label="Country"
+                                            value={warehouseFormData.country}
+                                            onChange={handleWarehouseInputChange}
+                                            fullWidth
                                         />
                                         <AutocompleteField
                                             name="branch_id"

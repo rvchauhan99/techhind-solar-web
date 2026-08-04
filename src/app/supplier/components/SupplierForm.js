@@ -21,6 +21,7 @@ import {
 } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 const COMPACT_FORM_SPACING = 2;
 const FORM_PADDING = 3;
@@ -43,6 +44,7 @@ export default function SupplierForm({
     city: "",
     state_id: "",
     pincode: "",
+    country: DEFAULT_COUNTRY,
     gstin: "",
     pan_number: "",
     is_active: true,
@@ -62,6 +64,7 @@ export default function SupplierForm({
         city: defaultValues.city || "",
         state_id: defaultValues.state_id || "",
         pincode: defaultValues.pincode || "",
+        country: defaultValues.country || DEFAULT_COUNTRY,
         gstin: defaultValues.gstin || "",
         pan_number: defaultValues.pan_number || "",
         is_active: defaultValues.is_active !== undefined ? defaultValues.is_active : true,
@@ -260,6 +263,7 @@ export default function SupplierForm({
       address: formData.address?.trim() || "",
       city: formData.city?.trim() || "",
       pincode: formData.pincode?.trim() || "",
+      country: formData.country || DEFAULT_COUNTRY,
       gstin: formData.gstin?.trim().toUpperCase() || "",
       pan_number: formData.pan_number?.trim().toUpperCase() || "",
     };
@@ -390,6 +394,13 @@ export default function SupplierForm({
               error={!!errors.pincode}
               helperText={errors.pincode}
               inputProps={{ maxLength: 6 }}
+            />
+            <CountrySelect
+              fullWidth
+              name="country"
+              label="Country"
+              value={formData.country}
+              onChange={handleChange}
             />
             <Input
               fullWidth

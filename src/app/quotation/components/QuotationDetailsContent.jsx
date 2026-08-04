@@ -168,6 +168,7 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         <DetailRow label="Email" value={r.email || r.customer?.email_id} />
         <DetailRow label="Company Name" value={r.company_name || r.customer?.company_name} />
         <DetailRow label="State" value={r.state?.name} />
+        <DetailRow label="Country" value={r.country} />
         <div className="sm:col-span-2">
           <DetailRow label="Address" value={r.address} />
         </div>

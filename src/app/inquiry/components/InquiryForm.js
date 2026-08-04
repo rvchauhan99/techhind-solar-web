@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toast } from "sonner";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
     if (!channelPartner || channelPartner === "") return null;
@@ -30,7 +31,10 @@ const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
 
 export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const router = useRouter();
-    const [formData, setFormData] = useState(defaultValues);
+    const [formData, setFormData] = useState({
+        ...defaultValues,
+        country: defaultValues.country || DEFAULT_COUNTRY,
+    });
     const [errors, setErrors] = useState({});
 
     const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
@@ -58,6 +62,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                     : moment().format("YYYY-MM-DD"),
             capacity: defaultValues?.capacity !== undefined && defaultValues?.capacity !== null ? defaultValues.capacity : "",
             do_not_send_message: !!defaultValues?.do_not_send_message,
+            country: defaultValues?.country || prev.country || DEFAULT_COUNTRY,
         }));
     }, [defaultValues]);
 
@@ -361,7 +366,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         }
 
         setErrors({});
-        onSubmit(formData);
+        onSubmit({ ...formData, country: formData.country || DEFAULT_COUNTRY });
     };
 
     return (
@@ -626,6 +631,12 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             name="district"
                             label="District"
                             value={formData.district || ""}
+                            onChange={handleChange}
+                        />
+                        <CountrySelect
+                            name="country"
+                            label="Country"
+                            value={formData.country}
                             onChange={handleChange}
                         />
                 </FormGrid>
