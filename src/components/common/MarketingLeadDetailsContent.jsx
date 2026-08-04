@@ -94,7 +94,7 @@ export default function MarketingLeadDetailsContent({ lead, loading }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0">
         <DetailRow
           label="City / State / PIN"
-          value={[l.city_name, l.state_name, l.pin_code].filter(Boolean).join(", ") || "-"}
+          value={[l.city_name, l.state_name, l.pin_code, l.country].filter(Boolean).join(", ") || "-"}
         />
       </div>
 

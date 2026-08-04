@@ -19,6 +19,7 @@ import {
   derivePanFromGstin,
 } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 export default function B2bClientForm({
   defaultValues = {},
@@ -43,7 +44,7 @@ export default function B2bClientForm({
     billing_state_id: "",
     billing_pincode: "",
     billing_landmark: "",
-    billing_country: "India",
+    billing_country: DEFAULT_COUNTRY,
     credit_limit: 0,
     credit_days: 0,
     is_active: true,
@@ -68,7 +69,7 @@ export default function B2bClientForm({
         billing_state_id: defaultValues.billing_state_id || "",
         billing_pincode: defaultValues.billing_pincode || "",
         billing_landmark: defaultValues.billing_landmark || "",
-        billing_country: defaultValues.billing_country || "India",
+        billing_country: defaultValues.billing_country || DEFAULT_COUNTRY,
         credit_limit: defaultValues.credit_limit ?? 0,
         credit_days: defaultValues.credit_days ?? 0,
         is_active: defaultValues.is_active !== undefined ? defaultValues.is_active : true,
@@ -259,7 +260,7 @@ export default function B2bClientForm({
       billing_state: formData.billing_state?.trim() || "",
       billing_pincode: formData.billing_pincode?.trim() || "",
       billing_landmark: formData.billing_landmark?.trim() || "",
-      billing_country: formData.billing_country?.trim() || "India",
+      billing_country: formData.billing_country || DEFAULT_COUNTRY,
     };
     setErrors({});
     onSubmit(submitData);
@@ -458,7 +459,7 @@ export default function B2bClientForm({
               value={formData.billing_landmark}
               onChange={handleChange}
             />
-            <Input
+            <CountrySelect
               fullWidth
               name="billing_country"
               label="Country"

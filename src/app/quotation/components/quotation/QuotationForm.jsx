@@ -23,6 +23,7 @@ import LoadingButton from "@/components/common/LoadingButton";
 import Alert from "@mui/material/Alert";
 import { toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect from "@/components/common/CountrySelect";
 
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
@@ -448,6 +449,15 @@ export default function QuotationForm({
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="District" name="district" value={formData.district} onChange={handleChange} />
+                    </Grid>
+                    <Grid item size={{ xs: 12, md: 3 }}>
+                        <CountrySelect
+                            fullWidth
+                            name="country"
+                            label="Country"
+                            value={formData.country}
+                            onChange={handleChange}
+                        />
                     </Grid>
                 </Grid>
 

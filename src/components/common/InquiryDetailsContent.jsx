@@ -48,7 +48,7 @@ export default function InquiryDetailsContent({ inquiry, loading }) {
   if (!inquiry) return null;
 
   const i = inquiry;
-  const fullAddress = [i.address, i.landmark_area, i.city_name, i.state_name, i.pin_code]
+  const fullAddress = [i.address, i.landmark_area, i.city_name, i.state_name, i.pin_code, i.country]
     .filter(Boolean)
     .join(", ");
 
@@ -125,6 +125,7 @@ export default function InquiryDetailsContent({ inquiry, loading }) {
         <DetailRow label="Landmark / area" value={i.landmark_area} />
         <DetailRow label="Taluka" value={i.taluka} />
         <DetailRow label="District" value={i.district} />
+        <DetailRow label="Country" value={i.country} />
       </div>
 
       <SectionTitle>Dates</SectionTitle>

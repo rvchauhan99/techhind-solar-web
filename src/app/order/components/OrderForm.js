@@ -14,6 +14,7 @@ import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 
 const resolveLocationId = (value, options) => {
     if (value == null || value === "") return "";
@@ -89,6 +90,7 @@ export default function OrderForm({
         city_id: "",
         landmark_area: "",
         district: "",
+        country: DEFAULT_COUNTRY,
 
         // Assignment
         inquiry_source_id: "",
@@ -255,6 +257,7 @@ export default function OrderForm({
                         }
                     }
                 });
+                if (!updated.country) updated.country = DEFAULT_COUNTRY;
                 return updated;
             });
         }
@@ -372,6 +375,7 @@ export default function OrderForm({
                 ...formData,
                 state_id: toNullableLocationId(formData.state_id, locationOptions.states),
                 city_id: toNullableLocationId(formData.city_id, locationOptions.cities),
+                country: formData.country || DEFAULT_COUNTRY,
             });
         }
     };
@@ -678,7 +682,13 @@ export default function OrderForm({
                             value={formData.district ?? ""}
                             onChange={handleChangeEvent}
                         />
-                    </FormGrid>
+                        <CountrySelect
+                            name="country"
+                            label="Country"
+                            value={formData.country}
+                            onChange={handleChangeEvent}
+                        />
+                </FormGrid>
                 </FormSection>
 
                 <FormSection title="Connection Details">

@@ -22,6 +22,7 @@ import {
   validateEmail,
   derivePanFromGstin,
 } from "@/utils/validators";
+import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
 import {
   B2B_PIPELINE_STAGE_OPTIONS,
   B2B_LOST_REASON_OPTIONS,
@@ -75,7 +76,7 @@ const emptyForm = {
   city: "",
   state: "",
   state_id: "",
-  country: "India",
+  country: DEFAULT_COUNTRY,
   pincode: "",
   requirement_description: "",
   expected_quantity: "",
@@ -138,7 +139,7 @@ export default function B2bLeadForm({
       state_id: dv.state_id || "",
       state: dv.state || "",
       priority: dv.priority || "medium",
-      country: dv.country || "India",
+      country: dv.country || DEFAULT_COUNTRY,
       expected_purchase_date: dv.expected_purchase_date
         ? String(dv.expected_purchase_date).slice(0, 10)
         : "",
@@ -186,6 +187,7 @@ export default function B2bLeadForm({
     if (!validate()) return;
     onSubmit?.({
       ...formData,
+      country: formData.country || DEFAULT_COUNTRY,
       inquiry_source_id: formData.inquiry_source_id || null,
       assigned_to: formData.assigned_to || null,
       state_id: formData.state_id || null,
@@ -358,8 +360,9 @@ export default function B2bLeadForm({
                   onChange={(e) => setField("pincode", e.target.value)}
                   disabled={readOnly}
                 />
-                <Input
+                <CountrySelect
                   className="flex-1"
+                  name="country"
                   label="Country"
                   value={formData.country}
                   onChange={(e) => setField("country", e.target.value)}

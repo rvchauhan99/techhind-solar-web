@@ -219,10 +219,10 @@ function LeadInfoCard({ lead }) {
           </div>
           <InfoTile label="Address" value={lead.address} />
           <InfoTile label="Area" value={lead.area} />
-          {(lead.city || lead.state || lead.pincode) && (
+          {(lead.city || lead.state || lead.pincode || lead.country) && (
             <InfoTile
               label="Location"
-              value={[lead.city, lead.state, lead.pincode].filter(Boolean).join(", ")}
+              value={[lead.city, lead.state, lead.pincode, lead.country].filter(Boolean).join(", ")}
             />
           )}
         </div>
