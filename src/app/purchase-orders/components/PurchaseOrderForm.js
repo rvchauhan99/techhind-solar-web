@@ -30,6 +30,7 @@ import { toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -47,7 +48,10 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const DEFAULT_COUNTRY = "India";
+const DEFAULT_CURRENCY = "INR";
 const GSTIN_RE = /^[0-9]{2}[A-Z0-9]{13}$/i;
+
 const extractStateCodeFromValidGstin = (gstin) => {
     const normalized = String(gstin || "").trim().toUpperCase();
     if (!GSTIN_RE.test(normalized)) return "";
@@ -58,8 +62,29 @@ const normalizeStateId = (value) => {
     const n = Number(value);
     return Number.isInteger(n) && n > 0 ? String(n) : "";
 };
+const normalizeCountryKey = (value) =>
+    String(value || DEFAULT_COUNTRY).trim().toLowerCase() || "india";
+const resolveBranchCountry = (warehouse) => {
+    if (!warehouse) return DEFAULT_COUNTRY;
+    const country = warehouse.branch?.country || warehouse.country || DEFAULT_COUNTRY;
+    return String(country).trim() || DEFAULT_COUNTRY;
+};
+const formatMoneyAmount = (amount, currencyCode = DEFAULT_CURRENCY) => {
+    const n = Number(amount) || 0;
+    const ccy = String(currencyCode || DEFAULT_CURRENCY).toUpperCase();
+    if (ccy === "INR") return `₹${n.toFixed(2)}`;
+    return `${ccy} ${n.toFixed(2)}`;
+};
+const formatFcWithInr = (fcAmount, exchangeRate, currencyCode) => {
+    const fc = Number(fcAmount) || 0;
+    const rate = Number(exchangeRate) || 0;
+    if (!(rate > 0)) return formatMoneyAmount(fc, currencyCode);
+    const inr = parseFloat((fc * rate).toFixed(2));
+    return `${formatMoneyAmount(fc, currencyCode)} (₹${inr.toFixed(2)})`;
+};
 
 const resolvePoGstTypeForUi = ({
+    isImport = false,
     supplierGstin = "",
     branchGstin = "",
     supplierStateId = "",
@@ -67,6 +92,8 @@ const resolvePoGstTypeForUi = ({
     supplierState = "",
     branchState = "",
 } = {}) => {
+    if (isImport) return "IMPORT";
+
     const supplierCode = extractStateCodeFromValidGstin(supplierGstin);
     const branchCode = extractStateCodeFromValidGstin(branchGstin);
     const normalizedSupplierStateId = normalizeStateId(supplierStateId);
@@ -87,7 +114,14 @@ const resolvePoGstTypeForUi = ({
 };
 
 export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loading, serverError = null, onClearServerError = () => { }, onCancel = null }) {
-    const [supplierDetails, setSupplierDetails] = useState({ state: "", state_id: null, gstin: "" });
+    const [supplierDetails, setSupplierDetails] = useState({
+        state: "",
+        state_id: null,
+        gstin: "",
+        country: DEFAULT_COUNTRY,
+        currency_code: DEFAULT_CURRENCY,
+    });
+    const [shipToCountry, setShipToCountry] = useState(DEFAULT_COUNTRY);
     const [formData, setFormData] = useState({
         po_date: new Date().toISOString().split("T")[0],
         due_date: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().split("T")[0],
@@ -99,6 +133,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         dispatch_terms: "",
         jurisdiction: "",
         remarks: "",
+        exchange_rate: "",
+        currency_code: DEFAULT_CURRENCY,
+        is_import: false,
         items: [],
     });
 
@@ -147,9 +184,27 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 dispatch_terms: defaultValues.dispatch_terms || "",
                 jurisdiction: defaultValues.jurisdiction || "",
                 remarks: defaultValues.remarks || "",
+                exchange_rate:
+                    defaultValues.is_import && defaultValues.exchange_rate != null && defaultValues.exchange_rate !== ""
+                        ? String(defaultValues.exchange_rate)
+                        : "",
+                currency_code: defaultValues.currency_code || DEFAULT_CURRENCY,
+                is_import: !!defaultValues.is_import,
                 items: defaultValues.items || [],
             };
             setFormData(newFormData);
+            if (defaultValues.supplier) {
+                setSupplierDetails({
+                    state: String(defaultValues.supplier?.state?.name || defaultValues.supplier?.state_name || "").trim(),
+                    state_id: defaultValues.supplier?.state?.id || defaultValues.supplier?.state_id || null,
+                    gstin: String(defaultValues.supplier?.gstin || "").trim(),
+                    country: String(defaultValues.supplier?.country || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY,
+                    currency_code: String(defaultValues.supplier?.currency_code || defaultValues.currency_code || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY,
+                });
+            }
+            if (defaultValues.shipTo) {
+                setShipToCountry(resolveBranchCountry(defaultValues.shipTo));
+            }
             setAttachments(defaultValues.attachments || []);
 
             // Load warehouses for the bill_to_id if it exists
@@ -205,7 +260,13 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
     useEffect(() => {
         const supplierId = formData.supplier_id ? parseInt(formData.supplier_id, 10) : null;
         if (!supplierId) {
-            setSupplierDetails({ state: "", state_id: null, gstin: "" });
+            setSupplierDetails({
+                state: "",
+                state_id: null,
+                gstin: "",
+                country: DEFAULT_COUNTRY,
+                currency_code: DEFAULT_CURRENCY,
+            });
             return;
         }
         supplierService
@@ -216,10 +277,74 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     state: String(s?.state?.name || s?.state_name || "").trim(),
                     state_id: s?.state?.id || s?.state_id || null,
                     gstin: String(s?.gstin || "").trim(),
+                    country: String(s?.country || DEFAULT_COUNTRY).trim() || DEFAULT_COUNTRY,
+                    currency_code: String(s?.currency_code || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY,
                 });
             })
-            .catch(() => setSupplierDetails({ state: "", state_id: null, gstin: "" }));
+            .catch(() =>
+                setSupplierDetails({
+                    state: "",
+                    state_id: null,
+                    gstin: "",
+                    country: DEFAULT_COUNTRY,
+                    currency_code: DEFAULT_CURRENCY,
+                })
+            );
     }, [formData.supplier_id]);
+
+    // Keep ship-to country from selected warehouse (branch.country || warehouse.country)
+    useEffect(() => {
+        if (!formData.ship_to_id) {
+            setShipToCountry(DEFAULT_COUNTRY);
+            return;
+        }
+        const warehouse = options.warehouses.find((w) => Number(w.id) === Number(formData.ship_to_id));
+        if (warehouse) {
+            setShipToCountry(resolveBranchCountry(warehouse));
+        }
+    }, [formData.ship_to_id, options.warehouses]);
+
+    const isImport =
+        normalizeCountryKey(supplierDetails.country) !== normalizeCountryKey(shipToCountry);
+    const currencyCode = isImport
+        ? String(supplierDetails.currency_code || formData.currency_code || DEFAULT_CURRENCY).toUpperCase()
+        : DEFAULT_CURRENCY;
+    const exchangeRateNum = Number(formData.exchange_rate);
+
+    // Sync computed import/currency onto formData; force GST % to 0 when import
+    useEffect(() => {
+        setFormData((prev) => {
+            const nextCurrency = isImport
+                ? String(supplierDetails.currency_code || prev.currency_code || DEFAULT_CURRENCY).toUpperCase()
+                : DEFAULT_CURRENCY;
+            const nextExchangeRate = isImport ? prev.exchange_rate : "";
+            let nextItems = prev.items;
+            if (isImport && Array.isArray(prev.items) && prev.items.some((item) => Number(item.gst_percent) !== 0)) {
+                nextItems = prev.items.map((item) => ({ ...item, gst_percent: 0 }));
+            }
+            if (
+                prev.is_import === isImport &&
+                prev.currency_code === nextCurrency &&
+                prev.exchange_rate === nextExchangeRate &&
+                nextItems === prev.items
+            ) {
+                return prev;
+            }
+            return {
+                ...prev,
+                is_import: isImport,
+                currency_code: nextCurrency,
+                exchange_rate: nextExchangeRate,
+                items: nextItems,
+            };
+        });
+        if (isImport) {
+            setCurrentItem((prev) => {
+                if (prev.gst_percent === 0 || prev.gst_percent === "0") return prev;
+                return { ...prev, gst_percent: 0 };
+            });
+        }
+    }, [isImport, supplierDetails.currency_code]);
 
     // Load warehouses when bill_to_id changes
     useEffect(() => {
@@ -334,7 +459,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     product_id: value,
                     product_name: product.product_name || prev.product_name,
                     hsn_code: product.hsn_ssn_code || "",
-                    gst_percent: product.gst_percent || "",
+                    gst_percent: isImport ? 0 : (product.gst_percent || ""),
                     measurement_unit: product.measurement_unit_name || prev.measurement_unit || "",
                     product_capacity: product.capacity ?? "",
                     product_type_name: product.product_type_name || "",
@@ -372,8 +497,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             validationErrors.quantity = "Quantity is required and must be greater than 0";
         }
 
-        // GST validation (mandatory)
-        if (currentItem.gst_percent === "" || currentItem.gst_percent === null || currentItem.gst_percent === undefined) {
+        // GST validation (mandatory for domestic; forced 0 for import)
+        if (isImport) {
+            // Import PO: GST always 0 — no validation needed
+        } else if (currentItem.gst_percent === "" || currentItem.gst_percent === null || currentItem.gst_percent === undefined) {
             validationErrors.gst_percent = "GST % is required";
         } else if (Number(currentItem.gst_percent) < 0) {
             validationErrors.gst_percent = "GST % cannot be negative";
@@ -397,7 +524,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: parseFloat(currentItem.rate),
             per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
             quantity: parseInt(currentItem.quantity),
-            gst_percent: parseFloat(currentItem.gst_percent),
+            gst_percent: isImport ? 0 : parseFloat(currentItem.gst_percent),
             measurement_unit: currentItem.measurement_unit || product?.measurement_unit?.unit || "",
             product_capacity: currentItem.product_capacity || product?.capacity || "",
             product_type_name: currentItem.product_type_name || product?.product_type_name || "",
@@ -416,7 +543,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: "",
             per_watt_rate: "",
             quantity: "",
-            gst_percent: "",
+            gst_percent: isImport ? 0 : "",
             measurement_unit: "",
             product_capacity: "",
             product_type_name: "",
@@ -446,28 +573,40 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
     const calculateTotals = () => {
         let totalQuantity = 0;
-        let taxableAmount = 0;
-        let totalGstAmount = 0;
+        let taxableAmountFc = 0;
+        let totalGstAmountFc = 0;
 
         formData.items.forEach((item) => {
             totalQuantity += item.quantity;
             const itemTaxable = item.rate * item.quantity;
-            const itemGst = (itemTaxable * item.gst_percent) / 100;
-            taxableAmount += itemTaxable;
-            totalGstAmount += itemGst;
+            const gstPercent = isImport ? 0 : item.gst_percent;
+            const itemGst = (itemTaxable * gstPercent) / 100;
+            taxableAmountFc += itemTaxable;
+            totalGstAmountFc += itemGst;
         });
 
-        const grandTotal = taxableAmount + totalGstAmount;
+        const grandTotalFc = taxableAmountFc + totalGstAmountFc;
+        const rate = isImport && Number.isFinite(exchangeRateNum) && exchangeRateNum > 0 ? exchangeRateNum : 1;
+        const taxableAmount = isImport
+            ? parseFloat((taxableAmountFc * rate).toFixed(2))
+            : parseFloat(taxableAmountFc.toFixed(2));
+        const totalGstAmount = isImport
+            ? parseFloat((totalGstAmountFc * rate).toFixed(2))
+            : parseFloat(totalGstAmountFc.toFixed(2));
+        const grandTotal = parseFloat((taxableAmount + totalGstAmount).toFixed(2));
         const finalAmount = Math.round(grandTotal);
-        const roundOffAmount = finalAmount - grandTotal;
+        const roundOffAmount = parseFloat((finalAmount - grandTotal).toFixed(2));
 
         return {
             total_quantity: totalQuantity,
-            taxable_amount: parseFloat(taxableAmount.toFixed(2)),
-            total_gst_amount: parseFloat(totalGstAmount.toFixed(2)),
-            grand_total: parseFloat(grandTotal.toFixed(2)),
+            taxable_amount_fc: parseFloat(taxableAmountFc.toFixed(2)),
+            total_gst_amount_fc: parseFloat(totalGstAmountFc.toFixed(2)),
+            grand_total_fc: parseFloat(grandTotalFc.toFixed(2)),
+            taxable_amount: taxableAmount,
+            total_gst_amount: totalGstAmount,
+            grand_total: grandTotal,
             final_amount: parseFloat(finalAmount.toFixed(2)),
-            round_off_amount: parseFloat(roundOffAmount.toFixed(2)),
+            round_off_amount: roundOffAmount,
         };
     };
 
@@ -491,6 +630,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         }
         if (!formData.due_date) {
             validationErrors.due_date = "Due Date is required";
+        }
+
+        if (isImport && !(Number(formData.exchange_rate) > 0)) {
+            validationErrors.exchange_rate = "Exchange rate is required and must be greater than 0";
         }
 
         // Date validation: due_date should be after or equal to po_date
@@ -530,8 +673,10 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     hasError = true;
                 }
 
-                // GST validation (mandatory)
-                if (item.gst_percent === null || item.gst_percent === undefined) {
+                // GST validation (mandatory for domestic; forced 0 for import)
+                if (isImport) {
+                    // Import: GST forced to 0
+                } else if (item.gst_percent === null || item.gst_percent === undefined) {
                     itemErrors.gst_percent = "GST % is required";
                     hasError = true;
                 } else if (item.gst_percent < 0) {
@@ -557,7 +702,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             });
 
             if (Object.keys(tableErrors).length > 0) {
-                validationErrors.items = "Please fix errors in the items table. All items must have Product, Quantity, Rate, and GST %";
+                validationErrors.items = isImport
+                    ? "Please fix errors in the items table. All items must have Product, Quantity, and Rate"
+                    : "Please fix errors in the items table. All items must have Product, Quantity, Rate, and GST %";
                 setTableItemErrors(tableErrors);
             } else {
                 setTableItemErrors({});
@@ -586,11 +733,18 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         setTableItemErrors({});
 
         const totals = calculateTotals();
+        const itemsPayload = isImport
+            ? formData.items.map((item) => ({ ...item, gst_percent: 0 }))
+            : formData.items;
         const payload = {
             ...formData,
             supplier_id: parseInt(formData.supplier_id),
             bill_to_id: parseInt(formData.bill_to_id),
             ship_to_id: parseInt(formData.ship_to_id),
+            currency_code: currencyCode,
+            is_import: isImport,
+            exchange_rate: isImport ? Number(formData.exchange_rate) : 1,
+            items: itemsPayload,
             ...totals,
         };
 
@@ -683,6 +837,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         ""
     ).trim();
     const gstType = resolvePoGstTypeForUi({
+        isImport,
         supplierGstin: sellerGstin,
         branchGstin: buyerGstin,
         supplierStateId: sellerStateId,
@@ -691,15 +846,23 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         branchState: buyerState,
     });
     const isIgst = gstType === "IGST";
-    const applicableGstLabel = isIgst ? "IGST" : "CGST / SGST";
-    const applicableGstValue = isIgst
-        ? `₹${totals.total_gst_amount.toFixed(2)}`
-        : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
+    const isImportGst = gstType === "IMPORT";
+    const applicableGstLabel = isImportGst
+        ? "Import – no domestic GST"
+        : isIgst
+            ? "IGST"
+            : "CGST / SGST";
+    const applicableGstValue = isImportGst
+        ? formatMoneyAmount(0, currencyCode)
+        : isIgst
+            ? `₹${totals.total_gst_amount.toFixed(2)}`
+            : `₹${(totals.total_gst_amount / 2).toFixed(2)} / ₹${(totals.total_gst_amount / 2).toFixed(2)}`;
     const signedRoundOff = (val) => {
         const n = Number(val) || 0;
         const sign = n > 0 ? "+" : n < 0 ? "-" : "";
         return `${sign}₹${Math.abs(n).toFixed(2)}`;
     };
+    const displayExchangeRate = isImport && Number.isFinite(exchangeRateNum) && exchangeRateNum > 0 ? exchangeRateNum : 0;
 
     return (
         <Box>
@@ -712,6 +875,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     )}
 
                     <div className="w-full">
+                        {isImport && (
+                            <div className="mb-1 flex items-center gap-2">
+                                <Badge variant="accent">Import PO</Badge>
+                                <Typography variant="caption" color="text.secondary">
+                                    Supplier country differs from ship-to warehouse country
+                                </Typography>
+                            </div>
+                        )}
                         <FormGrid cols={2} className="lg:grid-cols-4">
                             <DateField
                                 name="po_date"
@@ -778,6 +949,29 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 error={!!errors.ship_to_id}
                                 helperText={errors.ship_to_id}
                             />
+                            {isImport && (
+                                <>
+                                    <Input
+                                        name="currency_code"
+                                        label="Currency"
+                                        value={currencyCode}
+                                        onChange={() => {}}
+                                        disabled
+                                    />
+                                    <Input
+                                        name="exchange_rate"
+                                        label={`Exchange rate (INR per 1 ${currencyCode})`}
+                                        placeholder="Enter exchange rate"
+                                        type="number"
+                                        value={formData.exchange_rate}
+                                        onChange={handleChange}
+                                        inputProps={{ min: 0, step: 0.000001 }}
+                                        required
+                                        error={!!errors.exchange_rate}
+                                        helperText={errors.exchange_rate}
+                                    />
+                                </>
+                            )}
                             <Input
                                 name="payment_terms"
                                 label="Payment Terms"
@@ -822,7 +1016,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
                         {/* Add Item Form */}
                         <Paper sx={{ p: 1, mb: 1 }}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-2 items-end ${isImport ? "lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]" : "lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]"}`}>
                                 <AutocompleteField
                                     label="Product *"
                                     placeholder="Search and select product"
@@ -859,7 +1053,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                 product_id: newValue.id ?? prev.product_id,
                                                 product_name: newValue.product_name ?? prev.product_name,
                                                 hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
-                                                gst_percent: newValue.gst_percent ?? prev.gst_percent,
+                                                gst_percent: isImport ? 0 : (newValue.gst_percent ?? prev.gst_percent),
                                                 measurement_unit:
                                                     newValue.measurement_unit_name ||
                                                     prev.measurement_unit ||
@@ -901,7 +1095,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 {String(currentItem.product_type_name || "").trim().toLowerCase() === "panel" && (
                                     <Input
                                         name="per_watt_rate"
-                                        label="Per Watt (₹/W)"
+                                        label={isImport ? `Per Watt (${currencyCode}/W)` : "Per Watt (₹/W)"}
                                         placeholder="Enter per watt"
                                         type="number"
                                         value={currentItem.per_watt_rate}
@@ -911,7 +1105,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 )}
                                 <Input
                                     name="rate"
-                                    label="Rate (₹)"
+                                    label={isImport ? `Rate (${currencyCode})` : "Rate (₹)"}
                                     placeholder="Enter rate"
                                     type="number"
                                     value={currentItem.rate}
@@ -921,18 +1115,20 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     helperText={itemErrors.rate}
                                     required
                                 />
-                                <Input
-                                    name="gst_percent"
-                                    label="GST %"
-                                    placeholder="Enter GST %"
-                                    type="number"
-                                    value={currentItem.gst_percent}
-                                    onChange={handleItemChange}
-                                    inputProps={{ min: 0, step: 0.01, max: 100 }}
-                                    error={!!itemErrors.gst_percent}
-                                    helperText={itemErrors.gst_percent}
-                                    required
-                                />
+                                {!isImport && (
+                                    <Input
+                                        name="gst_percent"
+                                        label="GST %"
+                                        placeholder="Enter GST %"
+                                        type="number"
+                                        value={currentItem.gst_percent}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 0, step: 0.01, max: 100 }}
+                                        error={!!itemErrors.gst_percent}
+                                        helperText={itemErrors.gst_percent}
+                                        required
+                                    />
+                                )}
                                 <div className="flex items-end">
                                     <Button
                                         type="button"
@@ -957,11 +1153,11 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             <TableCell>Product</TableCell>
                                             <TableCell>HSN Code</TableCell>
                                             <TableCell align="right">Qty</TableCell>
-                                            <TableCell align="right">Per Watt (₹/W)</TableCell>
-                                            <TableCell align="right">Rate (₹)</TableCell>
-                                            <TableCell align="right">GST %</TableCell>
+                                            <TableCell align="right">{isImport ? `Per Watt (${currencyCode}/W)` : "Per Watt (₹/W)"}</TableCell>
+                                            <TableCell align="right">{isImport ? `Rate (${currencyCode})` : "Rate (₹)"}</TableCell>
+                                            {!isImport && <TableCell align="right">GST %</TableCell>}
                                             <TableCell align="right">Taxable Amount</TableCell>
-                                            <TableCell align="right">GST Amount</TableCell>
+                                            {!isImport && <TableCell align="right">GST Amount</TableCell>}
                                             <TableCell align="right">Total Amount</TableCell>
                                             <TableCell>Actions</TableCell>
                                         </TableRow>
@@ -969,9 +1165,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     <TableBody>
                                         {formData.items.map((item, index) => {
                                             const displayLabel = item.product_name ?? item.product?.product_name;
-                                            const itemTaxable = item.rate * item.quantity;
-                                            const itemGst = (itemTaxable * item.gst_percent) / 100;
-                                            const itemTotal = itemTaxable + itemGst;
+                                            const itemTaxableFc = item.rate * item.quantity;
+                                            const itemGstFc = isImport ? 0 : (itemTaxableFc * item.gst_percent) / 100;
+                                            const itemTotalFc = itemTaxableFc + itemGstFc;
                                             const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
                                             const capacity = Number(item.product_capacity ?? item.product?.capacity);
                                             const isPanelWithCapacity = productTypeName === "panel" && Number.isFinite(capacity) && capacity > 0;
@@ -1009,35 +1205,49 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                         )}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {derivedPerWatt && Number(derivedPerWatt) > 0 ? `₹${Number(derivedPerWatt).toFixed(2)}` : "-"}
+                                                        {derivedPerWatt && Number(derivedPerWatt) > 0
+                                                            ? (isImport
+                                                                ? formatFcWithInr(derivedPerWatt, displayExchangeRate, currencyCode)
+                                                                : `₹${Number(derivedPerWatt).toFixed(2)}`)
+                                                            : "-"}
                                                     </TableCell>
                                                     <TableCell align="right">
-                                                        {item.rate > 0 ? `₹${parseFloat(item.rate).toFixed(2)}` : <Typography color="error" variant="caption">Invalid</Typography>}
+                                                        {item.rate > 0
+                                                            ? (isImport
+                                                                ? formatFcWithInr(item.rate, displayExchangeRate, currencyCode)
+                                                                : `₹${parseFloat(item.rate).toFixed(2)}`)
+                                                            : <Typography color="error" variant="caption">Invalid</Typography>}
                                                         {rowErrors.rate && (
                                                             <Typography variant="caption" color="error" display="block">
                                                                 {rowErrors.rate}
                                                             </Typography>
                                                         )}
                                                     </TableCell>
+                                                    {!isImport && (
+                                                        <TableCell align="right">
+                                                            {item.gst_percent >= 0 && item.gst_percent <= 100 ? `${item.gst_percent}%` : <Typography color="error" variant="caption">Invalid</Typography>}
+                                                            {rowErrors.gst_percent && (
+                                                                <Typography variant="caption" color="error" display="block">
+                                                                    {rowErrors.gst_percent}
+                                                                </Typography>
+                                                            )}
+                                                        </TableCell>
+                                                    )}
                                                     <TableCell align="right">
-                                                        {item.quantity > 0 ? item.quantity : <Typography color="error" variant="caption">Invalid</Typography>}
-                                                        {rowErrors.quantity && (
-                                                            <Typography variant="caption" color="error" display="block">
-                                                                {rowErrors.quantity}
-                                                            </Typography>
-                                                        )}
+                                                        {isImport
+                                                            ? formatFcWithInr(itemTaxableFc, displayExchangeRate, currencyCode)
+                                                            : `₹${itemTaxableFc.toFixed(2)}`}
                                                     </TableCell>
+                                                    {!isImport && (
+                                                        <TableCell align="right">₹{itemGstFc.toFixed(2)}</TableCell>
+                                                    )}
                                                     <TableCell align="right">
-                                                        {item.gst_percent >= 0 && item.gst_percent <= 100 ? `${item.gst_percent}%` : <Typography color="error" variant="caption">Invalid</Typography>}
-                                                        {rowErrors.gst_percent && (
-                                                            <Typography variant="caption" color="error" display="block">
-                                                                {rowErrors.gst_percent}
-                                                            </Typography>
-                                                        )}
+                                                        <strong>
+                                                            {isImport
+                                                                ? formatFcWithInr(itemTotalFc, displayExchangeRate, currencyCode)
+                                                                : `₹${itemTotalFc.toFixed(2)}`}
+                                                        </strong>
                                                     </TableCell>
-                                                    <TableCell align="right">₹{itemTaxable.toFixed(2)}</TableCell>
-                                                    <TableCell align="right">₹{itemGst.toFixed(2)}</TableCell>
-                                                    <TableCell align="right"><strong>₹{itemTotal.toFixed(2)}</strong></TableCell>
                                                     <TableCell>
                                                         <IconButton
                                                             size="small"
@@ -1059,22 +1269,36 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         {formData.items.length > 0 && (
                             <Paper sx={{ p: 1, mt: 1, bgcolor: "grey.100" }}>
                                 <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                    <Box sx={{ minWidth: 300 }}>
+                                    <Box sx={{ minWidth: 320 }}>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Total Quantity:</Typography>
                                             <Typography variant="body1" fontWeight="bold">{totals.total_quantity}</Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">Taxable Amount:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                                            <Typography variant="body1" fontWeight="bold">
+                                                {isImport
+                                                    ? formatFcWithInr(totals.taxable_amount_fc, displayExchangeRate, currencyCode)
+                                                    : `₹${totals.taxable_amount.toFixed(2)}`}
+                                            </Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                                             <Typography variant="body1">{applicableGstLabel}:</Typography>
                                             <Typography variant="body1" fontWeight="bold">{applicableGstValue}</Typography>
                                         </Box>
+                                        {!isImport && (
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                                <Typography variant="body1">Total GST Amount:</Typography>
+                                                <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                                            </Box>
+                                        )}
                                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                            <Typography variant="body1">Total GST Amount:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                                            <Typography variant="body1">Grand Total:</Typography>
+                                            <Typography variant="body1" fontWeight="bold">
+                                                {isImport
+                                                    ? formatFcWithInr(totals.grand_total_fc, displayExchangeRate, currencyCode)
+                                                    : `₹${totals.grand_total.toFixed(2)}`}
+                                            </Typography>
                                         </Box>
                                         <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1 }}>
                                             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -1082,7 +1306,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                 <Typography variant="body1" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
                                             </Box>
                                             <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                                                <Typography variant="h6">Final Amount:</Typography>
+                                                <Typography variant="h6">Final Amount{isImport ? " (INR)" : ""}:</Typography>
                                                 <Typography variant="h6" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
                                             </Box>
                                         </Box>

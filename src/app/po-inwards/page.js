@@ -11,24 +11,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { IconCircleCheck, IconEye, IconPencil, IconFileSpreadsheet } from "@tabler/icons-react";
+import { IconCircleCheck, IconEye, IconPencil, IconFileSpreadsheet, IconDownload } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
@@ -78,9 +61,6 @@ export default function POInwardPage() {
   const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
     listingState;
 
-  const [showApproveDialog, setShowApproveDialog] = useState(false);
-  const [poInwardToApprove, setPoInwardToApprove] = useState(null);
-  const [approving, setApproving] = useState(false);
   const [selectedPOInward, setSelectedPOInward] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [tableKey, setTableKey] = useState(0);
@@ -88,6 +68,7 @@ export default function POInwardPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [detailExporting, setDetailExporting] = useState(false);
+  const [attachmentLoadingKey, setAttachmentLoadingKey] = useState(null);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -113,6 +94,7 @@ export default function POInwardPage() {
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedPOInward(null);
+    setAttachmentLoadingKey(null);
   }, []);
 
   const filterParams = useMemo(
@@ -196,6 +178,22 @@ export default function POInwardPage() {
     return "outline";
   };
 
+  const handleOpenAttachment = useCallback(async (inwardId, attachmentIndex) => {
+    const key = `${inwardId}:${attachmentIndex}`;
+    setAttachmentLoadingKey(key);
+    try {
+      const response = await poInwardService.getAttachmentUrl(inwardId, attachmentIndex);
+      const url = response?.result?.url || response?.url;
+      if (url) window.open(url, "_blank");
+      else toast.error("Failed to get attachment URL");
+    } catch (error) {
+      console.error("Attachment open error:", error);
+      toast.error(error?.response?.data?.message || "Failed to open attachment");
+    } finally {
+      setAttachmentLoadingKey(null);
+    }
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -223,7 +221,18 @@ export default function POInwardPage() {
         filterType: "text",
         filterKey: "supplier_name",
         defaultFilterOperator: "contains",
-        render: (row) => row.supplier?.supplier_name || "-",
+        render: (row) => (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate">{row.supplier?.supplier_name || "-"}</span>
+            {row.is_import ? <Badge variant="accent" className="shrink-0">Import</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        field: "currency_code",
+        label: "Currency",
+        sortable: false,
+        render: (row) => row.currency_code || "INR",
       },
       {
         field: "warehouse",
@@ -319,10 +328,7 @@ export default function POInwardPage() {
               <Button
                 size="icon"
                 variant="success"
-                onClick={() => {
-                  setPoInwardToApprove(row);
-                  setShowApproveDialog(true);
-                }}
+                onClick={() => router.push(`/po-inwards/approve?id=${row.id}`)}
                 title="Approve"
                 aria-label="Approve"
               >
@@ -369,23 +375,6 @@ export default function POInwardPage() {
     [tableKey]
   );
 
-  const handleApproveConfirm = async () => {
-    if (!poInwardToApprove) return;
-    setApproving(true);
-    try {
-      await poInwardService.approvePOInward(poInwardToApprove.id);
-      setTableKey((prev) => prev + 1);
-      setShowApproveDialog(false);
-      setPoInwardToApprove(null);
-      toast.success("PO Inward approved successfully. Stock and inventory ledger have been updated.");
-    } catch (error) {
-      console.error("Approve error:", error);
-      toast.error(error.response?.data?.message || error.message || "Failed to approve PO Inward");
-    } finally {
-      setApproving(false);
-    }
-  };
-
   const sidebarContent = useMemo(() => {
     if (loadingRecord) {
       return (
@@ -397,59 +386,64 @@ export default function POInwardPage() {
     if (!selectedPOInward) return null;
     const p = selectedPOInward;
     const statusVariant = getStatusVariant(p.status);
-    const txt = (v) => (v === null || v === undefined || v === "" ? "-" : String(v));
-    const dt = (v) => (v ? new Date(v).toLocaleString() : "-");
-    const qty = (v) => (v === null || v === undefined ? "-" : v);
+    const isImport = !!p.is_import;
+    const txt = (v) => (v == null || v === "" ? "-" : String(v));
+    const qty = (v) => (v == null || v === "" ? "-" : String(v));
+    const dt = (v) => (v ? formatDate(v) : "-");
 
     return (
-      <div className="pr-1 space-y-4">
-        <div className="space-y-1">
-          <p className="font-semibold text-base">{txt(p.purchaseOrder?.po_number)}</p>
-          {p.receipt_number ? (
-            <p className="text-xs text-muted-foreground">Receipt #: {txt(p.receipt_number)}</p>
-          ) : null}
-          <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
-            {txt(p.status)}
-          </Badge>
-          <p className="text-xs text-muted-foreground">
-            PO Date: {formatDate(p.purchaseOrder?.po_date)} · Due: {formatDate(p.purchaseOrder?.due_date)}
-          </p>
-          <p className="text-xs text-muted-foreground">Received At: {formatDate(p.received_at)}</p>
-        </div>
-
+      <div className="space-y-3 p-1">
         <div className="rounded-md border border-border p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">Supplier</p>
-          <p className="text-sm">{txt(p.supplier?.supplier_name)}</p>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Code</span><span>{txt(p.supplier?.supplier_code)}</span>
-            <span className="text-muted-foreground">GSTIN</span><span>{txt(p.supplier?.gstin)}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold">{txt(p.receipt_number)}</p>
+            <Badge variant={statusVariant}>{txt(p.status)}</Badge>
+            {isImport ? <Badge variant="accent">Import</Badge> : null}
           </div>
-        </div>
-
-        <div className="rounded-md border border-border p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">Warehouse</p>
-          <p className="text-sm">{txt(p.warehouse?.name)}</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Address</span><span>{txt(p.warehouse?.address)}</span>
-          </div>
-        </div>
-
-        <div className="rounded-md border border-border p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">Invoice & Receipt</p>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Receipt #</span><span>{txt(p.receipt_number)}</span>
-            <span className="text-muted-foreground">Invoice No</span><span>{txt(p.supplier_invoice_number)}</span>
-            <span className="text-muted-foreground">Invoice Date</span><span>{formatDate(p.supplier_invoice_date)}</span>
-            <span className="text-muted-foreground">Receipt Type</span><span>{txt(p.receipt_type)}</span>
-            <span className="text-muted-foreground">Inspection</span><span>{p.inspection_required ? "Required" : "Not Required"}</span>
-            <span className="text-muted-foreground">Received By</span><span>{txt(p.receivedBy?.name || p.received_by)}</span>
-            <span className="text-muted-foreground">Receiver Email</span><span className="break-all">{txt(p.receivedBy?.email)}</span>
+            <span className="text-muted-foreground">PO Number</span><span>{txt(p.purchaseOrder?.po_number)}</span>
+            <span className="text-muted-foreground">Supplier</span><span>{txt(p.supplier?.supplier_name)}</span>
+            <span className="text-muted-foreground">Warehouse</span><span>{txt(p.warehouse?.name)}</span>
+            <span className="text-muted-foreground">Received At</span><span>{dt(p.received_at)}</span>
+            <span className="text-muted-foreground">Supplier Invoice</span><span>{txt(p.supplier_invoice_number)}</span>
+            {isImport ? (
+              <>
+                <span className="text-muted-foreground">Currency</span><span>{txt(p.currency_code)}</span>
+                <span className="text-muted-foreground">Exchange Rate</span><span>{txt(p.exchange_rate)}</span>
+                <span className="text-muted-foreground">BOE No.</span><span>{txt(p.bill_of_entry_number)}</span>
+                <span className="text-muted-foreground">BOE Date</span><span>{dt(p.bill_of_entry_date)}</span>
+                <span className="text-muted-foreground">Container</span><span>{txt(p.container_number)}</span>
+                <span className="text-muted-foreground">BL / AWB</span>
+                <span>{[p.bill_of_lading, p.air_way_bill].filter(Boolean).join(" / ") || "-"}</span>
+              </>
+            ) : null}
           </div>
           <div className="text-xs">
             <p className="text-muted-foreground">Remarks</p>
             <p className="text-sm">{txt(p.remarks)}</p>
           </div>
         </div>
+
+        {isImport && Array.isArray(p.charges) && p.charges.some((c) => Number(c.amount_inr) > 0) && (
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Import Charges (INR)</p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+              {p.charges.filter((c) => Number(c.amount_inr) > 0).map((c) => (
+                <span key={`l-${c.charge_type || c.id}`} className="text-muted-foreground col-span-1 contents">
+                  <span className="text-muted-foreground">
+                    {c.charge_type}{c.inventoriable === false ? " (ITC)" : ""}
+                  </span>
+                  <span>{formatCurrency(c.amount_inr)}</span>
+                </span>
+              ))}
+              <span className="text-muted-foreground">Inventoriable total</span>
+              <span>{formatCurrency(p.inventoriable_charges_inr || 0)}</span>
+              <span className="text-muted-foreground">ITC (non-inventoriable)</span>
+              <span>{formatCurrency(p.non_inventoriable_charges_inr || 0)}</span>
+              <span className="text-muted-foreground font-semibold">Landed total</span>
+              <span className="font-semibold">{formatCurrency(p.landed_total_inr || 0)}</span>
+            </div>
+          </div>
+        )}
 
         {Array.isArray(p.items) && p.items.length > 0 && (
           <div className="rounded-md border border-border overflow-hidden">
@@ -461,33 +455,30 @@ export default function POInwardPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
-                    <th className="px-2 py-1 text-right font-semibold">Ordered</th>
-                    <th className="px-2 py-1 text-right font-semibold">Received</th>
                     <th className="px-2 py-1 text-right font-semibold">Accepted</th>
-                    <th className="px-2 py-1 text-right font-semibold">Rejected</th>
-                    <th className="px-2 py-1 text-right font-semibold">Rate</th>
-                    <th className="px-2 py-1 text-right font-semibold">GST%</th>
-                    <th className="px-2 py-1 text-right font-semibold">Taxable</th>
+                    <th className="px-2 py-1 text-right font-semibold">{isImport ? "PO INR" : "Rate"}</th>
+                    {isImport ? <th className="px-2 py-1 text-right font-semibold">Allocated</th> : null}
+                    {isImport ? <th className="px-2 py-1 text-right font-semibold">Landed</th> : null}
+                    {!isImport ? <th className="px-2 py-1 text-right font-semibold">GST%</th> : null}
                     <th className="px-2 py-1 text-right font-semibold">Total</th>
-                    <th className="px-2 py-1 text-left font-semibold">Tracking</th>
                   </tr>
                 </thead>
                 <tbody>
                   {p.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
-                      <td className="px-2 py-1.5 text-right">{qty(item.ordered_quantity)}</td>
-                      <td className="px-2 py-1.5 text-right">{qty(item.received_quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.accepted_quantity)}</td>
-                      <td className="px-2 py-1.5 text-right">{qty(item.rejected_quantity)}</td>
-                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.rate || 0)}</td>
-                      <td className="px-2 py-1.5 text-right">{txt(item.gst_percent)}</td>
-                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.taxable_amount || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{formatCurrency((item.rate_inr_po ?? item.rate) || 0)}</td>
+                      {isImport ? (
+                        <td className="px-2 py-1.5 text-right">{formatCurrency(item.allocated_charges_inr || 0)}</td>
+                      ) : null}
+                      {isImport ? (
+                        <td className="px-2 py-1.5 text-right">{formatCurrency((item.landed_unit_inr ?? item.rate) || 0)}</td>
+                      ) : null}
+                      {!isImport ? (
+                        <td className="px-2 py-1.5 text-right">{txt(item.gst_percent)}</td>
+                      ) : null}
                       <td className="px-2 py-1.5 text-right">{formatCurrency(item.total_amount || 0)}</td>
-                      <td className="px-2 py-1.5">
-                        {txt(item.tracking_type)}
-                        {Array.isArray(item.serials) && item.serials.length > 0 ? ` (${item.serials.length} serials)` : ""}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -495,6 +486,44 @@ export default function POInwardPage() {
             </div>
           </div>
         )}
+
+        <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Attachments</p>
+          {Array.isArray(p.attachments) && p.attachments.length > 0 ? (
+            <div className="space-y-2">
+              {p.attachments.map((attachment, index) => {
+                const loadingKey = `${p.id}:${index}`;
+                return (
+                  <div
+                    key={`${attachment.path || attachment.filename || "att"}-${index}`}
+                    className="flex items-start justify-between gap-2 rounded border border-border p-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm truncate">{attachment.filename || attachment.path || `File ${index + 1}`}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Size: {attachment?.size ? `${Math.round((attachment.size / 1024) * 100) / 100} KB` : "-"}
+                        {attachment?.uploaded_at ? ` · ${dt(attachment.uploaded_at)}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={attachmentLoadingKey === loadingKey}
+                      onClick={() => handleOpenAttachment(p.id, index)}
+                    >
+                      <IconDownload className="size-4" />
+                      Open
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No attachments</p>
+          )}
+        </div>
 
         <div className="rounded-md border border-border p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Receipt Totals</p>
@@ -509,12 +538,13 @@ export default function POInwardPage() {
           <p className="text-xs font-semibold text-muted-foreground">Audit</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted-foreground">Inward ID</span><span>{txt(p.id)}</span>
+            <span className="text-muted-foreground">Posted At</span><span>{dt(p.posted_at)}</span>
             <span className="text-muted-foreground">Created At</span><span>{dt(p.created_at)}</span>
           </div>
         </div>
       </div>
     );
-  }, [loadingRecord, selectedPOInward]);
+  }, [loadingRecord, selectedPOInward, attachmentLoadingKey, handleOpenAttachment]);
 
   return (
     <ProtectedRoute>
@@ -567,28 +597,6 @@ export default function POInwardPage() {
       >
         {sidebarContent}
       </DetailsSidebar>
-
-      <AlertDialog open={showApproveDialog} onOpenChange={(open) => { if (!open) { setShowApproveDialog(false); setPoInwardToApprove(null); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Approve PO Inward</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to approve this PO Inward (Goods Receipt)? Stock and inventory ledger will be updated. This action cannot be undone.
-              {poInwardToApprove && (
-                <span className="mt-2 block text-muted-foreground">
-                  PO: {poInwardToApprove.purchaseOrder?.po_number}. Warehouse: {poInwardToApprove.warehouse?.name}.
-                </span>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={approving}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApproveConfirm} disabled={approving} loading={approving}>
-              Approve
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </ProtectedRoute>
   );
 }

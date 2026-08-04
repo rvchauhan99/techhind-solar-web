@@ -29,7 +29,7 @@ function getSafeReturnUrl(searchParams) {
 }
 
 export default function LoginPage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -61,10 +61,12 @@ export default function LoginPage() {
   }, []);
 
   useEffect(() => {
-    if (user) {
+    // Wait for AuthContext to verify the session — do not bounce on a stale
+    // cached profile while profile/API check is still in flight or failed.
+    if (!authLoading && user) {
       router.replace(getSafeReturnUrl(searchParams));
     }
-  }, [user, router, searchParams]);
+  }, [user, authLoading, router, searchParams]);
 
   const login = async (e) => {
     e.preventDefault();
@@ -228,7 +230,7 @@ export default function LoginPage() {
     router.replace("/auth/login");
   };
 
-  if (!mounted) {
+  if (!mounted || authLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <Loader />

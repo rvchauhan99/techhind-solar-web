@@ -5,21 +5,19 @@ import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
-import AutocompleteField from "@/components/common/AutocompleteField";
 import { getNextClientCode } from "@/services/b2bClientService";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
 import {
   validateGSTIN,
   validatePAN,
   validateEmail,
   validatePhone,
-  validatePincode,
+  validatePostalCode,
   formatPhone,
   formatToUpperCase,
   derivePanFromGstin,
 } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import CountrySelect, { DEFAULT_COUNTRY } from "@/components/common/CountrySelect";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 
 export default function B2bClientForm({
   defaultValues = {},
@@ -134,12 +132,19 @@ export default function B2bClientForm({
         break;
       case "billing_pincode":
         if (value && value.trim() !== "") {
-          const pincodeValidation = validatePincode(value);
+          const pincodeValidation = validatePostalCode(value, formData.billing_country);
           if (!pincodeValidation.isValid) error = pincodeValidation.message;
         }
         break;
       case "billing_state":
-        if (!value || value.trim() === "") error = "State is required";
+      case "billing_state_id":
+        if (isIndiaCountry(formData.billing_country)) {
+          if (name === "billing_state_id" && (!value || String(value).trim() === "")) {
+            error = "State is required";
+          }
+        } else if (name === "billing_state" && (!value || String(value).trim() === "")) {
+          error = "State / Province is required";
+        }
         break;
       default:
         break;
@@ -217,8 +222,13 @@ export default function B2bClientForm({
     if (!formData.client_name || formData.client_name.trim() === "") {
       validationErrors.client_name = "Client name is required";
     }
-    if (!formData.billing_state || formData.billing_state.trim() === "") {
-      validationErrors.billing_state = "State is required";
+    const india = isIndiaCountry(formData.billing_country);
+    if (india) {
+      if (!formData.billing_state_id || String(formData.billing_state_id).trim() === "") {
+        validationErrors.billing_state_id = "State is required";
+      }
+    } else if (!formData.billing_state || formData.billing_state.trim() === "") {
+      validationErrors.billing_state = "State / Province is required";
     }
     if (formData.email && formData.email.trim() !== "") {
       const emailValidation = validateEmail(formData.email);
@@ -228,16 +238,16 @@ export default function B2bClientForm({
       const phoneValidation = validatePhone(formData.phone);
       if (!phoneValidation.isValid) validationErrors.phone = phoneValidation.message;
     }
-    if (formData.gstin && formData.gstin.trim() !== "") {
+    if (india && formData.gstin && formData.gstin.trim() !== "") {
       const gstinValidation = validateGSTIN(formData.gstin);
       if (!gstinValidation.isValid) validationErrors.gstin = gstinValidation.message;
     }
-    if (formData.pan_number && formData.pan_number.trim() !== "") {
+    if (india && formData.pan_number && formData.pan_number.trim() !== "") {
       const panValidation = validatePAN(formData.pan_number);
       if (!panValidation.isValid) validationErrors.pan_number = panValidation.message;
     }
     if (formData.billing_pincode && formData.billing_pincode.trim() !== "") {
-      const pincodeValidation = validatePincode(formData.billing_pincode);
+      const pincodeValidation = validatePostalCode(formData.billing_pincode, formData.billing_country);
       if (!pincodeValidation.isValid) validationErrors.billing_pincode = pincodeValidation.message;
     }
     if (Object.keys(validationErrors).length > 0) {
@@ -252,8 +262,8 @@ export default function B2bClientForm({
       contact_person: formData.contact_person?.trim() || "",
       phone: formData.phone?.trim() || "",
       email: formData.email?.trim() || "",
-      gstin: formData.gstin?.trim().toUpperCase() || "",
-      pan_number: formData.pan_number?.trim().toUpperCase() || "",
+      gstin: india ? formData.gstin?.trim().toUpperCase() || "" : formData.gstin?.trim() || "",
+      pan_number: india ? formData.pan_number?.trim().toUpperCase() || "" : formData.pan_number?.trim() || "",
       billing_address: formData.billing_address?.trim() || "",
       billing_city: formData.billing_city?.trim() || "",
       billing_district: formData.billing_district?.trim() || "",
@@ -261,6 +271,7 @@ export default function B2bClientForm({
       billing_pincode: formData.billing_pincode?.trim() || "",
       billing_landmark: formData.billing_landmark?.trim() || "",
       billing_country: formData.billing_country || DEFAULT_COUNTRY,
+      ...(billing_state_id ? { billing_state_id } : {}),
     };
     setErrors({});
     onSubmit(submitData);
@@ -345,30 +356,34 @@ export default function B2bClientForm({
             error={!!errors.email}
             helperText={errors.email}
           />
-          <Input
-            fullWidth
-            name="gstin"
-            label="GSTIN"
-            value={formData.gstin}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            error={!!errors.gstin}
-            helperText={errors.gstin}
-            inputProps={{ maxLength: 15 }}
-            placeholder="27AAAAA0000A1Z5"
-          />
-          <Input
-            fullWidth
-            name="pan_number"
-            label="PAN Number"
-            value={formData.pan_number}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            error={!!errors.pan_number}
-            helperText={errors.pan_number}
-            inputProps={{ maxLength: 10 }}
-            placeholder="ABCDE1234F"
-          />
+          {isIndiaCountry(formData.billing_country) && (
+            <>
+              <Input
+                fullWidth
+                name="gstin"
+                label="GSTIN"
+                value={formData.gstin}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={!!errors.gstin}
+                helperText={errors.gstin}
+                inputProps={{ maxLength: 15 }}
+                placeholder="27AAAAA0000A1Z5"
+              />
+              <Input
+                fullWidth
+                name="pan_number"
+                label="PAN Number"
+                value={formData.pan_number}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={!!errors.pan_number}
+                helperText={errors.pan_number}
+                inputProps={{ maxLength: 10 }}
+                placeholder="ABCDE1234F"
+              />
+            </>
+          )}
           <Input
             fullWidth
             name="credit_limit"
@@ -387,7 +402,7 @@ export default function B2bClientForm({
           />
         </div>
         <div className="space-y-4">
-          <p className="text-sm font-medium text-muted-foreground">Billing Address (Indian)</p>
+          <p className="text-sm font-medium text-muted-foreground">Billing Address</p>
           <Input
             fullWidth
             name="billing_address"
@@ -412,58 +427,23 @@ export default function B2bClientForm({
               value={formData.billing_district}
               onChange={handleChange}
             />
-            <AutocompleteField
-              name="billing_state"
-              label="State"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-              referenceModel="state.model"
-              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-              value={
-                formData.billing_state_id
-                  ? { id: formData.billing_state_id, name: formData.billing_state }
-                  : formData.billing_state
-                    ? { name: formData.billing_state }
-                    : null
-              }
-              onChange={(e, newValue) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  billing_state_id: newValue?.id ?? "",
-                  billing_state: (newValue?.name ?? newValue?.label ?? "").trim(),
-                }));
-                if (errors.billing_state) {
-                  setErrors((prev) => ({ ...prev, billing_state: undefined }));
-                }
-                if (serverError) onClearServerError();
-              }}
-              placeholder="Type to search..."
-              required
-              error={!!errors.billing_state}
-              helperText={errors.billing_state}
-            />
-            <Input
-              fullWidth
-              name="billing_pincode"
-              label="Pincode"
-              value={formData.billing_pincode}
+            <AddressFields
+              values={formData}
               onChange={handleChange}
-              onBlur={handleBlur}
-              error={!!errors.billing_pincode}
-              helperText={errors.billing_pincode}
-              inputProps={{ maxLength: 6 }}
+              errors={errors}
+              fieldNames={{
+                country: "billing_country",
+                state_id: "billing_state_id",
+                state: "billing_state",
+                pincode: "billing_pincode",
+              }}
+              requiredState
             />
             <Input
               fullWidth
               name="billing_landmark"
               label="Landmark"
               value={formData.billing_landmark}
-              onChange={handleChange}
-            />
-            <CountrySelect
-              fullWidth
-              name="billing_country"
-              label="Country"
-              value={formData.billing_country}
               onChange={handleChange}
             />
           </div>
