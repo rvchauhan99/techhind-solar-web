@@ -1,8 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { getReferenceOptionsSearch, getFileUrl, removeMasterFile } from "@/services/mastersService";
+import {
+  getReferenceOptionsSearch,
+  getReferenceOptionById,
+  getFileUrl,
+  removeMasterFile,
+} from "@/services/mastersService";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
@@ -30,6 +35,30 @@ const YES_NO_OPTIONS = [
 const MASTER_FIELD_LABEL_OVERRIDES = {
   allow_b2b_sales: "Allow B2B sales",
   sort_order: "Sort order",
+};
+
+const IMPORT_APPROVER_CONFIG_KEY = "po_inward.import.allowed_approver_user_ids";
+
+const userOptionLabel = (opt) => {
+  if (!opt) return "";
+  if (opt.label) return opt.label;
+  const name = opt.name || opt.username || (opt.id != null ? `User ${opt.id}` : "");
+  if (opt.email) return `${name} (${opt.email})`;
+  return name || (opt.id != null ? String(opt.id) : "");
+};
+
+const parseUserIdArray = (raw) => {
+  if (raw == null || raw === "") return [];
+  let parsed = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch (_) {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0);
 };
 
 export default function MasterForm({ 
@@ -70,16 +99,95 @@ export default function MasterForm({
   const [errors, setErrors] = useState({}); // Track validation errors
   const [selectedFile, setSelectedFile] = useState(null); // Store selected file for upload
   const [removingFile, setRemovingFile] = useState(false);
+  const [approverUserOptions, setApproverUserOptions] = useState([]);
+  const [approverUsersLoading, setApproverUsersLoading] = useState(false);
 
   const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.username ?? (opt?.id != null ? String(opt.id) : '');
 
+  const isImportApproverConfig =
+    modelName === "platform_config.model" &&
+    String(formData.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY;
+
+  const hydrateApproverUsers = useCallback(async (rawValue) => {
+    const ids = parseUserIdArray(rawValue);
+    if (ids.length === 0) {
+      setApproverUserOptions([]);
+      return;
+    }
+    setApproverUsersLoading(true);
+    try {
+      const opts = await Promise.all(ids.map((id) => getReferenceOptionById("user.model", id)));
+      const byId = new Map();
+      opts.filter(Boolean).forEach((o) => {
+        const id = o?.id ?? o?.value;
+        if (id != null) byId.set(Number(id), o);
+      });
+      setApproverUserOptions(
+        ids.map((id) => byId.get(id) || { id, value: id, label: String(id), name: String(id) })
+      );
+    } catch (err) {
+      console.error("Failed to resolve import approver users:", err);
+      setApproverUserOptions(ids.map((id) => ({ id, value: id, label: String(id), name: String(id) })));
+    } finally {
+      setApproverUsersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (defaultValues && (defaultValues.id || Object.keys(defaultValues).length)) {
-      setFormData({ ...getInitialFormData(), ...defaultValues });
-      // Reset file selection when switching records
+      const next = { ...getInitialFormData(), ...defaultValues };
+      if (
+        modelName === "platform_config.model" &&
+        String(next.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+      ) {
+        next.value_type = "json";
+        if (next.config_value == null || next.config_value === "") {
+          next.config_value = "[]";
+        } else if (typeof next.config_value !== "string") {
+          next.config_value = JSON.stringify(next.config_value);
+        }
+      }
+      setFormData(next);
       setSelectedFile(null);
+      if (
+        modelName === "platform_config.model" &&
+        String(next.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+      ) {
+        hydrateApproverUsers(next.config_value);
+      } else {
+        setApproverUserOptions([]);
+      }
     }
-  }, [defaultValues?.id]);
+  }, [defaultValues?.id, modelName, hydrateApproverUsers]);
+
+  useEffect(() => {
+    if (!isImportApproverConfig) return;
+    setFormData((prev) => {
+      if (String(prev.value_type || "").toLowerCase() === "json") return prev;
+      return { ...prev, value_type: "json" };
+    });
+  }, [isImportApproverConfig]);
+
+  const handleApproverUsersChange = (_e, newValue) => {
+    if (serverError) onClearServerError();
+    if (errors.config_value) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.config_value;
+        return next;
+      });
+    }
+    const selected = Array.isArray(newValue) ? newValue : [];
+    const ids = selected
+      .map((o) => Number(o?.id ?? o?.value ?? o))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    setApproverUserOptions(selected);
+    setFormData((s) => ({
+      ...s,
+      config_value: JSON.stringify(ids),
+      value_type: "json",
+    }));
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -108,6 +216,33 @@ export default function MasterForm({
         // Convert to number for foreign key fields
         const numValue = value === '' ? null : Number(value);
         setFormData((s) => ({ ...s, [name]: isNaN(numValue) ? value : numValue }));
+      } else if (name === "config_key") {
+        const nextKey = value;
+        const becomesImportApprover =
+          modelName === "platform_config.model" &&
+          String(nextKey || "").trim() === IMPORT_APPROVER_CONFIG_KEY;
+        setFormData((s) => ({
+          ...s,
+          config_key: nextKey,
+          ...(becomesImportApprover
+            ? {
+                value_type: "json",
+                config_value:
+                  parseUserIdArray(s.config_value).length > 0
+                    ? typeof s.config_value === "string"
+                      ? s.config_value
+                      : JSON.stringify(parseUserIdArray(s.config_value))
+                    : "[]",
+              }
+            : {}),
+        }));
+        if (becomesImportApprover) {
+          hydrateApproverUsers(
+            parseUserIdArray(formData.config_value).length > 0 ? formData.config_value : "[]"
+          );
+        } else {
+          setApproverUserOptions([]);
+        }
       } else {
         setFormData((s) => ({ ...s, [name]: value }));
       }
@@ -216,7 +351,18 @@ export default function MasterForm({
         }
       } else if (selectedType === "json") {
         try {
-          JSON.parse(valueStr);
+          const parsed = JSON.parse(valueStr);
+          if (isImportApproverConfig) {
+            if (!Array.isArray(parsed)) {
+              setErrors({ config_value: "Select one or more users (value must be a JSON array of user IDs)" });
+              return;
+            }
+            const invalid = parsed.some((v) => !Number.isInteger(Number(v)) || Number(v) <= 0);
+            if (invalid) {
+              setErrors({ config_value: "Approver list must contain valid user IDs" });
+              return;
+            }
+          }
         } catch (_) {
           setErrors({ config_value: "Config Value must be valid JSON" });
           return;
@@ -283,6 +429,55 @@ export default function MasterForm({
     // Skip internal fields
     if (['id', 'created_at', 'updated_at', 'deleted_at'].includes(fieldName)) {
       return null;
+    }
+
+    // Platform Config: Import PO approver allowlist — pick users by name/email, store ID JSON
+    if (isImportApproverConfig && fieldName === "config_value") {
+      return (
+        <AutocompleteField
+          key={fieldName}
+          name={fieldName}
+          label="Allowed Approvers"
+          multiple
+          asyncLoadOptions={(q) =>
+            getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+          }
+          referenceModel="user.model"
+          getOptionLabel={userOptionLabel}
+          value={approverUserOptions}
+          onChange={handleApproverUsersChange}
+          disabled={viewMode || approverUsersLoading}
+          required={isRequired && !viewMode}
+          error={hasError}
+          helperText={
+            hasError
+              ? errors[fieldName]
+              : "Search by name or email. Saved as user ID JSON for fast approval checks."
+          }
+          placeholder="Type name or email..."
+          loading={approverUsersLoading}
+        />
+      );
+    }
+
+    if (isImportApproverConfig && fieldName === "value_type") {
+      const jsonOpt = PLATFORM_CONFIG_VALUE_TYPE_OPTIONS.find((o) => o.value === "json");
+      return (
+        <AutocompleteField
+          key={fieldName}
+          name={fieldName}
+          label={displayLabel}
+          options={PLATFORM_CONFIG_VALUE_TYPE_OPTIONS}
+          getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
+          value={jsonOpt}
+          onChange={() => {}}
+          disabled
+          required={isRequired && !viewMode}
+          error={hasError}
+          helperText="Locked to JSON for Import PO approver user IDs"
+          placeholder="JSON"
+        />
+      );
     }
 
     // Render based on field type

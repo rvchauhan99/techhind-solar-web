@@ -47,6 +47,80 @@ const MASTER_FIELD_LABEL_OVERRIDES = {
 };
 
 const TERMS_CONDITIONS_MODEL = "termsAndConditions.model";
+const PLATFORM_CONFIG_MODEL = "platform_config.model";
+const IMPORT_APPROVER_CONFIG_KEY = "po_inward.import.allowed_approver_user_ids";
+
+const parseUserIdList = (raw) => {
+    if (raw == null || raw === "") return [];
+    let parsed = raw;
+    if (typeof raw === "string") {
+        try {
+            parsed = JSON.parse(raw);
+        } catch (_) {
+            return [];
+        }
+    }
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0);
+};
+
+/** Resolve Import PO approver ID JSON → emails for list display (display-only; storage stays IDs). */
+const enrichPlatformConfigApproverEmails = async (rows) => {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+    const targetRows = rows.filter(
+        (r) => String(r?.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+    );
+    if (targetRows.length === 0) return rows;
+
+    const idSet = new Set();
+    targetRows.forEach((r) => {
+        parseUserIdList(r.config_value).forEach((id) => idSet.add(id));
+    });
+    const ids = [...idSet];
+    if (ids.length === 0) {
+        return rows.map((r) =>
+            String(r?.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+                ? { ...r, config_value_display: "" }
+                : r
+        );
+    }
+
+    let options = [];
+    try {
+        options = await mastersService.getReferenceOptionsSearch("user.model", {
+            id_in: ids.join(","),
+            limit: Math.min(Math.max(ids.length, 1), 100),
+            visibility: "all",
+        });
+    } catch (_) {
+        options = [];
+    }
+    if (!Array.isArray(options) || options.length === 0) {
+        try {
+            const fetched = await Promise.all(
+                ids.map((id) => mastersService.getReferenceOptionById("user.model", id))
+            );
+            options = fetched.filter(Boolean);
+        } catch (_) {
+            options = [];
+        }
+    }
+
+    const emailById = new Map();
+    (options || []).forEach((o) => {
+        const id = Number(o?.id ?? o?.value);
+        if (!Number.isInteger(id) || id <= 0) return;
+        emailById.set(id, o.email || o.label || o.name || String(id));
+    });
+
+    return rows.map((r) => {
+        if (String(r?.config_key || "").trim() !== IMPORT_APPROVER_CONFIG_KEY) return r;
+        const emails = parseUserIdList(r.config_value).map(
+            (id) => emailById.get(id) || `#${id}`
+        );
+        return { ...r, config_value_display: emails.join(", ") };
+    });
+};
 
 /** Ensure PDF clause ordering field exists even if API fields predate Sequelize model update */
 function ensureTermsSortOrderField(fields) {
@@ -77,6 +151,7 @@ export default function MastersPage() {
     const [loadingFields, setLoadingFields] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState(null);
     const [loadingRecord, setLoadingRecord] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -173,6 +248,7 @@ export default function MastersPage() {
     };
 
     const currentPerm = modulePermissions?.[currentModuleId] || { can_create: false, can_read: false, can_update: false, can_delete: false };
+    const canEditMaster = !!master?.allow_edit && !!currentPerm.can_update;
 
     async function onClickMaster(selectedMaster) {
         setMaster(selectedMaster);
@@ -293,6 +369,25 @@ export default function MastersPage() {
                             render: (row) => {
                                 const value = row[field.name];
                                 if (value === null || value === undefined) return '';
+                                if (
+                                    field.name === "config_value" &&
+                                    master?.model_name === PLATFORM_CONFIG_MODEL &&
+                                    String(row.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+                                ) {
+                                    const emails =
+                                        row.config_value_display != null
+                                            ? String(row.config_value_display)
+                                            : String(value);
+                                    if (!emails) return "";
+                                    return (
+                                        <span
+                                            className="block max-w-[220px] truncate text-xs"
+                                            title={emails}
+                                        >
+                                            {emails}
+                                        </span>
+                                    );
+                                }
                                 if (type === 'BOOLEAN') return value ? 'Yes' : 'No';
                                 if (['DATE', 'DATEONLY', 'TIMESTAMP'].includes(type)) return new Date(value).toLocaleDateString();
                                 return String(value);
@@ -341,6 +436,15 @@ export default function MastersPage() {
                             View
                         </ThemeButton>
                     ) : null}
+                    {!row.deleted_at && canEditMaster ? (
+                        <ThemeButton
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenEditModal(row.id)}
+                        >
+                            Edit
+                        </ThemeButton>
+                    ) : null}
                     {!row.deleted_at && (perms || currentPerm).can_delete ? (
                         <ThemeButton
                             size="sm"
@@ -371,7 +475,7 @@ export default function MastersPage() {
         });
 
         return cols;
-    }, [fields, master, currentPerm]);
+    }, [fields, master, currentPerm, canEditMaster]);
 
     // Fetcher function for PaginatedTable
     const fetcher = useMemo(() => {
@@ -385,8 +489,12 @@ export default function MastersPage() {
                 ...params,
             });
             const result = response.result || response;
+            let data = result.data || [];
+            if (master.model_name === PLATFORM_CONFIG_MODEL) {
+                data = await enrichPlatformConfigApproverEmails(data);
+            }
             return {
-                data: result.data || [],
+                data,
                 meta: result.meta || { total: 0, page: p, pages: 0, limit: l }
             };
         };
@@ -437,6 +545,30 @@ export default function MastersPage() {
         setServerError(null);
     };
 
+    const handleOpenEditModal = async (id) => {
+        if (!master.model_name || !canEditMaster) return;
+        setLoadingRecord(true);
+        setServerError(null);
+        try {
+            const response = await mastersService.getMasterById(id, master.model_name);
+            const result = response.result || response;
+            setSelectedRecord(result);
+            setShowEditModal(true);
+        } catch (error) {
+            console.error('Error fetching record for edit:', error);
+            setServerError('Failed to load record');
+            toastError('Failed to load record');
+        } finally {
+            setLoadingRecord(false);
+        }
+    };
+
+    const handleCloseEditModal = () => {
+        setShowEditModal(false);
+        setSelectedRecord(null);
+        setServerError(null);
+    };
+
     const handleSubmit = async (payload, file = null) => {
         if (!master.model_name) {
             setServerError('Model is required');
@@ -452,6 +584,31 @@ export default function MastersPage() {
             setTableKey(prev => prev + 1);
         } catch (err) {
             setServerError(err.response?.data?.message || err.message || 'Failed to save record');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleUpdateSubmit = async (payload, file = null) => {
+        if (!master.model_name || !selectedRecord?.id) {
+            setServerError('Model and record ID are required');
+            return;
+        }
+        if (!canEditMaster) {
+            setServerError('Edit is not allowed for this master');
+            return;
+        }
+
+        setSubmitting(true);
+        setServerError(null);
+
+        try {
+            await mastersService.updateMaster(selectedRecord.id, payload, master.model_name, file);
+            toastSuccess('Record updated successfully');
+            handleCloseEditModal();
+            setTableKey((prev) => prev + 1);
+        } catch (err) {
+            setServerError(err.response?.data?.message || err.message || 'Failed to update record');
         } finally {
             setSubmitting(false);
         }
@@ -812,6 +969,36 @@ export default function MastersPage() {
                                 modelName={master.model_name}
                                 onCancel={handleCloseViewModal}
                                 viewMode={true}
+                                requiredFields={requiredFields}
+                            />
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Master Dialog (allow_edit masters only) */}
+            <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) handleCloseEditModal(); }}>
+                <DialogContent className={cn(DIALOG_FORM_MEDIUM, "gap-2 p-4")} showCloseButton={true}>
+                    <DialogHeader className="gap-0 pb-1">
+                        <DialogTitle>Edit {master.name}</DialogTitle>
+                    </DialogHeader>
+                    <div className="pt-0">
+                        {loadingRecord ? (
+                            <div className="flex justify-center items-center min-h-[200px]">
+                                <Loader />
+                            </div>
+                        ) : (
+                            <MasterForm
+                                fields={fields}
+                                defaultValues={selectedRecord}
+                                onSubmit={handleUpdateSubmit}
+                                loading={submitting}
+                                serverError={serverError}
+                                onClearServerError={() => setServerError(null)}
+                                masterName={master.name}
+                                modelName={master.model_name}
+                                onCancel={handleCloseEditModal}
+                                viewMode={false}
                                 requiredFields={requiredFields}
                             />
                         )}

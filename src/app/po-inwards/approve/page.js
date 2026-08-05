@@ -84,6 +84,13 @@ function ApprovePOInwardContent() {
         setInward(detail);
         return;
       }
+      if (detail.is_import && detail.can_approve_import === false) {
+        setServerError(
+          "You are not allowed to approve Import PO Inwards. Contact an administrator to be added as an approver."
+        );
+        setInward(detail);
+        return;
+      }
       hydrateFromDetail(detail);
     } catch (error) {
       console.error("Load inward for approve:", error);
