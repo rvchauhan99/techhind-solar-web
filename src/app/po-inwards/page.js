@@ -324,7 +324,8 @@ export default function POInwardPage() {
                 <IconPencil className="size-4" />
               </Button>
             )}
-            {row.status === "DRAFT" && (
+            {row.status === "DRAFT" &&
+              (!row.is_import || row.can_approve_import) && (
               <Button
                 size="icon"
                 variant="success"
