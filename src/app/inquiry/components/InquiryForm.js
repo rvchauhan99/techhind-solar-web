@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import companyService from "@/services/companyService";
-import { validatePhone, validateEmail, formatPhone, validateE164Phone } from "@/utils/validators";
+import { validatePhone, validateEmail, formatPhone, validateE164Phone, validatePostalCode } from "@/utils/validators";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toast } from "sonner";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 
 const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
     if (!channelPartner || channelPartner === "") return null;
@@ -30,7 +31,11 @@ const channelPartnerMustDifferFromHandledBy = (handledBy, channelPartner) => {
 
 export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
     const router = useRouter();
-    const [formData, setFormData] = useState(defaultValues);
+    const [formData, setFormData] = useState({
+        ...defaultValues,
+        country: defaultValues.country || DEFAULT_COUNTRY,
+        state_text: defaultValues.state_text || "",
+    });
     const [errors, setErrors] = useState({});
 
     const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
@@ -58,6 +63,8 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                     : moment().format("YYYY-MM-DD"),
             capacity: defaultValues?.capacity !== undefined && defaultValues?.capacity !== null ? defaultValues.capacity : "",
             do_not_send_message: !!defaultValues?.do_not_send_message,
+            country: defaultValues?.country || prev.country || DEFAULT_COUNTRY,
+            state_text: defaultValues?.state_text || prev.state_text || "",
         }));
     }, [defaultValues]);
 
@@ -158,6 +165,14 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                 [name]: processedValue,
                 city_id: "", // Clear city when state changes
             }));
+            if (errors.state_id || errors.city_id) {
+                setErrors((prev) => {
+                    const updated = { ...prev };
+                    delete updated.state_id;
+                    delete updated.city_id;
+                    return updated;
+                });
+            }
             return;
         }
 
@@ -340,14 +355,20 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
             }
         }
 
+        const india = isIndiaCountry(formData.country);
         if (!formData.state_id) {
             newErrors.state_id = "State is required";
         }
-        if (!formData.pin_code || String(formData.pin_code).trim() === "") {
-            newErrors.pin_code = "Pin Code is required";
+        if (india) {
+            if (!formData.city_id) {
+                newErrors.city_id = "City is required";
+            }
         }
-        if (!formData.city_id) {
-            newErrors.city_id = "City is required";
+        if (!formData.pin_code || String(formData.pin_code).trim() === "") {
+            newErrors.pin_code = "Postal code is required";
+        } else {
+            const postal = validatePostalCode(formData.pin_code, formData.country);
+            if (!postal.isValid) newErrors.pin_code = postal.message;
         }
         if (!formData.taluka || formData.taluka.trim() === "") {
             newErrors.taluka = "Taluka is required";
@@ -361,7 +382,12 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         }
 
         setErrors({});
-        onSubmit(formData);
+        onSubmit({
+            ...formData,
+            country: formData.country || DEFAULT_COUNTRY,
+            state_id: formData.state_id || null,
+            state_text: formData.state_text || "",
+        });
     };
 
     return (
@@ -551,27 +577,18 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             error={!!errors.email_id}
                             helperText={errors.email_id}
                         />
-                        <Input
-                            type="number"
-                            name="pin_code"
-                            label="Pin Code"
-                            value={formData.pin_code || ""}
+                        <AddressFields
+                            values={formData}
                             onChange={handleChange}
-                            error={!!errors.pin_code}
-                            helperText={errors.pin_code}
-                            required
-                        />
-                        <AutocompleteField
-                            name="state_id"
-                            label="State"
-                            options={options.states}
-                            getOptionLabel={getOptionLabel}
-                            value={options.states.find((s) => s.id == formData.state_id) || (formData.state_id ? { id: formData.state_id } : null)}
-                            onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
-                            placeholder="Type to search..."
-                            error={!!errors.state_id}
-                            helperText={errors.state_id}
-                            required
+                            errors={errors}
+                            fieldNames={{
+                                country: "country",
+                                state_id: "state_id",
+                                state: "state_text",
+                                pincode: "pin_code",
+                            }}
+                            requiredState
+                            requiredPostal
                         />
                         <AutocompleteField
                             name="city_id"
@@ -597,7 +614,7 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
                             error={!!errors.city_id}
                             helperText={errors.city_id}
                             disabled={!formData.state_id}
-                            required
+                            required={isIndiaCountry(formData.country)}
                         />
                         <Input
                             name="taluka"

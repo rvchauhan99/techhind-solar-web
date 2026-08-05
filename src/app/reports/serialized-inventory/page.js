@@ -160,7 +160,7 @@ export default function SerializedInventoryReportPage() {
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("product_make.model")
+      .getReferenceOptions("product_make.model", { visibility: "all" })
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const opts = Array.isArray(data) ? data.map((m) => ({ id: m.id, name: m.name || String(m.id) })) : [];

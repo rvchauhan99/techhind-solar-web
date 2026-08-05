@@ -1,7 +1,8 @@
 /**
  * Centralized quotation validation. Returns structured error object.
  */
-import { validateE164Phone, validateEmail } from "@/utils/validators";
+import { validateE164Phone, validateEmail, validatePostalCode } from "@/utils/validators";
+import { isIndiaCountry } from "@/components/common/AddressFields";
 
 /**
  * @param {Record<string, unknown>} formData
@@ -9,6 +10,7 @@ import { validateE164Phone, validateEmail } from "@/utils/validators";
  */
 export function validateQuotation(formData) {
     const errors = {};
+    const india = isIndiaCountry(formData.country);
 
     if (!formData.quotation_date) errors.quotation_date = "Quotation Date is required";
     if (!formData.valid_till) errors.valid_till = "Valid Till is required";
@@ -29,9 +31,14 @@ export function validateQuotation(formData) {
     }
 
     if (!formData.state_id) errors.state_id = "State is required";
-    if (!formData.city_id) errors.city_id = "City is required";
+    if (india) {
+        if (!formData.city_id) errors.city_id = "City is required";
+    }
     if (!formData.pin_code || String(formData.pin_code).trim() === "") {
-        errors.pin_code = "Pin Code is required";
+        errors.pin_code = "Postal code is required";
+    } else {
+        const postal = validatePostalCode(formData.pin_code, formData.country);
+        if (!postal.isValid) errors.pin_code = postal.message;
     }
     if (!formData.taluka || String(formData.taluka).trim() === "") {
         errors.taluka = "Taluka is required";

@@ -43,6 +43,8 @@ function buildParams(filters, page, limit, sortBy, sortOrder) {
   };
 }
 
+const toNum = (value) => Number(value || 0);
+
 function formatCurrency(value) {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-IN", {
@@ -249,6 +251,30 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
       render: (row) => (
         <span className="text-[10px] font-medium text-slate-800">{formatCurrency(row.unit_price)}</span>
       ),
+    },
+    {
+      field: "avg_price_excl_gst",
+      label: "Avg Price Excl GST",
+      sortable: false,
+      render: (row) => (
+        <span className="text-[10px] font-medium text-slate-800">
+          {row.avg_purchase_price != null ? formatCurrency(row.avg_purchase_price) : "—"}
+        </span>
+      ),
+    },
+    {
+      field: "avg_price_incl_gst",
+      label: "Avg Price Incl GST",
+      sortable: false,
+      render: (row) => {
+        const avg = toNum(row.avg_purchase_price);
+        const gst = toNum(row.gst_percent);
+        return (
+          <span className="text-[10px] font-medium text-slate-800">
+            {row.avg_purchase_price != null ? formatCurrency(avg * (1 + gst / 100)) : "—"}
+          </span>
+        );
+      },
     },
     {
       field: "inward_date",

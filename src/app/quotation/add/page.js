@@ -33,6 +33,7 @@ function AddQuotationContent() {
           pin_code: datas.pin_code,
           state_id: datas.state_id,
           city_id: datas.city_id,
+          country: datas.country || "India",
           branch_id: datas.branch_id,
           order_type_id: datas.order_type_id,
           inquiry_id: datas.id,

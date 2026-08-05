@@ -8,7 +8,7 @@ CRMAndPreSales -> `src/app/inquiry`, `src/app/followup`, `src/app/marketing-lead
 
 SalesLifecycle -> `src/app/quotation`, `src/app/order`, `src/app/confirm-orders`, `src/app/closed-orders`, `src/app/cancelled-orders`, `src/app/delivery-challans`, `src/app/delivery-execution`
 
-ProcurementAndInventory -> `src/app/supplier`, `src/app/purchase-orders`, `src/app/po-inwards`, `src/app/purchase-returns`, `src/app/stocks`, `src/app/inventory-ledger`, `src/app/stock-transfers`, `src/app/stock-adjustments`, `src/app/serial-master`
+ProcurementAndInventory -> `src/app/supplier`, `src/app/purchase-orders`, `src/app/po-inwards`, `src/app/purchase-returns`, `src/app/stocks`, `src/app/stocks-qty`, `src/app/inventory-ledger`, `src/app/stock-transfers`, `src/app/stock-adjustments`, `src/app/serial-master`
 
 MastersAndConfiguration -> `src/app/module-master`, `src/app/role-master`, `src/app/role-module`, `src/app/user-master`, `src/app/masters`, `src/app/meta-setup`, `src/app/project-price`, `src/app/product`, `src/app/bill-of-material`, `src/app/company-profile`
 

@@ -14,6 +14,8 @@ import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import { resolveDocumentUrl } from "@/services/apiClient";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
+import { validatePostalCode } from "@/utils/validators";
 
 const resolveLocationId = (value, options) => {
     if (value == null || value === "") return "";
@@ -86,9 +88,11 @@ export default function OrderForm({
         phone_no: "",
         pin_code: "",
         state_id: "",
+        state_text: "",
         city_id: "",
         landmark_area: "",
         district: "",
+        country: DEFAULT_COUNTRY,
 
         // Assignment
         inquiry_source_id: "",
@@ -255,6 +259,7 @@ export default function OrderForm({
                         }
                     }
                 });
+                if (!updated.country) updated.country = DEFAULT_COUNTRY;
                 return updated;
             });
         }
@@ -342,15 +347,32 @@ export default function OrderForm({
         if (!formData.customer_id) newErrors.customer_id = "Customer is required";
         if (!formData.discom_id) newErrors.discom_id = "Discom is required";
         if (!formData.consumer_no) newErrors.consumer_no = "Consumer number is required";
-        if (!formData.pin_code) newErrors.pin_code = "Pin code is required";
+        if (!formData.pin_code) {
+            newErrors.pin_code = "Postal code is required";
+        } else {
+            const postal = validatePostalCode(formData.pin_code, formData.country);
+            if (!postal.isValid) newErrors.pin_code = postal.message;
+        }
         if (!formData.address) newErrors.address = "Address is required";
         if (!formData.payment_type) newErrors.payment_type = "Payment type is required";
 
-        if (formData.state_id && toNullableLocationId(formData.state_id, locationOptions.states) == null) {
+        const india = isIndiaCountry(formData.country);
+        if (!formData.state_id) {
+            newErrors.state_id = "State is required";
+        } else if (
+            locationOptions.states.length &&
+            toNullableLocationId(formData.state_id, locationOptions.states) == null
+        ) {
             newErrors.state_id = "Please select a valid state";
         }
-        if (formData.city_id && toNullableLocationId(formData.city_id, locationOptions.cities) == null) {
-            newErrors.city_id = "Please select a valid city";
+        if (india) {
+            if (
+                formData.city_id &&
+                locationOptions.cities.length &&
+                toNullableLocationId(formData.city_id, locationOptions.cities) == null
+            ) {
+                newErrors.city_id = "Please select a valid city";
+            }
         }
 
         const cpError = channelPartnerMustDifferFromHandledBy(
@@ -371,7 +393,9 @@ export default function OrderForm({
             onSubmit({
                 ...formData,
                 state_id: toNullableLocationId(formData.state_id, locationOptions.states),
+                state_text: formData.state_text || "",
                 city_id: toNullableLocationId(formData.city_id, locationOptions.cities),
+                country: formData.country || DEFAULT_COUNTRY,
             });
         }
     };
@@ -614,23 +638,18 @@ export default function OrderForm({
                             value={formData.email ?? ""}
                             onChange={handleChangeEvent}
                         />
-                        <Input
-                            name="pin_code"
-                            label="Pin Code"
-                            value={formData.pin_code ?? ""}
+                        <AddressFields
+                            values={formData}
                             onChange={handleChangeEvent}
-                            error={!!errors.pin_code}
-                            helperText={errors.pin_code}
-                            required
-                        />
-                        <AutocompleteField
-                            name="state_id"
-                            label="State"
-                            options={locationOptions.states}
-                            getOptionLabel={(s) => s?.name ?? s?.label ?? ""}
-                            value={locationOptions.states.find((s) => s.id == formData.state_id) || (formData.state_id ? { id: formData.state_id } : null)}
-                            onChange={(e, newValue) => handleChange("state_id", newValue?.id ?? "")}
-                            placeholder="Type to search..."
+                            errors={errors}
+                            fieldNames={{
+                                country: "country",
+                                state_id: "state_id",
+                                state: "state_text",
+                                pincode: "pin_code",
+                            }}
+                            requiredState
+                            requiredPostal
                         />
                         <AutocompleteField
                             name="city_id"
@@ -678,7 +697,7 @@ export default function OrderForm({
                             value={formData.district ?? ""}
                             onChange={handleChangeEvent}
                         />
-                    </FormGrid>
+                </FormGrid>
                 </FormSection>
 
                 <FormSection title="Connection Details">

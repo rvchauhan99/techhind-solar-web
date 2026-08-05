@@ -207,10 +207,10 @@ function LeadInfoCard({ lead }) {
             Address
           </div>
           <InfoTile label="Address" value={lead.address} />
-          {(lead.city_name || lead.state_name || lead.pin_code) && (
+          {(lead.city_name || lead.state_name || lead.pin_code || lead.country) && (
             <InfoTile
               label="City / State / PIN"
-              value={[lead.city_name, lead.state_name, lead.pin_code]
+              value={[lead.city_name, lead.state_name, lead.pin_code, lead.country]
                 .filter(Boolean)
                 .join(", ")}
             />
