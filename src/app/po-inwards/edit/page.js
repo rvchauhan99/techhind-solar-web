@@ -67,6 +67,7 @@ function EditPOInwardContent() {
               purchase_order_item_id: item.purchase_order_item_id,
               product_id: item.product_id,
               product_name: item.product?.product_name || "",
+              measurement_unit: item.product?.measurementUnit?.unit || item.measurement_unit || "",
               tracking_type: trackingType,
               serial_required: productSerialRequired,
               ordered_quantity: item.ordered_quantity,

@@ -180,7 +180,11 @@ export default function B2bSalesQuoteForm({
                 unit_rate: it.unit_rate ?? 0,
                 discount_percent: it.discount_percent ?? 0,
                 gst_percent: it.gst_percent ?? 0,
-                measurement_unit: it.measurement_unit || it.product?.measurement_unit_name || "",
+                measurement_unit:
+                  it.measurement_unit ||
+                  it.product?.measurement_unit_name ||
+                  it.product?.measurementUnit?.unit ||
+                  "",
                 product_capacity: it.product_capacity ?? it.product?.capacity ?? "",
                 product_type_name: it.product_type_name || it.product?.productType?.name || "",
             }))

@@ -1290,7 +1290,7 @@ export default function DeliveryChallanForm({
                                                                     color={emphasize ? "text.secondary" : undefined}
                                                                     fontWeight={emphasize ? 500 : undefined}
                                                                 >
-                                                                    {value}
+                                                                    {value} {line.unit_name || ""}
                                                                 </Typography>
                                                             </Box>
                                                         ))}
@@ -1306,7 +1306,7 @@ export default function DeliveryChallanForm({
                                                     <Input
                                                         type="number"
                                                         size="small"
-                                                        label="Ship Now"
+                                                        label={line.unit_name ? `Ship Now (${line.unit_name})` : "Ship Now"}
                                                         value={line.ship_now}
                                                         onChange={(e) => handleShipNowChange(index, e.target.value)}
                                                         inputProps={{ min: 0, max: line.pending_qty }}
@@ -1516,9 +1516,9 @@ export default function DeliveryChallanForm({
                                                             </TableCell>
                                                             <TableCell sx={compactCellSx}>{line.product_type_name}</TableCell>
                                                             <TableCell sx={compactCellSx}>{line.make_name}</TableCell>
-                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0}</TableCell>
-                                                            <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
-                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.required_qty)) ? line.required_qty : 0} {line.unit_name || ""}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0} {line.unit_name || ""}</TableCell>
+                                                            <TableCell sx={compactCellSx} align="right">{Number.isFinite(Number(line.shipped_qty)) ? line.shipped_qty : 0} {line.unit_name || ""}</TableCell>
                                                             {showReturnedQtyColumn && (
                                                                 <TableCell sx={compactCellSx} align="right">
                                                                     <Typography

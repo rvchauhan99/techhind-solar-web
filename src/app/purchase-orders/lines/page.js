@@ -159,6 +159,12 @@ export default function PurchaseOrderLinesPage() {
         render: (r) => r.product?.product_make?.name || "—",
       },
       { field: "hsn_code", label: "HSN", sortable: false },
+      {
+        field: "measurement_unit",
+        label: "UOM",
+        sortable: false,
+        render: (r) => r.product?.measurement_unit?.unit || "—",
+      },
       { field: "rate", label: "Rate", sortable: true, render: (r) => formatCurrency(r.rate) },
       { field: "quantity", label: "Qty", sortable: true },
       { field: "received_quantity", label: "Recv", sortable: true },

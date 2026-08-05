@@ -579,6 +579,7 @@ export default function B2bSalesQuotesPage() {
                   <tr className="bg-muted/50 border-b">
                     <th className="text-left p-2">#</th>
                     <th className="text-left p-2">Product</th>
+                    <th className="text-left p-2">UOM</th>
                     <th className="text-right p-2">Qty</th>
                     <th className="text-right p-2">Rate</th>
                     <th className="text-right p-2">Disc %</th>
@@ -593,6 +594,7 @@ export default function B2bSalesQuotesPage() {
                     <tr key={it.id ?? idx} className="border-b last:border-0">
                       <td className="p-2">{idx + 1}</td>
                       <td className="p-2">{it.product?.product_name ?? it.product_label ?? "-"}</td>
+                      <td className="p-2">{it.product?.measurementUnit?.unit || it.measurement_unit || "—"}</td>
                       <td className="p-2 text-right">{it.quantity ?? "-"}</td>
                       <td className="p-2 text-right">{formatCurrency(it.unit_rate) ?? "-"}</td>
                       <td className="p-2 text-right">{it.discount_percent ?? 0}</td>
