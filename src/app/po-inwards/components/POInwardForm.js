@@ -64,6 +64,11 @@ const isSerialItem = (item) => {
     return t === "SERIAL" || item.serial_required === true;
 };
 
+const fmtQtyWithUom = (qty, unit) => {
+    if (qty == null || qty === "") return "—";
+    return unit ? `${qty} ${unit}` : String(qty);
+};
+
 // ---------------------------------------------------------------------------
 // SerialEntryDialog — ISOLATED component so parent form NEVER re-renders
 // during scanning. All serial state lives here.
@@ -593,6 +598,10 @@ export default function POInwardForm({
                         purchase_order_item_id: item.id,
                         product_id: item.product_id,
                         product_name: item.product?.product_name || "",
+                        measurement_unit:
+                            item.product?.measurementUnit?.unit ||
+                            existing?.measurement_unit ||
+                            "",
                         tracking_type: trackingType,
                         serial_required: shouldBeSerial,
                         ordered_quantity: item.quantity,
@@ -1069,8 +1078,8 @@ export default function POInwardForm({
                                                             </Typography>
                                                             {isCardCollapsed && (
                                                                 <Typography variant="caption" color="text.secondary">
-                                                                    Ordered {item.ordered_quantity}
-                                                                    {acceptedQty > 0 && ` · Accepted ${acceptedQty}`}
+                                                                    Ordered {fmtQtyWithUom(item.ordered_quantity, item.measurement_unit)}
+                                                                    {acceptedQty > 0 && ` · Accepted ${fmtQtyWithUom(acceptedQty, item.measurement_unit)}`}
                                                                     {isSerial && acceptedQty > 0 && ` · Serials ${serialCount}/${acceptedQty}`}
                                                                 </Typography>
                                                             )}
@@ -1098,7 +1107,9 @@ export default function POInwardForm({
                                                                         ].map(({ label, val, color }) => (
                                                                             <Box key={label}>
                                                                                 <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-                                                                                <Typography variant="body2" fontWeight="medium" color={color}>{val}</Typography>
+                                                                                <Typography variant="body2" fontWeight="medium" color={color}>
+                                                                                    {fmtQtyWithUom(val, item.measurement_unit)}
+                                                                                </Typography>
                                                                             </Box>
                                                                         ))}
                                                                     </Box>
@@ -1108,7 +1119,7 @@ export default function POInwardForm({
                                                             <Input
                                                                 type="number"
                                                                 size="small"
-                                                                label="Received Qty"
+                                                                label={item.measurement_unit ? `Received Qty (${item.measurement_unit})` : "Received Qty"}
                                                                 fullWidth
                                                                 value={item.received_quantity}
                                                                 onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
@@ -1179,6 +1190,7 @@ export default function POInwardForm({
                                                     <TableRow sx={{ bgcolor: "action.hover" }}>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>#</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Product</TableCell>
+                                                        <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>UOM</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Ordered</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Pending</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75, minWidth: 100 }}>Received</TableCell>
@@ -1219,8 +1231,9 @@ export default function POInwardForm({
                                                                         {isLot && <Chip label="LOT" size="small" color="secondary" sx={{ height: 16, fontSize: "0.6rem" }} />}
                                                                     </Box>
                                                                 </TableCell>
-                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{item.ordered_quantity}</TableCell>
-                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", fontWeight: 600, py: 0.5 }}>{pendingQty}</TableCell>
+                                                                <TableCell sx={{ fontSize: "0.78rem", py: 0.5 }}>{item.measurement_unit || "—"}</TableCell>
+                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{fmtQtyWithUom(item.ordered_quantity, item.measurement_unit)}</TableCell>
+                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", fontWeight: 600, py: 0.5 }}>{fmtQtyWithUom(pendingQty, item.measurement_unit)}</TableCell>
                                                                 <TableCell sx={{ py: 0.5 }}>
                                                                     <Input
                                                                         type="number"
@@ -1240,7 +1253,7 @@ export default function POInwardForm({
                                                                         fontWeight={700}
                                                                         color={acceptedQty > 0 ? "success.main" : "text.secondary"}
                                                                     >
-                                                                        {acceptedQty}
+                                                                        {fmtQtyWithUom(acceptedQty, item.measurement_unit)}
                                                                     </Typography>
                                                                     {errors[`item_${index}_accepted`] && (
                                                                         <FormHelperText error>{errors[`item_${index}_accepted`]}</FormHelperText>

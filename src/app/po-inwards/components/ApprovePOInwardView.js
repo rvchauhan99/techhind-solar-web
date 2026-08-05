@@ -446,6 +446,7 @@ export default function ApprovePOInwardView({
                       <thead className="bg-slate-50/50 text-slate-500 border-b border-slate-100">
                         <tr>
                           <th className="px-2.5 py-1.5 text-left font-medium">Product</th>
+                          <th className="px-2.5 py-1.5 text-left font-medium">UOM</th>
                           <th className="px-2.5 py-1.5 text-right font-medium">Qty</th>
                           <th className="px-2.5 py-1.5 text-right font-medium">{currencyCode}</th>
                           <th className="px-2.5 py-1.5 text-right font-medium">PO INR</th>
@@ -458,6 +459,7 @@ export default function ApprovePOInwardView({
                         {(allocation.lines || []).map((line, idx) => (
                           <tr key={line.item?.id || idx} className="hover:bg-slate-50/80 transition-colors">
                             <td className="px-2.5 py-1.5 font-medium text-slate-700">{txt(line.item?.product?.product_name)}</td>
+                            <td className="px-2.5 py-1.5 text-slate-600">{txt(line.item?.product?.measurementUnit?.unit || "—")}</td>
                             <td className="px-2.5 py-1.5 text-right text-slate-600">{line.accepted_quantity}</td>
                             <td className="px-2.5 py-1.5 text-right text-slate-500">
                               {line.rate_fc != null ? Number(line.rate_fc).toFixed(2) : "-"}
@@ -502,6 +504,7 @@ export default function ApprovePOInwardView({
                       <thead className="bg-slate-50 border-b border-slate-200 text-slate-500">
                         <tr>
                           <th className="px-2.5 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">Product</th>
+                          <th className="px-2.5 py-1.5 text-left font-semibold uppercase tracking-wider text-[9px]">UOM</th>
                           <th className="px-2.5 py-1.5 text-right font-semibold uppercase tracking-wider text-[9px]">Qty</th>
                           <th className="px-2.5 py-1.5 text-right font-semibold uppercase tracking-wider text-[9px]">Rate</th>
                           <th className="px-2.5 py-1.5 text-right font-semibold uppercase tracking-wider text-[9px]">GST%</th>
@@ -512,6 +515,7 @@ export default function ApprovePOInwardView({
                         {(inward?.items || []).map((it, idx) => (
                           <tr key={it.id || idx} className="hover:bg-slate-50 transition-colors">
                             <td className="px-2.5 py-1.5 font-medium text-slate-700">{txt(it.product?.product_name)}</td>
+                            <td className="px-2.5 py-1.5 text-slate-600">{txt(it.product?.measurementUnit?.unit || "—")}</td>
                             <td className="px-2.5 py-1.5 text-right text-slate-600">{it.accepted_quantity}</td>
                             <td className="px-2.5 py-1.5 text-right text-slate-600">{formatCurrency(it.rate || 0)}</td>
                             <td className="px-2.5 py-1.5 text-right text-slate-500">

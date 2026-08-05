@@ -190,7 +190,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         : "",
                 currency_code: defaultValues.currency_code || DEFAULT_CURRENCY,
                 is_import: !!defaultValues.is_import,
-                items: defaultValues.items || [],
+                items: (defaultValues.items || []).map((item) => ({
+                    ...item,
+                    measurement_unit:
+                        item.measurement_unit ||
+                        item.product?.measurementUnit?.unit ||
+                        item.product?.measurement_unit?.unit ||
+                        "",
+                })),
             };
             setFormData(newFormData);
             if (defaultValues.supplier) {

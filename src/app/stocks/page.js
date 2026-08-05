@@ -509,6 +509,12 @@ export default function StockPage() {
           render: (row) => row.warehouse?.name || "-",
         },
         {
+          field: "measurement_unit_name",
+          label: "UOM",
+          sortable: false,
+          render: (row) => row.measurement_unit_name || row.product?.measurementUnit?.unit || "—",
+        },
+        {
           field: "quantity_on_hand",
           label: "Total AVL",
           sortable: true,

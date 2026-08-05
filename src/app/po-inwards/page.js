@@ -455,6 +455,7 @@ export default function POInwardPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-left font-semibold">UOM</th>
                     <th className="px-2 py-1 text-right font-semibold">Accepted</th>
                     <th className="px-2 py-1 text-right font-semibold">{isImport ? "PO INR" : "Rate"}</th>
                     {isImport ? <th className="px-2 py-1 text-right font-semibold">Allocated</th> : null}
@@ -467,6 +468,7 @@ export default function POInwardPage() {
                   {p.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5">{txt(item.product?.measurementUnit?.unit || "—")}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.accepted_quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{formatCurrency((item.rate_inr_po ?? item.rate) || 0)}</td>
                       {isImport ? (

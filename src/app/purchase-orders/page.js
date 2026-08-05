@@ -714,6 +714,7 @@ export default function PurchaseOrderPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-left font-semibold">UOM</th>
                     <th className="px-2 py-1 text-right font-semibold">HSN</th>
                     <th className="px-2 py-1 text-right font-semibold">Rate</th>
                     <th className="px-2 py-1 text-right font-semibold">Ord</th>
@@ -728,6 +729,7 @@ export default function PurchaseOrderPage() {
                   {po.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{text(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5">{text(item.product?.measurementUnit?.unit || item.measurement_unit || "—")}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.hsn_code || item.product?.hsn_ssn_code)}</td>
                       <td className="px-2 py-1.5 text-right">
                         {isImportPo && currencyCode !== "INR"
