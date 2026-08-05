@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import b2bClientService from "@/services/b2bClientService";
 import B2bPaymentsReportView from "@/app/reports/payments/components/B2bPaymentsReportView";
@@ -361,7 +361,7 @@ export default function B2bPaymentsReportPage() {
                   name="payment_mode_id"
                   label="Payment Mode"
                   asyncLoadOptions={(q) =>
-                    getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })
+                    getReferenceOptionsForFilter("payment_mode.model", { q, limit: 20 })
                   }
                   referenceModel="payment_mode.model"
                   getOptionLabel={(o) => o?.name ?? ""}

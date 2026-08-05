@@ -30,11 +30,9 @@ export function validateQuotation(formData) {
         if (!emailValidation.isValid) errors.email = emailValidation.message;
     }
 
+    if (!formData.state_id) errors.state_id = "State is required";
     if (india) {
-        if (!formData.state_id) errors.state_id = "State is required";
         if (!formData.city_id) errors.city_id = "City is required";
-    } else if (!formData.state_text || String(formData.state_text).trim() === "") {
-        errors.state_text = "State / Province is required";
     }
     if (!formData.pin_code || String(formData.pin_code).trim() === "") {
         errors.pin_code = "Postal code is required";

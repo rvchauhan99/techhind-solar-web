@@ -15,8 +15,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import companyService from "@/services/companyService";
-import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 
@@ -158,8 +157,8 @@ export default function OrderListFilterPanel({
   useEffect(() => {
     setLoadingOptions(true);
     Promise.all([
-      companyService.listBranches().then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
-      mastersService.getReferenceOptions("inquiry_source.model").then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
+      mastersService.getReferenceOptions("company_branch.model", { visibility: "all" }).then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
+      mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => Array.isArray(r?.result ?? r?.data ?? r) ? (r?.result ?? r?.data ?? r) : []),
     ]).then(([branches, sources]) => {
       setBranchOptions(branches); setSourceOptions(sources);
     }).catch(() => { }).finally(() => setLoadingOptions(false));
@@ -389,7 +388,7 @@ export default function OrderListFilterPanel({
             usePortal={true}
             name="project_scheme_id"
             label="Project Scheme"
-            asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+            asyncLoadOptions={(q) => getReferenceOptionsForFilter("project_scheme.model", { q, limit: 20 })}
             referenceModel="project_scheme.model"
             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
             value={localValues.project_scheme_id ? { id: localValues.project_scheme_id } : null}

@@ -18,7 +18,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import supplierService from "@/services/supplierService";
 import productService from "@/services/productService";
 import companyService from "@/services/companyService";
-import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 
 export const PO_LINES_FILTER_KEYS = [
@@ -74,7 +74,7 @@ export default function PurchaseOrderLinesFilterPanel({
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("product_type.model")
+      .getReferenceOptions("product_type.model", { visibility: "all" })
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
@@ -85,7 +85,7 @@ export default function PurchaseOrderLinesFilterPanel({
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("product_make.model")
+      .getReferenceOptions("product_make.model", { visibility: "all" })
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
@@ -424,7 +424,7 @@ export default function PurchaseOrderLinesFilterPanel({
             name="product_type_id"
             label="Product type"
             size="small"
-            asyncLoadOptions={(sq) => getReferenceOptionsSearch("product_type.model", { q: sq, limit: 20 })}
+            asyncLoadOptions={(sq) => getReferenceOptionsForFilter("product_type.model", { q: sq, limit: 20 })}
             referenceModel="product_type.model"
             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
             value={
@@ -458,7 +458,7 @@ export default function PurchaseOrderLinesFilterPanel({
             label="Product make"
             size="small"
             asyncLoadOptions={(sq) =>
-              getReferenceOptionsSearch("product_make.model", {
+              getReferenceOptionsForFilter("product_make.model", {
                 q: sq,
                 limit: 20,
                 product_type_id: localValues.product_type_id || undefined,

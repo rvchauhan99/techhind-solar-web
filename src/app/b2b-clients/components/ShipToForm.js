@@ -7,7 +7,7 @@ import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
 import { validatePostalCode } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
+import AddressFields, { DEFAULT_COUNTRY } from "@/components/common/AddressFields";
 
 export default function ShipToForm({
   clientId,
@@ -70,13 +70,8 @@ export default function ShipToForm({
     if (!formData.address || formData.address.trim() === "") {
       validationErrors.address = "Address is required";
     }
-    const india = isIndiaCountry(formData.country);
-    if (india) {
-      if (!formData.state_id) {
-        validationErrors.state_id = "State is required";
-      }
-    } else if (!formData.state || String(formData.state).trim() === "") {
-      validationErrors.state = "State / Province is required";
+    if (!formData.state_id) {
+      validationErrors.state_id = "State is required";
     }
     if (formData.pincode && formData.pincode.trim() !== "") {
       const pincodeValidation = validatePostalCode(formData.pincode, formData.country);
@@ -92,7 +87,7 @@ export default function ShipToForm({
       city: formData.city?.trim() || null,
       district: formData.district?.trim() || null,
       state: formData.state?.trim() || null,
-      state_id: india ? formData.state_id || null : null,
+      state_id: formData.state_id || null,
       pincode: formData.pincode?.trim() || null,
       landmark: formData.landmark?.trim() || null,
       country: formData.country || DEFAULT_COUNTRY,

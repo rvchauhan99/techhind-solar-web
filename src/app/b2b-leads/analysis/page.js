@@ -10,6 +10,8 @@ import DateField from "@/components/common/DateField";
 import Select, { MenuItem } from "@/components/common/Select";
 import MultiSelect from "@/components/common/MultiSelect";
 import Input from "@/components/common/Input";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import { getReferenceOptionsForFilter } from "@/services/mastersService";
 import ChartCard from "@/components/common/ChartCard";
 import b2bLeadService from "@/services/b2bLeadService";
 import mastersService from "@/services/mastersService";
@@ -288,7 +290,7 @@ export default function B2bLeadsAnalysisPage() {
   useEffect(() => {
     Promise.all([
       mastersService
-        .getReferenceOptions("inquiry_source.model")
+        .getReferenceOptions("inquiry_source.model", { visibility: "all" })
         .then((r) => {
           const d = r?.result ?? r?.data ?? r;
           return Array.isArray(d) ? d : [];
@@ -553,7 +555,17 @@ export default function B2bLeadsAnalysisPage() {
                 <Input label="Business Type" value={filters.business_type} onChange={(e) => fc("business_type", e.target.value)} />
                 <Input label="Industry" value={filters.industry} onChange={(e) => fc("industry", e.target.value)} />
                 <Input label="City" value={filters.city} onChange={(e) => fc("city", e.target.value)} />
-                <Input label="State" value={filters.state} onChange={(e) => fc("state", e.target.value)} />
+                <AutocompleteField
+                  label="State"
+                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("state.model", { q, limit: 40 })}
+                  getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                  value={filters.state ? { name: filters.state } : null}
+                  onChange={(_e, newValue) =>
+                    fc("state", newValue?.name ?? newValue?.label ?? "")
+                  }
+                  placeholder="Type to search..."
+                  clearable
+                />
               </div>
             )}
           </Card>

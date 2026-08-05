@@ -290,7 +290,7 @@ export default function InquiryAnalysisPage() {
         const d = r?.result ?? r?.data ?? r;
         return Array.isArray(d) ? d : [];
       }),
-      mastersService.getReferenceOptions("inquiry_source.model").then((r) => {
+      mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => {
         const d = r?.result ?? r?.data ?? r;
         return Array.isArray(d) ? d : [];
       }),
@@ -298,7 +298,7 @@ export default function InquiryAnalysisPage() {
         const d = r?.result ?? r?.data ?? r;
         return Array.isArray(d) ? d : [];
       }),
-      mastersService.getReferenceOptions("project_scheme.model").then((r) => {
+      mastersService.getReferenceOptions("project_scheme.model", { visibility: "all" }).then((r) => {
         const d = r?.result ?? r?.data ?? r;
         return Array.isArray(d) ? d : [];
       }),

@@ -19,7 +19,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsForFilter } from "@/services/mastersService";
 
 export const INQUIRY_STATUS_OPTIONS = [
     { value: "New", label: "New" },
@@ -206,7 +206,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="inquiry_source"
                         label="Inquiry Source"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("inquiry_source.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("inquiry_source.model", { q, limit: 20 })}
                         referenceModel="inquiry_source.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.inquiry_source ? { name: localValues.inquiry_source, source_name: localValues.inquiry_source } : null}
@@ -220,7 +220,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="branch_name"
                         label="Branch"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("company_branch.model", { q, limit: 20 })}
                         referenceModel="company_branch.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.branch_name ? { name: localValues.branch_name } : null}
@@ -232,7 +232,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="handled_by"
                         label="Handled By"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.handled_by ? { name: localValues.handled_by } : null}
@@ -244,7 +244,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="inquiry_by"
                         label="Inquiry By"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.inquiry_by ? { name: localValues.inquiry_by } : null}
@@ -256,7 +256,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="channel_partner"
                         label="Channel Partner"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.channel_partner ? { name: localValues.channel_partner } : null}
@@ -268,7 +268,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="project_scheme"
                         label="Project Scheme"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("project_scheme.model", { q, limit: 20 })}
                         referenceModel="project_scheme.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.project_scheme ? { name: localValues.project_scheme } : null}
@@ -281,7 +281,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="city_name"
                         label="City"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("city.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("city.model", { q, limit: 20 })}
                         referenceModel="city.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.city_name ? { name: localValues.city_name } : null}
@@ -293,7 +293,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="state_name"
                         label="State"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("state.model", { q, limit: 20 })}
                         referenceModel="state.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.state_name ? { name: localValues.state_name } : null}
@@ -305,7 +305,7 @@ export default function InquiryFilterPanel({
                         usePortal={true}
                         name="discom_name"
                         label="Discom"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("discom.model", { q, limit: 20 })}
+                        asyncLoadOptions={(q) => getReferenceOptionsForFilter("discom.model", { q, limit: 20 })}
                         referenceModel="discom.model"
                         getOptionLabel={getOptionLabel}
                         value={localValues.discom_name ? { name: localValues.discom_name } : null}

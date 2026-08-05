@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from "react";
 import { getInitialFormData, getInitialTechnicalRemarks } from "./quotationConfig";
 import { validateQuotation } from "./quotationValidation";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
-import { isIndiaCountry } from "@/components/common/AddressFields";
 
 const toNumber = (v) =>
     v === "" || v === null || v === undefined ? null : Number(v);
@@ -136,7 +135,6 @@ export function useQuotationState({ user, defaultValues = {} }) {
 
     const buildPayload = useCallback(() => {
         const technicalRemarks = getInitialTechnicalRemarks(formData.technical_remarks);
-        const india = isIndiaCountry(formData.country);
         return {
             ...formData,
             technical_remarks: technicalRemarks,
@@ -144,10 +142,8 @@ export function useQuotationState({ user, defaultValues = {} }) {
             branch_id: toNumber(formData.branch_id),
             inquiry_id: toNumber(formData.inquiry_id),
             customer_id: toNumber(formData.customer_id),
-            state_id: india ? toNumber(formData.state_id) : null,
-            state_text: india
-                ? formData.state_text || ""
-                : String(formData.state_text || "").trim(),
+            state_id: toNumber(formData.state_id),
+            state_text: formData.state_text || "",
             city_id: toNumber(formData.city_id),
             country: formData.country || "India",
             order_type_id: toNumber(formData.order_type_id),

@@ -16,14 +16,15 @@ const DEFAULT_FIELD_NAMES = {
 
 /**
  * Shared country → state → postal block.
- * India: state master dropdown (filtered by country=India). Other: free-text State/Province.
- * Emits Select-like events via onChange({ target: { name, value } }).
+ * Country and State always from masters; State filtered by selected country.
+ * Emits state name text always; emits state_id when includeStateId is true.
  */
 export default function AddressFields({
   values = {},
   onChange,
   errors = {},
   fieldNames: fieldNamesProp,
+  includeStateId = true,
   requiredState = true,
   requiredPostal = false,
   showPostal = true,
@@ -32,8 +33,8 @@ export default function AddressFields({
 }) {
   const names = { ...DEFAULT_FIELD_NAMES, ...(fieldNamesProp || {}) };
   const country = normalizeCountry(values[names.country] ?? values.country);
-  const india = isIndiaCountry(country);
   const postalRule = getPostalRule(country);
+  const persistStateId = includeStateId !== false;
 
   const stateId = values[names.state_id] ?? values.state_id ?? "";
   const stateText = values[names.state] ?? values.state_text ?? values.state ?? "";
@@ -47,9 +48,8 @@ export default function AddressFields({
   const handleCountryChange = (e) => {
     const next = normalizeCountry(e?.target?.value);
     emit(names.country, next);
-    if (isIndiaCountry(next)) {
-      emit(names.state, "");
-    } else {
+    emit(names.state, "");
+    if (persistStateId) {
       emit(names.state_id, "");
     }
   };
@@ -59,10 +59,20 @@ export default function AddressFields({
       getReferenceOptionsSearch("state.model", {
         q,
         limit: 40,
-        country: india ? country : "India",
+        country,
       }),
-    [india, country]
+    [country]
   );
+
+  const stateValue = useMemo(() => {
+    if (persistStateId && stateId) {
+      return { id: stateId, name: stateText || undefined };
+    }
+    if (stateText) {
+      return { name: stateText };
+    }
+    return null;
+  }, [persistStateId, stateId, stateText]);
 
   return (
     <>
@@ -76,38 +86,41 @@ export default function AddressFields({
         className={className}
       />
 
-      {india ? (
-        <AutocompleteField
-          fullWidth
-          name={names.state_id}
-          label="State"
-          asyncLoadOptions={loadStates}
-          referenceModel="state.model"
-          getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-          value={stateId ? { id: stateId } : null}
-          onChange={(_e, newValue) => {
+      <AutocompleteField
+        fullWidth
+        name={persistStateId ? names.state_id : names.state}
+        label="State"
+        asyncLoadOptions={loadStates}
+        referenceModel={persistStateId ? "state.model" : undefined}
+        getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+        value={stateValue}
+        onChange={(_e, newValue) => {
+          const stateName = newValue?.name ?? newValue?.label ?? "";
+          emit(names.state, stateName);
+          if (persistStateId) {
             emit(names.state_id, newValue?.id ?? "");
-            emit(names.state, newValue?.name ?? newValue?.label ?? "");
-          }}
-          placeholder="Type to search..."
-          required={requiredState}
-          error={!!(errors[names.state_id] || errors.state_id)}
-          helperText={errors[names.state_id] || errors.state_id}
-          disabled={disabled}
-        />
-      ) : (
-        <Input
-          fullWidth
-          name={names.state}
-          label="State / Province"
-          value={stateText || ""}
-          onChange={(e) => emit(names.state, e.target.value)}
-          required={requiredState}
-          error={!!(errors[names.state] || errors.state_text || errors.state)}
-          helperText={errors[names.state] || errors.state_text || errors.state}
-          disabled={disabled}
-        />
-      )}
+          }
+        }}
+        placeholder="Type to search..."
+        required={requiredState}
+        error={
+          !!(
+            errors[names.state_id] ||
+            errors.state_id ||
+            errors[names.state] ||
+            errors.state_text ||
+            errors.state
+          )
+        }
+        helperText={
+          errors[names.state_id] ||
+          errors.state_id ||
+          errors[names.state] ||
+          errors.state_text ||
+          errors.state
+        }
+        disabled={disabled}
+      />
 
       {showPostal && (
         <Input

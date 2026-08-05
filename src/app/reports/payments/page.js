@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import Input from "@/components/common/Input";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
 import PaymentsReportView from "./components/PaymentsReportView";
 
 const INITIAL_FILTERS = {
@@ -217,7 +217,7 @@ export default function PaymentsReportPage() {
                   usePortal
                   name="branch_id"
                   label="Branch"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("company_branch.model", { q, limit: 20 })}
                   referenceModel="company_branch.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={filters.branch_id ? { id: filters.branch_id } : null}
@@ -239,7 +239,7 @@ export default function PaymentsReportPage() {
                   usePortal
                   name="payment_mode_id"
                   label="Payment Mode"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("payment_mode.model", { q, limit: 20 })}
                   referenceModel="payment_mode.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={filters.payment_mode_id ? { id: filters.payment_mode_id } : null}

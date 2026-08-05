@@ -356,15 +356,13 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         }
 
         const india = isIndiaCountry(formData.country);
+        if (!formData.state_id) {
+            newErrors.state_id = "State is required";
+        }
         if (india) {
-            if (!formData.state_id) {
-                newErrors.state_id = "State is required";
-            }
             if (!formData.city_id) {
                 newErrors.city_id = "City is required";
             }
-        } else if (!formData.state_text || String(formData.state_text).trim() === "") {
-            newErrors.state_text = "State / Province is required";
         }
         if (!formData.pin_code || String(formData.pin_code).trim() === "") {
             newErrors.pin_code = "Postal code is required";
@@ -387,10 +385,8 @@ export default function InquiryForm({ defaultValues = {}, onSubmit, loading }) {
         onSubmit({
             ...formData,
             country: formData.country || DEFAULT_COUNTRY,
-            state_id: india ? formData.state_id || null : null,
-            state_text: india
-                ? formData.state_text || ""
-                : (formData.state_text || "").trim(),
+            state_id: formData.state_id || null,
+            state_text: formData.state_text || "",
         });
     };
 
