@@ -137,13 +137,8 @@ export default function B2bClientForm({
         }
         break;
       case "billing_state":
-      case "billing_state_id":
-        if (isIndiaCountry(formData.billing_country)) {
-          if (name === "billing_state_id" && (!value || String(value).trim() === "")) {
-            error = "State is required";
-          }
-        } else if (name === "billing_state" && (!value || String(value).trim() === "")) {
-          error = "State / Province is required";
+        if (!value || String(value).trim() === "") {
+          error = "State is required";
         }
         break;
       default:
@@ -223,12 +218,8 @@ export default function B2bClientForm({
       validationErrors.client_name = "Client name is required";
     }
     const india = isIndiaCountry(formData.billing_country);
-    if (india) {
-      if (!formData.billing_state_id || String(formData.billing_state_id).trim() === "") {
-        validationErrors.billing_state_id = "State is required";
-      }
-    } else if (!formData.billing_state || formData.billing_state.trim() === "") {
-      validationErrors.billing_state = "State / Province is required";
+    if (!formData.billing_state || formData.billing_state.trim() === "") {
+      validationErrors.billing_state = "State is required";
     }
     if (formData.email && formData.email.trim() !== "") {
       const emailValidation = validateEmail(formData.email);
@@ -254,9 +245,8 @@ export default function B2bClientForm({
       setErrors(validationErrors);
       return;
     }
-    const { billing_state_id, ...formDataForSubmit } = formData;
     const submitData = {
-      ...formDataForSubmit,
+      ...formData,
       client_code: formData.client_code.trim(),
       client_name: formData.client_name.trim(),
       contact_person: formData.contact_person?.trim() || "",
@@ -271,7 +261,6 @@ export default function B2bClientForm({
       billing_pincode: formData.billing_pincode?.trim() || "",
       billing_landmark: formData.billing_landmark?.trim() || "",
       billing_country: formData.billing_country || DEFAULT_COUNTRY,
-      ...(billing_state_id ? { billing_state_id } : {}),
     };
     setErrors({});
     onSubmit(submitData);
@@ -431,9 +420,9 @@ export default function B2bClientForm({
               values={formData}
               onChange={handleChange}
               errors={errors}
+              includeStateId={false}
               fieldNames={{
                 country: "billing_country",
-                state_id: "billing_state_id",
                 state: "billing_state",
                 pincode: "billing_pincode",
               }}

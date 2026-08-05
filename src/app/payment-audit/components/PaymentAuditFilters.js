@@ -16,7 +16,7 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
 
 const PAYMENT_STATUSES = [
@@ -106,7 +106,7 @@ export default function PaymentAuditFilters({
           <AutocompleteField
             name="branch_id"
             label="Branch"
-            asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+            asyncLoadOptions={(q) => getReferenceOptionsForFilter("company_branch.model", { q, limit: 20 })}
             referenceModel="company_branch.model"
             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
             value={localFilters.branch_id ? { id: localFilters.branch_id } : null}
@@ -126,7 +126,7 @@ export default function PaymentAuditFilters({
           <AutocompleteField
             name="payment_mode_id"
             label="Payment Mode"
-            asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+            asyncLoadOptions={(q) => getReferenceOptionsForFilter("payment_mode.model", { q, limit: 20 })}
             referenceModel="payment_mode.model"
             getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
             value={localFilters.payment_mode_id ? { id: localFilters.payment_mode_id } : null}
@@ -243,7 +243,7 @@ export default function PaymentAuditFilters({
             <AutocompleteField
               name="branch_id"
               label="Branch"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })}
+              asyncLoadOptions={(q) => getReferenceOptionsForFilter("company_branch.model", { q, limit: 20 })}
               referenceModel="company_branch.model"
               getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
               value={localFilters.branch_id ? { id: localFilters.branch_id } : null}
@@ -267,7 +267,7 @@ export default function PaymentAuditFilters({
             <AutocompleteField
               name="payment_mode_id"
               label="Payment Mode"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("payment_mode.model", { q, limit: 20 })}
+              asyncLoadOptions={(q) => getReferenceOptionsForFilter("payment_mode.model", { q, limit: 20 })}
               referenceModel="payment_mode.model"
               getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
               value={localFilters.payment_mode_id ? { id: localFilters.payment_mode_id } : null}

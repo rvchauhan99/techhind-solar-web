@@ -229,12 +229,8 @@ export default function SupplierForm({
     if (!formData.supplier_name || formData.supplier_name.trim() === "") {
       validationErrors.supplier_name = "Supplier Name is required";
     }
-    if (isIndiaCountry(formData.country)) {
-      if (!formData.state_id || String(formData.state_id).trim() === "") {
-        validationErrors.state_id = "State is required";
-      }
-    } else if (!formData.state_text || String(formData.state_text).trim() === "") {
-      validationErrors.state_text = "State / Province is required";
+    if (!formData.state_id || String(formData.state_id).trim() === "") {
+      validationErrors.state_id = "State is required";
     }
     if (formData.email && formData.email.trim() !== "") {
       const emailValidation = validateEmail(formData.email);
@@ -272,10 +268,8 @@ export default function SupplierForm({
       city: formData.city?.trim() || "",
       pincode: formData.pincode?.trim() || "",
       country: formData.country || DEFAULT_COUNTRY,
-      state_id: india ? formData.state_id || null : null,
-      state_text: india
-        ? formData.state_text || ""
-        : (formData.state_text || "").trim(),
+      state_id: formData.state_id || null,
+      state_text: formData.state_text || "",
       currency_code: formData.currency_code || DEFAULT_CURRENCY,
       gstin: india ? formData.gstin?.trim().toUpperCase() || "" : formData.gstin?.trim() || "",
       pan_number: india ? formData.pan_number?.trim().toUpperCase() || "" : formData.pan_number?.trim() || "",

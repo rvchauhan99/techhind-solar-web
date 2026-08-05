@@ -180,11 +180,7 @@ export default function B2bLeadForm({
       if (emailRes && emailRes.isValid === false) next.email = emailRes.message || "Invalid email";
     }
     const india = isIndiaCountry(formData.country);
-    if (india) {
-      if (!formData.state_id) next.state_id = "State is required";
-    } else if (!String(formData.state || formData.state_text || "").trim()) {
-      next.state = "State / Province is required";
-    }
+    if (!formData.state_id) next.state_id = "State is required";
     if (india && formData.gstin) {
       const gst = validateGSTIN(formData.gstin);
       if (!gst.isValid) next.gstin = gst.message;
@@ -211,10 +207,8 @@ export default function B2bLeadForm({
       country: formData.country || DEFAULT_COUNTRY,
       inquiry_source_id: formData.inquiry_source_id || null,
       assigned_to: formData.assigned_to || null,
-      state_id: india ? formData.state_id || null : null,
-      state: india
-        ? formData.state || formData.state_text || ""
-        : (formData.state || formData.state_text || "").trim(),
+      state_id: formData.state_id || null,
+      state: formData.state || formData.state_text || "",
       number_of_branches:
         formData.number_of_branches === "" || formData.number_of_branches == null
           ? null

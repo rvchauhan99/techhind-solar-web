@@ -17,6 +17,11 @@ export const deleteMaster = (id, model) => {
   return apiClient.delete(`/masters/${id}?model=${encodedModel}`).then((r) => r.data);
 };
 
+export const restoreMaster = (id, model) => {
+  const encodedModel = encodeURIComponent(model);
+  return apiClient.post(`/masters/${id}/restore?model=${encodedModel}`).then((r) => r.data);
+};
+
 export const createMaster = (payload, model, file = null) => {
   if (file) {
     const formData = new FormData();
@@ -56,7 +61,7 @@ export const getReferenceOptions = (model, params = {}) => {
   return apiClient.get(`/masters/reference-options?${searchParams.toString()}`).then((r) => r.data);
 };
 
-const REFERENCE_OPTION_PARAMS = ['q', 'limit', 'status', 'status_in', 'id'];
+const REFERENCE_OPTION_PARAMS = ['q', 'limit', 'status', 'status_in', 'id', 'visibility'];
 
 /**
  * Fetch reference options with search and limit (for async/API-backed selects).
@@ -65,13 +70,14 @@ const REFERENCE_OPTION_PARAMS = ['q', 'limit', 'status', 'status_in', 'id'];
  * @returns {Promise<Array>} - Array of option objects { id, label, value, reason, ... }
  */
 export const getReferenceOptionsSearch = (model, params = {}) => {
-  const { q = '', limit = 20, status, status_in, id } = params;
+  const { q = '', limit = 20, status, status_in, id, visibility } = params;
   const searchParams = { model };
   if (q != null && String(q).trim() !== '') searchParams.q = String(q).trim();
   if (limit != null) searchParams.limit = limit;
   if (status != null && status !== '') searchParams.status = status;
   if (status_in != null && status_in !== '') searchParams.status_in = status_in;
   if (id != null && id !== '') searchParams.id = id;
+  if (visibility != null && visibility !== '') searchParams.visibility = visibility;
   Object.keys(params).forEach((key) => {
     if (REFERENCE_OPTION_PARAMS.includes(key) || params[key] == null || params[key] === '') return;
     searchParams[key] = params[key];
@@ -81,6 +87,12 @@ export const getReferenceOptionsSearch = (model, params = {}) => {
     .get(`/masters/reference-options?${urlParams.toString()}`)
     .then((r) => r.data?.result ?? r.data?.data ?? r.data ?? []);
 };
+
+/**
+ * Reference options for list/report filters — includes active and soft-deleted masters.
+ */
+export const getReferenceOptionsForFilter = (model, params = {}) =>
+  getReferenceOptionsSearch(model, { ...params, visibility: 'all' });
 
 /**
  * Fetch a single reference option by id (for resolving default selection display).
@@ -176,4 +188,4 @@ export const getFileUrl = (model, id) =>
 export const removeMasterFile = (model, id, field) =>
   apiClient.delete(`/masters/${id}/file`, { params: { model, field } }).then((r) => r.data);
 
-export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, exportMasterCsv, uploadMasterCsv, getFileUrl, removeMasterFile };
+export default { mastersList, getList, getUserMaster, createUserMaster, updateUserMaster, deleteUserMaster, deleteMaster, restoreMaster, createMaster, getMasterById, updateMaster, getReferenceOptions, getReferenceOptionsSearch, getReferenceOptionsForFilter, getReferenceOptionById, getConstants, getDefaultState, getDefaultBranch, downloadSampleCsv, exportMasterCsv, uploadMasterCsv, getFileUrl, removeMasterFile };

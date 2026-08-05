@@ -181,10 +181,9 @@ export default function MarketingLeadForm(props) {
     if (!formData.inquiry_source_id)
       newErrors.inquiry_source_id = "Source is required";
     if (!formData.branch_id) newErrors.branch_id = "Branch is required";
+    if (!formData.state_id) newErrors.state_id = "State is required";
     if (india) {
-      if (!formData.state_id) newErrors.state_id = "State is required";
-    } else if (!formData.state_text || String(formData.state_text).trim() === "") {
-      newErrors.state_text = "State / Province is required";
+      if (!formData.city_id) newErrors.city_id = "City is required";
     }
     if (formData.pin_code && String(formData.pin_code).trim() !== "") {
       const postal = validatePostalCode(formData.pin_code, formData.country);
@@ -200,10 +199,8 @@ export default function MarketingLeadForm(props) {
     onSubmit({
       ...formData,
       country: formData.country || DEFAULT_COUNTRY,
-      state_id: india ? formData.state_id || null : null,
-      state_text: india
-        ? formData.state_text || ""
-        : (formData.state_text || "").trim(),
+      state_id: formData.state_id || null,
+      state_text: formData.state_text || "",
     });
   };
 

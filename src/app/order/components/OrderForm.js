@@ -357,15 +357,15 @@ export default function OrderForm({
         if (!formData.payment_type) newErrors.payment_type = "Payment type is required";
 
         const india = isIndiaCountry(formData.country);
+        if (!formData.state_id) {
+            newErrors.state_id = "State is required";
+        } else if (
+            locationOptions.states.length &&
+            toNullableLocationId(formData.state_id, locationOptions.states) == null
+        ) {
+            newErrors.state_id = "Please select a valid state";
+        }
         if (india) {
-            if (!formData.state_id) {
-                newErrors.state_id = "State is required";
-            } else if (
-                locationOptions.states.length &&
-                toNullableLocationId(formData.state_id, locationOptions.states) == null
-            ) {
-                newErrors.state_id = "Please select a valid state";
-            }
             if (
                 formData.city_id &&
                 locationOptions.cities.length &&
@@ -373,8 +373,6 @@ export default function OrderForm({
             ) {
                 newErrors.city_id = "Please select a valid city";
             }
-        } else if (!formData.state_text || String(formData.state_text).trim() === "") {
-            newErrors.state_text = "State / Province is required";
         }
 
         const cpError = channelPartnerMustDifferFromHandledBy(
@@ -392,13 +390,10 @@ export default function OrderForm({
     const handleSubmit = (e) => {
         e.preventDefault();
         if (validate()) {
-            const india = isIndiaCountry(formData.country);
             onSubmit({
                 ...formData,
-                state_id: india ? toNullableLocationId(formData.state_id, locationOptions.states) : null,
-                state_text: india
-                    ? formData.state_text || ""
-                    : String(formData.state_text || "").trim(),
+                state_id: toNullableLocationId(formData.state_id, locationOptions.states),
+                state_text: formData.state_text || "",
                 city_id: toNullableLocationId(formData.city_id, locationOptions.cities),
                 country: formData.country || DEFAULT_COUNTRY,
             });

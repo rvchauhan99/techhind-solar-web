@@ -77,7 +77,6 @@ export default function MastersPage() {
     const [loadingFields, setLoadingFields] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState(null);
     const [loadingRecord, setLoadingRecord] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -110,10 +109,13 @@ export default function MastersPage() {
     const listingState = useListingQueryState({ defaultLimit: 20, filterKeys: masterFilterKeys });
     const { page, limit, filters, q, sortBy, sortOrder, setPage, setLimit, setFilter, setQ, setSort } = listingState;
 
-    // Delete confirmation
+    // Delete / Activate confirmation
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deleteTargetRow, setDeleteTargetRow] = useState(null);
+    const [activateConfirmOpen, setActivateConfirmOpen] = useState(false);
+    const [activateTargetRow, setActivateTargetRow] = useState(null);
     const deleteReloadRef = useRef(null);
+    const activateReloadRef = useRef(null);
 
     useEffect(() => {
         mastersService.mastersList().then((res) => {
@@ -210,6 +212,8 @@ export default function MastersPage() {
             filterType: "select",
             filterKey: "visibility",
             filterOptions: VISIBILITY_OPTIONS,
+            includeSelectAll: false,
+            defaultFilterValue: "active",
             render: (row) => (row.deleted_at ? "Inactive" : "Active"),
         });
 
@@ -337,15 +341,7 @@ export default function MastersPage() {
                             View
                         </ThemeButton>
                     ) : null}
-                    {(perms || currentPerm).can_update ? (
-                        <ThemeButton
-                            size="sm"
-                            onClick={() => handleOpenEditModal(row.id)}
-                        >
-                            Edit
-                        </ThemeButton>
-                    ) : null}
-                    {(perms || currentPerm).can_delete ? (
+                    {!row.deleted_at && (perms || currentPerm).can_delete ? (
                         <ThemeButton
                             size="sm"
                             variant="destructive"
@@ -356,6 +352,18 @@ export default function MastersPage() {
                             }}
                         >
                             Delete
+                        </ThemeButton>
+                    ) : null}
+                    {row.deleted_at && (perms || currentPerm).can_update ? (
+                        <ThemeButton
+                            size="sm"
+                            onClick={() => {
+                                activateReloadRef.current = reload;
+                                setActivateTargetRow(row);
+                                setActivateConfirmOpen(true);
+                            }}
+                        >
+                            Activate
                         </ThemeButton>
                     ) : null}
                 </div>
@@ -388,7 +396,7 @@ export default function MastersPage() {
         () => ({ ...filters, visibility: filters?.visibility || "active" }),
         [filters]
     );
-    const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
+    const columnFilterValues = filterParams;
     const handleColumnFilterChange = useCallback(
         (key, value) => setFilter(key, value),
         [setFilter]
@@ -429,29 +437,6 @@ export default function MastersPage() {
         setServerError(null);
     };
 
-    const handleOpenEditModal = async (id) => {
-        if (!master.model_name) return;
-        setLoadingRecord(true);
-        setServerError(null);
-        try {
-            const response = await mastersService.getMasterById(id, master.model_name);
-            const result = response.result || response;
-            setSelectedRecord(result);
-            setShowEditModal(true);
-        } catch (error) {
-            console.error('Error fetching record:', error);
-            setServerError('Failed to load record');
-        } finally {
-            setLoadingRecord(false);
-        }
-    };
-
-    const handleCloseEditModal = () => {
-        setShowEditModal(false);
-        setSelectedRecord(null);
-        setServerError(null);
-    };
-
     const handleSubmit = async (payload, file = null) => {
         if (!master.model_name) {
             setServerError('Model is required');
@@ -462,16 +447,8 @@ export default function MastersPage() {
         setServerError(null);
 
         try {
-            if (selectedRecord?.id) {
-                // Update existing record
-                await mastersService.updateMaster(selectedRecord.id, payload, master.model_name, file);
-                handleCloseEditModal();
-            } else {
-                // Create new record
-                await mastersService.createMaster(payload, master.model_name, file);
-                handleCloseAddModal();
-            }
-            // Force table to reload by changing key
+            await mastersService.createMaster(payload, master.model_name, file);
+            handleCloseAddModal();
             setTableKey(prev => prev + 1);
         } catch (err) {
             setServerError(err.response?.data?.message || err.message || 'Failed to save record');
@@ -510,6 +487,29 @@ export default function MastersPage() {
         } finally {
             setDeleteConfirmOpen(false);
             setDeleteTargetRow(null);
+        }
+    };
+
+    const handleConfirmActivate = async () => {
+        if (!activateTargetRow?.id || !master?.model_name) {
+            toastError('Missing record ID or model name');
+            setActivateConfirmOpen(false);
+            setActivateTargetRow(null);
+            return;
+        }
+        try {
+            await mastersService.restoreMaster(activateTargetRow.id, master.model_name);
+            toastSuccess('Record activated successfully');
+            setTableKey((prev) => prev + 1);
+            if (activateReloadRef.current) {
+                setTimeout(() => activateReloadRef.current(), 100);
+            }
+        } catch (error) {
+            const msg = error.response?.data?.message || error.response?.data?.error || error.message || 'Failed to activate record';
+            toastError(msg);
+        } finally {
+            setActivateConfirmOpen(false);
+            setActivateTargetRow(null);
         }
     };
 
@@ -819,48 +819,37 @@ export default function MastersPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Master Dialog */}
-            <Dialog open={showEditModal} onOpenChange={(open) => { if (!open) handleCloseEditModal(); }}>
-                <DialogContent className={cn(DIALOG_FORM_MEDIUM, "gap-2 p-4")} showCloseButton={true}>
-                    <DialogHeader className="gap-0 pb-1">
-                        <DialogTitle>Edit {master.name}</DialogTitle>
-                    </DialogHeader>
-                    <div className="pt-0">
-                        {loadingRecord ? (
-                            <div className="flex justify-center items-center min-h-[200px]">
-                                <Loader />
-                            </div>
-                        ) : (
-                            <MasterForm
-                                fields={fields}
-                                defaultValues={selectedRecord}
-                                onSubmit={handleSubmit}
-                                loading={submitting}
-                                serverError={serverError}
-                                onClearServerError={() => setServerError(null)}
-                                masterName={master.name}
-                                modelName={master.model_name}
-                                onCancel={handleCloseEditModal}
-                                requiredFields={requiredFields}
-                            />
-                        )}
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             {/* Delete confirmation */}
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Delete {master.name} record?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to delete this record? This action cannot be undone.
+                            This will deactivate the record. You can activate it again later from Status = No / All.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
                         <AlertDialogAction size="sm" variant="destructive" onClick={handleConfirmDelete}>
                             Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Activate confirmation */}
+            <AlertDialog open={activateConfirmOpen} onOpenChange={setActivateConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Activate {master.name} record?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will restore the record so it can be used in new operations again.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel size="sm">Cancel</AlertDialogCancel>
+                        <AlertDialogAction size="sm" onClick={handleConfirmActivate}>
+                            Activate
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

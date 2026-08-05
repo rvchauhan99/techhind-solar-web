@@ -2,14 +2,11 @@
 
 import { useMemo } from "react";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { COUNTRY_OPTIONS, DEFAULT_COUNTRY } from "@/constants/countries";
-
-const toOption = (country) => ({ id: country, name: country });
+import { DEFAULT_COUNTRY } from "@/constants/countries";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 
 /**
- * Searchable country field (AutocompleteField). Select from list only — no free-text invent.
- * Static COUNTRY_OPTIONS; India default. Legacy values not in the list are prepended.
- * Emits the same shape as Select: onChange({ target: { name, value: countryString } }).
+ * Searchable country field from Country master. Emits country name string.
  */
 export default function CountrySelect({
   name = "country",
@@ -26,17 +23,9 @@ export default function CountrySelect({
 }) {
   const selected = value == null || value === "" ? DEFAULT_COUNTRY : String(value);
 
-  const options = useMemo(() => {
-    const names =
-      selected && !COUNTRY_OPTIONS.includes(selected)
-        ? [selected, ...COUNTRY_OPTIONS]
-        : COUNTRY_OPTIONS;
-    return names.map(toOption);
-  }, [selected]);
-
-  const selectedOption = useMemo(
-    () => options.find((o) => o.id === selected) || toOption(selected),
-    [options, selected]
+  const loadCountries = useMemo(
+    () => (q) => getReferenceOptionsSearch("country.model", { q, limit: 40 }),
+    []
   );
 
   const handleChange = (_e, newValue) => {
@@ -44,7 +33,7 @@ export default function CountrySelect({
     const next =
       typeof newValue === "string"
         ? newValue
-        : newValue?.name ?? newValue?.id ?? newValue?.value ?? "";
+        : newValue?.name ?? newValue?.label ?? newValue?.value ?? newValue?.id ?? "";
     onChange({
       target: {
         name,
@@ -57,11 +46,11 @@ export default function CountrySelect({
     <AutocompleteField
       name={name}
       label={label}
-      options={options}
+      asyncLoadOptions={loadCountries}
       getOptionLabel={(o) =>
         typeof o === "string" ? o : o?.name ?? o?.label ?? (o?.id != null ? String(o.id) : "")
       }
-      value={selectedOption}
+      value={selected ? { name: selected } : null}
       onChange={handleChange}
       placeholder="Type to search..."
       fullWidth={fullWidth}
@@ -76,4 +65,4 @@ export default function CountrySelect({
   );
 }
 
-export { DEFAULT_COUNTRY, COUNTRY_OPTIONS };
+export { DEFAULT_COUNTRY };

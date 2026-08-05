@@ -345,14 +345,8 @@ export default function CompanyProfilePage() {
                 }
             });
 
-            const india = isIndiaCountry(formData.country);
-            if (india) {
-                if (!formData.state_id && (!formData.state || formData.state.trim() === "")) {
-                    validationErrors.state = "State is required";
-                    if (!formData.state_id) validationErrors.state_id = "State is required";
-                }
-            } else if (!formData.state || formData.state.trim() === "") {
-                validationErrors.state = "State / Province is required";
+            if (!formData.state || formData.state.trim() === "") {
+                validationErrors.state = "State is required";
             }
 
             // Validate phone numbers
@@ -395,7 +389,8 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setErrors({});
 
-            const { state_id: _companyStateId, ...companyPayload } = formData;
+            const companyPayload = { ...formData };
+            delete companyPayload.state_id;
             const res = await companyService.updateCompanyProfile({
                 ...companyPayload,
                 state: formData.state?.trim() || "",
@@ -682,10 +677,10 @@ export default function CompanyProfilePage() {
             });
 
             const india = isIndiaCountry(branchFormData.country);
+            if (!branchFormData.state_id || branchFormData.state_id === null || branchFormData.state_id === "") {
+                validationErrors.state_id = "State is required";
+            }
             if (india) {
-                if (!branchFormData.state_id || branchFormData.state_id === null || branchFormData.state_id === "") {
-                    validationErrors.state_id = "This field is required";
-                }
                 if (branchFormData.gst_number && branchFormData.gst_number.trim() !== "") {
                     const gstValidation = validateGSTIN(branchFormData.gst_number);
                     if (!gstValidation.isValid) {
@@ -694,8 +689,6 @@ export default function CompanyProfilePage() {
                 } else {
                     validationErrors.gst_number = "This field is required";
                 }
-            } else if (!branchFormData.state_text || String(branchFormData.state_text).trim() === "") {
-                validationErrors.state_text = "State / Province is required";
             }
 
             // Validate contact_no (phone)
@@ -740,10 +733,8 @@ export default function CompanyProfilePage() {
             const branchPayload = {
                 ...branchFormData,
                 country: branchFormData.country || DEFAULT_COUNTRY,
-                state_id: india ? branchFormData.state_id || null : null,
-                state_text: india
-                    ? branchFormData.state_text || ""
-                    : String(branchFormData.state_text || "").trim(),
+                state_id: branchFormData.state_id || null,
+                state_text: branchFormData.state_text || "",
                 gst_number: india ? branchFormData.gst_number?.trim() || "" : branchFormData.gst_number?.trim() || "",
             };
 
@@ -969,15 +960,7 @@ export default function CompanyProfilePage() {
             }
 
             if (!warehouseFormData.state_id || warehouseFormData.state_id === null || warehouseFormData.state_id === "") {
-                if (isIndiaCountry(warehouseFormData.country)) {
-                    validationErrors.state_id = "This field is required";
-                }
-            }
-            if (
-                !isIndiaCountry(warehouseFormData.country) &&
-                (!warehouseFormData.state_text || String(warehouseFormData.state_text).trim() === "")
-            ) {
-                validationErrors.state_text = "State / Province is required";
+                validationErrors.state_id = "State is required";
             }
             if (!warehouseFormData.address || warehouseFormData.address.trim() === "") {
                 validationErrors.address = "This field is required";
@@ -996,14 +979,11 @@ export default function CompanyProfilePage() {
             // Clear errors if validation passes
             setWarehouseErrors({});
 
-            const warehouseIndia = isIndiaCountry(warehouseFormData.country);
             const warehousePayload = {
                 ...warehouseFormData,
                 country: warehouseFormData.country || DEFAULT_COUNTRY,
-                state_id: warehouseIndia ? warehouseFormData.state_id || null : null,
-                state_text: warehouseIndia
-                    ? warehouseFormData.state_text || ""
-                    : String(warehouseFormData.state_text || "").trim(),
+                state_id: warehouseFormData.state_id || null,
+                state_text: warehouseFormData.state_text || "",
             };
 
             let msg;
@@ -2451,9 +2431,9 @@ export default function CompanyProfilePage() {
                                             values={formData}
                                             onChange={handleInputChange}
                                             errors={errors}
+                                            includeStateId={false}
                                             fieldNames={{
                                                 country: "country",
-                                                state_id: "state_id",
                                                 state: "state",
                                             }}
                                             requiredState

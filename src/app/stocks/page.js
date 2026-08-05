@@ -31,7 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import stockService from "@/services/stockService";
-import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
+import mastersService, { getReferenceOptionsForFilter } from "@/services/mastersService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import companyService from "@/services/companyService";
@@ -157,7 +157,7 @@ export default function StockPage() {
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("product_type.model")
+      .getReferenceOptions("product_type.model", { visibility: "all" })
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
@@ -168,7 +168,7 @@ export default function StockPage() {
 
   useEffect(() => {
     mastersService
-      .getReferenceOptions("product_make.model")
+      .getReferenceOptions("product_make.model", { visibility: "all" })
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const options = Array.isArray(data) ? data.map((m) => ({ value: String(m.id), label: m.name || String(m.id) })) : [];
@@ -364,7 +364,6 @@ export default function StockPage() {
         limit: 50,
         product_type_id: filters.product_type_id || undefined,
         product_make_id: filters.product_make_id || undefined,
-        visibility: "all",
       });
       const data = res?.result?.data || res?.data || [];
       const list = Array.isArray(data) ? data : [];
@@ -845,7 +844,7 @@ export default function StockPage() {
                   name="product_type_id"
                   label="Product Type"
                   size="small"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
+                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("product_type.model", { q, limit: 20 })}
                   referenceModel="product_type.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={
@@ -864,7 +863,7 @@ export default function StockPage() {
                   name="product_make_id"
                   label="Product Make"
                   size="small"
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
+                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
                   referenceModel="product_make.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={
