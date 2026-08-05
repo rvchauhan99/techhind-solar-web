@@ -547,6 +547,24 @@ function ConfirmedOrderViewPageContent() {
                 </Typography>
             </Box>
 
+            <div className={COMPACT_SECTION_HEADER_CLASS}>Third-Party Audit</div>
+            <Box mt={1} mb={1}>
+                <Typography variant="body2" color="text.secondary">Audited:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    {orderData?.third_party_audited ? "Yes" : "No"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={1}>Auditor:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    {orderData?.third_party_auditor_name || "—"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={1}>Audited At:</Typography>
+                <Typography variant="body1" fontWeight="bold">
+                    {orderData?.third_party_audit_at
+                        ? moment(orderData.third_party_audit_at).format("DD-MM-YYYY HH:mm")
+                        : "—"}
+                </Typography>
+            </Box>
+
             <Divider sx={{ my: 1 }} />
             <div className={COMPACT_SECTION_HEADER_CLASS}>Uploaded Documents</div>
             <Box mt={1} mb={1} sx={{ overflowX: "auto" }}>
