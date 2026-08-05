@@ -50,6 +50,7 @@ import DateField from "@/components/common/DateField";
 import FormGrid from "@/components/common/FormGrid";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
@@ -61,6 +62,11 @@ const isSerialItem = (item) => {
     if (!item) return false;
     const t = item.tracking_type ? item.tracking_type.toUpperCase() : "LOT";
     return t === "SERIAL" || item.serial_required === true;
+};
+
+const fmtQtyWithUom = (qty, unit) => {
+    if (qty == null || qty === "") return "—";
+    return unit ? `${qty} ${unit}` : String(qty);
 };
 
 // ---------------------------------------------------------------------------
@@ -489,6 +495,17 @@ export default function POInwardForm({
     const [poLoading, setPoLoading] = useState(false);
     const [collapsedCardItems, setCollapsedCardItems] = useState(new Set());
 
+    const isImport = !!(selectedPO?.is_import || defaultValues?.is_import);
+    const currencyCode = String(
+        selectedPO?.currency_code || defaultValues?.currency_code || "INR"
+    )
+        .trim()
+        .toUpperCase() || "INR";
+    const exchangeRate =
+        Number(selectedPO?.exchange_rate || defaultValues?.exchange_rate || 1) > 0
+            ? Number(selectedPO?.exchange_rate || defaultValues?.exchange_rate || 1)
+            : 1;
+
     const managedWarehouseIds = managedWarehouses.map((w) => w.id).filter(Boolean);
     const canTransact = managedWarehouseIds.length > 0;
     const warehouseDisplayName =
@@ -561,6 +578,8 @@ export default function POInwardForm({
             }
 
             if (result.items && result.items.length > 0) {
+                const poIsImport = !!result.is_import;
+                const fx = Number(result.exchange_rate) > 0 ? Number(result.exchange_rate) : 1;
                 const poItems = result.items.map((item) => {
                     const productTrackingType = item.product?.tracking_type
                         ? item.product.tracking_type.toUpperCase()
@@ -570,10 +589,19 @@ export default function POInwardForm({
                     const trackingType = shouldBeSerial ? "SERIAL" : productTrackingType;
                     const alreadyReceived = item.received_quantity ?? item.received_qty ?? 0;
                     const existing = existingItems?.find((e) => e.purchase_order_item_id === item.id);
+                    const rateFc = Number(item.rate) || 0;
+                    const rateInrPo =
+                        item.rate_inr != null && Number.isFinite(Number(item.rate_inr))
+                            ? Number(item.rate_inr)
+                            : parseFloat((rateFc * fx).toFixed(4));
                     return {
                         purchase_order_item_id: item.id,
                         product_id: item.product_id,
                         product_name: item.product?.product_name || "",
+                        measurement_unit:
+                            item.product?.measurementUnit?.unit ||
+                            existing?.measurement_unit ||
+                            "",
                         tracking_type: trackingType,
                         serial_required: shouldBeSerial,
                         ordered_quantity: item.quantity,
@@ -581,8 +609,12 @@ export default function POInwardForm({
                         received_quantity: existing != null ? (existing.received_quantity ?? 0) : 0,
                         accepted_quantity: existing != null ? (existing.accepted_quantity ?? 0) : 0,
                         rejected_quantity: existing != null ? (existing.rejected_quantity ?? 0) : 0,
-                        rate: item.rate,
-                        gst_percent: item.gst_percent,
+                        rate: poIsImport
+                            ? (existing?.rate_inr_po ?? existing?.rate ?? rateInrPo)
+                            : (existing?.rate ?? item.rate),
+                        rate_fc: poIsImport ? (existing?.rate_fc ?? rateFc) : null,
+                        rate_inr_po: poIsImport ? (existing?.rate_inr_po ?? rateInrPo) : null,
+                        gst_percent: poIsImport ? 0 : (existing?.gst_percent ?? item.gst_percent),
                         serials: existing?.serials ?? [],
                         lot_number: existing?.lot_number ?? "",
                     };
@@ -772,17 +804,25 @@ export default function POInwardForm({
         );
 
         const payload = {
-            ...formData,
             purchase_order_id: parseInt(formData.purchase_order_id),
             warehouse_id: parseInt(formData.warehouse_id),
             supplier_id: selectedPO?.supplier_id || null,
+            supplier_invoice_number: formData.supplier_invoice_number || null,
+            supplier_invoice_date: formData.supplier_invoice_date || null,
+            received_at: formData.received_at,
+            inspection_required: formData.inspection_required || false,
+            remarks: formData.remarks || null,
             total_received_quantity: totals.total_received,
             total_accepted_quantity: totals.total_accepted,
             total_rejected_quantity: 0,
             items: receivedItems.map((item) => {
                 const acceptedQty = parseInt(item.accepted_quantity) || 0;
-                const taxableAmount = (parseFloat(item.rate) || 0) * acceptedQty;
-                const gstAmount = (taxableAmount * (parseFloat(item.gst_percent) || 0)) / 100;
+                const rate = isImport
+                    ? parseFloat(item.rate_inr_po ?? item.rate) || 0
+                    : parseFloat(item.rate) || 0;
+                const gstPercent = isImport ? 0 : parseFloat(item.gst_percent) || 0;
+                const taxableAmount = rate * acceptedQty;
+                const gstAmount = (taxableAmount * gstPercent) / 100;
                 return {
                     purchase_order_item_id: item.purchase_order_item_id,
                     product_id: item.product_id,
@@ -792,8 +832,10 @@ export default function POInwardForm({
                     received_quantity: parseInt(item.received_quantity),
                     accepted_quantity: acceptedQty,
                     rejected_quantity: 0,
-                    rate: parseFloat(item.rate),
-                    gst_percent: parseFloat(item.gst_percent),
+                    rate,
+                    rate_fc: isImport ? (parseFloat(item.rate_fc) || null) : null,
+                    rate_inr_po: isImport ? (parseFloat(item.rate_inr_po ?? item.rate) || null) : null,
+                    gst_percent: gstPercent,
                     taxable_amount: parseFloat(taxableAmount.toFixed(2)),
                     gst_amount: parseFloat(gstAmount.toFixed(2)),
                     total_amount: parseFloat((taxableAmount + gstAmount).toFixed(2)),
@@ -935,7 +977,10 @@ export default function POInwardForm({
                                 <LocalShippingIcon sx={{ fontSize: 18, color: "text.secondary" }} />
                                 <div>
                                     <p className="text-xs text-muted-foreground font-medium">Purchase Order</p>
-                                    <p className="text-sm font-semibold">{selectedPO.po_number || `PO #${selectedPO.id}`}</p>
+                                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                                        {selectedPO.po_number || `PO #${selectedPO.id}`}
+                                        {isImport ? <Badge variant="accent">Import</Badge> : null}
+                                    </p>
                                 </div>
                             </div>
                             {selectedPO.supplier?.supplier_name && (
@@ -943,6 +988,18 @@ export default function POInwardForm({
                                     <p className="text-xs text-muted-foreground font-medium">Supplier</p>
                                     <p className="text-sm font-semibold">{selectedPO.supplier.supplier_name}</p>
                                 </div>
+                            )}
+                            {isImport && (
+                                <>
+                                    <div className="min-w-0">
+                                        <p className="text-xs text-muted-foreground font-medium">Currency</p>
+                                        <p className="text-sm font-semibold">{currencyCode}</p>
+                                    </div>
+                                    <div className="min-w-0">
+                                        <p className="text-xs text-muted-foreground font-medium">FX (INR / 1 {currencyCode})</p>
+                                        <p className="text-sm font-semibold">{exchangeRate}</p>
+                                    </div>
+                                </>
                             )}
                             {selectedPO.status && (
                                 <div className="min-w-0">
@@ -959,6 +1016,12 @@ export default function POInwardForm({
                                 </div>
                             )}
                         </div>
+                    )}
+
+                    {isImport && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                            Import shipping, BOE, charges, and attachments are captured on the Approve page after this receipt is saved as Draft.
+                        </p>
                     )}
 
                     {/* ── Items ──────────────────────────────────────────────── */}
@@ -1015,8 +1078,8 @@ export default function POInwardForm({
                                                             </Typography>
                                                             {isCardCollapsed && (
                                                                 <Typography variant="caption" color="text.secondary">
-                                                                    Ordered {item.ordered_quantity}
-                                                                    {acceptedQty > 0 && ` · Accepted ${acceptedQty}`}
+                                                                    Ordered {fmtQtyWithUom(item.ordered_quantity, item.measurement_unit)}
+                                                                    {acceptedQty > 0 && ` · Accepted ${fmtQtyWithUom(acceptedQty, item.measurement_unit)}`}
                                                                     {isSerial && acceptedQty > 0 && ` · Serials ${serialCount}/${acceptedQty}`}
                                                                 </Typography>
                                                             )}
@@ -1044,7 +1107,9 @@ export default function POInwardForm({
                                                                         ].map(({ label, val, color }) => (
                                                                             <Box key={label}>
                                                                                 <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-                                                                                <Typography variant="body2" fontWeight="medium" color={color}>{val}</Typography>
+                                                                                <Typography variant="body2" fontWeight="medium" color={color}>
+                                                                                    {fmtQtyWithUom(val, item.measurement_unit)}
+                                                                                </Typography>
                                                                             </Box>
                                                                         ))}
                                                                     </Box>
@@ -1054,7 +1119,7 @@ export default function POInwardForm({
                                                             <Input
                                                                 type="number"
                                                                 size="small"
-                                                                label="Received Qty"
+                                                                label={item.measurement_unit ? `Received Qty (${item.measurement_unit})` : "Received Qty"}
                                                                 fullWidth
                                                                 value={item.received_quantity}
                                                                 onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
@@ -1125,10 +1190,16 @@ export default function POInwardForm({
                                                     <TableRow sx={{ bgcolor: "action.hover" }}>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>#</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Product</TableCell>
+                                                        <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>UOM</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Ordered</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Pending</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75, minWidth: 100 }}>Received</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Accepted</TableCell>
+                                                        {isImport && (
+                                                            <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>
+                                                                Rate ({currencyCode} / INR)
+                                                            </TableCell>
+                                                        )}
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Tracking / Serials</TableCell>
                                                     </TableRow>
                                                 </TableHead>
@@ -1160,8 +1231,9 @@ export default function POInwardForm({
                                                                         {isLot && <Chip label="LOT" size="small" color="secondary" sx={{ height: 16, fontSize: "0.6rem" }} />}
                                                                     </Box>
                                                                 </TableCell>
-                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{item.ordered_quantity}</TableCell>
-                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", fontWeight: 600, py: 0.5 }}>{pendingQty}</TableCell>
+                                                                <TableCell sx={{ fontSize: "0.78rem", py: 0.5 }}>{item.measurement_unit || "—"}</TableCell>
+                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{fmtQtyWithUom(item.ordered_quantity, item.measurement_unit)}</TableCell>
+                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", fontWeight: 600, py: 0.5 }}>{fmtQtyWithUom(pendingQty, item.measurement_unit)}</TableCell>
                                                                 <TableCell sx={{ py: 0.5 }}>
                                                                     <Input
                                                                         type="number"
@@ -1181,12 +1253,18 @@ export default function POInwardForm({
                                                                         fontWeight={700}
                                                                         color={acceptedQty > 0 ? "success.main" : "text.secondary"}
                                                                     >
-                                                                        {acceptedQty}
+                                                                        {fmtQtyWithUom(acceptedQty, item.measurement_unit)}
                                                                     </Typography>
                                                                     {errors[`item_${index}_accepted`] && (
                                                                         <FormHelperText error>{errors[`item_${index}_accepted`]}</FormHelperText>
                                                                     )}
                                                                 </TableCell>
+                                                                {isImport && (
+                                                                    <TableCell align="right" sx={{ py: 0.5, fontSize: "0.75rem" }}>
+                                                                        <div>{currencyCode} {Number(item.rate_fc || 0).toFixed(2)}</div>
+                                                                        <div className="text-muted-foreground">₹{Number((item.rate_inr_po ?? item.rate) || 0).toFixed(2)}</div>
+                                                                    </TableCell>
+                                                                )}
                                                                 <TableCell sx={{ py: 0.5 }}>
                                                                     {isSerial ? (
                                                                         <Box>

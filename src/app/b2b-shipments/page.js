@@ -484,6 +484,7 @@ export default function B2bShipmentsPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-left font-semibold">UOM</th>
                     <th className="px-2 py-1 text-right font-semibold">Qty</th>
                     <th className="px-2 py-1 text-right font-semibold">Returned</th>
                     <th className="px-2 py-1 text-right font-semibold">Returnable</th>
@@ -494,6 +495,7 @@ export default function B2bShipmentsPage() {
                   {items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5">{txt(item.product?.measurementUnit?.unit || "—")}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.returned_qty ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.returnable_qty)}</td>

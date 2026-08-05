@@ -58,7 +58,9 @@ export default function AuthProvider({ children }) {
       }
 
       if (isAuthRoute) {
-        // On auth routes: restore session from token if present
+        // On auth routes: only treat session as logged-in after profile verifies.
+        // Never trust cached profile alone — that caused login ↔ /home redirect loops
+        // when the token was expired/invalid but localStorage still had a profile.
         if (typeof window === "undefined") {
           setLoading(false);
           setUser(null);
@@ -70,13 +72,6 @@ export default function AuthProvider({ children }) {
           setUser(null);
           return;
         }
-        const storedProfile = getStoredProfile();
-        if (storedProfile) {
-          setUser(storedProfile);
-          setRbacConfigs(mergeRbacConfigs(storedProfile.rbac_configs));
-          setLoading(false);
-          return;
-        }
         try {
           const res = await apiClient.get("/auth/profile");
           if (res?.status && res?.data?.result) {
@@ -85,6 +80,7 @@ export default function AuthProvider({ children }) {
             setRbacConfigs(mergeRbacConfigs(profile.rbac_configs));
             setStoredProfile(profile);
           } else {
+            clearTokens();
             setUser(null);
           }
         } catch (err) {
@@ -118,11 +114,18 @@ export default function AuthProvider({ children }) {
           setStoredProfile(profile);
           profileRefreshedRef.current = true;
         } else {
+          clearTokens();
           setUser(null);
+          if (!pathname?.startsWith("/auth")) {
+            router.replace("/auth/login");
+          }
         }
       } catch (err) {
+        clearTokens();
         setUser(null);
-        router.push("/auth/login");
+        if (!pathname?.startsWith("/auth")) {
+          router.replace("/auth/login");
+        }
       } finally {
         setLoading(false);
       }

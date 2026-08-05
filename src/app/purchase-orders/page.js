@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import purchaseOrderService from "@/services/purchaseOrderService";
+import poInwardService from "@/services/poInwardService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
@@ -94,6 +95,7 @@ export default function PurchaseOrderPage() {
   const [selectedPO, setSelectedPO] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [attachmentLoadingIndex, setAttachmentLoadingIndex] = useState(null);
+  const [inwardAttachmentLoadingKey, setInwardAttachmentLoadingKey] = useState(null);
   const [printingId, setPrintingId] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -176,6 +178,7 @@ export default function PurchaseOrderPage() {
     setSidebarOpen(false);
     setSelectedPO(null);
     setAttachmentLoadingIndex(null);
+    setInwardAttachmentLoadingKey(null);
   }, []);
 
   const handleOpenAttachment = useCallback(async (poId, attachmentIndex) => {
@@ -193,6 +196,22 @@ export default function PurchaseOrderPage() {
       toast.error(error?.response?.data?.message || "Failed to open attachment");
     } finally {
       setAttachmentLoadingIndex(null);
+    }
+  }, []);
+
+  const handleOpenInwardAttachment = useCallback(async (inwardId, attachmentIndex) => {
+    const key = `${inwardId}:${attachmentIndex}`;
+    setInwardAttachmentLoadingKey(key);
+    try {
+      const response = await poInwardService.getAttachmentUrl(inwardId, attachmentIndex);
+      const url = response?.result?.url || response?.url;
+      if (url) window.open(url, "_blank");
+      else toast.error("Failed to get attachment URL");
+    } catch (error) {
+      console.error("Inward attachment open error:", error);
+      toast.error(error?.response?.data?.message || "Failed to open inward attachment");
+    } finally {
+      setInwardAttachmentLoadingKey(null);
     }
   }, []);
 
@@ -265,7 +284,20 @@ export default function PurchaseOrderPage() {
         filterType: "text",
         filterKey: "supplier_name",
         defaultFilterOperator: "contains",
-        render: (row) => row.supplier?.supplier_name || "-",
+        render: (row) => (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="truncate">{row.supplier?.supplier_name || "-"}</span>
+            {row.is_import ? (
+              <Badge variant="accent" className="shrink-0">Import</Badge>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        field: "currency_code",
+        label: "Currency",
+        sortable: false,
+        render: (row) => row.currency_code || "INR",
       },
       {
         field: "shipTo",
@@ -316,7 +348,16 @@ export default function PurchaseOrderPage() {
         filterKeyTo: "grand_total_to",
         operatorKey: "grand_total_op",
         defaultFilterOperator: "equals",
-        render: (row) => formatCurrency(row.final_amount ?? row.grand_total),
+        render: (row) => {
+          if (row.is_import && row.currency_code && row.currency_code !== "INR") {
+            const fc = Number(row.final_amount_fc ?? row.grand_total_fc);
+            const inr = Number(row.final_amount ?? row.grand_total) || 0;
+            if (Number.isFinite(fc)) {
+              return `${row.currency_code} ${fc.toFixed(2)} (${formatCurrency(inr)})`;
+            }
+          }
+          return formatCurrency(row.final_amount ?? row.grand_total);
+        },
       },
       {
         field: "actions",
@@ -527,8 +568,10 @@ export default function PurchaseOrderPage() {
     const igstTotalRaw = Number(po.igst_amount_total);
     const hasIgstSplit = Number.isFinite(igstTotalRaw) && Math.abs(igstTotalRaw) > 0.0001;
     const normalizedGstType = String(po.gst_type || "").toUpperCase();
-    const gstType =
-      normalizedGstType === "IGST" || normalizedGstType === "CGST_SGST"
+    const isImportPo = !!po.is_import || normalizedGstType === "IMPORT";
+    const gstType = isImportPo
+      ? "IMPORT"
+      : normalizedGstType === "IGST" || normalizedGstType === "CGST_SGST"
         ? normalizedGstType
         : hasIgstSplit
           ? "IGST"
@@ -536,11 +579,24 @@ export default function PurchaseOrderPage() {
     const cgstTotal = Number.isFinite(cgstTotalRaw) ? cgstTotalRaw : totalGst / 2;
     const sgstTotal = Number.isFinite(sgstTotalRaw) ? sgstTotalRaw : totalGst / 2;
     const igstTotal = Number.isFinite(igstTotalRaw) ? igstTotalRaw : totalGst;
-    const applicableGstLabel = gstType === "IGST" ? "IGST" : "CGST / SGST";
+    const applicableGstLabel =
+      gstType === "IMPORT" ? "Import – no domestic GST" : gstType === "IGST" ? "IGST" : "CGST / SGST";
     const applicableGstValue =
-      gstType === "IGST"
-        ? formatCurrency(igstTotal)
-        : `${formatCurrency(cgstTotal)} / ${formatCurrency(sgstTotal)}`;
+      gstType === "IMPORT"
+        ? formatCurrency(0)
+        : gstType === "IGST"
+          ? formatCurrency(igstTotal)
+          : `${formatCurrency(cgstTotal)} / ${formatCurrency(sgstTotal)}`;
+    const currencyCode = po.currency_code || "INR";
+    const formatAmount = (fc, inr) => {
+      if (!isImportPo || currencyCode === "INR") return formatCurrency(inr ?? fc ?? 0);
+      const fcVal = Number(fc);
+      const inrVal = Number(inr);
+      if (Number.isFinite(fcVal) && Number.isFinite(inrVal)) {
+        return `${currencyCode} ${fcVal.toFixed(2)} (${formatCurrency(inrVal)})`;
+      }
+      return formatCurrency(inr ?? fc ?? 0);
+    };
 
     return (
       <div className="pr-1 space-y-4">
@@ -559,11 +615,15 @@ export default function PurchaseOrderPage() {
               {printingId === po.id ? "Generating..." : "Print"}
             </Button>
           </div>
-          <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
-            {text(po.status)}
-          </Badge>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
+              {text(po.status)}
+            </Badge>
+            {isImportPo ? <Badge variant="accent">Import PO</Badge> : null}
+          </div>
           <p className="text-xs text-muted-foreground">
             PO Date: {formatDate(po.po_date)} · Due: {formatDate(po.due_date)}
+            {isImportPo ? ` · ${currencyCode}${po.exchange_rate != null ? ` @ ${po.exchange_rate}` : ""}` : ""}
           </p>
         </div>
 
@@ -620,11 +680,25 @@ export default function PurchaseOrderPage() {
           <p className="text-xs font-semibold text-muted-foreground">Financials</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
-            <span className="text-muted-foreground">Taxable Amount</span><span>{formatCurrency(po.taxable_amount || 0)}</span>
+            {isImportPo ? (
+              <>
+                <span className="text-muted-foreground">Currency</span><span>{currencyCode}</span>
+                <span className="text-muted-foreground">Exchange Rate</span><span>{text(po.exchange_rate)}</span>
+              </>
+            ) : null}
+            <span className="text-muted-foreground">Taxable Amount</span>
+            <span>{formatAmount(po.taxable_amount_fc, po.taxable_amount)}</span>
             <span className="text-muted-foreground">{applicableGstLabel}</span><span>{applicableGstValue}</span>
-            <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
+            {!isImportPo && (
+              <>
+                <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
+              </>
+            )}
+            <span className="text-muted-foreground">Grand Total</span>
+            <span>{formatAmount(po.grand_total_fc, po.grand_total)}</span>
             <span className="text-muted-foreground">Round Off</span><span className="font-semibold">{formatSignedCurrency(po.round_off_amount)}</span>
-            <span className="text-muted-foreground">Final Amount</span><span className="font-semibold">{formatCurrency((po.final_amount ?? po.grand_total) || 0)}</span>
+            <span className="text-muted-foreground">Final Amount</span>
+            <span className="font-semibold">{formatAmount(po.final_amount_fc, po.final_amount ?? po.grand_total)}</span>
           </div>
           <p className="text-xs text-muted-foreground">Amount in words</p>
           <p className="text-sm">{text(po.amount_in_words)}</p>
@@ -640,6 +714,7 @@ export default function PurchaseOrderPage() {
                 <thead className="bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
+                    <th className="px-2 py-1 text-left font-semibold">UOM</th>
                     <th className="px-2 py-1 text-right font-semibold">HSN</th>
                     <th className="px-2 py-1 text-right font-semibold">Rate</th>
                     <th className="px-2 py-1 text-right font-semibold">Ord</th>
@@ -654,14 +729,23 @@ export default function PurchaseOrderPage() {
                   {po.items.map((item, index) => (
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{text(item.product?.product_name)}</td>
+                      <td className="px-2 py-1.5">{text(item.product?.measurementUnit?.unit || item.measurement_unit || "—")}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.hsn_code || item.product?.hsn_ssn_code)}</td>
-                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.rate || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isImportPo && currencyCode !== "INR"
+                          ? `${currencyCode} ${Number(item.rate || 0).toFixed(2)}`
+                          : formatCurrency(item.rate || 0)}
+                      </td>
                       <td className="px-2 py-1.5 text-right">{text(item.order_qty ?? item.quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.received_qty ?? item.received_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.returned_qty ?? item.returned_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.remaining_qty ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.gst_percent)}</td>
-                      <td className="px-2 py-1.5 text-right">{formatCurrency(item.amount || 0)}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        {isImportPo && currencyCode !== "INR"
+                          ? `${currencyCode} ${Number(item.amount || 0).toFixed(2)}`
+                          : formatCurrency(item.amount || 0)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -703,6 +787,55 @@ export default function PurchaseOrderPage() {
         </div>
 
         <div className="rounded-md border border-border p-3 space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Inward documents</p>
+          {Array.isArray(po.poInwards) && po.poInwards.some((inv) => Array.isArray(inv.attachments) && inv.attachments.length > 0) ? (
+            <div className="space-y-3">
+              {po.poInwards
+                .filter((inv) => Array.isArray(inv.attachments) && inv.attachments.length > 0)
+                .map((inv) => (
+                  <div key={inv.id} className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="font-medium">{inv.receipt_number || `Inward #${inv.id}`}</span>
+                      {inv.status ? <Badge variant="secondary">{inv.status}</Badge> : null}
+                      {inv.is_import ? <Badge variant="accent">Import</Badge> : null}
+                    </div>
+                    {inv.attachments.map((attachment, index) => {
+                      const loadingKey = `${inv.id}:${index}`;
+                      return (
+                        <div
+                          key={`${inv.id}-${attachment.path || attachment.filename || "att"}-${index}`}
+                          className="flex items-start justify-between gap-2 rounded border border-border p-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm truncate">{attachmentFileName(attachment)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Size: {attachment?.size ? `${Math.round((attachment.size / 1024) * 100) / 100} KB` : "-"}
+                              {attachment?.uploaded_at ? ` · ${dateTime(attachment.uploaded_at)}` : ""}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0"
+                            disabled={inwardAttachmentLoadingKey === loadingKey}
+                            onClick={() => handleOpenInwardAttachment(inv.id, index)}
+                          >
+                            <IconDownload className="size-4" />
+                            Open
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No inward documents</p>
+          )}
+        </div>
+
+        <div className="rounded-md border border-border p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground">Audit</p>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted-foreground">Created By</span><span>{text(po.createdBy?.name || po.created_by)}</span>
@@ -714,7 +847,7 @@ export default function PurchaseOrderPage() {
         </div>
       </div>
     );
-  }, [loadingRecord, selectedPO, attachmentLoadingIndex, handleOpenAttachment, handlePrintPO, printingId]);
+  }, [loadingRecord, selectedPO, attachmentLoadingIndex, inwardAttachmentLoadingKey, handleOpenAttachment, handleOpenInwardAttachment, handlePrintPO, printingId]);
 
   return (
     <ProtectedRoute>

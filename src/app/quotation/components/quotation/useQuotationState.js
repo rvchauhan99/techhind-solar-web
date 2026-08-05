@@ -66,6 +66,19 @@ export function useQuotationState({ user, defaultValues = {} }) {
             const normalizedValue =
                 type === "checkbox" ? checked : value === undefined ? "" : value;
 
+            if (name === "state_id") {
+                setFormData((prev) => ({ ...prev, state_id: normalizedValue, city_id: "" }));
+                if (errors.state_id || errors.city_id) {
+                    setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.state_id;
+                        delete next.city_id;
+                        return next;
+                    });
+                }
+                return;
+            }
+
             if (name === "mobile_number" && normalizedValue && String(normalizedValue).trim() !== "") {
                 const phoneValidation = validateE164Phone(String(normalizedValue), { required: true });
                 if (!phoneValidation.isValid) {
@@ -130,7 +143,9 @@ export function useQuotationState({ user, defaultValues = {} }) {
             inquiry_id: toNumber(formData.inquiry_id),
             customer_id: toNumber(formData.customer_id),
             state_id: toNumber(formData.state_id),
+            state_text: formData.state_text || "",
             city_id: toNumber(formData.city_id),
+            country: formData.country || "India",
             order_type_id: toNumber(formData.order_type_id),
             project_scheme_id: toNumber(formData.project_scheme_id),
             project_price_id: toNumber(formData.project_price_id),

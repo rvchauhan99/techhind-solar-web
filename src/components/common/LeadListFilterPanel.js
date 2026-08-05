@@ -134,7 +134,7 @@ export default function LeadListFilterPanel({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
-      mastersService.getReferenceOptions("inquiry_source.model").then((r) => {
+      mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => {
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
@@ -345,7 +345,7 @@ export default function LeadListFilterPanel({
               searchPlaceholder="Search campaigns..."
               asyncLoadOptions={(q, id) =>
                 mastersService
-                  .getReferenceOptionsSearch("campaign.model", { q, id, limit: id ? 1 : 20 })
+                  .getReferenceOptionsForFilter("campaign.model", { q, id, limit: id ? 1 : 20 })
                   .then((res) => {
                     const data = res?.result ?? res?.data ?? res;
                     return Array.isArray(data)

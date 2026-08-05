@@ -753,30 +753,39 @@ export default function PaginatedTable({
                             {OperatorDropdown}
                           </>
                         )}
-                        {filterType === "select" && (
-                          <Select
-                            value={value || "__all__"}
-                            onValueChange={(v) => {
-                              const nextVal = v === "__all__" ? "" : v;
-                              setLocalFilterValues((prev) => ({ ...prev, [filterKey]: nextVal }));
-                              onColumnFilterChange(filterKey, nextVal);
-                            }}
-                          >
-                            <SelectTrigger className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "w-full min-w-0 px-1 text-xs" : "w-full min-w-0", TABLE_FILTER_INPUT_CLASS)}>
-                              <SelectValue placeholder="All">
-                                {value ? (c.filterOptions?.find((o) => o.value === value)?.label ?? value) : "All"}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__all__">All</SelectItem>
-                              {(c.filterOptions || []).map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
+                        {filterType === "select" && (() => {
+                          const includeSelectAll = c.includeSelectAll !== false;
+                          const selectValue = includeSelectAll
+                            ? (value || "__all__")
+                            : (value || c.defaultFilterValue || c.filterOptions?.[0]?.value || "");
+                          const selectLabel = includeSelectAll
+                            ? (value ? (c.filterOptions?.find((o) => o.value === value)?.label ?? value) : "All")
+                            : (c.filterOptions?.find((o) => o.value === selectValue)?.label ?? selectValue);
+                          return (
+                            <Select
+                              value={selectValue}
+                              onValueChange={(v) => {
+                                const nextVal = includeSelectAll && v === "__all__" ? "" : v;
+                                setLocalFilterValues((prev) => ({ ...prev, [filterKey]: nextVal }));
+                                onColumnFilterChange(filterKey, nextVal);
+                              }}
+                            >
+                              <SelectTrigger className={cn(FIELD_HEIGHT_CLASS_SMALL, compactDensity ? "w-full min-w-0 px-1 text-xs" : "w-full min-w-0", TABLE_FILTER_INPUT_CLASS)}>
+                                <SelectValue placeholder={includeSelectAll ? "All" : selectLabel}>
+                                  {selectLabel}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {includeSelectAll && <SelectItem value="__all__">All</SelectItem>}
+                                {(c.filterOptions || []).map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()}
                         {!showOperatorDropdown && (
                           <IconFilter className="size-4 shrink-0 text-muted-foreground" />
                         )}

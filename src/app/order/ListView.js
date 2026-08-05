@@ -31,7 +31,7 @@ import orderService from "@/services/orderService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsForFilter } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
@@ -130,7 +130,7 @@ export default function ListView({
   useEffect(() => {
     let mounted = true;
     setLoadingProjectSchemes(true);
-    getReferenceOptionsSearch("project_scheme.model", { q: "", limit: 1000 })
+    getReferenceOptionsForFilter("project_scheme.model", { q: "", limit: 1000 })
       .then((rows) => {
         if (!mounted) return;
         const list = Array.isArray(rows) ? rows : [];

@@ -216,7 +216,13 @@ export default function SupplierPage() {
         filterType: "text",
         filterKey: "state_name",
         defaultFilterOperator: "contains",
-        render: (row) => row.state_name || row.state?.name || "-",
+        render: (row) => row.state_name || row.state_text || row.state?.name || "-",
+      },
+      {
+        field: "currency_code",
+        label: "Currency",
+        sortable: false,
+        render: (row) => row.currency_code || "INR",
       },
       {
         field: "gstin",
@@ -429,6 +435,15 @@ export default function SupplierPage() {
         {s.gstin && (
           <p className="text-sm">GSTIN: {s.gstin}</p>
         )}
+        <p className="text-sm">
+          Country: {s.country || "India"}
+        </p>
+        <p className="text-sm">
+          State: {s.state_name || s.state_text || s.state || "-"}
+        </p>
+        <p className="text-sm">
+          Currency: {s.currency_code || "INR"}
+        </p>
         {s.address && (
           <p className="text-sm text-muted-foreground">{s.address}</p>
         )}

@@ -18,12 +18,18 @@ import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
+import { validatePostalCode } from "@/utils/validators";
 
 export default function MarketingLeadForm(props) {
   const { defaultValues: propDefaultValues, onSubmit, loading } = props;
   const defaultValues = propDefaultValues || {};
   const router = useRouter();
-  const [formData, setFormData] = useState(defaultValues);
+  const [formData, setFormData] = useState({
+    ...defaultValues,
+    country: defaultValues.country || DEFAULT_COUNTRY,
+    state_text: defaultValues.state_text || "",
+  });
   const [errors, setErrors] = useState({});
 
   const getOptionLabel = (opt) =>
@@ -56,6 +62,8 @@ export default function MarketingLeadForm(props) {
         : "",
       priority: dv?.priority || "medium",
       status: dv?.status || "new",
+      country: dv?.country || prev.country || DEFAULT_COUNTRY,
+      state_text: dv?.state_text || prev.state_text || "",
     }));
   }, [propDefaultValues]);
 
@@ -140,6 +148,14 @@ export default function MarketingLeadForm(props) {
         state_id: value,
         city_id: "",
       }));
+      if (errors.state_id || errors.city_id) {
+        setErrors((prev) => {
+          const copy = { ...prev };
+          delete copy.state_id;
+          delete copy.city_id;
+          return copy;
+        });
+      }
       return;
     }
 
@@ -156,6 +172,7 @@ export default function MarketingLeadForm(props) {
   const handleSubmit = (e) => {
     e.preventDefault();
     const newErrors = {};
+    const india = isIndiaCountry(formData.country);
 
     if (!formData.customer_name)
       newErrors.customer_name = "Customer name is required";
@@ -164,6 +181,14 @@ export default function MarketingLeadForm(props) {
     if (!formData.inquiry_source_id)
       newErrors.inquiry_source_id = "Source is required";
     if (!formData.branch_id) newErrors.branch_id = "Branch is required";
+    if (!formData.state_id) newErrors.state_id = "State is required";
+    if (india) {
+      if (!formData.city_id) newErrors.city_id = "City is required";
+    }
+    if (formData.pin_code && String(formData.pin_code).trim() !== "") {
+      const postal = validatePostalCode(formData.pin_code, formData.country);
+      if (!postal.isValid) newErrors.pin_code = postal.message;
+    }
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
@@ -171,7 +196,12 @@ export default function MarketingLeadForm(props) {
     }
 
     setErrors({});
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      country: formData.country || DEFAULT_COUNTRY,
+      state_id: formData.state_id || null,
+      state_text: formData.state_text || "",
+    });
   };
 
   return (
@@ -314,22 +344,17 @@ export default function MarketingLeadForm(props) {
               value={formData.alternate_mobile_number || ""}
               onChange={handleChange}
             />
-            <AutocompleteField
-              name="state_id"
-              label="State"
-              options={options.states}
-              getOptionLabel={getOptionLabel}
-              value={
-                options.states.find((s) => s.id == formData.state_id) ||
-                (formData.state_id ? { id: formData.state_id } : null)
-              }
-              onChange={(e, v) =>
-                handleChange({
-                  target: { name: "state_id", value: v?.id ?? "" },
-                })
-              }
-              placeholder="Type to search..."
-              usePortal
+            <AddressFields
+              values={formData}
+              onChange={handleChange}
+              errors={errors}
+              fieldNames={{
+                country: "country",
+                state_id: "state_id",
+                state: "state_text",
+                pincode: "pin_code",
+              }}
+              requiredState
             />
             <AutocompleteField
               name="city_id"
@@ -387,12 +412,6 @@ export default function MarketingLeadForm(props) {
               name="landmark_area"
               label="Landmark / Area"
               value={formData.landmark_area || ""}
-              onChange={handleChange}
-            />
-            <Input
-              name="pin_code"
-              label="Pin Code"
-              value={formData.pin_code || ""}
               onChange={handleChange}
             />
           </FormGrid>

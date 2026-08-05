@@ -2,7 +2,7 @@
 
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { getReferenceOptionsForFilter } from "@/services/mastersService";
 import DateField from "@/components/common/DateField";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
@@ -75,7 +75,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         usePortal
         name="product_type_id"
         label="Product Type"
-        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_type.model", { q, limit: 20 })}
+        asyncLoadOptions={(q) => getReferenceOptionsForFilter("product_type.model", { q, limit: 20 })}
         referenceModel="product_type.model"
         getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
         value={filters.product_type_id ? { id: filters.product_type_id } : null}
@@ -94,7 +94,7 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         usePortal
         name="product_make_id"
         label="Product Make"
-        asyncLoadOptions={(q) => getReferenceOptionsSearch("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
+        asyncLoadOptions={(q) => getReferenceOptionsForFilter("product_make.model", { q, limit: 20, product_type_id: filters.product_type_id || undefined })}
         referenceModel="product_make.model"
         getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
         value={filters.product_make_id ? { id: filters.product_make_id } : null}

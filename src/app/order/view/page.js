@@ -1560,6 +1560,25 @@ function OrderViewPageContent() {
                                     </Typography>
                                 )}
                             </Box>
+                            <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5 }}>
+                                Third-Party Audit
+                            </Typography>
+                            <Box mt={1} mb={1}>
+                                <Typography variant="body2" color="text.secondary">Audited:</Typography>
+                                <Typography variant="body1" fontWeight="bold">
+                                    {orderData?.third_party_audited ? "Yes" : "No"}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" mt={1}>Auditor:</Typography>
+                                <Typography variant="body1" fontWeight="bold">
+                                    {orderData?.third_party_auditor_name || "—"}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" mt={1}>Audited At:</Typography>
+                                <Typography variant="body1" fontWeight="bold">
+                                    {orderData?.third_party_audit_at
+                                        ? moment(orderData.third_party_audit_at).format("DD-MM-YYYY HH:mm")
+                                        : "—"}
+                                </Typography>
+                            </Box>
                         </Paper>
                     </Grid>
 

@@ -498,6 +498,30 @@ export default function B2bSalesOrderViewPage() {
                         </div>
                       </div>
                     )}
+
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      <div className="text-slate-400 text-[10px] uppercase font-semibold">Third-Party Audit</div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Audited</span>
+                        <span className="font-semibold text-slate-800">
+                          {order.third_party_audited ? "Yes" : "No"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Auditor</span>
+                        <span className="font-medium text-slate-800">
+                          {order.third_party_auditor_name || "—"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500">Audited At</span>
+                        <span className="font-medium text-slate-800">
+                          {order.third_party_audit_at
+                            ? formatDate(order.third_party_audit_at)
+                            : "—"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Contextual CTA */}

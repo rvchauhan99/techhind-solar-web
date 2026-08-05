@@ -673,7 +673,11 @@ export default function B2bSalesOrderForm({
           ...it,
           product_id: it.product_id,
           product_label: it.product?.product_name || it.product_label || `Product #${it.product_id}`,
-          measurement_unit: it.measurement_unit || it.product?.measurement_unit_name || "",
+          measurement_unit:
+            it.measurement_unit ||
+            it.product?.measurement_unit_name ||
+            it.product?.measurementUnit?.unit ||
+            "",
           product_capacity: it.product_capacity ?? it.product?.capacity ?? "",
           product_type_name: it.product_type_name || it.product?.productType?.name || "",
         })),

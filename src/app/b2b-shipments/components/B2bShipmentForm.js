@@ -71,7 +71,7 @@ function buildLinesFromOrderItems(items, stockByProductId = {}) {
             stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
                 ? Number(stockRow.quantity_available)
                 : 0;
-        const unitName = p?.measurement_unit_name || "";
+        const unitName = p?.measurement_unit_name || p?.measurementUnit?.unit || "";
         return {
             b2b_sales_order_item_id: item.id,
             product_id: item.product_id,
@@ -855,7 +855,7 @@ export default function B2bShipmentForm({
                                                             ].map(({ label, value }) => (
                                                                 <Box key={label}>
                                                                     <Typography variant="caption" color="text.secondary" display="block">{label}</Typography>
-                                                                    <Typography variant="body2">{value}</Typography>
+                                                                    <Typography variant="body2">{value} {line.unit_name || ""}</Typography>
                                                                 </Box>
                                                             ))}
                                                             <Box>
@@ -869,7 +869,7 @@ export default function B2bShipmentForm({
                                                         <Input
                                                             type="number"
                                                             size="small"
-                                                            label="Ship Now"
+                                                            label={line.unit_name ? `Ship Now (${line.unit_name})` : "Ship Now"}
                                                             value={line.ship_now}
                                                             onChange={(e) => handleShipNowChange(index, e.target.value)}
                                                             onKeyDown={(e) => handleShipNowKeyDown(index, e)}
@@ -1035,10 +1035,10 @@ export default function B2bShipmentForm({
                                                                     </TableCell>
                                                                     <TableCell sx={compactCellSx}>{line.product_type_name}</TableCell>
                                                                     <TableCell sx={compactCellSx}>{line.make_name}</TableCell>
-                                                                    <TableCell sx={compactCellSx} align="right">{line.required_qty}</TableCell>
-                                                                    <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0}</TableCell>
-                                                                    <TableCell sx={compactCellSx} align="right">{line.shipped_qty}</TableCell>
-                                                                    <TableCell sx={compactCellSx} align="right">{line.returned_qty ?? 0}</TableCell>
+                                                                    <TableCell sx={compactCellSx} align="right">{line.required_qty} {line.unit_name || ""}</TableCell>
+                                                                    <TableCell sx={compactCellSx} align="right">{Number(line.available_qty) || 0} {line.unit_name || ""}</TableCell>
+                                                                    <TableCell sx={compactCellSx} align="right">{line.shipped_qty} {line.unit_name || ""}</TableCell>
+                                                                    <TableCell sx={compactCellSx} align="right">{line.returned_qty ?? 0} {line.unit_name || ""}</TableCell>
                                                                     <TableCell sx={compactCellSx} align="right">
                                                                         <Typography variant="body2" fontWeight="medium" color={line.pending_qty > 0 ? "warning.main" : "success.main"}>
                                                                             {line.pending_qty} {line.unit_name || ""}

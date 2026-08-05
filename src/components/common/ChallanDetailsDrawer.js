@@ -205,6 +205,7 @@ export default function ChallanDetailsDrawer({
                     <DetailRow label="Taluka" value={customer.taluka} />
                     <DetailRow label="District" value={customer.district} />
                     <DetailRow label="Pin Code" value={customer.pin_code} />
+                    <DetailRow label="Country" value={customer.country} />
                 </div>
 
                 {/* ─── Warehouse ─── */}
@@ -216,6 +217,7 @@ export default function ChallanDetailsDrawer({
                     <DetailRow label="Phone" value={warehouse.phone_no} />
                     <DetailRow label="Email" value={warehouse.email} />
                     <DetailRow label="Address" value={warehouse.address} />
+                    <DetailRow label="Country" value={warehouse.country} />
                 </div>
 
                 {/* ─── Transporter ─── */}

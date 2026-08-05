@@ -4,23 +4,23 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
-import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import mastersService, { getDefaultState } from "@/services/mastersService";
-import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { getNextSupplierCode } from "@/services/supplierService";
 import {
   validateGSTIN,
   validatePAN,
   validateEmail,
   validatePhone,
-  validatePincode,
+  validatePostalCode,
   formatPhone,
   formatToUpperCase,
   derivePanFromGstin,
 } from "@/utils/validators";
 import { cn } from "@/lib/utils";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
+import CurrencySelect, { DEFAULT_CURRENCY } from "@/components/common/CurrencySelect";
 
 const COMPACT_FORM_SPACING = 2;
 const FORM_PADDING = 3;
@@ -43,6 +43,9 @@ export default function SupplierForm({
     city: "",
     state_id: "",
     pincode: "",
+    country: DEFAULT_COUNTRY,
+    state_text: "",
+    currency_code: DEFAULT_CURRENCY,
     gstin: "",
     pan_number: "",
     is_active: true,
@@ -62,6 +65,9 @@ export default function SupplierForm({
         city: defaultValues.city || "",
         state_id: defaultValues.state_id || "",
         pincode: defaultValues.pincode || "",
+        country: defaultValues.country || DEFAULT_COUNTRY,
+        state_text: defaultValues.state_text || defaultValues.state_name || defaultValues.state || "",
+        currency_code: defaultValues.currency_code || DEFAULT_CURRENCY,
         gstin: defaultValues.gstin || "",
         pan_number: defaultValues.pan_number || "",
         is_active: defaultValues.is_active !== undefined ? defaultValues.is_active : true,
@@ -234,22 +240,23 @@ export default function SupplierForm({
       const phoneValidation = validatePhone(formData.phone);
       if (!phoneValidation.isValid) validationErrors.phone = phoneValidation.message;
     }
-    if (formData.gstin && formData.gstin.trim() !== "") {
+    if (isIndiaCountry(formData.country) && formData.gstin && formData.gstin.trim() !== "") {
       const gstinValidation = validateGSTIN(formData.gstin);
       if (!gstinValidation.isValid) validationErrors.gstin = gstinValidation.message;
     }
-    if (formData.pan_number && formData.pan_number.trim() !== "") {
+    if (isIndiaCountry(formData.country) && formData.pan_number && formData.pan_number.trim() !== "") {
       const panValidation = validatePAN(formData.pan_number);
       if (!panValidation.isValid) validationErrors.pan_number = panValidation.message;
     }
     if (formData.pincode && formData.pincode.trim() !== "") {
-      const pincodeValidation = validatePincode(formData.pincode);
+      const pincodeValidation = validatePostalCode(formData.pincode, formData.country);
       if (!pincodeValidation.isValid) validationErrors.pincode = pincodeValidation.message;
     }
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
+    const india = isIndiaCountry(formData.country);
     const submitData = {
       ...formData,
       supplier_code: formData.supplier_code.trim(),
@@ -260,8 +267,12 @@ export default function SupplierForm({
       address: formData.address?.trim() || "",
       city: formData.city?.trim() || "",
       pincode: formData.pincode?.trim() || "",
-      gstin: formData.gstin?.trim().toUpperCase() || "",
-      pan_number: formData.pan_number?.trim().toUpperCase() || "",
+      country: formData.country || DEFAULT_COUNTRY,
+      state_id: formData.state_id || null,
+      state_text: formData.state_text || "",
+      currency_code: formData.currency_code || DEFAULT_CURRENCY,
+      gstin: india ? formData.gstin?.trim().toUpperCase() || "" : formData.gstin?.trim() || "",
+      pan_number: india ? formData.pan_number?.trim().toUpperCase() || "" : formData.pan_number?.trim() || "",
     };
     setErrors({});
     onSubmit(submitData);
@@ -360,19 +371,6 @@ export default function SupplierForm({
               error={!!errors.email}
               helperText={errors.email}
             />
-            <AutocompleteField
-              name="state_id"
-              label="State"
-              asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-              referenceModel="state.model"
-              getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
-              value={formData.state_id ? { id: formData.state_id } : null}
-              onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
-              placeholder="Type to search..."
-              required
-              error={!!errors.state_id}
-              helperText={errors.state_id}
-            />
             <Input
               fullWidth
               name="city"
@@ -380,16 +378,24 @@ export default function SupplierForm({
               value={formData.city}
               onChange={handleChange}
             />
-            <Input
-              fullWidth
-              name="pincode"
-              label="Pincode"
-              value={formData.pincode}
+            <AddressFields
+              values={formData}
               onChange={handleChange}
-              onBlur={handleBlur}
-              error={!!errors.pincode}
-              helperText={errors.pincode}
-              inputProps={{ maxLength: 6 }}
+              errors={errors}
+              fieldNames={{
+                country: "country",
+                state_id: "state_id",
+                state: "state_text",
+                pincode: "pincode",
+              }}
+              requiredState
+            />
+            <CurrencySelect
+              fullWidth
+              name="currency_code"
+              label="Currency"
+              value={formData.currency_code}
+              onChange={handleChange}
             />
             <Input
               fullWidth
@@ -401,6 +407,8 @@ export default function SupplierForm({
               rows={2}
               className="md:col-span-2"
             />
+            {isIndiaCountry(formData.country) && (
+              <>
             <Input
               fullWidth
               name="gstin"
@@ -425,6 +433,8 @@ export default function SupplierForm({
               inputProps={{ maxLength: 10 }}
               placeholder="ABCDE1234F"
             />
+              </>
+            )}
             <Checkbox
               name="is_active"
               label="Is Active"

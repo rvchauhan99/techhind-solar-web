@@ -23,6 +23,7 @@ import LoadingButton from "@/components/common/LoadingButton";
 import Alert from "@mui/material/Alert";
 import { toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import AddressFields, { isIndiaCountry } from "@/components/common/AddressFields";
 
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
@@ -397,20 +398,28 @@ export default function QuotationForm({
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Company Name" name="company_name" value={formData.company_name} onChange={handleChange} />
                     </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <AutocompleteField
-                            name="state_id"
-                            label="State"
-                            asyncLoadOptions={(q) => getReferenceOptionsSearch("state.model", { q, limit: 20 })}
-                            referenceModel="state.model"
-                            getOptionLabel={getOptionLabel}
-                            value={formData.state_id ? { id: formData.state_id } : null}
-                            onChange={(e, newValue) => handleChange({ target: { name: "state_id", value: newValue?.id ?? "" } })}
-                            placeholder="Type to search..."
-                            required
-                            error={!!errors.state_id}
-                            helperText={errors.state_id}
-                        />
+                    <Grid item size={{ xs: 12, md: 9 }}>
+                        <Box
+                            sx={{
+                                display: "grid",
+                                gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                                gap: COMPACT_FORM_SPACING,
+                            }}
+                        >
+                            <AddressFields
+                                values={formData}
+                                onChange={handleChange}
+                                errors={errors}
+                                fieldNames={{
+                                    country: "country",
+                                    state_id: "state_id",
+                                    state: "state_text",
+                                    pincode: "pin_code",
+                                }}
+                                requiredState
+                                requiredPostal
+                            />
+                        </Box>
                     </Grid>
                     <Grid item size={{ xs: 12, md: 6 }}>
                         <Input fullWidth label="Address" name="address" value={formData.address} onChange={handleChange} multiline rows={1} />
@@ -432,16 +441,13 @@ export default function QuotationForm({
                             onChange={(e, newValue) => handleChange({ target: { name: "city_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
                             disabled={!formData.state_id}
-                            required
+                            required={isIndiaCountry(formData.country)}
                             error={!!errors.city_id}
                             helperText={errors.city_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Landmark Area" name="landmark_area" value={formData.landmark_area} onChange={handleChange} />
-                    </Grid>
-                    <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Pin Code" name="pin_code" value={formData.pin_code} onChange={handleChange} required error={!!errors.pin_code} helperText={errors.pin_code} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Taluka" name="taluka" value={formData.taluka} onChange={handleChange} required error={!!errors.taluka} helperText={errors.taluka} />

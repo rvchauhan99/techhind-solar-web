@@ -85,7 +85,7 @@ export default function OrderListFilterDialog({
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
-      mastersService.getReferenceOptions("inquiry_source.model").then((r) => {
+      mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => {
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
       }),
