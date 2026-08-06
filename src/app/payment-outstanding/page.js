@@ -39,14 +39,20 @@ function getInitialFilters() {
 
 const DEFAULT_DATE_PRESET_LABEL = "All";
 
+/** Local calendar YYYY-MM-DD (avoid UTC shift from toISOString). */
+const toLocalYmd = (d) => {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+};
+
 const DATE_PRESETS = [
   { label: "All", fn: () => ({ order_date_from: "", order_date_to: "" }) },
-  { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
-  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: m.toISOString().split("T")[0], order_date_to: e.toISOString().split("T")[0] }; } },
-  { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
-  { label: "Last 30D", fn: () => { const n = new Date(), p = new Date(n); p.setDate(n.getDate() - 30); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
-  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
-  { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
+  { label: "Today", fn: () => { const d = toLocalYmd(new Date()); return { order_date_from: d, order_date_to: d }; } },
+  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: toLocalYmd(m), order_date_to: toLocalYmd(e) }; } },
+  { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: toLocalYmd(new Date(n.getFullYear(), n.getMonth(), 1)), order_date_to: toLocalYmd(new Date(n.getFullYear(), n.getMonth() + 1, 0)) }; } },
+  { label: "Last 30D", fn: () => { const n = new Date(), p = new Date(n); p.setDate(n.getDate() - 30); return { order_date_from: toLocalYmd(p), order_date_to: toLocalYmd(n) }; } },
+  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { order_date_from: toLocalYmd(p), order_date_to: toLocalYmd(n) }; } },
+  { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: toLocalYmd(new Date(n.getFullYear(), 0, 1)), order_date_to: toLocalYmd(new Date(n.getFullYear(), 11, 31)) }; } },
 ];
 
 const STATUS_TABS = [
@@ -264,7 +270,7 @@ export default function PaymentOutstandingPage() {
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
     { field: "disbursed_date", label: "Subsidy Disb.", render: (row) => <span className="text-[11px]">{fmtINDate(row.disbursed_date)}</span> },
     { field: "netmeter_applied_on", label: "Netm. Apply", render: (row) => <span className="text-[11px]">{fmtINDate(row.netmeter_applied_on)}</span> },
-    { field: "planned_delivery_date", label: "Deliv. Date", render: (row) => <span className="text-[11px]">{fmtINDate(row.planned_delivery_date)}</span> },
+    { field: "last_challan_date", label: "Last Challan", render: (row) => <span className="text-[11px]">{fmtINDate(row.last_challan_date)}</span> },
     { field: "order_date", label: "Order Date", render: (row) => fmtINDate(row.order_date) },
     {
       field: "current_stage_key",
