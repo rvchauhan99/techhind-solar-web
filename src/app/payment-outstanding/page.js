@@ -3,7 +3,11 @@
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { IconCash, IconDownload, IconNotes, IconFilter, IconRefresh, IconCalendar, IconX, IconCoinRupee, IconHistory, IconPhoneCall, IconEye } from "@tabler/icons-react";
-import OrderListFilterPanel, { EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES, ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
+import OrderListFilterPanel, {
+  EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES,
+  ORDER_STAGE_OPTIONS,
+  DATE_FILTER_FIELD_OPTIONS,
+} from "@/components/common/OrderListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import paymentOutstandingService from "@/services/paymentOutstandingService";
 import { Button } from "@/components/ui/button";
@@ -68,35 +72,75 @@ const PAYMENT_TYPE_TABS = [
   { value: "PDC", label: "PDC", cls: "text-rose-600 border-rose-200 hover:border-rose-400", activeCls: "bg-rose-50 border-rose-400 text-rose-700" },
 ];
 
-const FILTER_LABELS = {
-  status: "Status",
-  order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
-  delivery_date_from: "Delivery Date From", delivery_date_to: "Delivery Date To",
-  branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
-  order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
-  reference_from: "Reference", current_stage_key: "Order Stage", inquiry_source_id: "Source", q: "Search",
-  solar_panel_id: "Solar panel", inverter_id: "Inverter",
-};
+function dateRangeChipLabels(dateFilterField) {
+  const key = String(dateFilterField || "order_date").trim();
+  if (key === "delivery_date") {
+    return { from: "Last Challan From", to: "Last Challan To" };
+  }
+  if (key === "delivery_date_first_challan") {
+    return { from: "First Challan From", to: "First Challan To" };
+  }
+  return { from: "Date From", to: "Date To" };
+}
+
+function getFilterChipLabel(key, filters) {
+  if (key === "date_filter_field") return "Filtered By";
+  if (key === "order_date_from" || key === "order_date_to") {
+    const labels = dateRangeChipLabels(filters?.date_filter_field);
+    return key === "order_date_from" ? labels.from : labels.to;
+  }
+  const FILTER_LABELS = {
+    status: "Status",
+    payment_type: "Payment Type",
+    delivery_date_from: "Delivery Date From",
+    delivery_date_to: "Delivery Date To",
+    branch_id: "Branch",
+    handled_by: "Handled By",
+    customer_name: "Customer",
+    mobile_number: "Mobile",
+    order_number: "Order #",
+    consumer_no: "Consumer No",
+    application_no: "Application No",
+    reference_from: "Reference",
+    current_stage_key: "Order Stage",
+    inquiry_source_id: "Source",
+    q: "Search",
+    solar_panel_id: "Solar panel",
+    inverter_id: "Inverter",
+  };
+  return FILTER_LABELS[key] || key;
+}
 
 function getChips(filters) {
   return Object.entries(filters || {})
-    .filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .filter(([k, v]) => {
+      if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return false;
+      // Default Filtered By = Order Date — don't chip it
+      if (k === "date_filter_field" && String(v) === "order_date") return false;
+      return true;
+    })
     .map(([key, value]) => ({
       key,
-      label: FILTER_LABELS[key] || key,
+      label: getFilterChipLabel(key, filters),
       value: key === "payment_type"
         ? (PAYMENT_TYPE_TABS.find((o) => o.value === value)?.label || value)
         : key === "status"
           ? (value === "active" ? "Active" : value === "completed" ? "Completed" : String(value))
         : key === "current_stage_key"
           ? (ORDER_STAGE_OPTIONS.find((o) => o.value === value)?.label || value)
+        : key === "date_filter_field"
+          ? (DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === value)?.label || value)
           : String(value),
     }));
 }
 
 function countActive(f) {
   if (!f) return 0;
-  return Object.entries(f).filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
+  return Object.entries(f).filter(([k, v]) => {
+    if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return false;
+    if (k === "date_filter_field" && String(v) === "order_date") return false;
+    return true;
+  }).length;
 }
 
 export default function PaymentOutstandingPage() {
@@ -115,7 +159,14 @@ export default function PaymentOutstandingPage() {
 
   const handleApplyFilters = (next) => {
     setFilters((prev) => {
-      const merged = { ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) };
+      // Single date axis: Filtered By + Date From/To only (no dedicated Delivery Date From/To)
+      const merged = {
+        ...ORDER_FILTER_EMPTY_VALUES,
+        ...prev,
+        ...(next || {}),
+        delivery_date_from: "",
+        delivery_date_to: "",
+      };
       const from = merged.order_date_from || "";
       const to = merged.order_date_to || "";
       setActivePreset(!from && !to ? DEFAULT_DATE_PRESET_LABEL : null);
@@ -431,7 +482,6 @@ export default function PaymentOutstandingPage() {
               onClear={handleClearFilters}
               defaultOpen
               excludeKeys={["status", "solar_panel_id", "inverter_id"]}
-              showDeliveryDateRange
             />
           )}
 
