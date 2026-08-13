@@ -3,7 +3,11 @@
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { IconCash, IconDownload, IconNotes, IconFilter, IconRefresh, IconCalendar, IconX, IconCoinRupee, IconHistory, IconPhoneCall, IconEye } from "@tabler/icons-react";
-import OrderListFilterPanel, { EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES, ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
+import OrderListFilterPanel, {
+  EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES,
+  ORDER_STAGE_OPTIONS,
+  DATE_FILTER_FIELD_OPTIONS,
+} from "@/components/common/OrderListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import paymentOutstandingService from "@/services/paymentOutstandingService";
 import { Button } from "@/components/ui/button";
@@ -39,14 +43,20 @@ function getInitialFilters() {
 
 const DEFAULT_DATE_PRESET_LABEL = "All";
 
+/** Local calendar YYYY-MM-DD (avoid UTC shift from toISOString). */
+const toLocalYmd = (d) => {
+  const dt = d instanceof Date ? d : new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+};
+
 const DATE_PRESETS = [
   { label: "All", fn: () => ({ order_date_from: "", order_date_to: "" }) },
-  { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
-  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: m.toISOString().split("T")[0], order_date_to: e.toISOString().split("T")[0] }; } },
-  { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), n.getMonth() + 1, 0).toISOString().split("T")[0] }; } },
-  { label: "Last 30D", fn: () => { const n = new Date(), p = new Date(n); p.setDate(n.getDate() - 30); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
-  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { order_date_from: p.toISOString().split("T")[0], order_date_to: n.toISOString().split("T")[0] }; } },
-  { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: new Date(n.getFullYear(), 0, 1).toISOString().split("T")[0], order_date_to: new Date(n.getFullYear(), 11, 31).toISOString().split("T")[0] }; } },
+  { label: "Today", fn: () => { const d = toLocalYmd(new Date()); return { order_date_from: d, order_date_to: d }; } },
+  { label: "This Week", fn: () => { const n = new Date(), dy = n.getDay(), m = new Date(n); m.setDate(n.getDate() - (dy === 0 ? 6 : dy - 1)); const e = new Date(m); e.setDate(m.getDate() + 6); return { order_date_from: toLocalYmd(m), order_date_to: toLocalYmd(e) }; } },
+  { label: "This Month", fn: () => { const n = new Date(); return { order_date_from: toLocalYmd(new Date(n.getFullYear(), n.getMonth(), 1)), order_date_to: toLocalYmd(new Date(n.getFullYear(), n.getMonth() + 1, 0)) }; } },
+  { label: "Last 30D", fn: () => { const n = new Date(), p = new Date(n); p.setDate(n.getDate() - 30); return { order_date_from: toLocalYmd(p), order_date_to: toLocalYmd(n) }; } },
+  { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { order_date_from: toLocalYmd(p), order_date_to: toLocalYmd(n) }; } },
+  { label: "This Year", fn: () => { const n = new Date(); return { order_date_from: toLocalYmd(new Date(n.getFullYear(), 0, 1)), order_date_to: toLocalYmd(new Date(n.getFullYear(), 11, 31)) }; } },
 ];
 
 const STATUS_TABS = [
@@ -62,35 +72,75 @@ const PAYMENT_TYPE_TABS = [
   { value: "PDC", label: "PDC", cls: "text-rose-600 border-rose-200 hover:border-rose-400", activeCls: "bg-rose-50 border-rose-400 text-rose-700" },
 ];
 
-const FILTER_LABELS = {
-  status: "Status",
-  order_date_from: "Date From", order_date_to: "Date To", payment_type: "Payment Type",
-  delivery_date_from: "Delivery Date From", delivery_date_to: "Delivery Date To",
-  branch_id: "Branch", handled_by: "Handled By", customer_name: "Customer", mobile_number: "Mobile",
-  order_number: "Order #", consumer_no: "Consumer No", application_no: "Application No",
-  reference_from: "Reference", current_stage_key: "Order Stage", inquiry_source_id: "Source", q: "Search",
-  solar_panel_id: "Solar panel", inverter_id: "Inverter",
-};
+function dateRangeChipLabels(dateFilterField) {
+  const key = String(dateFilterField || "order_date").trim();
+  if (key === "delivery_date") {
+    return { from: "Last Challan From", to: "Last Challan To" };
+  }
+  if (key === "delivery_date_first_challan") {
+    return { from: "First Challan From", to: "First Challan To" };
+  }
+  return { from: "Date From", to: "Date To" };
+}
+
+function getFilterChipLabel(key, filters) {
+  if (key === "date_filter_field") return "Filtered By";
+  if (key === "order_date_from" || key === "order_date_to") {
+    const labels = dateRangeChipLabels(filters?.date_filter_field);
+    return key === "order_date_from" ? labels.from : labels.to;
+  }
+  const FILTER_LABELS = {
+    status: "Status",
+    payment_type: "Payment Type",
+    delivery_date_from: "Delivery Date From",
+    delivery_date_to: "Delivery Date To",
+    branch_id: "Branch",
+    handled_by: "Handled By",
+    customer_name: "Customer",
+    mobile_number: "Mobile",
+    order_number: "Order #",
+    consumer_no: "Consumer No",
+    application_no: "Application No",
+    reference_from: "Reference",
+    current_stage_key: "Order Stage",
+    inquiry_source_id: "Source",
+    q: "Search",
+    solar_panel_id: "Solar panel",
+    inverter_id: "Inverter",
+  };
+  return FILTER_LABELS[key] || key;
+}
 
 function getChips(filters) {
   return Object.entries(filters || {})
-    .filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .filter(([k, v]) => {
+      if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return false;
+      // Default Filtered By = Order Date — don't chip it
+      if (k === "date_filter_field" && String(v) === "order_date") return false;
+      return true;
+    })
     .map(([key, value]) => ({
       key,
-      label: FILTER_LABELS[key] || key,
+      label: getFilterChipLabel(key, filters),
       value: key === "payment_type"
         ? (PAYMENT_TYPE_TABS.find((o) => o.value === value)?.label || value)
         : key === "status"
           ? (value === "active" ? "Active" : value === "completed" ? "Completed" : String(value))
         : key === "current_stage_key"
           ? (ORDER_STAGE_OPTIONS.find((o) => o.value === value)?.label || value)
+        : key === "date_filter_field"
+          ? (DATE_FILTER_FIELD_OPTIONS.find((o) => o.value === value)?.label || value)
           : String(value),
     }));
 }
 
 function countActive(f) {
   if (!f) return 0;
-  return Object.entries(f).filter(([k, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
+  return Object.entries(f).filter(([k, v]) => {
+    if (v == null || v === "" || (Array.isArray(v) && v.length === 0)) return false;
+    if (k === "date_filter_field" && String(v) === "order_date") return false;
+    return true;
+  }).length;
 }
 
 export default function PaymentOutstandingPage() {
@@ -109,7 +159,14 @@ export default function PaymentOutstandingPage() {
 
   const handleApplyFilters = (next) => {
     setFilters((prev) => {
-      const merged = { ...ORDER_FILTER_EMPTY_VALUES, ...prev, ...(next || {}) };
+      // Single date axis: Filtered By + Date From/To only (no dedicated Delivery Date From/To)
+      const merged = {
+        ...ORDER_FILTER_EMPTY_VALUES,
+        ...prev,
+        ...(next || {}),
+        delivery_date_from: "",
+        delivery_date_to: "",
+      };
       const from = merged.order_date_from || "";
       const to = merged.order_date_to || "";
       setActivePreset(!from && !to ? DEFAULT_DATE_PRESET_LABEL : null);
@@ -264,7 +321,7 @@ export default function PaymentOutstandingPage() {
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },
     { field: "disbursed_date", label: "Subsidy Disb.", render: (row) => <span className="text-[11px]">{fmtINDate(row.disbursed_date)}</span> },
     { field: "netmeter_applied_on", label: "Netm. Apply", render: (row) => <span className="text-[11px]">{fmtINDate(row.netmeter_applied_on)}</span> },
-    { field: "planned_delivery_date", label: "Deliv. Date", render: (row) => <span className="text-[11px]">{fmtINDate(row.planned_delivery_date)}</span> },
+    { field: "last_challan_date", label: "Last Challan", render: (row) => <span className="text-[11px]">{fmtINDate(row.last_challan_date)}</span> },
     { field: "order_date", label: "Order Date", render: (row) => fmtINDate(row.order_date) },
     {
       field: "current_stage_key",
@@ -425,7 +482,6 @@ export default function PaymentOutstandingPage() {
               onClear={handleClearFilters}
               defaultOpen
               excludeKeys={["status", "solar_panel_id", "inverter_id"]}
-              showDeliveryDateRange
             />
           )}
 
