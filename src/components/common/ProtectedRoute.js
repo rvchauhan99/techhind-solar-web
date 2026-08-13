@@ -19,6 +19,7 @@ const PATH_WHITELIST = new Set([
   "/marketing-leads/upload",
   "/b2b-leads/analysis",
   "/access-denied",
+  "/user-profile",
 ]);
 
 function isPathAllowed(pathname, allowedRoutes) {
