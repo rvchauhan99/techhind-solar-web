@@ -79,6 +79,12 @@ function B2bPaymentVerificationDetails({ payment }) {
         <span className="font-medium text-slate-800">{payment.payment_mode_name || "-"}</span>
         <span className="text-slate-500">Txn/Cheque No.</span>
         <span className="font-medium text-slate-800">{payment.transaction_cheque_number || "-"}</span>
+        <span className="text-slate-500">Bank/Account</span>
+        <span className="font-medium text-slate-800">
+          {payment.company_bank_name && payment.company_bank_account_number
+            ? `${payment.company_bank_name} - ${payment.company_bank_account_number}`
+            : "-"}
+        </span>
         <span className="text-slate-500">Accountant</span>
         <span className="font-medium text-slate-800">{payment.approved_by_name || "-"}</span>
         <span className="text-slate-500">Receipt #</span>
@@ -336,6 +342,15 @@ export default function TpB2bPaymentAuditTable({ filterParams = {} }) {
       label: "Payment Mode",
       field: "payment_mode_name",
       render: (row) => row.payment_mode_name || "-",
+    },
+    {
+      id: "company_bank",
+      label: "Bank/Account",
+      field: "company_bank_name",
+      render: (row) =>
+        row.company_bank_name && row.company_bank_account_number
+          ? `${row.company_bank_name} - ${row.company_bank_account_number}`
+          : "-",
     },
     {
       id: "receipt_number",
