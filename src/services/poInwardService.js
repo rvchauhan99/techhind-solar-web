@@ -79,6 +79,20 @@ export const postPOInward = (id, payload = {}, files = []) =>
 export const getAttachmentUrl = (id, attachmentIndex) =>
   apiClient.get(`/po-inwards/${id}/attachments/${attachmentIndex}/url`).then((r) => r.data);
 
+/** Dedicated upload (same pattern as order-documents): POST files, then Save/Approve without multipart. */
+export const uploadAttachments = (id, files = []) => {
+  const formData = new FormData();
+  (files || []).forEach((file) => {
+    formData.append("attachments", file);
+  });
+  return apiClient
+    .post(`/po-inwards/${id}/attachments`, formData, {
+      headers: { "Content-Type": undefined },
+      timeout: 120000,
+    })
+    .then((r) => r.data);
+};
+
 export const deleteAttachment = (id, attachmentIndex) =>
   apiClient.delete(`/po-inwards/${id}/attachments/${attachmentIndex}`).then((r) => r.data);
 
@@ -99,6 +113,7 @@ export default {
   approvePOInward,
   postPOInward,
   getAttachmentUrl,
+  uploadAttachments,
   deleteAttachment,
   validateSerials,
 };
