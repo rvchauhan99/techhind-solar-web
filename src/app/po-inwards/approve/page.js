@@ -142,12 +142,20 @@ function ApprovePOInwardContent() {
     return Object.keys(errs).length === 0;
   };
 
+  /** Upload pending files via dedicated POST (Installation pattern), then clear local queue. */
+  const uploadPendingFiles = async () => {
+    if (!id || !pendingFiles?.length) return;
+    await poInwardService.uploadAttachments(id, pendingFiles);
+    setPendingFiles([]);
+  };
+
   const handleSave = async () => {
     if (!id || !inward) return;
     setSaving(true);
     try {
+      await uploadPendingFiles();
       const payload = buildDetailsPayload();
-      await poInwardService.updatePOInward(id, payload, pendingFiles);
+      await poInwardService.updatePOInward(id, payload, []);
       const refreshed = await poInwardService.getPOInwardById(id);
       hydrateFromDetail(refreshed?.result || refreshed);
       toast.success("Details saved (still DRAFT)");
@@ -167,11 +175,12 @@ function ApprovePOInwardContent() {
 
     setApproving(true);
     try {
+      await uploadPendingFiles();
       if (inward.is_import) {
-        await poInwardService.postPOInward(id, buildDetailsPayload(), pendingFiles);
+        await poInwardService.postPOInward(id, buildDetailsPayload(), []);
         toast.success("Import PO Inward approved. Stock updated at landed cost.");
       } else {
-        await poInwardService.approvePOInward(id, {}, pendingFiles);
+        await poInwardService.approvePOInward(id, {}, []);
         toast.success("PO Inward approved. Stock and inventory ledger updated.");
       }
       router.push("/po-inwards");
