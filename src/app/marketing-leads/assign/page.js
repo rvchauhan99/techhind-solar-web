@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Checkbox from "@/components/common/Checkbox";
-import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import marketingLeadsService from "@/services/marketingLeadsService";
-import mastersService from "@/services/mastersService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { toastError, toastSuccess } from "@/utils/toast";
 import moment from "moment";
 import { cn } from "@/lib/utils";
@@ -40,30 +40,14 @@ export default function MarketingLeadsAssignPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectAllPage, setSelectAllPage] = useState(false);
   const [assignTo, setAssignTo] = useState("");
-  const [userOptions, setUserOptions] = useState([]);
   const [lastPageRows, setLastPageRows] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const selectAllPageRef = useRef(selectAllPage);
 
   useEffect(() => {
     selectAllPageRef.current = selectAllPage;
   }, [selectAllPage]);
-
-  const loadUsers = useCallback(() => {
-    mastersService
-      .getReferenceOptions("user.model", { status: "active" })
-      .then((r) => {
-        const data = r?.result ?? r?.data ?? r;
-        if (Array.isArray(data)) setUserOptions(data);
-      })
-      .catch(() => {
-        setUserOptions([]);
-      });
-  }, []);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
 
   const buildApiFilters = useCallback((filtersObj = {}) => {
     const result = {};
@@ -140,7 +124,7 @@ export default function MarketingLeadsAssignPage() {
       // Reset selections
       setSelectedIds([]);
       setSelectAllPage(false);
-      setFilters({ ...filters }); // Trigger reload
+      setRefreshKey((k) => k + 1);
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to assign leads";
@@ -277,21 +261,28 @@ export default function MarketingLeadsAssignPage() {
 
                 <div className="flex items-center gap-2 w-full sm:w-auto relative z-10">
                   <div className="w-full sm:w-56 min-w-[180px]">
-                    <Select
+                    <AutocompleteField
+                      usePortal
                       name="assign_to"
-                      value={assignTo}
-                      onChange={(e) => setAssignTo(e.target.value)}
-                      placeholder="Select user..."
+                      label=""
                       size="small"
-                      fullWidth
-                    >
-                      <MenuItem value="">Select user...</MenuItem>
-                      {userOptions.map((u) => (
-                        <MenuItem key={u.id} value={String(u.id)}>
-                          {u.name ?? u.label ?? u.id}
-                        </MenuItem>
-                      ))}
-                    </Select>
+                      asyncLoadOptions={(q) =>
+                        getReferenceOptionsSearch("user.model", {
+                          q,
+                          limit: 20,
+                          status: "active",
+                        })
+                      }
+                      referenceModel="user.model"
+                      getOptionLabel={(o) =>
+                        o?.name ?? o?.label ?? (o?.id != null ? String(o.id) : "")
+                      }
+                      value={assignTo ? { id: assignTo } : null}
+                      onChange={(e, v) =>
+                        setAssignTo(v?.id != null ? String(v.id) : "")
+                      }
+                      placeholder="Select user..."
+                    />
                   </div>
                   <Button
                     size="sm"
@@ -313,7 +304,7 @@ export default function MarketingLeadsAssignPage() {
 
           <div className="flex-1 min-h-[400px] border border-border shadow-sm rounded-md overflow-hidden flex flex-col bg-card relative z-0">
             <PaginatedTable
-              key={JSON.stringify(apiFilters)}
+              key={`${refreshKey}-${JSON.stringify(apiFilters)}`}
               columns={columns}
               fetcher={fetcher}
               filterParams={apiFilters}
