@@ -15,6 +15,17 @@ import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { Badge } from "@/components/ui/badge";
 
+/** Format line money: INR as-is; import FC shows FC + converted INR. */
+function formatLineMoney(fcAmount, row) {
+  const code = String(row?.currency_code || "INR").toUpperCase();
+  const isImport = !!row?.is_import && code !== "INR";
+  if (!isImport) return formatCurrency(fcAmount);
+  const fc = Number(fcAmount) || 0;
+  const rate = Number(row.exchange_rate) || 0;
+  const inr = rate > 0 ? fc * rate : fc;
+  return `${code} ${fc.toFixed(2)} (${formatCurrency(inr)})`;
+}
+
 /** Resolve include_closed for API from URL filter state. */
 function resolveIncludeClosed(filters) {
   if (filters.include_closed === "true") return true;
@@ -135,6 +146,12 @@ export default function PurchaseOrderLinesPage() {
         render: (r) => r.supplier?.supplier_name || "—",
       },
       {
+        field: "currency_code",
+        label: "Ccy",
+        sortable: false,
+        render: (r) => r.currency_code || "INR",
+      },
+      {
         field: "shipTo",
         label: "Ship to",
         sortable: false,
@@ -165,7 +182,12 @@ export default function PurchaseOrderLinesPage() {
         sortable: false,
         render: (r) => r.product?.measurement_unit?.unit || "—",
       },
-      { field: "rate", label: "Rate", sortable: true, render: (r) => formatCurrency(r.rate) },
+      {
+        field: "rate",
+        label: "Rate",
+        sortable: true,
+        render: (r) => formatLineMoney(r.rate, r),
+      },
       { field: "quantity", label: "Qty", sortable: true },
       { field: "received_quantity", label: "Recv", sortable: true },
       { field: "returned_quantity", label: "Ret", sortable: true },
@@ -175,13 +197,13 @@ export default function PurchaseOrderLinesPage() {
         field: "amount_excluding_gst",
         label: "Taxable",
         sortable: true,
-        render: (r) => formatCurrency(r.amount_excluding_gst),
+        render: (r) => formatLineMoney(r.amount_excluding_gst, r),
       },
       {
         field: "amount",
         label: "Line",
         sortable: true,
-        render: (r) => formatCurrency(r.amount),
+        render: (r) => formatLineMoney(r.amount, r),
       },
       {
         field: "createdBy",
