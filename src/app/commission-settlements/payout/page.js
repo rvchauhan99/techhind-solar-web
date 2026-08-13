@@ -26,6 +26,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import commissionSettlementService from "@/services/commissionSettlementService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { listBankAccounts } from "@/services/companyService";
 import SettlementByUserSummary from "../components/SettlementByUserSummary";
 import CommissionSettlementDetailDialog from "../components/CommissionSettlementDetailDialog";
 import {
@@ -73,6 +74,23 @@ const FILTER_LABELS = {
 function parseFilterId(v) {
   const n = v != null && v !== "" ? Number(v) : NaN;
   return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+
+function parseBankAccountsResponse(res) {
+  if (Array.isArray(res?.result)) return res.result;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res)) return res;
+  return [];
+}
+
+function defaultCompanyBankAccountId(accounts) {
+  if (!Array.isArray(accounts) || !accounts.length) return "";
+  if (accounts.length === 1) return String(accounts[0].id);
+  const preferred =
+    accounts.find((a) => a.is_default) ||
+    accounts.find((a) => a.is_default_b2c) ||
+    accounts[0];
+  return preferred?.id != null ? String(preferred.id) : "";
 }
 
 function findModuleRecursive(list, matchPredicate) {
@@ -138,6 +156,8 @@ export default function CommissionPayoutPage() {
   const [confirmPayRow, setConfirmPayRow] = useState(null);
   const [confirmRemarks, setConfirmRemarks] = useState("");
   const [confirmBankReference, setConfirmBankReference] = useState("");
+  const [confirmBankAccountId, setConfirmBankAccountId] = useState("");
+  const [companyBankAccounts, setCompanyBankAccounts] = useState([]);
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
@@ -437,8 +457,28 @@ export default function CommissionPayoutPage() {
     setConfirmPayRow(row);
     setConfirmBankReference("");
     setConfirmRemarks("");
+    setConfirmBankAccountId("");
     setConfirmPayOpen(true);
   };
+
+  useEffect(() => {
+    if (!confirmPayOpen) return;
+    let cancelled = false;
+    listBankAccounts()
+      .then((res) => {
+        if (cancelled) return;
+        const accounts = parseBankAccountsResponse(res);
+        setCompanyBankAccounts(accounts);
+        setConfirmBankAccountId((prev) => prev || defaultCompanyBankAccountId(accounts));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCompanyBankAccounts([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmPayOpen]);
 
   const submitConfirmPayment = async () => {
     if (!confirmPayRow?.id) return;
@@ -447,16 +487,22 @@ export default function CommissionPayoutPage() {
       toast.error("Enter UTR / bank reference (at least 4 characters)");
       return;
     }
+    if (!confirmBankAccountId) {
+      toast.error("Select company bank account");
+      return;
+    }
     setConfirmSubmitting(true);
     try {
       await commissionSettlementService.confirmPayoutPayment(confirmPayRow.id, {
         bank_reference: utr,
+        company_bank_account_id: Number(confirmBankAccountId),
         remarks: confirmRemarks.trim() || undefined,
       });
       toast.success("Payment confirmed — payout marked paid");
       setConfirmPayOpen(false);
       setConfirmPayRow(null);
       setConfirmBankReference("");
+      setConfirmBankAccountId("");
       setConfirmRemarks("");
       setRefreshKey((k) => k + 1);
       loadSummary();
@@ -978,7 +1024,7 @@ export default function CommissionPayoutPage() {
       </Dialog>
 
       <Dialog open={confirmPayOpen} onOpenChange={setConfirmPayOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md overflow-visible">
           <DialogHeader>
             <DialogTitle>
               Confirm Payment
@@ -994,6 +1040,24 @@ export default function CommissionPayoutPage() {
             <p className="text-xs text-muted-foreground">
               Net payable: <span className="font-semibold text-foreground">₹{fmtMoney(confirmPayRow?.total_amount)}</span>
             </p>
+            <AutocompleteField
+              name="company_bank_account_id"
+              label="Company bank account"
+              required
+              size="small"
+              options={companyBankAccounts}
+              getOptionLabel={(acc) =>
+                `${acc?.bank_name ?? ""} - ${acc?.bank_account_number ?? ""}`.trim()
+              }
+              value={
+                companyBankAccounts.find((a) => String(a.id) === String(confirmBankAccountId)) ||
+                null
+              }
+              onChange={(e, v) =>
+                setConfirmBankAccountId(v?.id != null ? String(v.id) : "")
+              }
+              placeholder="Select company bank..."
+            />
             <div className="space-y-1">
               <Label className="text-xs">
                 UTR / Bank reference <span className="text-destructive">*</span>
@@ -1022,7 +1086,11 @@ export default function CommissionPayoutPage() {
                 type="button"
                 size="sm"
                 onClick={submitConfirmPayment}
-                disabled={confirmSubmitting || confirmBankReference.trim().length < 4}
+                disabled={
+                  confirmSubmitting ||
+                  confirmBankReference.trim().length < 4 ||
+                  !confirmBankAccountId
+                }
               >
                 {confirmSubmitting ? "Processing…" : "Confirm Payment"}
               </Button>

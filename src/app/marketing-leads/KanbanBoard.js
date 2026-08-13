@@ -614,18 +614,25 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               Add Call Details {pendingStatusTitle ? `→ ${pendingStatusTitle}` : ""}
             </DialogTitle>
           </DialogHeader>
-          {pendingToStatus && pendingToStatus !== "converted" && (
+          {pendingToStatus === "not_interested" ? (
+            <div className="text-sm text-muted-foreground">
+              Next follow-up date is not required for not interested leads.
+            </div>
+          ) : pendingToStatus && pendingToStatus !== "converted" ? (
             <div className="text-sm text-muted-foreground">
               Follow-up is mandatory when changing lead stage.
             </div>
-          )}
+          ) : null}
           <div className="pt-2">
+            {followUpDialogOpen && pendingLeadId ? (
             <AddCallDetailsForm
+              key={`${pendingLeadId}-${pendingToStatus}`}
               leadId={pendingLeadId}
               lead={pendingLead}
               forcedStatus={pendingToStatus}
               forcedOutcome={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).forcedOutcome : null}
               allowedOutcomes={pendingToStatus ? getOutcomeRulesForStatus(pendingToStatus).allowedOutcomes : null}
+              skipNextFollowUp={pendingToStatus === "not_interested"}
               defaultValues={followUpDefaultValues}
               onSaved={async () => {
                 closeFollowUpDialog();
@@ -640,6 +647,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                 setUpdatingStatus(false);
               }}
             />
+            ) : null}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" size="sm" onClick={closeFollowUpDialog}>
