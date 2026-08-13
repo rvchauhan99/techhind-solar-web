@@ -8,8 +8,9 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { toastError } from '@/utils/toast';
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
 
-export default function UserProfilePage() {
+function UserProfileContent() {
   const [tab, setTab] = useState(0);
   const handleTab = (_, v) => setTab(v);
 
@@ -548,6 +549,14 @@ function TwoFactorAuth({ user }) {
         </Box>
       )}
     </Box>
+  );
+}
+
+export default function UserProfilePage() {
+  return (
+    <ProtectedRoute>
+      <UserProfileContent />
+    </ProtectedRoute>
   );
 }
 
