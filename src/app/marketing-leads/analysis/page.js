@@ -33,6 +33,7 @@ import {
   IconX,
   IconCurrencyRupee,
   IconShoppingCart,
+  IconTruck,
 } from "@tabler/icons-react";
 import {
   BarChart,
@@ -180,7 +181,7 @@ function CenterLabel({ cx, cy, total }) {
 
 const TT_STYLE = { borderRadius: 6, border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.12)", fontSize: 11 };
 
-const ORDER_FUNNEL_COLORS = { Leads: "#3b82f6", Inquiries: "#8b5cf6", Orders: "#16a34a" };
+const ORDER_FUNNEL_COLORS = { Leads: "#3b82f6", Inquiries: "#8b5cf6", Orders: "#16a34a", Delivered: "#0d9488" };
 
 const BREAKDOWN_TABS = [
   { id: "source", label: "Source", key: "by_source", param: "inquiry_source_id" },
@@ -348,6 +349,20 @@ export default function MarketingLeadAnalysisPage() {
   ];
   const leakageMax = Math.max(...leakageRows.map((r) => r.val), ocKpis.leads || 1);
 
+  const del = oc.delivery || {};
+  const delKpis = del.kpis || {};
+  const delFunnel = (del.funnel || []).map((r) => ({
+    name: r.stage,
+    value: Number(r.count || 0),
+    fill: ORDER_FUNNEL_COLORS[r.stage] || "#0d9488",
+    ratePrev: r.rate_from_prev,
+    rateLeads: r.rate_from_leads,
+  }));
+  const delInsights = del.insights || [];
+  const delLeakage = del.leakage || {};
+  const leadToDeliveryRate = Number(delKpis.lead_to_delivery_rate || 0);
+  const orderToDeliveryRate = Number(delKpis.order_to_delivery_rate || 0);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -363,7 +378,7 @@ export default function MarketingLeadAnalysisPage() {
               </div>
               <div>
                 <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">Marketing Analysis</h1>
-                <p className="text-[11px] text-slate-500">Lead → Inquiry → Order</p>
+                <p className="text-[11px] text-slate-500">Lead → Inquiry → Order → Delivery</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -648,7 +663,7 @@ export default function MarketingLeadAnalysisPage() {
               <div className="px-3 pt-2.5 pb-1.5 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                 <div>
                   <h3 className="text-xs font-semibold text-slate-700 leading-tight">Conversion by {ocTab.label}</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Volume · step rates · order value — click to filter leads</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Volume · conversion · delivery rates — click to filter leads</p>
                 </div>
                 <div className="flex items-center gap-1">
                   {BREAKDOWN_TABS.map((tab) => (
@@ -680,13 +695,15 @@ export default function MarketingLeadAnalysisPage() {
                         <th className="text-right px-2 py-1 font-semibold">L→I</th>
                         <th className="text-right px-2 py-1 font-semibold">I→O</th>
                         <th className="text-right px-2 py-1 font-semibold">L→O</th>
+                        <th className="text-right px-2 py-1 font-semibold">L→D</th>
+                        <th className="text-right px-2 py-1 font-semibold">O→D</th>
                         <th className="text-right px-2 py-1 font-semibold">Value</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {ocBreakdown.slice(0, 12).map((row) => (
+                      {ocBreakdown.slice(0, 12).map((row, i) => (
                         <tr
-                          key={`${ocTab.id}-${row.id ?? row.name}`}
+                          key={`${ocTab.id}-${row.id ?? "none"}-${row.name}-${i}`}
                           className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer"
                           onClick={() => {
                             if (row.id == null) return;
@@ -704,6 +721,12 @@ export default function MarketingLeadAnalysisPage() {
                               {row.lead_to_order_rate}%
                             </span>
                           </td>
+                          <td className="px-2 py-1 text-right text-slate-500">{row.lead_to_delivery_rate ?? 0}%</td>
+                          <td className="px-2 py-1 text-right">
+                            <span className={`text-[10px] px-1 py-0.5 rounded font-semibold ${Number(row.order_to_delivery_rate) >= 50 ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-500"}`}>
+                              {row.order_to_delivery_rate ?? 0}%
+                            </span>
+                          </td>
                           <td className="px-2 py-1 text-right font-semibold text-slate-800">{formatInrCompact(row.order_value)}</td>
                         </tr>
                       ))}
@@ -714,6 +737,148 @@ export default function MarketingLeadAnalysisPage() {
                 <div style={{ height: 80 }}><EmptyState text="No breakdown for applied filters" /></div>
               )}
             </Card>
+          </div>
+
+          {/* ── Delivery Rate ──────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Lead → Order → Delivery</p>
+
+            {delInsights.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {delInsights.slice(0, 6).map((ins) => (
+                  <button
+                    key={ins.id}
+                    type="button"
+                    onClick={() => router.push(buildLeadHref(ins.drilldown || {}))}
+                    className={`text-left rounded-lg border px-2.5 py-1.5 ${severityCls(ins.severity)} hover:shadow-sm transition-shadow`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-semibold leading-tight">{ins.title}</span>
+                      <Badge variant="outline" className="text-[9px] h-4 capitalize shrink-0">{ins.severity}</Badge>
+                    </div>
+                    <p className="text-[10px] mt-0.5 leading-snug opacity-90">{ins.evidence}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <KpiCard
+                icon={<IconTruck size={16} className="text-teal-600" />}
+                label="Lead→Delivery"
+                value={`${Number(leadToDeliveryRate).toFixed(1)}%`}
+                valueColor="#0d9488"
+                trend={{ direction: leadToDeliveryRate >= 5 ? "up" : "down", label: leadToDeliveryRate >= 5 ? "Healthy" : "Low" }}
+                sub={`${delKpis.leads_with_delivery || 0} of ${ocKpis.leads || 0} leads`}
+                loading={loading}
+                onClick={() => router.push("/marketing-leads?status=converted")}
+              />
+              <KpiCard
+                icon={<IconTrendingUp size={16} className="text-teal-700" />}
+                label="Order→Delivery"
+                value={`${Number(orderToDeliveryRate).toFixed(1)}%`}
+                trend={{ direction: orderToDeliveryRate >= 50 ? "up" : "down", label: orderToDeliveryRate >= 50 ? "Healthy" : "Low" }}
+                sub="Among won-order leads"
+                loading={loading}
+              />
+              <KpiCard
+                icon={<IconCircleCheck size={16} className="text-sky-600" />}
+                label="Delivered Orders"
+                value={delKpis.delivered_orders ?? 0}
+                sub={`${delKpis.partial_count || 0} partial · ${delKpis.complete_count || 0} complete`}
+                loading={loading}
+              />
+              <KpiCard
+                icon={<IconCurrencyRupee size={16} className="text-teal-600" />}
+                label="Delivered Value"
+                value={formatInrCompact(delKpis.delivered_value)}
+                trend={{ direction: "neutral", label: "Not pending" }}
+                loading={loading}
+              />
+              <KpiCard
+                icon={<IconAlertCircle size={16} className={Number(delKpis.pending_orders || 0) > 0 ? "text-amber-500" : "text-emerald-600"} />}
+                label="Pending Orders"
+                value={delKpis.pending_orders ?? 0}
+                valueColor={Number(delKpis.pending_orders || 0) > 0 ? "#d97706" : undefined}
+                sub={`${delLeakage.leads_with_order_no_delivery || 0} leads with no delivery`}
+                loading={loading}
+                onClick={() => router.push("/marketing-leads?status=converted")}
+              />
+            </div>
+
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12 lg:col-span-8">
+                <Card className="rounded-xl shadow-sm border-slate-200 bg-white h-full">
+                  <PanelHeader title="Delivery Funnel" subtitle="Leads → inquiries → orders → delivery started (partial or complete)" />
+                  <div className="flex px-2 pb-2 gap-3">
+                    <div className="flex-1" style={{ height: 180 }}>
+                      {delFunnel.some((d) => d.value > 0) ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <FunnelChart>
+                            <RTooltip
+                              contentStyle={TT_STYLE}
+                              formatter={(v, _n, p) => [
+                                `${v} · ${p?.payload?.rateLeads != null ? p.payload.rateLeads : 0}% of leads`,
+                                p?.payload?.name,
+                              ]}
+                            />
+                            <Funnel dataKey="value" data={delFunnel.filter((d) => d.value > 0)} isAnimationActive>
+                              {delFunnel.filter((d) => d.value > 0).map((e, i) => (
+                                <Cell key={e.name || i} fill={e.fill} />
+                              ))}
+                              <LabelList position="right" fill="#475569" stroke="none" dataKey="name" fontSize={10} />
+                            </Funnel>
+                          </FunnelChart>
+                        </ResponsiveContainer>
+                      ) : <EmptyState text="No delivery data for applied filters" />}
+                    </div>
+                    {delFunnel.length > 0 && (
+                      <div className="flex flex-col justify-center gap-1.5 border-l border-slate-100 pl-3 min-w-[150px]">
+                        {delFunnel.map((item, idx) => (
+                          <div key={item.name} className="flex items-center justify-between gap-2 text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                              <span className="text-slate-500">{item.name}</span>
+                            </div>
+                            <span className="font-semibold text-slate-800">
+                              {item.value}
+                              <span className="text-slate-400 font-normal">
+                                {idx === 0 ? "" : ` · ${item.ratePrev ?? 0}%`}
+                              </span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+              <div className="col-span-12 lg:col-span-4">
+                <Card className="rounded-xl shadow-sm border-slate-200 bg-white h-full">
+                  <PanelHeader title="Delivery leakage" subtitle="Won orders still pending delivery" />
+                  <CardContent className="p-2 space-y-1">
+                    {[
+                      { label: "Pending orders", val: delKpis.pending_orders || 0, color: "#f59e0b" },
+                      { label: "Leads with order, no delivery", val: delLeakage.leads_with_order_no_delivery || 0, color: "#ef4444" },
+                      { label: "Partial delivery", val: delKpis.partial_count || 0, color: "#0ea5e9" },
+                      { label: "Complete delivery", val: delKpis.complete_count || 0, color: "#16a34a" },
+                    ].map((row) => (
+                      <div
+                        key={row.label}
+                        onClick={() => router.push(buildLeadHref({ status: "converted" }))}
+                        className="flex items-center gap-2 px-1 py-1 rounded hover:bg-slate-50 cursor-pointer"
+                      >
+                        <span className="text-[11px] text-slate-600 flex-1 font-medium">{row.label}</span>
+                        <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ color: row.color, backgroundColor: `${row.color}18` }}>{row.val}</span>
+                        <div className="w-14">
+                          <MiniBar value={row.val} max={Math.max(ocKpis.orders || 1, delKpis.delivered_orders || 1)} color={row.color} />
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </div>
 
           {/* ── Status Breakdown ───────────────────────────────────────────── */}
