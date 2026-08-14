@@ -72,13 +72,19 @@ export default function LeadFollowupForm({
     }
   };
 
+  const needsNextFollowUp = !["not_interested", "wrong_number", "converted"].includes(
+    formData.outcome
+  );
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
     const newErrors = {};
     if (!formData.outcome) newErrors.outcome = "Outcome is required";
     if (!formData.notes || formData.notes.trim() === "") newErrors.notes = "Notes / Remarks are required";
-    if (!formData.next_follow_up_at) newErrors.next_follow_up_at = "Next Follow-Up date is required";
+    if (needsNextFollowUp && !formData.next_follow_up_at) {
+      newErrors.next_follow_up_at = "Next Follow-Up date is required";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -89,7 +95,7 @@ export default function LeadFollowupForm({
     const payload = {
       outcome: formData.outcome,
       notes: formData.notes || null,
-      next_follow_up_at: formData.next_follow_up_at
+      next_follow_up_at: needsNextFollowUp && formData.next_follow_up_at
         ? new Date(formData.next_follow_up_at + "T00:00:00").toISOString()
         : null,
       contact_channel: formData.contact_channel || null,
@@ -179,16 +185,20 @@ export default function LeadFollowupForm({
             inputProps={{ max: getTodayDate() }}
           />
 
-          <DateField
-            name="next_follow_up_at"
-            label="Next Follow-Up Date"
-            value={formData.next_follow_up_at}
-            onChange={handleChange}
-            inputProps={{ min: getTodayDate() }}
-            required
-            error={!!errors.next_follow_up_at}
-            helperText={errors.next_follow_up_at}
-          />
+          {needsNextFollowUp ? (
+            <DateField
+              name="next_follow_up_at"
+              label="Next Follow-Up Date"
+              value={formData.next_follow_up_at}
+              onChange={handleChange}
+              inputProps={{ min: getTodayDate() }}
+              required
+              error={!!errors.next_follow_up_at}
+              helperText={errors.next_follow_up_at}
+            />
+          ) : (
+            <div />
+          )}
         </div>
 
         <Input
