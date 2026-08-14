@@ -73,8 +73,12 @@ export const approvePOInward = (id, payload = {}, files = []) => {
 };
 
 /** Import-only: post with BOE + shipping + charges (landed cost → inventory). */
-export const postPOInward = (id, payload = {}, files = []) =>
-  withAttachments("post", `/po-inwards/${id}/post`, payload, files);
+export const postPOInward = (id, payload = {}, files = []) => {
+  if (files && files.length > 0) {
+    return withAttachments("post", `/po-inwards/${id}/post`, payload, files);
+  }
+  return apiClient.post(`/po-inwards/${id}/post`, payload).then((r) => r.data);
+};
 
 export const getAttachmentUrl = (id, attachmentIndex) =>
   apiClient.get(`/po-inwards/${id}/attachments/${attachmentIndex}/url`).then((r) => r.data);

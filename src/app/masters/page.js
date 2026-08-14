@@ -191,6 +191,9 @@ export default function MastersPage() {
     const [activateTargetRow, setActivateTargetRow] = useState(null);
     const deleteReloadRef = useRef(null);
     const activateReloadRef = useRef(null);
+    const prevMasterKeyRef = useRef("");
+    const setPageRef = useRef(setPage);
+    setPageRef.current = setPage;
 
     useEffect(() => {
         mastersService.mastersList().then((res) => {
@@ -217,10 +220,15 @@ export default function MastersPage() {
         setHighlightedIndex(-1);
     }, [masterSearchQuery, filteredMasters.length]);
 
-    // Reset pagination when master selection changes
+    // Reset pagination only when the selected master actually changes.
+    // Do not depend on setPage identity — it changes on every URL update and would snap back to page 1.
     useEffect(() => {
-        setPage(1);
-    }, [master?.id, master?.model_name, setPage]);
+        const key = `${master?.id ?? ""}:${master?.model_name ?? ""}`;
+        if (!master?.model_name) return;
+        if (prevMasterKeyRef.current === key) return;
+        prevMasterKeyRef.current = key;
+        setPageRef.current(1);
+    }, [master?.id, master?.model_name]);
 
     // Handle keyboard navigation
     const handleKeyDown = (e) => {
@@ -251,6 +259,11 @@ export default function MastersPage() {
     const canEditMaster = !!master?.allow_edit && !!currentPerm.can_update;
 
     async function onClickMaster(selectedMaster) {
+        const nextKey = `${selectedMaster?.id ?? ""}:${selectedMaster?.model_name ?? ""}`;
+        if (prevMasterKeyRef.current !== nextKey) {
+            prevMasterKeyRef.current = nextKey;
+            setPage(1);
+        }
         setMaster(selectedMaster);
         // Set required fields from masters.json
         setRequiredFields(selectedMaster.required_fields || []);

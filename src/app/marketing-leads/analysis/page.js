@@ -12,6 +12,7 @@ import MultiSelect from "@/components/common/MultiSelect";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import mastersService from "@/services/mastersService";
 import companyService from "@/services/companyService";
+import { formatInrCompact } from "@/utils/currencyFormatters";
 import {
   IconChartBar,
   IconFilter,
@@ -30,6 +31,8 @@ import {
   IconClock,
   IconCircleCheck,
   IconX,
+  IconCurrencyRupee,
+  IconShoppingCart,
 } from "@tabler/icons-react";
 import {
   BarChart,
@@ -177,6 +180,29 @@ function CenterLabel({ cx, cy, total }) {
 
 const TT_STYLE = { borderRadius: 6, border: "none", boxShadow: "0 4px 12px rgb(0 0 0 / 0.12)", fontSize: 11 };
 
+const ORDER_FUNNEL_COLORS = { Leads: "#3b82f6", Inquiries: "#8b5cf6", Orders: "#16a34a" };
+
+const BREAKDOWN_TABS = [
+  { id: "source", label: "Source", key: "by_source", param: "inquiry_source_id" },
+  { id: "campaign", label: "Campaign", key: "by_campaign", param: "campaign_id" },
+  { id: "assignee", label: "Assignee", key: "by_assignee", param: "assigned_to" },
+];
+
+function severityCls(severity) {
+  if (severity === "critical") return "border-red-300 bg-red-50 text-red-900";
+  if (severity === "warning") return "border-amber-300 bg-amber-50 text-amber-900";
+  return "border-slate-200 bg-white text-slate-700";
+}
+
+function buildLeadHref(params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value != null && value !== "") qs.set(key, String(value));
+  });
+  const s = qs.toString();
+  return s ? `/marketing-leads?${s}` : "/marketing-leads";
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function MarketingLeadAnalysisPage() {
@@ -192,6 +218,7 @@ export default function MarketingLeadAnalysisPage() {
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
   const [userOptions, setUserOptions] = useState([]);
+  const [breakdownTab, setBreakdownTab] = useState("source");
 
   useEffect(() => {
     Promise.all([
@@ -291,6 +318,36 @@ export default function MarketingLeadAnalysisPage() {
   const activeFilterCount = [filters.from, filters.to, filters.branch_id, filters.source_ids?.length > 0, filters.status?.length > 0, filters.priority?.length > 0, filters.lead_segment, filters.product_interest, filters.assigned_to].filter(Boolean).length;
   const chips = getChips(filters, branchOptions, sourceOptions, userOptions);
 
+  const oc = summary?.order_conversion || {};
+  const ocKpis = oc.kpis || {};
+  const ocFunnel = (oc.funnel || []).map((r) => ({
+    name: r.stage,
+    value: Number(r.count || 0),
+    fill: ORDER_FUNNEL_COLORS[r.stage] || "#3b82f6",
+    ratePrev: r.rate_from_prev,
+    rateLeads: r.rate_from_leads,
+  }));
+  const ocCycle = oc.cycle_time || {};
+  const ocLeakage = oc.leakage || {};
+  const ocInsights = oc.insights || [];
+  const ocTab = BREAKDOWN_TABS.find((t) => t.id === breakdownTab) || BREAKDOWN_TABS[0];
+  const ocBreakdown = oc[ocTab.key] || [];
+  const leadToOrderRate = Number(ocKpis.lead_to_order_rate || 0);
+  const avgDaysToOrder = ocCycle.avg_lead_to_order_days;
+  const cycleRows = [
+    { label: "Lead → Inquiry", avg: ocCycle.avg_lead_to_inquiry_days, median: ocCycle.median_lead_to_inquiry_days, color: "#3b82f6" },
+    { label: "Inquiry → Order", avg: ocCycle.avg_inquiry_to_order_days, median: ocCycle.median_inquiry_to_order_days, color: "#8b5cf6" },
+    { label: "Lead → Order", avg: ocCycle.avg_lead_to_order_days, median: ocCycle.median_lead_to_order_days, color: "#16a34a" },
+  ];
+  const maxCycleDays = Math.max(...cycleRows.map((r) => Number(r.avg || 0)), 1);
+  const leakageRows = [
+    { label: "Open, no inquiry", val: ocLeakage.leads_open_no_inquiry || 0, color: "#f59e0b", href: buildLeadHref({ not_status: "converted,junk,not_interested" }) },
+    { label: "Closed lost", val: ocLeakage.leads_closed_lost || 0, color: "#64748b", href: buildLeadHref({ status: "not_interested,junk" }) },
+    { label: "Inquiry, no order", val: ocLeakage.inquiries_no_order || 0, color: "#ef4444", href: buildLeadHref({ status: "converted" }) },
+    { label: "Dead inquiry, no order", val: ocLeakage.inquiries_dead_no_order || 0, color: "#94a3b8", href: buildLeadHref({ status: "converted" }) },
+  ];
+  const leakageMax = Math.max(...leakageRows.map((r) => r.val), ocKpis.leads || 1);
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -306,7 +363,7 @@ export default function MarketingLeadAnalysisPage() {
               </div>
               <div>
                 <h1 className="text-base font-bold tracking-tight text-slate-900 leading-tight">Marketing Analysis</h1>
-                <p className="text-[11px] text-slate-500">Pipeline · Performance · Insights</p>
+                <p className="text-[11px] text-slate-500">Lead → Inquiry → Order</p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -434,10 +491,229 @@ export default function MarketingLeadAnalysisPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 h-auto lg:h-[100px]">
             <KpiCard icon={<IconUsers size={16} className="text-blue-600" />} label="Total Leads (All)" value={totalLeadsAll} trend={{ direction: "neutral", label: "All time" }} loading={loading} onClick={() => router.push("/marketing-leads")} />
             <KpiCard icon={<IconActivity size={16} className="text-amber-500" />} label="In Pipeline" value={pipelineLeads} trend={{ direction: "neutral", label: "Active stages" }} sub="Excl. converted & junk" loading={loading} onClick={() => router.push("/marketing-leads")} />
-            <KpiCard icon={<IconTarget size={16} className="text-emerald-600" />} label="Converted" value={convertedLeads} valueColor="#16a34a" trend={{ direction: "up", label: `${conversionRate}% rate` }} loading={loading} onClick={() => router.push("/marketing-leads?status=converted")} />
-            <KpiCard icon={<IconTrendingUp size={16} className="text-indigo-500" />} label="Conversion Rate" value={`${conversionRate}%`} trend={{ direction: Number(conversionRate) >= 10 ? "up" : "down", label: Number(conversionRate) >= 10 ? "Healthy" : "Low" }} loading={loading} />
+            <KpiCard icon={<IconTarget size={16} className="text-emerald-600" />} label="To Inquiry" value={convertedLeads} valueColor="#16a34a" trend={{ direction: "up", label: `${conversionRate}% rate` }} loading={loading} onClick={() => router.push("/marketing-leads?status=converted")} />
+            <KpiCard icon={<IconTrendingUp size={16} className="text-indigo-500" />} label="Lead→Inquiry" value={`${conversionRate}%`} trend={{ direction: Number(conversionRate) >= 10 ? "up" : "down", label: Number(conversionRate) >= 10 ? "Healthy" : "Low" }} loading={loading} />
             <KpiCard icon={<IconAlertCircle size={16} className={overdue > 0 ? "text-red-500" : "text-emerald-600"} />} label="Overdue Follow-ups" value={overdue} valueColor={overdue > 0 ? "#dc2626" : undefined} trend={{ direction: overdue > 0 ? "down" : "up", label: overdue > 0 ? "Action Required" : "On Track" }} loading={loading} onClick={() => { const t = new Date().toISOString().split("T")[0]; router.push(`/marketing-leads?next_follow_up_to=${t}`); }} />
             <KpiCard icon={<IconMinus size={16} className="text-slate-400" />} label="Not Int. / Junk" value={notInterested + junk} sub={`${notInterested} not int. · ${junk} junk`} trend={{ direction: "neutral", label: "Closed" }} loading={loading} />
+          </div>
+
+          {/* ── Order Conversion ───────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Lead → Inquiry → Order</p>
+
+            {ocInsights.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {ocInsights.slice(0, 6).map((ins) => (
+                  <button
+                    key={ins.id}
+                    type="button"
+                    onClick={() => router.push(buildLeadHref(ins.drilldown || {}))}
+                    className={`text-left rounded-lg border px-2.5 py-1.5 ${severityCls(ins.severity)} hover:shadow-sm transition-shadow`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-xs font-semibold leading-tight">{ins.title}</span>
+                      <Badge variant="outline" className="text-[9px] h-4 capitalize shrink-0">{ins.severity}</Badge>
+                    </div>
+                    <p className="text-[10px] mt-0.5 leading-snug opacity-90">{ins.evidence}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              <KpiCard
+                icon={<IconTrendingUp size={16} className="text-emerald-600" />}
+                label="Lead→Order"
+                value={`${Number(leadToOrderRate).toFixed(1)}%`}
+                valueColor="#16a34a"
+                trend={{ direction: leadToOrderRate >= 5 ? "up" : "down", label: leadToOrderRate >= 5 ? "Healthy" : "Low" }}
+                sub={`${ocKpis.leads_with_order || 0} of ${ocKpis.leads || 0} leads`}
+                loading={loading}
+                onClick={() => router.push("/marketing-leads?status=converted")}
+              />
+              <KpiCard
+                icon={<IconShoppingCart size={16} className="text-sky-600" />}
+                label="Orders"
+                value={ocKpis.orders ?? 0}
+                sub={`Inquiry→Order ${Number(ocKpis.inquiry_to_order_rate || 0).toFixed(1)}%`}
+                loading={loading}
+                onClick={() => router.push("/inquiry?status=Converted")}
+              />
+              <KpiCard
+                icon={<IconCurrencyRupee size={16} className="text-teal-600" />}
+                label="Order Value"
+                value={formatInrCompact(ocKpis.order_value)}
+                sub={ocKpis.expected_project_cost_of_converted ? `Est. ${formatInrCompact(ocKpis.expected_project_cost_of_converted)}` : "Estimate amount"}
+                loading={loading}
+              />
+              <KpiCard
+                icon={<IconCurrencyRupee size={16} className="text-indigo-500" />}
+                label="AOV"
+                value={formatInrCompact(ocKpis.aov)}
+                trend={{ direction: "neutral", label: "Per order" }}
+                loading={loading}
+              />
+              <KpiCard
+                icon={<IconClock size={16} className="text-amber-500" />}
+                label="Avg Days to Order"
+                value={avgDaysToOrder != null ? `${avgDaysToOrder}d` : "—"}
+                sub={ocCycle.median_lead_to_order_days != null ? `Median ${ocCycle.median_lead_to_order_days}d` : "Lead created → first order"}
+                loading={loading}
+              />
+            </div>
+
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12 lg:col-span-7">
+                <Card className="rounded-xl shadow-sm border-slate-200 bg-white h-full">
+                  <PanelHeader title="Order Conversion Funnel" subtitle="Leads that became inquiries, then orders" />
+                  <div className="flex px-2 pb-2 gap-3">
+                    <div className="flex-1" style={{ height: 180 }}>
+                      {ocFunnel.some((d) => d.value > 0) ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <FunnelChart>
+                            <RTooltip
+                              contentStyle={TT_STYLE}
+                              formatter={(v, _n, p) => [
+                                `${v} · ${p?.payload?.rateLeads != null ? p.payload.rateLeads : 0}% of leads`,
+                                p?.payload?.name,
+                              ]}
+                            />
+                            <Funnel dataKey="value" data={ocFunnel.filter((d) => d.value > 0)} isAnimationActive>
+                              {ocFunnel.filter((d) => d.value > 0).map((e, i) => (
+                                <Cell key={e.name || i} fill={e.fill} />
+                              ))}
+                              <LabelList position="right" fill="#475569" stroke="none" dataKey="name" fontSize={10} />
+                            </Funnel>
+                          </FunnelChart>
+                        </ResponsiveContainer>
+                      ) : <EmptyState text="No order conversion data" />}
+                    </div>
+                    {ocFunnel.length > 0 && (
+                      <div className="flex flex-col justify-center gap-1.5 border-l border-slate-100 pl-3 min-w-[150px]">
+                        {ocFunnel.map((item, idx) => (
+                          <div key={item.name} className="flex items-center justify-between gap-2 text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.fill }} />
+                              <span className="text-slate-500">{item.name}</span>
+                            </div>
+                            <span className="font-semibold text-slate-800">
+                              {item.value}
+                              <span className="text-slate-400 font-normal">
+                                {idx === 0 ? "" : ` · ${item.ratePrev ?? 0}%`}
+                              </span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+
+              <div className="col-span-12 lg:col-span-5">
+                <Card className="rounded-xl shadow-sm border-slate-200 bg-white h-full">
+                  <PanelHeader title="Cycle Time & Leakage" subtitle="Avg days between stages · drop-off counts" />
+                  <CardContent className="p-2 space-y-1">
+                    {cycleRows.map((row) => (
+                      <div key={row.label} className="flex items-center gap-2 px-1 py-0.5">
+                        <span className="text-[11px] text-slate-600 flex-1 font-medium">{row.label}</span>
+                        <span className="text-[11px] font-bold text-slate-800 w-10 text-right">{row.avg != null ? `${row.avg}d` : "—"}</span>
+                        <span className="text-[10px] text-slate-400 w-12 text-right">{row.median != null ? `p50 ${row.median}d` : ""}</span>
+                        <div className="w-14">
+                          <MiniBar value={Number(row.avg || 0)} max={maxCycleDays} color={row.color} />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-1 mt-1 border-t border-slate-100 space-y-0.5">
+                      {leakageRows.map((row) => (
+                        <div
+                          key={row.label}
+                          onClick={() => router.push(row.href)}
+                          className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-slate-50 cursor-pointer"
+                        >
+                          <span className="text-[11px] text-slate-600 flex-1 font-medium">{row.label}</span>
+                          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ color: row.color, backgroundColor: `${row.color}18` }}>{row.val}</span>
+                          <div className="w-14">
+                            <MiniBar value={row.val} max={leakageMax} color={row.color} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+              <div className="px-3 pt-2.5 pb-1.5 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-700 leading-tight">Conversion by {ocTab.label}</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Volume · step rates · order value — click to filter leads</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {BREAKDOWN_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setBreakdownTab(tab.id)}
+                      className={[
+                        "text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all",
+                        breakdownTab === tab.id
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-white border-slate-200 text-slate-500 hover:border-primary hover:text-primary",
+                      ].join(" ")}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {ocBreakdown.length > 0 ? (
+                <div className="overflow-auto max-h-[240px]">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-400">
+                        <th className="text-left px-2 py-1 font-semibold">{ocTab.label}</th>
+                        <th className="text-right px-2 py-1 font-semibold">Leads</th>
+                        <th className="text-right px-2 py-1 font-semibold">Inq</th>
+                        <th className="text-right px-2 py-1 font-semibold">Orders</th>
+                        <th className="text-right px-2 py-1 font-semibold">L→I</th>
+                        <th className="text-right px-2 py-1 font-semibold">I→O</th>
+                        <th className="text-right px-2 py-1 font-semibold">L→O</th>
+                        <th className="text-right px-2 py-1 font-semibold">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ocBreakdown.slice(0, 12).map((row) => (
+                        <tr
+                          key={`${ocTab.id}-${row.id ?? row.name}`}
+                          className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer"
+                          onClick={() => {
+                            if (row.id == null) return;
+                            router.push(buildLeadHref({ [ocTab.param]: row.id }));
+                          }}
+                        >
+                          <td className="px-2 py-1 font-medium text-slate-700">{row.name}</td>
+                          <td className="px-2 py-1 text-right text-slate-800">{row.leads}</td>
+                          <td className="px-2 py-1 text-right text-slate-500">{row.inquiries}</td>
+                          <td className="px-2 py-1 text-right text-slate-800">{row.orders}</td>
+                          <td className="px-2 py-1 text-right text-slate-500">{row.lead_to_inquiry_rate}%</td>
+                          <td className="px-2 py-1 text-right text-slate-500">{row.inquiry_to_order_rate}%</td>
+                          <td className="px-2 py-1 text-right">
+                            <span className={`text-[10px] px-1 py-0.5 rounded font-semibold ${Number(row.lead_to_order_rate) >= 5 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                              {row.lead_to_order_rate}%
+                            </span>
+                          </td>
+                          <td className="px-2 py-1 text-right font-semibold text-slate-800">{formatInrCompact(row.order_value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ height: 80 }}><EmptyState text="No breakdown for applied filters" /></div>
+              )}
+            </Card>
           </div>
 
           {/* ── Status Breakdown ───────────────────────────────────────────── */}
