@@ -37,6 +37,21 @@ const ALL_OUTCOME_OPTIONS = [
   { value: "wrong_number", label: "Wrong Number" },
 ];
 
+const CLOSED_NO_FOLLOW_UP_OUTCOMES = ["not_interested", "wrong_number", "converted"];
+
+function normalizeLeadKey(v) {
+  return String(v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+}
+
+function shouldSkipNextFollowUp(outcome, status) {
+  const o = normalizeLeadKey(outcome);
+  const s = normalizeLeadKey(status);
+  return CLOSED_NO_FOLLOW_UP_OUTCOMES.includes(o) || s === "not_interested";
+}
+
 export default function AddCallDetailsForm({
   leadId,
   lead,
@@ -46,6 +61,7 @@ export default function AddCallDetailsForm({
   forcedStatus,
   forcedOutcome = null,
   allowedOutcomes = null,
+  skipNextFollowUp = false,
 }) {
   const initialState = useMemo(() => {
     const contactedAt = defaultValues?.contacted_at || new Date().toISOString();
@@ -69,10 +85,10 @@ export default function AddCallDetailsForm({
   const [selectedHandledBy, setSelectedHandledBy] = useState(null);
 
   useEffect(() => {
-    setFormData((prev) => ({
+    setFormData({
       ...initialState,
-      outcome: forcedOutcome ?? (prev.outcome || initialState.outcome),
-    }));
+      outcome: forcedOutcome || initialState.outcome || "",
+    });
     setErrors({});
     setConvertConfirmStep(false);
     setSelectedPaymentType("");
@@ -115,14 +131,24 @@ export default function AddCallDetailsForm({
   const isAlreadyConverted =
     lead?.status === "converted" || !!lead?.converted_inquiry_id;
 
+  const currentOutcome = forcedOutcome || formData.outcome;
+  const hideNextFollowUp =
+    skipNextFollowUp || shouldSkipNextFollowUp(currentOutcome, forcedStatus);
+
   const buildPayload = useCallback(
-    (overrides = {}) => ({
-      ...formData,
-      ...overrides,
-      outcome: forcedOutcome ?? formData.outcome,
-      ...(forcedStatus ? { status: forcedStatus } : {}),
-    }),
-    [formData, forcedStatus, forcedOutcome]
+    (overrides = {}) => {
+      const outcome = forcedOutcome || formData.outcome;
+      const skipDate =
+        skipNextFollowUp || shouldSkipNextFollowUp(outcome, forcedStatus);
+      return {
+        ...formData,
+        ...overrides,
+        outcome,
+        next_follow_up_at: skipDate ? null : (overrides.next_follow_up_at ?? formData.next_follow_up_at),
+        ...(forcedStatus ? { status: forcedStatus } : {}),
+      };
+    },
+    [formData, forcedStatus, forcedOutcome, skipNextFollowUp]
   );
 
   const handleChange = useCallback((e) => {
@@ -317,14 +343,16 @@ export default function AddCallDetailsForm({
                 value={formData.outcome_sub_status || ""}
                 onChange={handleChange}
               />
-              <DateTimeField
-                name="next_follow_up_at"
-                label="Next Follow-Up"
-                value={formData.next_follow_up_at}
-                onChange={handleChange}
-                error={!!errors.next_follow_up_at}
-                helperText={errors.next_follow_up_at}
-              />
+              {!hideNextFollowUp ? (
+                <DateTimeField
+                  name="next_follow_up_at"
+                  label="Next Follow-Up"
+                  value={formData.next_follow_up_at}
+                  onChange={handleChange}
+                  error={!!errors.next_follow_up_at}
+                  helperText={errors.next_follow_up_at}
+                />
+              ) : null}
               <Input
                 name="promised_action"
                 label="Promised Action"

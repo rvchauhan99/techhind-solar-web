@@ -150,6 +150,7 @@ export default function PaymentOutstandingPage() {
   const [activePaymentTypeTab, setActivePaymentTypeTab] = useState("");
   const [activeTab, setActiveTab] = useState("report");
   const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpOrder, setFollowUpOrder] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
@@ -211,12 +212,17 @@ export default function PaymentOutstandingPage() {
 
   React.useEffect(() => {
     let mounted = true;
+    setSummaryLoading(true);
     (async () => {
       try {
         const s = await paymentOutstandingService.kpis(filters);
-        if (mounted) { setSummary(s || {}); }
+        if (!mounted) return;
+        setSummary(s || {});
       } catch (e) {
-        // ignore
+        if (!mounted) return;
+        setSummary(null);
+      } finally {
+        if (mounted) setSummaryLoading(false);
       }
     })();
     return () => { mounted = false; };
@@ -492,7 +498,7 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Total Outstanding</div>
-                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(total)}</div>
+                    <div className="text-lg font-bold leading-tight">₹{summaryLoading ? "…" : fmtMoney(total)}</div>
                     <div className="text-[10px] text-slate-400">{activeCount > 0 ? "Filtered view" : "All outstanding"}</div>
                   </div>
                   <Badge variant="secondary" className="text-[10px] h-5 px-1.5">All</Badge>
@@ -503,8 +509,8 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Direct</div>
-                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.direct_outstanding || 0)}</div>
-                    <div className="text-[10px] text-slate-400">{pct(summary?.direct_outstanding, total)}%</div>
+                    <div className="text-lg font-bold leading-tight">₹{summaryLoading ? "…" : fmtMoney(summary?.direct_outstanding || 0)}</div>
+                    <div className="text-[10px] text-slate-400">{summaryLoading ? "" : `${pct(summary?.direct_outstanding, total)}%`}</div>
                   </div>
                   <Badge className="bg-sky-50 text-sky-700 border border-sky-200 text-[10px] h-5 px-1.5" variant="secondary">Direct</Badge>
                 </CardContent>
@@ -514,8 +520,8 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Loan</div>
-                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.loan_outstanding || 0)}</div>
-                    <div className="text-[10px] text-slate-400">{pct(summary?.loan_outstanding, total)}%</div>
+                    <div className="text-lg font-bold leading-tight">₹{summaryLoading ? "…" : fmtMoney(summary?.loan_outstanding || 0)}</div>
+                    <div className="text-[10px] text-slate-400">{summaryLoading ? "" : `${pct(summary?.loan_outstanding, total)}%`}</div>
                   </div>
                   <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] h-5 px-1.5" variant="secondary">Loan</Badge>
                 </CardContent>
@@ -525,8 +531,8 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">PDC</div>
-                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.pdc_outstanding || 0)}</div>
-                    <div className="text-[10px] text-slate-400">{pct(summary?.pdc_outstanding, total)}%</div>
+                    <div className="text-lg font-bold leading-tight">₹{summaryLoading ? "…" : fmtMoney(summary?.pdc_outstanding || 0)}</div>
+                    <div className="text-[10px] text-slate-400">{summaryLoading ? "" : `${pct(summary?.pdc_outstanding, total)}%`}</div>
                   </div>
                   <Badge className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] h-5 px-1.5" variant="secondary">PDC</Badge>
                 </CardContent>
@@ -536,8 +542,8 @@ export default function PaymentOutstandingPage() {
                 <CardContent className="p-2 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] text-slate-500">Unknown</div>
-                    <div className="text-lg font-bold leading-tight">₹{fmtMoney(summary?.unknown_outstanding || 0)}</div>
-                    <div className="text-[10px] text-slate-400">{pct(summary?.unknown_outstanding, total)}%</div>
+                    <div className="text-lg font-bold leading-tight">₹{summaryLoading ? "…" : fmtMoney(summary?.unknown_outstanding || 0)}</div>
+                    <div className="text-[10px] text-slate-400">{summaryLoading ? "" : `${pct(summary?.unknown_outstanding, total)}%`}</div>
                   </div>
                   <Badge className="bg-slate-100 text-slate-700 border border-slate-200 text-[10px] h-5 px-1.5" variant="secondary">Unknown</Badge>
                 </CardContent>

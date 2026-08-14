@@ -308,6 +308,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       width: rect.width,
       minWidth: rect.width,
       zIndex: 9999,
+      pointerEvents: "auto",
       maxHeight: isTop ? rect.top - 8 : undefined,
     });
   }, [usePortal, open, dropdownPlacement]);
