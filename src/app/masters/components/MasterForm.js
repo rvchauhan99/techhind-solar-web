@@ -34,6 +34,7 @@ const YES_NO_OPTIONS = [
 
 const MASTER_FIELD_LABEL_OVERRIDES = {
   allow_b2b_sales: "Allow B2B sales",
+  allow_in_extra_materials: "Allow in extra materials",
   sort_order: "Sort order",
 };
 
@@ -443,6 +444,12 @@ export default function MasterForm({
       return null;
     }
 
+    // Product Type: name is locked on edit (create remains editable)
+    const isEditingRecord = Boolean(defaultValues?.id);
+    const isProductTypeNameLocked =
+      modelName === "product_type.model" && isEditingRecord && fieldName === "name";
+    const fieldDisabled = viewMode || isProductTypeNameLocked;
+
     // Platform Config: user-ID allowlist — pick users by name/email, store ID JSON
     if (isUserIdAllowlistConfig && fieldName === "config_value") {
       return (
@@ -776,8 +783,8 @@ export default function MasterForm({
             label={displayLabel}
             value={fieldValue}
             onChange={handleChange}
-            required={isRequired && !viewMode}
-            disabled={viewMode}
+            required={isRequired && !viewMode && !isProductTypeNameLocked}
+            disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
           />

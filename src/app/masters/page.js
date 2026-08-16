@@ -44,6 +44,7 @@ const BOOLEAN_OPTIONS = [
 /** Human-readable labels for specific master fields (otherwise derived from snake_case). */
 const MASTER_FIELD_LABEL_OVERRIDES = {
     allow_b2b_sales: "Allow B2B sales",
+    allow_in_extra_materials: "Allow in extra materials",
 };
 
 const TERMS_CONDITIONS_MODEL = "termsAndConditions.model";
