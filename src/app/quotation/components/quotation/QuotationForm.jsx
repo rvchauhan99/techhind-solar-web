@@ -30,6 +30,7 @@ import { useQuotationState } from "./useQuotationState";
 import { mapBomResponseToForm } from "./useProjectBomMapper";
 import { calculateTotals } from "./quotationCalculations";
 import TechnicalSection from "./TechnicalSection";
+import ExtraMaterialsSection from "./ExtraMaterialsSection";
 
 const COMPACT_FORM_SPACING = 0.5; // Tighter grid spacing
 
@@ -551,6 +552,16 @@ export default function QuotationForm({
                 ))}
 
                 <Box sx={COMPACT_SECTION_HEADER_STYLE}>
+                    <Typography {...titleProps}>Extra Materials</Typography>
+                </Box>
+                <ExtraMaterialsSection
+                    formData={formData}
+                    products={options.products || []}
+                    patchForm={patchForm}
+                    errors={errors}
+                />
+
+                <Box sx={COMPACT_SECTION_HEADER_STYLE}>
                     <Typography {...titleProps}>Project Price Details</Typography>
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
@@ -606,10 +617,37 @@ export default function QuotationForm({
                         <Input fullWidth type="number" label="Amount 1" name="additional_cost_amount_1" value={formData.additional_cost_amount_1} onChange={handleChange} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Additional Cost Details 2" name="additional_cost_details_2" value={formData.additional_cost_details_2} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            label="Additional Cost Details 2"
+                            name="additional_cost_details_2"
+                            value={formData.additional_cost_details_2}
+                            onChange={handleChange}
+                            disabled={!!formData.add_extra_materials}
+                            InputProps={formData.add_extra_materials ? { readOnly: true } : undefined}
+                            sx={
+                                formData.add_extra_materials
+                                    ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }
+                                    : undefined
+                            }
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Amount 2" name="additional_cost_amount_2" value={formData.additional_cost_amount_2} onChange={handleChange} />
+                        <Input
+                            fullWidth
+                            type="number"
+                            label="Amount 2"
+                            name="additional_cost_amount_2"
+                            value={formData.additional_cost_amount_2}
+                            onChange={handleChange}
+                            disabled={!!formData.add_extra_materials}
+                            InputProps={formData.add_extra_materials ? { readOnly: true } : undefined}
+                            sx={
+                                formData.add_extra_materials
+                                    ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }
+                                    : undefined
+                            }
+                        />
                     </Grid>
                 </Grid>
 
