@@ -45,7 +45,7 @@ import {
     getOrderAllowOverpayment,
 } from "@/utils/orderPaymentSummary";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
-import { getFullOrderAddress, getPrimaryPhone } from "@/utils/orderFormatters";
+import { getFullOrderAddress, getPrimaryPhone, formatRupeesInteger } from "@/utils/orderFormatters";
 import moment from "moment";
 import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
@@ -1522,12 +1522,12 @@ function OrderViewPageContent() {
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
                                 <Typography variant="body1" fontWeight="bold">
-                                    Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
+                                    Rs. {formatRupeesInteger(orderData?.project_cost)}
                                 </Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
                                 <Typography variant="body1" fontWeight="bold">
-                                    Rs. {totalReceivedAmount.toLocaleString()}
+                                    Rs. {formatRupeesInteger(totalReceivedAmount)}
                                 </Typography>
 
                                 <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
@@ -1541,22 +1541,22 @@ function OrderViewPageContent() {
                                     borderRadius={0.5}
                                     mt={1}
                                 >
-                                    Rs. {Math.max(0, outstandingAmount).toLocaleString()}
+                                    Rs. {formatRupeesInteger(Math.max(0, outstandingAmount))}
                                 </Typography>
                                 {outstandingAmount < 0 && (
                                     <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
-                                        Over-recorded by Rs. {Math.abs(outstandingAmount).toLocaleString("en-IN")}
+                                        Over-recorded by Rs. {formatRupeesInteger(Math.abs(outstandingAmount))}
                                     </Typography>
                                 )}
                                 {committedOutstandingAmount < 0 && (
                                     <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
                                         Pending + approved payments exceed order by Rs.{" "}
-                                        {Math.abs(committedOutstandingAmount).toLocaleString("en-IN")}
+                                        {formatRupeesInteger(Math.abs(committedOutstandingAmount))}
                                     </Typography>
                                 )}
                                 {pendingCommittedAmount > 0 && committedOutstandingAmount >= 0 && (
                                     <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                                        Pending (awaiting approval): Rs. {pendingCommittedAmount.toLocaleString("en-IN")}
+                                        Pending (awaiting approval): Rs. {formatRupeesInteger(pendingCommittedAmount)}
                                     </Typography>
                                 )}
                             </Box>

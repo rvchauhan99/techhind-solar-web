@@ -18,12 +18,9 @@ import PaymentFollowUpHistory from "./components/PaymentFollowUpHistory";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentOutstandingAnalysis from "./components/PaymentOutstandingAnalysis";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
-const INR = (v, fractionDigits = 2) =>
-  Number(v || 0).toLocaleString("en-IN", {
-    minimumFractionDigits: Number(fractionDigits || 0),
-    maximumFractionDigits: Number(fractionDigits || 0),
-  });
+const INR = (v) => formatRupeesInteger(v);
 const fmtINDate = (d) => {
   if (!d) return "-";
   const dt = new Date(d);
@@ -229,11 +226,7 @@ export default function PaymentOutstandingPage() {
   }, [filters]);
 
   const total = Number(summary?.total_outstanding || 0);
-  const currencyFractionDigits = Number(summary?.config?.currency_fraction_digits ?? 2);
-  const fmtMoney = React.useCallback(
-    (amount) => INR(amount, currencyFractionDigits),
-    [currencyFractionDigits]
-  );
+  const fmtMoney = React.useCallback((amount) => INR(amount), []);
 
   const fetcher = useCallback(async (params) => {
     // NOTE: PaginatedTable merges `filterParams` into `params` internally.

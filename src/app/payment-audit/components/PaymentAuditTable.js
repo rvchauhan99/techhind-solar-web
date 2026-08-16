@@ -21,6 +21,7 @@ import {
 import { Button as UiButton } from "@/components/ui/button";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import PaymentProofViewButton from "@/components/common/PaymentProofViewButton";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
 const calculatedTableHeight = () => `calc(100vh - 220px)`;
 
@@ -311,7 +312,7 @@ export default function PaymentAuditTable({ filterParams = {} }) {
       field: "order_project_cost",
       render: (row) =>
         row.order_project_cost != null
-          ? `₹${Number(row.order_project_cost).toLocaleString()}`
+          ? `₹${formatRupeesInteger(row.order_project_cost)}`
           : "-",
     },
     {

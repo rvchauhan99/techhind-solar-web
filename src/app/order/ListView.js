@@ -34,6 +34,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsForFilter } from "@/services/mastersService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 import { ORDER_LINK_CLASS } from "@/utils/orderLinkStyles";
 import { toastError } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -322,7 +323,7 @@ export default function ListView({
         operatorKey: "project_cost_op",
         defaultFilterOperator: "equals",
         render: (row) =>
-          row.project_cost != null ? `₹${Number(row.project_cost).toLocaleString()}` : "-",
+          row.project_cost != null ? `₹${formatRupeesInteger(row.project_cost)}` : "-",
       },
       { field: "branch_name", label: "Branch", render: (row) => row.branch_name || "-" },
       { field: "order_remarks", label: "Last Remarks", render: (row) => row.order_remarks || "-" },

@@ -46,6 +46,7 @@ import {
     getOrderProjectCostAmount,
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
 const TAB_PENDING = "pending";
 const TAB_HISTORY = "history";
@@ -356,14 +357,14 @@ function InstallationManagerApprovalPageContent() {
                         </Grid>
                         <Grid item size={3}>
                             {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
-                            {renderOrderDetail("Total Payable", `Rs. ${getOrderProjectCostAmount(row).toLocaleString()}`)}
-                            {renderOrderDetail("Payment Received", `Rs. ${getOrderReceivedAmount(row).toLocaleString()}`)}
+                            {renderOrderDetail("Total Payable", `Rs. ${formatRupeesInteger(getOrderProjectCostAmount(row))}`)}
+                            {renderOrderDetail("Payment Received", `Rs. ${formatRupeesInteger(getOrderReceivedAmount(row))}`)}
                             <Box mb={0.4}>
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}>
                                     Outstanding:
                                 </Typography>
                                 <Typography variant="body2" component="span" sx={{ bgcolor: "#f44336", color: "#fff", px: 0.8, py: 0.1, borderRadius: 0.5, fontWeight: "bold", fontSize: "0.78rem" }}>
-                                    Rs. {getOrderOutstandingAmount(row).toLocaleString()}
+                                    Rs. {formatRupeesInteger(getOrderOutstandingAmount(row))}
                                 </Typography>
                             </Box>
                         </Grid>
