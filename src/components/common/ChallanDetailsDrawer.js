@@ -7,6 +7,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import challanService from "@/services/challanService";
 import { printChallanById } from "@/utils/challanPrintUtils";
 import { formatDate } from "@/utils/dataTableUtils";
+import { formatCurrency } from "@/utils/orderFormatters";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 
@@ -129,8 +130,7 @@ export default function ChallanDetailsDrawer({
             return "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
         };
 
-        const fmtCurrency = (n) =>
-            n != null ? `₹ ${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : null;
+        const fmtCurrency = (n) => (n != null ? formatCurrency(n) : null);
 
         return (
             <div className="pr-1 space-y-4 text-sm">

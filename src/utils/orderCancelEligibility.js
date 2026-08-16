@@ -3,5 +3,8 @@ export const getOrderCancelEligibility = (orderData) => {
     const deliveryStatusRaw = orderData.delivery_status ?? orderData.deliveryStatus ?? "";
     const deliveryStatus = String(deliveryStatusRaw).trim().toLowerCase();
 
-    return { canCancel: deliveryStatus === "pending" };
+    return {
+        canCancel:
+            deliveryStatus === "pending" && orderData.can_cancel_order === true,
+    };
 };

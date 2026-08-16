@@ -21,9 +21,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import paymentOutstandingService from "@/services/paymentOutstandingService";
 import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
-const INR = (v) =>
-  Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const INR = (v) => formatRupeesInteger(v);
 
 const TT_STYLE = { borderRadius: 6, border: "none", boxShadow: "0 4px 12px rgb(0 0 0/0.12)", fontSize: 11 };
 

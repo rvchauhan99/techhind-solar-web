@@ -11,14 +11,18 @@ export const formatDate = (value) => {
     }).format(d);
 };
 
+/** Truncate paisa and format as whole-rupee en-IN digits (no currency prefix). */
+export const formatRupeesInteger = (value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "0";
+    return Math.trunc(n).toLocaleString("en-IN");
+};
+
+/** Whole-rupee INR for B2C order value display (truncates paisa; does not round). */
 export const formatCurrency = (value) => {
     const n = Number(value);
-    if (Number.isNaN(n)) return "Rs. 0";
-    return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 0,
-    }).format(n);
+    if (!Number.isFinite(n)) return "₹0";
+    return `₹${formatRupeesInteger(n)}`;
 };
 
 export const formatKw = (value) => {
