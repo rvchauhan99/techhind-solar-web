@@ -101,6 +101,48 @@ export default function QuotationDetailsContent({ quotation, loading }) {
     </div>
   );
 
+  const renderExtraBomTable = (lines) => (
+    <div className="overflow-x-auto rounded border border-border">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-muted/50">
+            <th className="text-left px-2 py-1.5 font-medium">#</th>
+            <th className="text-left px-2 py-1.5 font-medium">Product</th>
+            <th className="text-left px-2 py-1.5 font-medium">Type</th>
+            <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+            <th className="text-left px-2 py-1.5 font-medium">Unit</th>
+            <th className="text-right px-2 py-1.5 font-medium">Last Purchase</th>
+            <th className="text-right px-2 py-1.5 font-medium">Unit Price (Incl GST)</th>
+            <th className="text-right px-2 py-1.5 font-medium">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, idx) => {
+            const p = getBomLineProduct(line) || {};
+            return (
+              <tr key={idx} className="border-t border-border">
+                <td className="px-2 py-1.5">{idx + 1}</td>
+                <td className="px-2 py-1.5">{p.product_name ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.product_type_name ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right">{line.quantity ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.last_purchase_price != null ? formatCurrency(line.last_purchase_price) : "-"}
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.unit_incl != null ? formatCurrency(line.unit_incl) : "-"}
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.line_amount != null ? formatCurrency(line.line_amount) : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <div className="pr-1 space-y-0.5">
       {/* Hero Summary Block */}
@@ -229,7 +271,7 @@ export default function QuotationDetailsContent({ quotation, loading }) {
       {extraBom.length > 0 && (
         <>
           <SectionTitle>Extra Materials</SectionTitle>
-          {renderBomTable(extraBom)}
+          {renderExtraBomTable(extraBom)}
         </>
       )}
 

@@ -72,6 +72,7 @@ export default function ExtraMaterialsSection({
   products = [],
   patchForm,
   errors = {},
+  showLastPurchase = false,
 }) {
   const branchId = formData.branch_id;
   const enabled = !!formData.add_extra_materials;
@@ -317,33 +318,35 @@ export default function ExtraMaterialsSection({
                     helperText={errors[`extra_materials_${idx}_quantity`] || ""}
                   />
                 </Grid>
-                <Grid item size={{ xs: 6, md: 2 }}>
-                  <Input
-                    fullWidth
-                    type="number"
-                    name={`extra_materials_${idx}_last_purchase`}
-                    label="Last Purchase"
-                    value={row.last_purchase_price ?? ""}
-                    onChange={(e) =>
-                      handleRowChange(idx, {
-                        last_purchase_price: e.target.value ?? "",
-                        missing_price: true,
-                      })
-                    }
-                    InputProps={lastPurchaseReadonly ? { readOnly: true } : undefined}
-                    disabled={lastPurchaseReadonly}
-                    sx={
-                      lastPurchaseReadonly
-                        ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }
-                        : undefined
-                    }
-                    error={!!errors[`extra_materials_${idx}_last_purchase`]}
-                    helperText={
-                      errors[`extra_materials_${idx}_last_purchase`] ||
-                      (row.missing_price ? "Enter last purchase" : "")
-                    }
-                  />
-                </Grid>
+                {showLastPurchase && (
+                  <Grid item size={{ xs: 6, md: 2 }}>
+                    <Input
+                      fullWidth
+                      type="number"
+                      name={`extra_materials_${idx}_last_purchase`}
+                      label="Last Purchase"
+                      value={row.last_purchase_price ?? ""}
+                      onChange={(e) =>
+                        handleRowChange(idx, {
+                          last_purchase_price: e.target.value ?? "",
+                          missing_price: true,
+                        })
+                      }
+                      InputProps={lastPurchaseReadonly ? { readOnly: true } : undefined}
+                      disabled={lastPurchaseReadonly}
+                      sx={
+                        lastPurchaseReadonly
+                          ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }
+                          : undefined
+                      }
+                      error={!!errors[`extra_materials_${idx}_last_purchase`]}
+                      helperText={
+                        errors[`extra_materials_${idx}_last_purchase`] ||
+                        (row.missing_price ? "Enter last purchase" : "")
+                      }
+                    />
+                  </Grid>
+                )}
                 <Grid item size={{ xs: 6, md: 2 }}>
                   <Input
                     fullWidth

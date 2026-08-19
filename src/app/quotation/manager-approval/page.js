@@ -453,8 +453,8 @@ export default function QuotationManagerApprovalPage() {
       {
         field: "actions",
         label: "Actions",
-        width: 96,
-        minWidth: 96,
+        width: 120,
+        minWidth: 120,
         sortable: false,
         isActionColumn: true,
         render: (row) => (
