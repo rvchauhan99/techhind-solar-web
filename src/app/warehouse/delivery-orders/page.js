@@ -19,6 +19,7 @@ import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
 import PlannerRemarksSnippet from "@/components/common/PlannerRemarksSnippet";
 import orderService from "@/services/orderService";
 import { toastError } from "@/utils/toast";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
 const VIEW_TABS = [
     { value: "kanban", label: "Kanban" },
@@ -247,7 +248,7 @@ export default function WarehouseDeliveryOrdersPage() {
                                                     onClick={() => handleOpenDetails(o)}
                                                 />
                                                 <Typography variant="caption" color="text.secondary">
-                                                    Capacity {o.capacity || "-"} • Rs. {o.project_cost || 0}
+                                                    Capacity {o.capacity || "-"} • Rs. {formatRupeesInteger(o.project_cost)}
                                                 </Typography>
                                             </Box>
                                             <Box sx={{ flex: 3 }}>

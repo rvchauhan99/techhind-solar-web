@@ -10,6 +10,7 @@ const toNum = (v) => (v === "" || v === null || v === undefined ? 0 : Number(v))
  */
 export function calculateTotals(formData) {
     // Subtotal used for payable calculation (keeps all add-ons and discount)
+    // When Extra Materials is enabled, its sum is written into additional_cost_amount_2
     const payableSubtotal =
         toNum(formData.total_project_value) +
         toNum(formData.netmeter_amount) +

@@ -43,12 +43,32 @@ const LEAD_LIST_FILTER_KEYS = [
   "status",
   "priority",
   "campaign_name",
+  "campaign_id",
   "created_from",
   "created_to",
   "next_follow_up_from",
   "next_follow_up_to",
   "not_status",
   "assigned_to",
+  "product_interest",
+  "lead_segment",
+];
+
+const DRILLDOWN_FILTER_KEYS = [
+  "status",
+  "not_status",
+  "priority",
+  "assigned_to",
+  "branch_id",
+  "inquiry_source_id",
+  "campaign_id",
+  "campaign_name",
+  "next_follow_up_from",
+  "next_follow_up_to",
+  "product_interest",
+  "lead_segment",
+  "customer_name",
+  "mobile_number",
 ];
 
 const getStatusBadgeVariant = (status) => {
@@ -161,14 +181,25 @@ export default function ListView() {
 
   useEffect(() => {
     if (defaultDatesAppliedRef.current) return;
-    if (!filters.created_from && !filters.created_to) {
+    if (filters.created_from || filters.created_to) {
       defaultDatesAppliedRef.current = true;
-      setFilters({
-        ...filters,
-        created_from: DEFAULT_FILTER_LAST_30_DAYS.created_from,
-        created_to: DEFAULT_FILTER_LAST_30_DAYS.created_to,
-      });
+      return;
     }
+    const hasDrilldownFilter = DRILLDOWN_FILTER_KEYS.some((key) => {
+      const value = filters[key];
+      if (Array.isArray(value)) return value.length > 0;
+      return value != null && String(value).trim() !== "";
+    });
+    if (hasDrilldownFilter) {
+      defaultDatesAppliedRef.current = true;
+      return;
+    }
+    defaultDatesAppliedRef.current = true;
+    setFilters({
+      ...filters,
+      created_from: DEFAULT_FILTER_LAST_30_DAYS.created_from,
+      created_to: DEFAULT_FILTER_LAST_30_DAYS.created_to,
+    });
   }, [filters, setFilters]);
 
   const fetchLeads = useCallback(async (params) => {

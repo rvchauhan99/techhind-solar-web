@@ -42,7 +42,7 @@ import mastersService from "@/services/mastersService";
 import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
 import { toastError } from "@/utils/toast";
-import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
+import { splitSerialInput, fillSerialSlots, findCaseInsensitiveDuplicateIndex } from "@/utils/serialInput";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -167,6 +167,13 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
     const handleKeyDown = useCallback((index, e) => {
         if (e.key === "Enter" || e.key === "Tab") {
             e.preventDefault();
+            const dupIndex = findCaseInsensitiveDuplicateIndex(slots, index);
+            if (dupIndex !== -1) {
+                toastError("Serial number already entered.");
+                setError("Serial number already entered.");
+                handleValueChange(index, "");
+                return;
+            }
             if (index < slots.length - 1) {
                 inputRefs.current[index + 1]?.focus();
             } else {
@@ -174,7 +181,7 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [slots.length]);
+    }, [slots, handleValueChange]);
 
     const handleGunKeyDown = useCallback((e) => {
         if (e.key === "Enter" || e.key === "Tab") {
@@ -257,7 +264,7 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
             inputRefs.current[emptyIdx]?.focus();
             return;
         }
-        const unique = new Set(trimmed);
+        const unique = new Set(trimmed.map((s) => s.toLowerCase()));
         if (unique.size !== trimmed.length) {
             setError("Duplicate serial numbers are not allowed.");
             return;
@@ -767,7 +774,8 @@ export default function POInwardForm({
                         validationErrors[`item_${index}_serials`] = `Enter exactly ${acceptedQty} serial(s) for ${productName}`;
                     } else {
                         const sns = (item.serials || []).map((s) => (typeof s === "string" ? s.trim() : s.serial_number?.trim())).filter(Boolean);
-                        if (sns.length !== new Set(sns).size) {
+                        const uniqueSns = new Set(sns.map((s) => s.toLowerCase()));
+                        if (sns.length !== uniqueSns.size) {
                             validationErrors[`item_${index}_serials`] = `Duplicate serials found for ${productName}`;
                         }
                     }

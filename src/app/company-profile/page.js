@@ -142,6 +142,7 @@ export default function CompanyProfilePage() {
         country: DEFAULT_COUNTRY,
         branch_id: null,
         is_active: true,
+        is_default: false,
     });
 
     const getBankDefaultFlags = (account = {}) => {
@@ -1011,6 +1012,7 @@ export default function CompanyProfilePage() {
                 country: DEFAULT_COUNTRY,
                 branch_id: null,
                 is_active: true,
+                is_default: false,
             });
             await loadWarehouses(true); // Force reload after save
             setTimeout(() => setSuccess(""), 3000);
@@ -1038,6 +1040,7 @@ export default function CompanyProfilePage() {
             country: warehouse.country || DEFAULT_COUNTRY,
             branch_id: warehouse.branch_id ?? warehouse.branch?.id ?? null,
             is_active: warehouse.is_active !== undefined ? warehouse.is_active : true,
+            is_default: warehouse.is_default === true,
         });
         setWarehouseErrors({});
         setWarehouseDialogOpen(true);
@@ -1203,6 +1206,7 @@ export default function CompanyProfilePage() {
             country: DEFAULT_COUNTRY,
             branch_id: null,
             is_active: true,
+            is_default: false,
         };
 
         // Try to load default state
@@ -1248,6 +1252,7 @@ export default function CompanyProfilePage() {
             country: DEFAULT_COUNTRY,
             branch_id: null,
             is_active: true,
+            is_default: false,
         });
         setWarehouseErrors({});
     };
@@ -2132,6 +2137,7 @@ export default function CompanyProfilePage() {
                                                         <th className="px-4 py-3">Phone No</th>
                                                         <th className="px-4 py-3">Address</th>
                                                         <th className="px-4 py-3">Managers</th>
+                                                        <th className="px-4 py-3">Default</th>
                                                         <th className="px-4 py-3">Active</th>
                                                         <th className="px-4 py-3 text-right">Actions</th>
                                                     </tr>
@@ -2139,7 +2145,7 @@ export default function CompanyProfilePage() {
                                                 <tbody className="divide-y divide-gray-200">
                                                     {warehouses.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                                            <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                                                                 No warehouses found
                                                             </td>
                                                         </tr>
@@ -2157,6 +2163,15 @@ export default function CompanyProfilePage() {
                                                                     {warehouse.managers?.length
                                                                         ? `${warehouse.managers.length} manager${warehouse.managers.length !== 1 ? "s" : ""}`
                                                                         : "-"}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {warehouse.is_default ? (
+                                                                        <Badge variant="success" className="font-normal border-0 text-xs shadow-none">
+                                                                            Default
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <span className="text-gray-400 text-xs">-</span>
+                                                                    )}
                                                                 </td>
                                                                 <td className="px-4 py-3">
                                                                     <Badge variant={warehouse.is_active ? "success" : "secondary"} className="font-normal border-0 text-xs shadow-none">
@@ -2962,6 +2977,17 @@ export default function CompanyProfilePage() {
                                                 setWarehouseFormData((prev) => ({
                                                     ...prev,
                                                     is_active: !!e.target.checked,
+                                                }))
+                                            }
+                                        />
+                                        <Checkbox
+                                            name="is_default"
+                                            label="Default for branch"
+                                            checked={!!warehouseFormData.is_default}
+                                            onChange={(e) =>
+                                                setWarehouseFormData((prev) => ({
+                                                    ...prev,
+                                                    is_default: !!e.target.checked,
                                                 }))
                                             }
                                         />

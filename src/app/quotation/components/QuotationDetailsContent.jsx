@@ -56,14 +56,92 @@ export default function QuotationDetailsContent({ quotation, loading }) {
 
   const r = quotation;
   const rawBom = Array.isArray(r.bom_snapshot) ? r.bom_snapshot : [];
-  const bom = [...rawBom].sort((a, b) => {
-    const orderA = a.sort_order != null && !Number.isNaN(Number(a.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
-    const orderB = b.sort_order != null && !Number.isNaN(Number(b.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
-    return orderA - orderB;
-  });
+  const isExtraLine = (line) =>
+    line && (line.entry_type === "extra_material" || line.is_extra_material === true);
+  const isMetaLine = (line) => line && line.entry_type === "meta";
+  const sortBom = (list) =>
+    [...list].sort((a, b) => {
+      const orderA = a.sort_order != null && !Number.isNaN(Number(a.sort_order)) ? Number(a.sort_order) : Number.MAX_SAFE_INTEGER;
+      const orderB = b.sort_order != null && !Number.isNaN(Number(b.sort_order)) ? Number(b.sort_order) : Number.MAX_SAFE_INTEGER;
+      return orderA - orderB;
+    });
+  const standardBom = sortBom(rawBom.filter((line) => !isMetaLine(line) && !isExtraLine(line)));
+  const extraBom = sortBom(rawBom.filter((line) => !isMetaLine(line) && isExtraLine(line)));
   const totalPayable = totals?.totalPayable ?? r.total_payable;
   const effectiveCost = totals?.effectiveCost ?? r.effective_cost;
   const gstAmount = totals?.gstAmount;
+
+  const renderBomTable = (lines) => (
+    <div className="overflow-x-auto rounded border border-border">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-muted/50">
+            <th className="text-left px-2 py-1.5 font-medium">#</th>
+            <th className="text-left px-2 py-1.5 font-medium">Product</th>
+            <th className="text-left px-2 py-1.5 font-medium">Type</th>
+            <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+            <th className="text-left px-2 py-1.5 font-medium">Unit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, idx) => {
+            const p = getBomLineProduct(line) || {};
+            return (
+              <tr key={idx} className="border-t border-border">
+                <td className="px-2 py-1.5">{idx + 1}</td>
+                <td className="px-2 py-1.5">{p.product_name ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.product_type_name ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right">{line.quantity ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const renderExtraBomTable = (lines) => (
+    <div className="overflow-x-auto rounded border border-border">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="bg-muted/50">
+            <th className="text-left px-2 py-1.5 font-medium">#</th>
+            <th className="text-left px-2 py-1.5 font-medium">Product</th>
+            <th className="text-left px-2 py-1.5 font-medium">Type</th>
+            <th className="text-right px-2 py-1.5 font-medium">Qty</th>
+            <th className="text-left px-2 py-1.5 font-medium">Unit</th>
+            <th className="text-right px-2 py-1.5 font-medium">Last Purchase</th>
+            <th className="text-right px-2 py-1.5 font-medium">Unit Price (Incl GST)</th>
+            <th className="text-right px-2 py-1.5 font-medium">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line, idx) => {
+            const p = getBomLineProduct(line) || {};
+            return (
+              <tr key={idx} className="border-t border-border">
+                <td className="px-2 py-1.5">{idx + 1}</td>
+                <td className="px-2 py-1.5">{p.product_name ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.product_type_name ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right">{line.quantity ?? "-"}</td>
+                <td className="px-2 py-1.5">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.last_purchase_price != null ? formatCurrency(line.last_purchase_price) : "-"}
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.unit_incl != null ? formatCurrency(line.unit_incl) : "-"}
+                </td>
+                <td className="px-2 py-1.5 text-right">
+                  {line.line_amount != null ? formatCurrency(line.line_amount) : "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="pr-1 space-y-0.5">
@@ -183,36 +261,17 @@ export default function QuotationDetailsContent({ quotation, loading }) {
       </div>
 
       {/* BOM Details */}
-      {bom.length > 0 && (
+      {standardBom.length > 0 && (
         <>
           <SectionTitle>BOM Details</SectionTitle>
-          <div className="overflow-x-auto rounded border border-border">
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-2 py-1.5 font-medium">#</th>
-                  <th className="text-left px-2 py-1.5 font-medium">Product</th>
-                  <th className="text-left px-2 py-1.5 font-medium">Type</th>
-                  <th className="text-right px-2 py-1.5 font-medium">Qty</th>
-                  <th className="text-left px-2 py-1.5 font-medium">Unit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bom.map((line, idx) => {
-                  const p = getBomLineProduct(line) || {};
-                  return (
-                    <tr key={idx} className="border-t border-border">
-                      <td className="px-2 py-1.5">{idx + 1}</td>
-                      <td className="px-2 py-1.5">{p.product_name ?? "-"}</td>
-                      <td className="px-2 py-1.5">{p.product_type_name ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{line.quantity ?? "-"}</td>
-                      <td className="px-2 py-1.5">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {renderBomTable(standardBom)}
+        </>
+      )}
+
+      {extraBom.length > 0 && (
+        <>
+          <SectionTitle>Extra Materials</SectionTitle>
+          {renderExtraBomTable(extraBom)}
         </>
       )}
 

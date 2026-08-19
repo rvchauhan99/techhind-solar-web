@@ -90,3 +90,19 @@ export function fillSerialSlots({ slots, startIndex, incoming, caseInsensitive =
 
     return { nextSlots, lastFilledIndex, overflow, duplicates };
 }
+
+/**
+ * Find another slot with the same serial (trim + case-insensitive).
+ * Used on Tab/Enter while filling serial fields.
+ *
+ * @param {string[]} serials
+ * @param {number} index
+ * @returns {number} Index of the first matching other slot, or -1
+ */
+export function findCaseInsensitiveDuplicateIndex(serials, index) {
+    const key = String(serials?.[index] || "").trim().toLowerCase();
+    if (!key) return -1;
+    return (serials || []).findIndex(
+        (s, i) => i !== index && String(s || "").trim().toLowerCase() === key
+    );
+}

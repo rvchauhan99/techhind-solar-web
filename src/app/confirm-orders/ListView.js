@@ -63,6 +63,7 @@ import {
     getOrderProjectCostAmount,
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
 const STAGES = [
     { key: "estimate_generated", label: "Estimate Generated" },
@@ -576,14 +577,14 @@ export default function ListView() {
                                     ? String(row.reserved_qty_total || 0)
                                     : "Not reserved"
                             )}
-                            {renderOrderDetail("Total Payable", `Rs. ${totalPayable.toLocaleString()}`)}
-                            {renderOrderDetail("Payment Received", `Rs. ${totalReceived.toLocaleString()}`)}
+                            {renderOrderDetail("Total Payable", `Rs. ${formatRupeesInteger(totalPayable)}`)}
+                            {renderOrderDetail("Payment Received", `Rs. ${formatRupeesInteger(totalReceived)}`)}
                             <Box mb={0.4}>
                                 <Typography variant="caption" color="text.secondary" display="block" sx={{ fontSize: "0.68rem", lineHeight: 1.1 }}>
                                     Outstanding:
                                 </Typography>
                                 <Typography variant="body2" component="span" sx={{ bgcolor: "#f44336", color: "#fff", px: 0.8, py: 0.1, borderRadius: 0.5, fontWeight: "bold", fontSize: "0.78rem" }}>
-                                    Rs. {outstanding.toLocaleString()}
+                                    Rs. {formatRupeesInteger(outstanding)}
                                 </Typography>
                             </Box>
                             {renderOrderDetail("Estimate Due Date", row.estimate_due_date ? moment(row.estimate_due_date).format("DD-MM-YYYY") : "-")}

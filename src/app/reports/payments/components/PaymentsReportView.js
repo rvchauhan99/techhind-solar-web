@@ -16,6 +16,7 @@ import paymentsReportService from "@/services/paymentsReportService";
 import orderService from "@/services/orderService";
 import orderPaymentsService from "@/services/orderPaymentsService";
 import { toastError } from "@/utils/toast";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area,
@@ -23,8 +24,7 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const INR = (v) =>
-  Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const INR = (v) => formatRupeesInteger(v);
 
 const INR2 = (v) =>
   Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

@@ -38,7 +38,7 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { toastError } from "@/utils/toast";
-import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
+import { splitSerialInput, fillSerialSlots, findCaseInsensitiveDuplicateIndex } from "@/utils/serialInput";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import stockService from "@/services/stockService";
@@ -546,6 +546,13 @@ export default function B2bShipmentForm({
         const shipNow = serialDrawerValues.length;
         if (e.key === "Enter" || e.key === "Tab") {
             e.preventDefault();
+            const dupIndex = findCaseInsensitiveDuplicateIndex(serialDrawerValues, index);
+            if (dupIndex !== -1) {
+                toastError("Serial number already entered.");
+                setSerialDrawerError("Serial number already entered.");
+                handleSerialDrawerValueChange(index, "");
+                return;
+            }
             const value = (serialDrawerValues[index] || "").trim();
             if (value) validateSerialWithBackend(index, value);
             if (index < shipNow - 1) serialInputRefs.current[index + 1]?.focus();
@@ -561,7 +568,7 @@ export default function B2bShipmentForm({
             serialInputRefs.current[emptyIndex]?.focus();
             return;
         }
-        const unique = new Set(trimmed);
+        const unique = new Set(trimmed.map((s) => s.toLowerCase()));
         if (unique.size !== trimmed.length) {
             setSerialDrawerError("Duplicate serial numbers are not allowed.");
             return;
@@ -601,7 +608,7 @@ export default function B2bShipmentForm({
                 if (serialCount !== shipNow) {
                     validationErrors[`line_${index}_serials`] = `Serial count (${serialCount}) must match quantity (${shipNow})`;
                 }
-                const uniqueSerials = new Set(line.serials || []);
+                const uniqueSerials = new Set((line.serials || []).map((s) => String(s || "").trim().toLowerCase()));
                 if (uniqueSerials.size !== (line.serials || []).length) {
                     validationErrors[`line_${index}_serials`] = "Duplicate serial numbers are not allowed";
                 }

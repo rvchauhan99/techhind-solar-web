@@ -61,6 +61,7 @@ import {
     getOrderOutstandingAmount,
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 import { getOrderCancelEligibility } from "@/utils/orderCancelEligibility";
 
 const getUserOptionLabel = (opt) =>
@@ -524,12 +525,12 @@ function ConfirmedOrderViewPageContent() {
 
                 <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
                 <Typography variant="body1" fontWeight="bold">
-                    Rs. {orderData?.project_cost ? Number(orderData.project_cost).toLocaleString() : "0"}
+                    Rs. {formatRupeesInteger(orderData?.project_cost)}
                 </Typography>
 
                 <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
                 <Typography variant="body1" fontWeight="bold">
-                    Rs. {totalReceivedAmount.toLocaleString()}
+                    Rs. {formatRupeesInteger(totalReceivedAmount)}
                 </Typography>
 
                 <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
@@ -543,7 +544,7 @@ function ConfirmedOrderViewPageContent() {
                     borderRadius={0.5}
                     mt={1}
                 >
-                    Rs. {outstandingAmount.toLocaleString()}
+                    Rs. {formatRupeesInteger(outstandingAmount)}
                 </Typography>
             </Box>
 
