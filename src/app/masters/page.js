@@ -44,11 +44,18 @@ const BOOLEAN_OPTIONS = [
 /** Human-readable labels for specific master fields (otherwise derived from snake_case). */
 const MASTER_FIELD_LABEL_OVERRIDES = {
     allow_b2b_sales: "Allow B2B sales",
+    allow_in_extra_materials: "Allow in extra materials",
 };
 
 const TERMS_CONDITIONS_MODEL = "termsAndConditions.model";
 const PLATFORM_CONFIG_MODEL = "platform_config.model";
-const IMPORT_APPROVER_CONFIG_KEY = "po_inward.import.allowed_approver_user_ids";
+const USER_ID_ALLOWLIST_CONFIG_KEYS = new Set([
+    "po_inward.import.allowed_approver_user_ids",
+    "order.cancel.allowed_user_ids",
+]);
+
+const isUserIdAllowlistConfigKey = (configKey) =>
+    USER_ID_ALLOWLIST_CONFIG_KEYS.has(String(configKey || "").trim());
 
 const parseUserIdList = (raw) => {
     if (raw == null || raw === "") return [];
@@ -64,12 +71,10 @@ const parseUserIdList = (raw) => {
     return parsed.map((v) => Number(v)).filter((n) => Number.isInteger(n) && n > 0);
 };
 
-/** Resolve Import PO approver ID JSON → emails for list display (display-only; storage stays IDs). */
+/** Resolve user-ID allowlist JSON → emails for list display (display-only; storage stays IDs). */
 const enrichPlatformConfigApproverEmails = async (rows) => {
     if (!Array.isArray(rows) || rows.length === 0) return rows;
-    const targetRows = rows.filter(
-        (r) => String(r?.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
-    );
+    const targetRows = rows.filter((r) => isUserIdAllowlistConfigKey(r?.config_key));
     if (targetRows.length === 0) return rows;
 
     const idSet = new Set();
@@ -79,7 +84,7 @@ const enrichPlatformConfigApproverEmails = async (rows) => {
     const ids = [...idSet];
     if (ids.length === 0) {
         return rows.map((r) =>
-            String(r?.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+            isUserIdAllowlistConfigKey(r?.config_key)
                 ? { ...r, config_value_display: "" }
                 : r
         );
@@ -114,7 +119,7 @@ const enrichPlatformConfigApproverEmails = async (rows) => {
     });
 
     return rows.map((r) => {
-        if (String(r?.config_key || "").trim() !== IMPORT_APPROVER_CONFIG_KEY) return r;
+        if (!isUserIdAllowlistConfigKey(r?.config_key)) return r;
         const emails = parseUserIdList(r.config_value).map(
             (id) => emailById.get(id) || `#${id}`
         );
@@ -385,7 +390,7 @@ export default function MastersPage() {
                                 if (
                                     field.name === "config_value" &&
                                     master?.model_name === PLATFORM_CONFIG_MODEL &&
-                                    String(row.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
+                                    isUserIdAllowlistConfigKey(row.config_key)
                                 ) {
                                     const emails =
                                         row.config_value_display != null

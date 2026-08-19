@@ -28,6 +28,32 @@ const extractTechnicalRemarks = (defaultValues = {}) => {
     return getInitialTechnicalRemarks(sectionRemarks);
 };
 
+const isExtraMaterialLine = (line) =>
+    line && (line.entry_type === "extra_material" || line.is_extra_material === true);
+
+const extractExtraMaterials = (defaultValues = {}) => {
+    if (Array.isArray(defaultValues?.extra_materials) && defaultValues.extra_materials.length > 0) {
+        return defaultValues.extra_materials;
+    }
+    const bomSnapshot = Array.isArray(defaultValues?.bom_snapshot) ? defaultValues.bom_snapshot : [];
+    return bomSnapshot
+        .filter(isExtraMaterialLine)
+        .map((line) => ({
+            product_id: line.product_id ?? "",
+            quantity: line.quantity ?? "",
+            last_purchase_price: line.last_purchase_price ?? "",
+            last_purchase_source: line.last_purchase_source ?? null,
+            missing_price: line.last_purchase_source === "manual",
+            unit_excl: line.unit_excl ?? "",
+            unit_incl: line.unit_incl ?? "",
+            line_amount: line.line_amount ?? "",
+            profit_margin_percent: line.profit_margin_percent_applied ?? 0,
+            gst_percent: line.gst_percent ?? 0,
+            warehouse_id: line.warehouse_id ?? null,
+            product_name: line.product_name ?? null,
+        }));
+};
+
 /**
  * @param {{ user: { id?: string } | null; defaultValues?: Record<string, unknown> }}
  * @returns {{
@@ -57,6 +83,23 @@ export function useQuotationState({ user, defaultValues = {} }) {
             ])
         );
         cleanedValues.technical_remarks = extractTechnicalRemarks(defaultValues);
+        const extraRows = extractExtraMaterials(defaultValues);
+        cleanedValues.extra_materials = extraRows;
+        cleanedValues.add_extra_materials =
+            defaultValues.add_extra_materials === true || extraRows.length > 0;
+        if (cleanedValues.add_extra_materials && extraRows.length > 0) {
+            const sum = extraRows.reduce((s, r) => s + (Number(r.line_amount) || 0), 0);
+            if (sum > 0) {
+                cleanedValues.additional_cost_details_2 =
+                    cleanedValues.additional_cost_details_2 || "Additional Material";
+                if (
+                    cleanedValues.additional_cost_amount_2 === "" ||
+                    cleanedValues.additional_cost_amount_2 == null
+                ) {
+                    cleanedValues.additional_cost_amount_2 = sum;
+                }
+            }
+        }
         setFormData((prev) => ({ ...prev, ...cleanedValues }));
     }, [defaultValues]);
 
@@ -162,6 +205,19 @@ export function useQuotationState({ user, defaultValues = {} }) {
             gst_rate: toNumber(formData.gst_rate),
             additional_cost_amount_1: toNumber(formData.additional_cost_amount_1),
             additional_cost_amount_2: toNumber(formData.additional_cost_amount_2),
+            add_extra_materials: !!formData.add_extra_materials,
+            extra_materials: formData.add_extra_materials
+                ? (Array.isArray(formData.extra_materials) ? formData.extra_materials : [])
+                    .filter((row) => row?.product_id)
+                    .map((row) => ({
+                        product_id: toNumber(row.product_id),
+                        quantity: toNumber(row.quantity),
+                        // Only send last_purchase_price when manual / missing warehouse price
+                        ...(row.missing_price || row.last_purchase_source === "manual"
+                            ? { last_purchase_price: toNumber(row.last_purchase_price) }
+                            : {}),
+                    }))
+                : [],
             panel_quantity: toNumber(formData.panel_quantity),
             inverter_quantity: toNumber(formData.inverter_quantity),
             hybrid_inverter_quantity: toNumber(formData.hybrid_inverter_quantity),

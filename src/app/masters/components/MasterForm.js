@@ -34,10 +34,25 @@ const YES_NO_OPTIONS = [
 
 const MASTER_FIELD_LABEL_OVERRIDES = {
   allow_b2b_sales: "Allow B2B sales",
+  allow_in_extra_materials: "Allow in extra materials",
   sort_order: "Sort order",
 };
 
-const IMPORT_APPROVER_CONFIG_KEY = "po_inward.import.allowed_approver_user_ids";
+const USER_ID_ALLOWLIST_CONFIGS = {
+  "po_inward.import.allowed_approver_user_ids": {
+    label: "Allowed Approvers",
+    helperText: "Search by name or email. Saved as user ID JSON for fast approval checks.",
+    valueTypeHelper: "Locked to JSON for Import PO approver user IDs",
+  },
+  "order.cancel.allowed_user_ids": {
+    label: "Allowed Users",
+    helperText: "Search by name or email. Saved as user ID JSON for order cancel access checks.",
+    valueTypeHelper: "Locked to JSON for order cancel allowed user IDs",
+  },
+};
+
+const getUserIdAllowlistMeta = (configKey) =>
+  USER_ID_ALLOWLIST_CONFIGS[String(configKey || "").trim()] || null;
 
 const userOptionLabel = (opt) => {
   if (!opt) return "";
@@ -104,9 +119,10 @@ export default function MasterForm({
 
   const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.username ?? (opt?.id != null ? String(opt.id) : '');
 
-  const isImportApproverConfig =
-    modelName === "platform_config.model" &&
-    String(formData.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY;
+  const allowlistMeta = modelName === "platform_config.model"
+    ? getUserIdAllowlistMeta(formData.config_key)
+    : null;
+  const isUserIdAllowlistConfig = !!allowlistMeta;
 
   const hydrateApproverUsers = useCallback(async (rawValue) => {
     const ids = parseUserIdArray(rawValue);
@@ -126,7 +142,7 @@ export default function MasterForm({
         ids.map((id) => byId.get(id) || { id, value: id, label: String(id), name: String(id) })
       );
     } catch (err) {
-      console.error("Failed to resolve import approver users:", err);
+      console.error("Failed to resolve allowlist users:", err);
       setApproverUserOptions(ids.map((id) => ({ id, value: id, label: String(id), name: String(id) })));
     } finally {
       setApproverUsersLoading(false);
@@ -136,10 +152,11 @@ export default function MasterForm({
   useEffect(() => {
     if (defaultValues && (defaultValues.id || Object.keys(defaultValues).length)) {
       const next = { ...getInitialFormData(), ...defaultValues };
-      if (
-        modelName === "platform_config.model" &&
-        String(next.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
-      ) {
+      const nextAllowlistMeta =
+        modelName === "platform_config.model"
+          ? getUserIdAllowlistMeta(next.config_key)
+          : null;
+      if (nextAllowlistMeta) {
         next.value_type = "json";
         if (next.config_value == null || next.config_value === "") {
           next.config_value = "[]";
@@ -149,10 +166,7 @@ export default function MasterForm({
       }
       setFormData(next);
       setSelectedFile(null);
-      if (
-        modelName === "platform_config.model" &&
-        String(next.config_key || "").trim() === IMPORT_APPROVER_CONFIG_KEY
-      ) {
+      if (nextAllowlistMeta) {
         hydrateApproverUsers(next.config_value);
       } else {
         setApproverUserOptions([]);
@@ -161,12 +175,12 @@ export default function MasterForm({
   }, [defaultValues?.id, modelName, hydrateApproverUsers]);
 
   useEffect(() => {
-    if (!isImportApproverConfig) return;
+    if (!isUserIdAllowlistConfig) return;
     setFormData((prev) => {
       if (String(prev.value_type || "").toLowerCase() === "json") return prev;
       return { ...prev, value_type: "json" };
     });
-  }, [isImportApproverConfig]);
+  }, [isUserIdAllowlistConfig]);
 
   const handleApproverUsersChange = (_e, newValue) => {
     if (serverError) onClearServerError();
@@ -218,13 +232,12 @@ export default function MasterForm({
         setFormData((s) => ({ ...s, [name]: isNaN(numValue) ? value : numValue }));
       } else if (name === "config_key") {
         const nextKey = value;
-        const becomesImportApprover =
-          modelName === "platform_config.model" &&
-          String(nextKey || "").trim() === IMPORT_APPROVER_CONFIG_KEY;
+        const becomesAllowlist =
+          modelName === "platform_config.model" && !!getUserIdAllowlistMeta(nextKey);
         setFormData((s) => ({
           ...s,
           config_key: nextKey,
-          ...(becomesImportApprover
+          ...(becomesAllowlist
             ? {
                 value_type: "json",
                 config_value:
@@ -236,7 +249,7 @@ export default function MasterForm({
               }
             : {}),
         }));
-        if (becomesImportApprover) {
+        if (becomesAllowlist) {
           hydrateApproverUsers(
             parseUserIdArray(formData.config_value).length > 0 ? formData.config_value : "[]"
           );
@@ -352,14 +365,14 @@ export default function MasterForm({
       } else if (selectedType === "json") {
         try {
           const parsed = JSON.parse(valueStr);
-          if (isImportApproverConfig) {
+          if (isUserIdAllowlistConfig) {
             if (!Array.isArray(parsed)) {
               setErrors({ config_value: "Select one or more users (value must be a JSON array of user IDs)" });
               return;
             }
             const invalid = parsed.some((v) => !Number.isInteger(Number(v)) || Number(v) <= 0);
             if (invalid) {
-              setErrors({ config_value: "Approver list must contain valid user IDs" });
+              setErrors({ config_value: "User list must contain valid user IDs" });
               return;
             }
           }
@@ -431,13 +444,19 @@ export default function MasterForm({
       return null;
     }
 
-    // Platform Config: Import PO approver allowlist — pick users by name/email, store ID JSON
-    if (isImportApproverConfig && fieldName === "config_value") {
+    // Product Type: name is locked on edit (create remains editable)
+    const isEditingRecord = Boolean(defaultValues?.id);
+    const isProductTypeNameLocked =
+      modelName === "product_type.model" && isEditingRecord && fieldName === "name";
+    const fieldDisabled = viewMode || isProductTypeNameLocked;
+
+    // Platform Config: user-ID allowlist — pick users by name/email, store ID JSON
+    if (isUserIdAllowlistConfig && fieldName === "config_value") {
       return (
         <AutocompleteField
           key={fieldName}
           name={fieldName}
-          label="Allowed Approvers"
+          label={allowlistMeta.label}
           multiple
           asyncLoadOptions={(q) =>
             getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
@@ -452,7 +471,7 @@ export default function MasterForm({
           helperText={
             hasError
               ? errors[fieldName]
-              : "Search by name or email. Saved as user ID JSON for fast approval checks."
+              : allowlistMeta.helperText
           }
           placeholder="Type name or email..."
           loading={approverUsersLoading}
@@ -460,7 +479,7 @@ export default function MasterForm({
       );
     }
 
-    if (isImportApproverConfig && fieldName === "value_type") {
+    if (isUserIdAllowlistConfig && fieldName === "value_type") {
       const jsonOpt = PLATFORM_CONFIG_VALUE_TYPE_OPTIONS.find((o) => o.value === "json");
       return (
         <AutocompleteField
@@ -474,7 +493,7 @@ export default function MasterForm({
           disabled
           required={isRequired && !viewMode}
           error={hasError}
-          helperText="Locked to JSON for Import PO approver user IDs"
+          helperText={allowlistMeta.valueTypeHelper}
           placeholder="JSON"
         />
       );
@@ -764,8 +783,8 @@ export default function MasterForm({
             label={displayLabel}
             value={fieldValue}
             onChange={handleChange}
-            required={isRequired && !viewMode}
-            disabled={viewMode}
+            required={isRequired && !viewMode && !isProductTypeNameLocked}
+            disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
           />

@@ -195,13 +195,50 @@ function severityCls(severity) {
   return "border-slate-200 bg-white text-slate-700";
 }
 
-function buildLeadHref(params = {}) {
+function buildAnalysisFilterContext(filters = {}) {
+  const ctx = {};
+  if (filters.from) ctx.created_from = filters.from;
+  if (filters.to) ctx.created_to = filters.to;
+  if (filters.branch_id) ctx.branch_id = filters.branch_id;
+  if (filters.assigned_to) ctx.assigned_to = filters.assigned_to;
+  if (filters.campaign_id) ctx.campaign_id = filters.campaign_id;
+  if (filters.lead_segment) ctx.lead_segment = filters.lead_segment;
+  if (filters.product_interest) ctx.product_interest = filters.product_interest;
+  if (Array.isArray(filters.status) && filters.status.length) {
+    ctx.status = filters.status.join(",");
+  }
+  if (Array.isArray(filters.priority) && filters.priority.length) {
+    ctx.priority = filters.priority.join(",");
+  }
+  if (Array.isArray(filters.source_ids) && filters.source_ids.length) {
+    ctx.inquiry_source_id = filters.source_ids.join(",");
+  }
+  return ctx;
+}
+
+function buildLeadHref(params = {}, analysisFilters = {}) {
+  const merged = {
+    view: "list",
+    ...buildAnalysisFilterContext(analysisFilters),
+    ...params,
+  };
+  // Click-specific status / not_status should not fight analysis status filters
+  if (params.not_status != null && params.status == null) {
+    delete merged.status;
+  }
+  if (params.status != null && params.not_status == null) {
+    delete merged.not_status;
+  }
   const qs = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(merged).forEach(([key, value]) => {
     if (value != null && value !== "") qs.set(key, String(value));
   });
   const s = qs.toString();
-  return s ? `/marketing-leads?${s}` : "/marketing-leads";
+  return s ? `/marketing-leads?${s}` : "/marketing-leads?view=list";
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().split("T")[0];
 }
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
@@ -310,11 +347,13 @@ export default function MarketingLeadAnalysisPage() {
   }, []).sort((a, b) => b.value - a.value);
   const totalSource = sourceData.reduce((s, r) => s + r.value, 0);
 
-  const priorityData = (summary?.priority_breakdown || []).map((r) => ({ name: (r.priority || "").toUpperCase(), value: Number(r.count || 0), fill: PRIORITY_COLORS[r.priority] || "#94a3b8" }));
-  const productData = (summary?.product_breakdown || []).map((r) => ({ name: (r.product_interest || "Unknown").replace(/_/g, " "), value: Number(r.count || 0) }));
-  const segmentData = (summary?.segment_breakdown || []).map((r) => ({ name: (r.lead_segment || "unknown"), value: Number(r.count || 0) }));
+  const priorityData = (summary?.priority_breakdown || []).map((r) => ({ name: (r.priority || "").toUpperCase(), value: Number(r.count || 0), fill: PRIORITY_COLORS[r.priority] || "#94a3b8", priority: r.priority }));
+  const productData = (summary?.product_breakdown || []).map((r) => ({ name: (r.product_interest || "Unknown").replace(/_/g, " "), value: Number(r.count || 0), product_interest: r.product_interest }));
+  const segmentData = (summary?.segment_breakdown || []).map((r) => ({ name: (r.lead_segment || "unknown"), value: Number(r.count || 0), lead_segment: r.lead_segment }));
   const totalSegment = segmentData.reduce((s, r) => s + r.value, 0);
   const trendData = (summary?.daily_trend || []).map((r) => ({ date: r.date?.slice(5) || r.date, Leads: Number(r.count || 0) }));
+
+  const leadHref = useCallback((params = {}) => buildLeadHref(params, filters), [filters]);
 
   const activeFilterCount = [filters.from, filters.to, filters.branch_id, filters.source_ids?.length > 0, filters.status?.length > 0, filters.priority?.length > 0, filters.lead_segment, filters.product_interest, filters.assigned_to].filter(Boolean).length;
   const chips = getChips(filters, branchOptions, sourceOptions, userOptions);
@@ -342,10 +381,10 @@ export default function MarketingLeadAnalysisPage() {
   ];
   const maxCycleDays = Math.max(...cycleRows.map((r) => Number(r.avg || 0)), 1);
   const leakageRows = [
-    { label: "Open, no inquiry", val: ocLeakage.leads_open_no_inquiry || 0, color: "#f59e0b", href: buildLeadHref({ not_status: "converted,junk,not_interested" }) },
-    { label: "Closed lost", val: ocLeakage.leads_closed_lost || 0, color: "#64748b", href: buildLeadHref({ status: "not_interested,junk" }) },
-    { label: "Inquiry, no order", val: ocLeakage.inquiries_no_order || 0, color: "#ef4444", href: buildLeadHref({ status: "converted" }) },
-    { label: "Dead inquiry, no order", val: ocLeakage.inquiries_dead_no_order || 0, color: "#94a3b8", href: buildLeadHref({ status: "converted" }) },
+    { label: "Open, no inquiry", val: ocLeakage.leads_open_no_inquiry || 0, color: "#f59e0b", href: leadHref({ not_status: "converted,junk,not_interested" }) },
+    { label: "Closed lost", val: ocLeakage.leads_closed_lost || 0, color: "#64748b", href: leadHref({ status: "not_interested,junk" }) },
+    { label: "Inquiry, no order", val: ocLeakage.inquiries_no_order || 0, color: "#ef4444", href: leadHref({ status: "converted" }) },
+    { label: "Dead inquiry, no order", val: ocLeakage.inquiries_dead_no_order || 0, color: "#94a3b8", href: leadHref({ status: "converted" }) },
   ];
   const leakageMax = Math.max(...leakageRows.map((r) => r.val), ocKpis.leads || 1);
 
@@ -504,12 +543,12 @@ export default function MarketingLeadAnalysisPage() {
 
           {/* ── KPI Strip ──────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 h-auto lg:h-[100px]">
-            <KpiCard icon={<IconUsers size={16} className="text-blue-600" />} label="Total Leads (All)" value={totalLeadsAll} trend={{ direction: "neutral", label: "All time" }} loading={loading} onClick={() => router.push("/marketing-leads")} />
-            <KpiCard icon={<IconActivity size={16} className="text-amber-500" />} label="In Pipeline" value={pipelineLeads} trend={{ direction: "neutral", label: "Active stages" }} sub="Excl. converted & junk" loading={loading} onClick={() => router.push("/marketing-leads")} />
-            <KpiCard icon={<IconTarget size={16} className="text-emerald-600" />} label="To Inquiry" value={convertedLeads} valueColor="#16a34a" trend={{ direction: "up", label: `${conversionRate}% rate` }} loading={loading} onClick={() => router.push("/marketing-leads?status=converted")} />
-            <KpiCard icon={<IconTrendingUp size={16} className="text-indigo-500" />} label="Lead→Inquiry" value={`${conversionRate}%`} trend={{ direction: Number(conversionRate) >= 10 ? "up" : "down", label: Number(conversionRate) >= 10 ? "Healthy" : "Low" }} loading={loading} />
-            <KpiCard icon={<IconAlertCircle size={16} className={overdue > 0 ? "text-red-500" : "text-emerald-600"} />} label="Overdue Follow-ups" value={overdue} valueColor={overdue > 0 ? "#dc2626" : undefined} trend={{ direction: overdue > 0 ? "down" : "up", label: overdue > 0 ? "Action Required" : "On Track" }} loading={loading} onClick={() => { const t = new Date().toISOString().split("T")[0]; router.push(`/marketing-leads?next_follow_up_to=${t}`); }} />
-            <KpiCard icon={<IconMinus size={16} className="text-slate-400" />} label="Not Int. / Junk" value={notInterested + junk} sub={`${notInterested} not int. · ${junk} junk`} trend={{ direction: "neutral", label: "Closed" }} loading={loading} />
+            <KpiCard icon={<IconUsers size={16} className="text-blue-600" />} label="Total Leads (All)" value={totalLeadsAll} trend={{ direction: "neutral", label: "All time" }} loading={loading} onClick={() => router.push(leadHref())} />
+            <KpiCard icon={<IconActivity size={16} className="text-amber-500" />} label="In Pipeline" value={pipelineLeads} trend={{ direction: "neutral", label: "Active stages" }} sub="Excl. converted & junk" loading={loading} onClick={() => router.push(leadHref({ not_status: "converted,junk,not_interested" }))} />
+            <KpiCard icon={<IconTarget size={16} className="text-emerald-600" />} label="To Inquiry" value={convertedLeads} valueColor="#16a34a" trend={{ direction: "up", label: `${conversionRate}% rate` }} loading={loading} onClick={() => router.push(leadHref({ status: "converted" }))} />
+            <KpiCard icon={<IconTrendingUp size={16} className="text-indigo-500" />} label="Lead→Inquiry" value={`${conversionRate}%`} trend={{ direction: Number(conversionRate) >= 10 ? "up" : "down", label: Number(conversionRate) >= 10 ? "Healthy" : "Low" }} loading={loading} onClick={() => router.push(leadHref({ status: "converted" }))} />
+            <KpiCard icon={<IconAlertCircle size={16} className={overdue > 0 ? "text-red-500" : "text-emerald-600"} />} label="Overdue Follow-ups" value={overdue} valueColor={overdue > 0 ? "#dc2626" : undefined} trend={{ direction: overdue > 0 ? "down" : "up", label: overdue > 0 ? "Action Required" : "On Track" }} loading={loading} onClick={() => router.push(leadHref({ next_follow_up_to: todayIsoDate(), not_status: "converted,junk,not_interested" }))} />
+            <KpiCard icon={<IconMinus size={16} className="text-slate-400" />} label="Not Int. / Junk" value={notInterested + junk} sub={`${notInterested} not int. · ${junk} junk`} trend={{ direction: "neutral", label: "Closed" }} loading={loading} onClick={() => router.push(leadHref({ status: "not_interested,junk" }))} />
           </div>
 
           {/* ── Order Conversion ───────────────────────────────────────────── */}
@@ -522,7 +561,7 @@ export default function MarketingLeadAnalysisPage() {
                   <button
                     key={ins.id}
                     type="button"
-                    onClick={() => router.push(buildLeadHref(ins.drilldown || {}))}
+                    onClick={() => router.push(leadHref(ins.drilldown || {}))}
                     className={`text-left rounded-lg border px-2.5 py-1.5 ${severityCls(ins.severity)} hover:shadow-sm transition-shadow`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -544,7 +583,7 @@ export default function MarketingLeadAnalysisPage() {
                 trend={{ direction: leadToOrderRate >= 5 ? "up" : "down", label: leadToOrderRate >= 5 ? "Healthy" : "Low" }}
                 sub={`${ocKpis.leads_with_order || 0} of ${ocKpis.leads || 0} leads`}
                 loading={loading}
-                onClick={() => router.push("/marketing-leads?status=converted")}
+                onClick={() => router.push(leadHref({ status: "converted" }))}
               />
               <KpiCard
                 icon={<IconShoppingCart size={16} className="text-sky-600" />}
@@ -707,7 +746,7 @@ export default function MarketingLeadAnalysisPage() {
                           className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer"
                           onClick={() => {
                             if (row.id == null) return;
-                            router.push(buildLeadHref({ [ocTab.param]: row.id }));
+                            router.push(leadHref({ [ocTab.param]: row.id }));
                           }}
                         >
                           <td className="px-2 py-1 font-medium text-slate-700">{row.name}</td>
@@ -749,7 +788,7 @@ export default function MarketingLeadAnalysisPage() {
                   <button
                     key={ins.id}
                     type="button"
-                    onClick={() => router.push(buildLeadHref(ins.drilldown || {}))}
+                    onClick={() => router.push(leadHref(ins.drilldown || {}))}
                     className={`text-left rounded-lg border px-2.5 py-1.5 ${severityCls(ins.severity)} hover:shadow-sm transition-shadow`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -771,7 +810,7 @@ export default function MarketingLeadAnalysisPage() {
                 trend={{ direction: leadToDeliveryRate >= 5 ? "up" : "down", label: leadToDeliveryRate >= 5 ? "Healthy" : "Low" }}
                 sub={`${delKpis.leads_with_delivery || 0} of ${ocKpis.leads || 0} leads`}
                 loading={loading}
-                onClick={() => router.push("/marketing-leads?status=converted")}
+                onClick={() => router.push(leadHref({ status: "converted" }))}
               />
               <KpiCard
                 icon={<IconTrendingUp size={16} className="text-teal-700" />}
@@ -802,7 +841,7 @@ export default function MarketingLeadAnalysisPage() {
                 valueColor={Number(delKpis.pending_orders || 0) > 0 ? "#d97706" : undefined}
                 sub={`${delLeakage.leads_with_order_no_delivery || 0} leads with no delivery`}
                 loading={loading}
-                onClick={() => router.push("/marketing-leads?status=converted")}
+                onClick={() => router.push(leadHref({ status: "converted" }))}
               />
             </div>
 
@@ -865,7 +904,7 @@ export default function MarketingLeadAnalysisPage() {
                     ].map((row) => (
                       <div
                         key={row.label}
-                        onClick={() => router.push(buildLeadHref({ status: "converted" }))}
+                        onClick={() => router.push(leadHref({ status: "converted" }))}
                         className="flex items-center gap-2 px-1 py-1 rounded hover:bg-slate-50 cursor-pointer"
                       >
                         <span className="text-[11px] text-slate-600 flex-1 font-medium">{row.label}</span>
@@ -889,7 +928,7 @@ export default function MarketingLeadAnalysisPage() {
                 {statusTiles.map((item) => (
                   <button
                     key={item.key}
-                    onClick={() => router.push(`/marketing-leads?status=${item.key}`)}
+                    onClick={() => router.push(leadHref({ status: item.key }))}
                     className="flex flex-col items-start px-2.5 py-1.5 rounded-lg border bg-white hover:shadow-sm transition-all min-w-[90px]"
                     style={{ borderLeftWidth: 3, borderLeftColor: item.fill, borderTop: "1px solid #e2e8f0", borderRight: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0" }}
                   >
@@ -943,7 +982,7 @@ export default function MarketingLeadAnalysisPage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <FunnelChart>
                           <RTooltip contentStyle={TT_STYLE} formatter={(v) => [`${v} leads`]} />
-                          <Funnel dataKey="value" data={funnelData} isAnimationActive onClick={(d) => { const s = (d?.payload?.name || "").toLowerCase().replace(/ /g, "_"); if (s) router.push(`/marketing-leads?status=${s}`); }} style={{ cursor: "pointer" }}>
+                          <Funnel dataKey="value" data={funnelData} isAnimationActive onClick={(d) => { const s = (d?.payload?.name || "").toLowerCase().replace(/ /g, "_"); if (s) router.push(leadHref({ status: s })); }} style={{ cursor: "pointer" }}>
                             <LabelList position="right" fill="#475569" stroke="none" dataKey="name" fontSize={10} />
                           </Funnel>
                         </FunnelChart>
@@ -974,10 +1013,10 @@ export default function MarketingLeadAnalysisPage() {
                 <PanelHeader title="Aging & SLA Overview" subtitle="Follow-up urgency — click to view leads" />
                 <CardContent className="p-2 space-y-1">
                   {[
-                    { label: "Overdue", val: overdue, color: "#ef4444", onClick: () => { const t = new Date().toISOString().split("T")[0]; router.push(`/marketing-leads?next_follow_up_to=${t}&not_status=converted,junk,not_interested`); } },
-                    { label: "Due Today", val: summary?.aging_sla?.due_today ?? 0, color: "#3b82f6", onClick: () => { const t = new Date().toISOString().split("T")[0]; router.push(`/marketing-leads?next_follow_up_from=${t}&next_follow_up_to=${t}`); } },
-                    { label: "Due This Week", val: summary?.aging_sla?.due_this_week ?? 0, color: "#8b5cf6", onClick: () => { const t = new Date(), nw = new Date(t); nw.setDate(nw.getDate() + 7); router.push(`/marketing-leads?next_follow_up_from=${t.toISOString().split("T")[0]}&next_follow_up_to=${nw.toISOString().split("T")[0]}`); } },
-                    { label: "Stale (7+ days)", val: summary?.aging_sla?.stale_7_plus ?? 0, color: "#94a3b8", onClick: () => { const t = new Date(), s = new Date(t); s.setDate(s.getDate() - 7); router.push(`/marketing-leads?created_to=${s.toISOString().split("T")[0]}&not_status=converted,junk,not_interested`); } },
+                    { label: "Overdue", val: overdue, color: "#ef4444", onClick: () => router.push(leadHref({ next_follow_up_to: todayIsoDate(), not_status: "converted,junk,not_interested" })) },
+                    { label: "Due Today", val: summary?.aging_sla?.due_today ?? 0, color: "#3b82f6", onClick: () => { const t = todayIsoDate(); router.push(leadHref({ next_follow_up_from: t, next_follow_up_to: t, not_status: "converted,junk,not_interested" })); } },
+                    { label: "Due This Week", val: summary?.aging_sla?.due_this_week ?? 0, color: "#8b5cf6", onClick: () => { const t = new Date(), nw = new Date(t); nw.setDate(nw.getDate() + 7); router.push(leadHref({ next_follow_up_from: t.toISOString().split("T")[0], next_follow_up_to: nw.toISOString().split("T")[0], not_status: "converted,junk,not_interested" })); } },
+                    { label: "Stale (7+ days)", val: summary?.aging_sla?.stale_7_plus ?? 0, color: "#94a3b8", onClick: () => { const t = new Date(), s = new Date(t); s.setDate(s.getDate() - 7); router.push(leadHref({ created_to: s.toISOString().split("T")[0], not_status: "converted,junk,not_interested" })); } },
                   ].map(({ label, val, color, onClick }) => (
                     <div key={label} onClick={onClick} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-slate-50 cursor-pointer transition-colors">
                       <span className="text-xs text-slate-600 flex-1 font-medium">{label}</span>
@@ -1013,7 +1052,7 @@ export default function MarketingLeadAnalysisPage() {
                         <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                         <YAxis dataKey="name" type="category" width={50} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                         <RTooltip contentStyle={TT_STYLE} cursor={{ fill: "#f8fafc" }} />
-                        <Bar dataKey="value" radius={[0, 3, 3, 0]} maxBarSize={20}>{priorityData.map((e, i) => <Cell key={i} fill={e.fill} />)}</Bar>
+                        <Bar dataKey="value" radius={[0, 3, 3, 0]} maxBarSize={20} onClick={(d) => { const raw = d?.payload?.priority || (d?.name || "").toLowerCase(); if (raw) router.push(leadHref({ priority: raw })); }} style={{ cursor: "pointer" }}>{priorityData.map((e, i) => <Cell key={i} fill={e.fill} />)}</Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   ) : <EmptyState text="No priority data from API" />}
@@ -1033,7 +1072,7 @@ export default function MarketingLeadAnalysisPage() {
                         <XAxis type="number" allowDecimals={false} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                         <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                         <RTooltip contentStyle={TT_STYLE} cursor={{ fill: "#f8fafc" }} />
-                        <Bar dataKey="value" radius={[0, 3, 3, 0]} maxBarSize={20} onClick={(d) => { const raw = (d?.name || "").toLowerCase().replace(/ /g, "_"); if (raw) router.push(`/marketing-leads?product_interest=${raw}`); }} style={{ cursor: "pointer" }}>
+                        <Bar dataKey="value" radius={[0, 3, 3, 0]} maxBarSize={20} onClick={(d) => { const raw = d?.payload?.product_interest || (d?.name || "").toLowerCase().replace(/ /g, "_"); if (raw && raw !== "unknown") router.push(leadHref({ product_interest: raw })); }} style={{ cursor: "pointer" }}>
                           {productData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                         </Bar>
                       </BarChart>
@@ -1052,7 +1091,7 @@ export default function MarketingLeadAnalysisPage() {
                     <div style={{ width: 130, minWidth: 130, height: 180 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={segmentData} cx="50%" cy="50%" innerRadius={45} outerRadius={60} paddingAngle={3} dataKey="value" onClick={(d) => { const v = (d?.payload?.name || "").toLowerCase(); if (v) router.push(`/marketing-leads?lead_segment=${v}`); }} style={{ cursor: "pointer" }}>
+                          <Pie data={segmentData} cx="50%" cy="50%" innerRadius={45} outerRadius={60} paddingAngle={3} dataKey="value" onClick={(d) => { const v = d?.payload?.lead_segment || (d?.payload?.name || "").toLowerCase(); if (v && v !== "unknown") router.push(leadHref({ lead_segment: v })); }} style={{ cursor: "pointer" }}>
                             {segmentData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                             <Label content={<CenterLabel total={totalSegment} />} position="center" />
                           </Pie>
@@ -1062,7 +1101,7 @@ export default function MarketingLeadAnalysisPage() {
                     </div>
                     <div className="flex flex-col gap-1.5 flex-1">
                       {segmentData.map((s, i) => (
-                        <button key={s.name} onClick={() => router.push(`/marketing-leads?lead_segment=${s.name.toLowerCase()}`)} className="flex items-center justify-between gap-1 hover:bg-slate-50 px-1 py-0.5 rounded text-left transition-colors">
+                        <button key={s.name} onClick={() => { const v = s.lead_segment || s.name.toLowerCase(); if (v && v !== "unknown") router.push(leadHref({ lead_segment: v })); }} className="flex items-center justify-between gap-1 hover:bg-slate-50 px-1 py-0.5 rounded text-left transition-colors">
                           <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} />
                             <span className="text-xs text-slate-600 capitalize">{s.name}</span>
@@ -1094,7 +1133,7 @@ export default function MarketingLeadAnalysisPage() {
                           <XAxis dataKey="name" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={22} />
                           <RTooltip contentStyle={TT_STYLE} cursor={{ fill: "#f8fafc" }} />
-                          <Bar dataKey="followUps" name="Follow-ups" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={30} onClick={(d) => { if (d?.payload?.created_by) router.push(`/marketing-leads?assigned_to=${d.payload.created_by}`); }} style={{ cursor: "pointer" }} />
+                          <Bar dataKey="followUps" name="Follow-ups" fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={30} onClick={(d) => { if (d?.payload?.created_by) router.push(leadHref({ assigned_to: d.payload.created_by })); }} style={{ cursor: "pointer" }} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1112,7 +1151,7 @@ export default function MarketingLeadAnalysisPage() {
                         </thead>
                         <tbody>
                           {agentData.slice(0, 5).map((a, i) => (
-                            <tr key={a.created_by} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => router.push(`/marketing-leads?assigned_to=${a.created_by}`)}>
+                            <tr key={a.created_by} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => router.push(leadHref({ assigned_to: a.created_by }))}>
                               <td className="px-2 py-1 font-bold" style={{ color: i === 0 ? "#eab308" : i === 1 ? "#94a3b8" : i === 2 ? "#f97316" : "#cbd5e1" }}>{i + 1}</td>
                               <td className="px-2 py-1 font-medium text-slate-700">{a.name}</td>
                               <td className="px-2 py-1 text-right font-semibold text-slate-800">{a.followUps}</td>
@@ -1141,7 +1180,7 @@ export default function MarketingLeadAnalysisPage() {
                     <div className="px-2" style={{ height: 150 }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie data={sourceData} cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={3} dataKey="value" onClick={(d) => { const m = sourceOptions.find((s) => s.source_name === d?.payload?.name); if (m) router.push(`/marketing-leads?inquiry_source_id=${m.id}`); }} style={{ cursor: "pointer" }}>
+                          <Pie data={sourceData} cx="50%" cy="50%" innerRadius={42} outerRadius={62} paddingAngle={3} dataKey="value" onClick={(d) => { const m = sourceOptions.find((s) => s.source_name === d?.payload?.name); if (m) router.push(leadHref({ inquiry_source_id: m.id })); }} style={{ cursor: "pointer" }}>
                             {sourceData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                           </Pie>
                           <RTooltip contentStyle={TT_STYLE} formatter={(v) => [`${v} leads`]} />
@@ -1152,7 +1191,7 @@ export default function MarketingLeadAnalysisPage() {
                       <table className="w-full text-[11px]">
                         <tbody>
                           {sourceData.slice(0, 6).map((s, i) => (
-                            <tr key={s.name} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => { const m = sourceOptions.find((src) => src.source_name === s.name); if (m) router.push(`/marketing-leads?inquiry_source_id=${m.id}`); }}>
+                            <tr key={s.name} className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => { const m = sourceOptions.find((src) => src.source_name === s.name); if (m) router.push(leadHref({ inquiry_source_id: m.id })); }}>
                               <td className="px-2 py-1 w-3"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: PIE_COLORS[i % PIE_COLORS.length] }} /></td>
                               <td className="px-2 py-1 text-slate-600">{s.name}</td>
                               <td className="px-2 py-1 text-right font-semibold text-slate-800">{s.value}</td>

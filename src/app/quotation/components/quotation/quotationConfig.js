@@ -169,6 +169,8 @@ export function getInitialFormData(user, overrides = {}) {
         project_cost: "",
         total_payable: "",
         effective_cost: "",
+        add_extra_materials: false,
+        extra_materials: [],
         ...overrides,
     };
 }

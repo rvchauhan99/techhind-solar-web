@@ -47,5 +47,25 @@ export function validateQuotation(formData) {
     if (!formData.price_per_kw) errors.price_per_kw = "Price Per KW is required";
     if (!formData.total_project_value) errors.total_project_value = "Total Project Value is required";
 
+    if (formData.add_extra_materials) {
+        const rows = Array.isArray(formData.extra_materials) ? formData.extra_materials : [];
+        if (rows.length === 0) {
+            errors.add_extra_materials = "Add at least one Extra Materials item or uncheck the option";
+        }
+        rows.forEach((row, idx) => {
+            if (!row?.product_id) {
+                errors[`extra_materials_${idx}_product`] = "Product is required";
+            }
+            const qty = Number(row?.quantity);
+            if (!Number.isFinite(qty) || qty <= 0) {
+                errors[`extra_materials_${idx}_quantity`] = "Quantity must be greater than 0";
+            }
+            const last = Number(row?.last_purchase_price);
+            if (!Number.isFinite(last) || last <= 0) {
+                errors[`extra_materials_${idx}_last_purchase`] = "Last purchase price is required";
+            }
+        });
+    }
+
     return errors;
 }

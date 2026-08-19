@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   IconPlus,
   IconUpload,
@@ -23,7 +23,8 @@ import marketingLeadsService from "@/services/marketingLeadsService";
 
 export default function MarketingLeadsPage() {
   const router = useRouter();
-  const [view, setView] = useState("kanban");
+  const searchParams = useSearchParams();
+  const [view, setView] = useState(() => (searchParams.get("view") === "list" ? "list" : "kanban"));
   const [kanbanLeads, setKanbanLeads] = useState([]);
   const [kanbanFilters, setKanbanFilters] = useState(DEFAULT_FILTER_LAST_30_DAYS);
   const loadingRef = useRef(false);
@@ -71,6 +72,12 @@ export default function MarketingLeadsPage() {
       loadingRef.current = false;
     }
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("view") === "list") {
+      setView("list");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (view === "kanban") {

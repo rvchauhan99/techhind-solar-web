@@ -45,6 +45,9 @@ export const getNextQuotationNumber = () =>
 export const getAllProducts = () =>
     apiClient.get("/quotation/products").then((r) => r.data);
 
+export const getExtraMaterialPrices = (payload) =>
+    apiClient.post("/quotation/extra-material-prices", payload).then((r) => r.data);
+
 export const getQuotationCountByInquiry = (inquiry_id) =>
     apiClient.get("/quotation/quotation-count-by-inquiry", { params: { inquiry_id } }).then((r) => r.data);
 
@@ -79,6 +82,7 @@ export default {
     getAllProductMakes,
     getNextQuotationNumber,
     getAllProducts,
+    getExtraMaterialPrices,
     getQuotationCountByInquiry,
     pdfGenerate,
     createPdfJob,

@@ -23,6 +23,7 @@ import {
   IconCurrencyRupee,
   IconTopologyRing3,
 } from "@tabler/icons-react";
+import { formatRupeesInteger } from "@/utils/orderFormatters";
 
 const STAGES = [
   { key: "estimate_generated", label: "Estimate Generated" },
@@ -275,11 +276,11 @@ export default function ListView({ filters }) {
             </Grid>
             <Grid item size={3}>
               {renderOrderDetail("Payment Type", row.payment_type || "PDC Payment")}
-              {renderOrderDetail("Total Payable", `Rs. ${Number(row.project_cost || 0).toLocaleString()}`)}
-              {renderOrderDetail("Payment Received", `Rs. ${Number(row.total_paid || 0).toLocaleString()}`)}
+              {renderOrderDetail("Total Payable", `Rs. ${formatRupeesInteger(row.project_cost)}`)}
+              {renderOrderDetail("Payment Received", `Rs. ${formatRupeesInteger(row.total_paid)}`)}
               {renderOrderDetail(
                 "Outstanding",
-                `Rs. ${Number(outstanding || 0).toLocaleString()}`,
+                `Rs. ${formatRupeesInteger(outstanding)}`,
                 true,
                 outstanding > 0 ? "error.main" : "success.main"
               )}
@@ -343,7 +344,7 @@ export default function ListView({ filters }) {
                 <div className="flex items-center gap-1 rounded-lg border border-emerald-200/80 bg-emerald-50/50 px-2 py-0.5">
                   <IconCurrencyRupee size={14} className="shrink-0 text-emerald-700" aria-hidden />
                   <span className="text-[11px] font-bold tabular-nums text-slate-800">
-                    {Number(listMeta.summary.total_project_cost || 0).toLocaleString()}
+                    {formatRupeesInteger(listMeta.summary.total_project_cost)}
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-tight text-slate-500">
                     payable
