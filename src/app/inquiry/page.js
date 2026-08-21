@@ -3,15 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import KanbanBoard from "./KanbanBoard";
 import ListView from "./ListView";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
+import CsvImportDialog from "@/components/common/CsvImportDialog";
 import { useRouter, useSearchParams } from "next/navigation";
 import inquiryService from "@/services/inquiryService";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,11 +18,16 @@ import {
   IconLayoutKanban,
   IconBan,
   IconDownload,
-  IconUpload,
   IconChartPie,
 } from "@tabler/icons-react";
 import Container from "@/components/container";
 import InquiryFilterPanel from "@/components/common/InquiryFilterPanel";
+
+const INQUIRY_IMPORT_GUIDELINES = [
+  "Download the sample CSV and fill required columns (Customer Name, Mobile Number, Date of Inquiry). Dates accept DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD.",
+  "Upload the full file — valid rows are saved immediately; failed rows appear in the table below.",
+  "If any rows fail: download Error CSV, fix only those rows, then upload that file again (do not re-upload already created rows).",
+];
 
 const ANALYSIS_FILTER_KEYS = [
   "status",
@@ -69,9 +69,6 @@ export default function InquiryPage() {
   const [showDeadOnly, setShowDeadOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
-  const importFileInputRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const hydratedFromUrlRef = useRef(false);
@@ -223,10 +220,7 @@ export default function InquiryPage() {
             {canAccessInquiryModule && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  setImportDialogOpen(true);
-                  setImportResult(null);
-                }}
+                onClick={() => setImportDialogOpen(true)}
               >
                 <IconFileDescription className="mr-2 size-4" />
                 Import Inquiry
@@ -308,104 +302,27 @@ export default function InquiryPage() {
           )}
         </div>
 
-        <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Import Inquiries</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const blob = await inquiryService.downloadInquiryImportSample();
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = "inquiry-import-sample.csv";
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      URL.revokeObjectURL(url);
-                      toast.success("Sample CSV downloaded");
-                    } catch (e) {
-                      toast.error(e?.response?.data?.message || e?.message || "Failed to download sample");
-                    }
-                  }}
-                >
-                  <IconDownload className="mr-2 size-4" />
-                  Download sample CSV
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={importing}
-                  onClick={() => importFileInputRef.current?.click()}
-                >
-                  <IconUpload className="mr-2 size-4" />
-                  {importing ? "Uploading..." : "Upload CSV"}
-                </Button>
-                <input
-                  ref={importFileInputRef}
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setImporting(true);
-                    setImportResult(null);
-                    try {
-                      const data = await inquiryService.uploadInquiryCsv(file);
-                      const result = data?.result ?? data;
-                      setImportResult(result);
-                      const inserted = result?.inserted ?? 0;
-                      const failed = result?.failed ?? 0;
-                      const total = result?.total ?? 0;
-                      if (inserted > 0) {
-                        toast.success(`${inserted} inquiry(s) imported`);
-                        handleRefreshInquiries();
-                        setReloadTrigger((prev) => prev + 1);
-                      }
-                      if (failed > 0) {
-                        toast.warning(`${failed} row(s) failed`);
-                      }
-                    } catch (err) {
-                      toast.error(err?.response?.data?.message || err?.message || "Upload failed");
-                      setImportResult({ inserted: 0, failed: 0, total: 0, errors: [{ row: 0, message: err?.response?.data?.message || err?.message || "Upload failed" }] });
-                    } finally {
-                      setImporting(false);
-                      e.target.value = "";
-                    }
-                  }}
-                />
-              </div>
-              {importResult != null && (
-                <div className="space-y-2 rounded-md border border-border p-3 text-sm">
-                  <p className="font-medium">
-                    {importResult.inserted} created, {importResult.failed} failed out of {importResult.total} row(s).
-                  </p>
-                  {importResult.errors?.length > 0 && (
-                    <ul className="max-h-32 list-inside list-disc overflow-y-auto text-destructive">
-                      {importResult.errors.slice(0, 10).map((err, i) => (
-                        <li key={i}>
-                          Row {err.row}: {err.message}
-                        </li>
-                      ))}
-                      {importResult.errors.length > 10 && (
-                        <li className="text-muted-foreground">… and {importResult.errors.length - 10} more</li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CsvImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          title="Import Inquiries"
+          guidelines={INQUIRY_IMPORT_GUIDELINES}
+          sampleFileName="inquiry-import-sample.csv"
+          errorCsvFileName="inquiry-import-errors.csv"
+          resultCsvFileName="inquiry-import-result.csv"
+          onDownloadSample={() => inquiryService.downloadInquiryImportSample()}
+          onUpload={async (file) => {
+            const data = await inquiryService.uploadInquiryCsv(file);
+            const payload = data?.result ?? data;
+            return payload?.inserted != null || payload?.errors
+              ? payload
+              : (payload?.result ?? payload);
+          }}
+          onImportSuccess={() => {
+            handleRefreshInquiries();
+            setReloadTrigger((prev) => prev + 1);
+          }}
+        />
       </div>
     </ProtectedRoute>
   );
