@@ -7,6 +7,7 @@ export { default as AddEditPageShell } from "./AddEditPageShell";
 export { default as AutocompleteField } from "./AutocompleteField";
 export { default as BillToShipToDisplay } from "./BillToShipToDisplay";
 export { default as Checkbox } from "./Checkbox";
+export { default as CsvImportDialog } from "./CsvImportDialog";
 export { default as DateField } from "./DateField";
 export { default as DateTimeField } from "./DateTimeField";
 export { default as DetailsSidebar } from "./DetailsSidebar";
