@@ -45,9 +45,12 @@ import siteVisitService from "@/services/siteVisitService";
 import quotationService from "@/services/quotationService";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import BucketImage from "@/components/common/BucketImage";
+import SiteVisitDetailsDrawer from "@/components/common/SiteVisitDetailsDrawer";
 import FollowupForm from "@/app/followup/components/FollowupForm";
 import DocumentUploadForm from "../components/DocumentUploadForm";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { Button as UiButton } from "@/components/ui/button";
+import { IconFileDescription, IconLayoutList, IconPhoto } from "@tabler/icons-react";
 import moment from "moment";
 
 // Status color mapping (same as KanbanBoard)
@@ -172,6 +175,12 @@ function InquiryDetailsContent() {
     const [documentServerError, setDocumentServerError] = useState(null);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     const [documentReloadTrigger, setDocumentReloadTrigger] = useState(0);
+    const [siteVisitViewMode, setSiteVisitViewMode] = useState("list");
+    const [siteVisitSidebarOpen, setSiteVisitSidebarOpen] = useState(false);
+    const [selectedSiteVisit, setSelectedSiteVisit] = useState(null);
+    const [siteVisitGalleryKey, setSiteVisitGalleryKey] = useState(null);
+    const [siteVisitPhotos, setSiteVisitPhotos] = useState([]);
+    const [siteVisitPhotosLoading, setSiteVisitPhotosLoading] = useState(false);
     const fetchingRef = useRef(null); // Track current request ID
 
     useEffect(() => {
@@ -353,11 +362,67 @@ function InquiryDetailsContent() {
 
     // Fetcher function for site visits filtered by inquiry ID
     const fetchSiteVisitsByInquiry = useCallback(async (params) => {
-        return await siteVisitService.getList({
+        const response = await siteVisitService.getList({
             ...params,
             inquiry_id: id,
         });
+        const result = response?.result ?? response;
+        return {
+            data: result?.data ?? [],
+            meta: result?.meta ?? { total: 0, page: params.page, pages: 0, limit: params.limit },
+        };
     }, [id]);
+
+    const handleOpenSiteVisitDrawer = useCallback((row, galleryKey = null) => {
+        setSelectedSiteVisit(row);
+        setSiteVisitGalleryKey(galleryKey);
+        setSiteVisitSidebarOpen(true);
+    }, []);
+
+    const handleCloseSiteVisitDrawer = useCallback(() => {
+        setSiteVisitSidebarOpen(false);
+        setSelectedSiteVisit(null);
+        setSiteVisitGalleryKey(null);
+    }, []);
+
+    useEffect(() => {
+        if (activeTab !== 1 || siteVisitViewMode !== "photos" || !id) return;
+        let cancelled = false;
+        const loadPhotos = async () => {
+            setSiteVisitPhotosLoading(true);
+            try {
+                const response = await siteVisitService.getList({
+                    inquiry_id: id,
+                    page: 1,
+                    limit: 100,
+                    sortBy: "site_visit_id",
+                    sortOrder: "DESC",
+                });
+                const result = response?.result ?? response;
+                if (!cancelled) setSiteVisitPhotos(result?.data ?? []);
+            } catch (err) {
+                if (!cancelled) {
+                    toastError(err?.response?.data?.message || err?.message || "Failed to load site visit photos");
+                    setSiteVisitPhotos([]);
+                }
+            } finally {
+                if (!cancelled) setSiteVisitPhotosLoading(false);
+            }
+        };
+        loadPhotos();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTab, siteVisitViewMode, id, reloadTrigger]);
+
+    const visitStatusBadgeClass = (status) => {
+        const s = String(status ?? "").toLowerCase();
+        if (s === "visited") return "bg-green-100 text-green-800";
+        if (s === "pending") return "bg-amber-100 text-amber-800";
+        if (s === "rescheduled") return "bg-blue-100 text-blue-800";
+        if (s === "cancelled") return "bg-red-100 text-red-800";
+        return "bg-slate-100 text-slate-700";
+    };
 
     // Fetcher function for quotations filtered by inquiry ID
     const fetchQuotationsByInquiry = useCallback(async (params) => {
@@ -923,83 +988,219 @@ function InquiryDetailsContent() {
 
                                 {/* Site Visits Tab */}
                                 {activeTab === 1 && (
-                                    <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                                        <PaginatedTable
-                                            key={`site-visits-${reloadTrigger}`}
-                                            fetcher={fetchSiteVisitsByInquiry}
-                                            initialPage={1}
-                                            initialLimit={10}
-                                            height="100%"
-                                            getRowKey={(row) => row.site_visit_id || row.id || Math.random()}
-                                            columns={[
-                                                {
-                                                    field: "schedule_on",
-                                                    label: "Schedule On",
-                                                    render: (row) => formatDateOnly(row.site_visit_schedule_on) || "-",
-                                                },
-                                                {
-                                                    field: "schedule_remarks",
-                                                    label: "Schedule Remarks",
-                                                    wrap: true,
-                                                    render: (row) => row.site_visit_schedule_remarks || "-",
-                                                },
-                                                {
-                                                    field: "assign_to",
-                                                    label: "Assign To",
-                                                    render: (row) => row.site_visit_visit_assign_to ? `User ID: ${row.site_visit_visit_assign_to}` : "-",
-                                                },
-                                                {
-                                                    field: "status",
-                                                    label: "Status",
-                                                    render: (row) => row.site_visit_visit_status || row.site_visit_status || "-",
-                                                },
-                                                {
-                                                    field: "visited_on",
-                                                    label: "Visited On",
-                                                    render: (row) => formatDateOnly(row.site_visit_visit_date) || "-",
-                                                },
-                                                {
-                                                    field: "visit_remarks",
-                                                    label: "Visit Remarks",
-                                                    wrap: true,
-                                                    render: (row) => row.site_visit_remarks || "-",
-                                                },
-                                                {
-                                                    field: "visit_photo",
-                                                    label: "Visit Photo",
-                                                    render: (row) => {
-                                                        if (!row.site_visit_visit_photo) return "-";
-                                                        return (
-                                                            <BucketImage
-                                                                path={row.site_visit_visit_photo}
-                                                                getUrl={siteVisitService.getDocumentUrl}
-                                                                alt="Visit Photo"
-                                                            />
-                                                        );
+                                    <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                                        <div className="flex items-center justify-between gap-2 shrink-0 px-0.5">
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                                Site Visits
+                                            </p>
+                                            <div className="inline-flex rounded border border-border overflow-hidden">
+                                                <UiButton
+                                                    type="button"
+                                                    variant={siteVisitViewMode === "list" ? "default" : "ghost"}
+                                                    size="sm"
+                                                    className="h-7 rounded-none px-2 gap-1"
+                                                    onClick={() => setSiteVisitViewMode("list")}
+                                                    aria-label="List view"
+                                                    aria-pressed={siteVisitViewMode === "list"}
+                                                >
+                                                    <IconLayoutList className="size-3.5" />
+                                                    List
+                                                </UiButton>
+                                                <UiButton
+                                                    type="button"
+                                                    variant={siteVisitViewMode === "photos" ? "default" : "ghost"}
+                                                    size="sm"
+                                                    className="h-7 rounded-none px-2 gap-1"
+                                                    onClick={() => setSiteVisitViewMode("photos")}
+                                                    aria-label="Photos view"
+                                                    aria-pressed={siteVisitViewMode === "photos"}
+                                                >
+                                                    <IconPhoto className="size-3.5" />
+                                                    Photos
+                                                </UiButton>
+                                            </div>
+                                        </div>
+
+                                        {siteVisitViewMode === "list" ? (
+                                            <PaginatedTable
+                                                key={`site-visits-${reloadTrigger}`}
+                                                fetcher={fetchSiteVisitsByInquiry}
+                                                initialPage={1}
+                                                initialLimit={10}
+                                                height="100%"
+                                                getRowKey={(row) => row.site_visit_id || row.id || Math.random()}
+                                                columns={[
+                                                    {
+                                                        field: "status",
+                                                        label: "Status",
+                                                        render: (row) => {
+                                                            const status = row.site_visit_visit_status || row.site_visit_status || "-";
+                                                            return (
+                                                                <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${visitStatusBadgeClass(status)}`}>
+                                                                    {status}
+                                                                </span>
+                                                            );
+                                                        },
                                                     },
-                                                },
-                                                {
-                                                    field: "visit_location",
-                                                    label: "Visit Location",
-                                                    render: (row) => {
-                                                        if (row.site_visit_site_latitude && row.site_visit_site_longitude) {
-                                                            return `${row.site_visit_site_latitude}, ${row.site_visit_site_longitude}`;
-                                                        }
-                                                        return "-";
+                                                    {
+                                                        field: "visited_on",
+                                                        label: "Visited On",
+                                                        render: (row) => formatDateOnly(row.site_visit_visit_date) || "-",
                                                     },
-                                                },
-                                                {
-                                                    field: "added_to",
-                                                    label: "Added To",
-                                                    render: (row) => formatDateOnly(row.site_visit_created_at) || "-",
-                                                },
-                                                {
-                                                    field: "assigned_on",
-                                                    label: "Assigned On",
-                                                    render: (row) => formatDateOnly(row.site_visit_schedule_on) || formatDateOnly(row.site_visit_created_at) || "-",
-                                                },
-                                            ]}
-                                        />
+                                                    {
+                                                        field: "assign_to",
+                                                        label: "Assign To",
+                                                        render: (row) =>
+                                                            row.visit_assign_to_name ||
+                                                            (row.site_visit_visit_assign_to ? `User #${row.site_visit_visit_assign_to}` : "-"),
+                                                    },
+                                                    {
+                                                        field: "schedule_on",
+                                                        label: "Schedule On",
+                                                        render: (row) => formatDateOnly(row.site_visit_schedule_on) || "-",
+                                                    },
+                                                    {
+                                                        field: "visit_remarks",
+                                                        label: "Remarks",
+                                                        wrap: true,
+                                                        render: (row) => {
+                                                            const remarks = row.site_visit_remarks;
+                                                            if (!remarks) return "-";
+                                                            return remarks.length > 40 ? `${remarks.substring(0, 40)}...` : remarks;
+                                                        },
+                                                    },
+                                                    {
+                                                        field: "visit_photo",
+                                                        label: "Visit Photo",
+                                                        render: (row) => {
+                                                            if (!row.site_visit_visit_photo) return "-";
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    className="inline-flex items-center justify-center rounded border border-border overflow-hidden hover:border-[#00823b]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00823b]/40"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenSiteVisitDrawer(row, "visit_photo");
+                                                                    }}
+                                                                    aria-label="View visit photo"
+                                                                    tabIndex={0}
+                                                                >
+                                                                    <BucketImage
+                                                                        path={row.site_visit_visit_photo}
+                                                                        getUrl={siteVisitService.getDocumentUrl}
+                                                                        alt="Visit Photo"
+                                                                        sx={{ width: 40, height: 40, objectFit: "cover", borderRadius: 0, display: "block" }}
+                                                                    />
+                                                                </button>
+                                                            );
+                                                        },
+                                                    },
+                                                    {
+                                                        field: "visit_location",
+                                                        label: "Location",
+                                                        render: (row) => {
+                                                            const lat = Number(row.site_visit_site_latitude);
+                                                            const lng = Number(row.site_visit_site_longitude);
+                                                            if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+                                                                return "-";
+                                                            }
+                                                            const href = `https://www.google.com/maps?q=${lat},${lng}`;
+                                                            return (
+                                                                <a
+                                                                    href={href}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-xs text-[#00823b] font-medium hover:underline"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    aria-label="Open location in Google Maps"
+                                                                >
+                                                                    Map
+                                                                </a>
+                                                            );
+                                                        },
+                                                    },
+                                                    {
+                                                        field: "added_to",
+                                                        label: "Created",
+                                                        render: (row) => formatDateOnly(row.site_visit_created_at) || "-",
+                                                    },
+                                                    {
+                                                        field: "actions",
+                                                        label: "Actions",
+                                                        sortable: false,
+                                                        isActionColumn: true,
+                                                        render: (row) => (
+                                                            <UiButton
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon-sm"
+                                                                onClick={() => handleOpenSiteVisitDrawer(row)}
+                                                                aria-label="View site visit details"
+                                                            >
+                                                                <IconFileDescription className="size-4" />
+                                                            </UiButton>
+                                                        ),
+                                                    },
+                                                ]}
+                                            />
+                                        ) : siteVisitPhotosLoading ? (
+                                            <div className="flex flex-1 items-center justify-center py-8">
+                                                <CircularProgress size={28} />
+                                            </div>
+                                        ) : siteVisitPhotos.length === 0 ? (
+                                            <p className="text-xs text-muted-foreground py-6 text-center">No site visit photos</p>
+                                        ) : (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5 overflow-y-auto flex-1 min-h-0 content-start pr-0.5">
+                                                {siteVisitPhotos.map((row) => {
+                                                    const status = row.site_visit_visit_status || row.site_visit_status || "-";
+                                                    const assignName =
+                                                        row.visit_assign_to_name ||
+                                                        (row.site_visit_visit_assign_to ? `User #${row.site_visit_visit_assign_to}` : "-");
+                                                    return (
+                                                        <button
+                                                            key={row.site_visit_id || row.id}
+                                                            type="button"
+                                                            onClick={() => handleOpenSiteVisitDrawer(row, row.site_visit_visit_photo ? "visit_photo" : null)}
+                                                            className="text-left rounded border border-border bg-background hover:border-[#00823b]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00823b]/40 overflow-hidden"
+                                                            aria-label={`View site visit ${row.site_visit_id}`}
+                                                            tabIndex={0}
+                                                        >
+                                                            <div className="aspect-[4/3] w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                                                                {row.site_visit_visit_photo ? (
+                                                                    <BucketImage
+                                                                        path={row.site_visit_visit_photo}
+                                                                        getUrl={siteVisitService.getDocumentUrl}
+                                                                        alt="Visit photo"
+                                                                        sx={{
+                                                                            width: "100%",
+                                                                            height: "100%",
+                                                                            objectFit: "cover",
+                                                                            borderRadius: 0,
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-[10px] text-muted-foreground">No photo</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="px-1.5 py-1 space-y-0.5">
+                                                                <div className="flex items-center justify-between gap-1">
+                                                                    <span className={`inline-flex items-center rounded px-1 py-0.5 text-[10px] font-medium ${visitStatusBadgeClass(status)}`}>
+                                                                        {status}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-muted-foreground truncate">
+                                                                        #{row.site_visit_id}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-[10px] text-foreground truncate">
+                                                                    {formatDateOnly(row.site_visit_visit_date)}
+                                                                </p>
+                                                                <p className="text-[10px] text-muted-foreground truncate">{assignName}</p>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                     </Box>
                                 )}
 
@@ -1230,6 +1431,13 @@ function InquiryDetailsContent() {
                     />
                 </Box>
             </Modal>
+
+            <SiteVisitDetailsDrawer
+                open={siteVisitSidebarOpen}
+                onClose={handleCloseSiteVisitDrawer}
+                siteVisit={selectedSiteVisit}
+                initialGalleryKey={siteVisitGalleryKey}
+            />
         </Box>
     );
 }

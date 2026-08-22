@@ -70,6 +70,10 @@ export const getList = (params = {}) => {
 export const exportSiteVisits = (params = {}) =>
   apiClient.get('/site-visit/export', { params, responseType: 'blob' }).then((r) => r.data);
 
+/** Get a single site visit by id with inquiry, customer, and user names. */
+export const getById = (id) =>
+  apiClient.get(`/site-visit/${id}`).then((r) => r.data);
+
 // Create new site visit with multiple file uploads
 export const create = (payload, files = {}) => {
   const formData = new FormData();
@@ -172,6 +176,7 @@ export const getDocumentUrl = (path) =>
 
 export default {
   getList,
+  getById,
   exportSiteVisits,
   create,
   getRoofTypes,
