@@ -32,6 +32,11 @@ import {
   isValidLatitude,
   isValidLongitude,
 } from "@/utils/geolocation";
+import {
+  formatInquiryOptionLabel,
+  loadInquiryById,
+  loadInquiryOptions,
+} from "@/app/site-visit/utils/inquiryOptions";
 
 export default function SiteVisitForm({
   defaultValues = null,
@@ -84,8 +89,7 @@ export default function SiteVisitForm({
     other_images_videos: [],
   });
 
-  const [inquiries, setInquiries] = useState([]);
-  const [loadingInquiries, setLoadingInquiries] = useState(false);
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [roofTypes, setRoofTypes] = useState([]);
   const [loadingRoofTypes, setLoadingRoofTypes] = useState(false);
   const [users, setUsers] = useState([]);
@@ -124,25 +128,26 @@ export default function SiteVisitForm({
       };
       setFormData(sanitizedValues);
     }
-    fetchInquiries();
     fetchRoofTypes();
     fetchUsers();
   }, [defaultValues]);
 
-  const fetchInquiries = async () => {
-    setLoadingInquiries(true);
-    try {
-      const response = await siteVisitService.getInquiries();
-      const result = response.result || response;
-      const data = result.data || result || [];
-      setInquiries(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching inquiries:", error);
-      setInquiries([]);
-    } finally {
-      setLoadingInquiries(false);
-    }
-  };
+  // Preload selected inquiry for edit / from-inquiry so Autocomplete shows rich label
+  useEffect(() => {
+    const inquiryId = defaultValues?.inquiry_id;
+    if (inquiryId == null || inquiryId === "") return;
+    let cancelled = false;
+    const preload = async () => {
+      const inquiry = await loadInquiryById(inquiryId);
+      if (!cancelled && inquiry) {
+        setSelectedInquiry(inquiry);
+      }
+    };
+    preload();
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultValues?.inquiry_id]);
 
   const fetchRoofTypes = async () => {
     setLoadingRoofTypes(true);
@@ -185,6 +190,11 @@ export default function SiteVisitForm({
     if (serverError) {
       onClearServerError();
     }
+  };
+
+  const handleInquiryChange = (e, newValue) => {
+    setSelectedInquiry(newValue || null);
+    handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } });
   };
 
   const handleRadioChange = (e) => {
@@ -482,16 +492,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 4 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
@@ -564,16 +574,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 6 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
@@ -618,16 +628,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 4 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
