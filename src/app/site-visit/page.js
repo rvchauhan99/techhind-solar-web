@@ -8,7 +8,8 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
-import DetailsSidebar from "@/components/common/DetailsSidebar";
+import SiteVisitDetailsDrawer from "@/components/common/SiteVisitDetailsDrawer";
+import BucketImage from "@/components/common/BucketImage";
 import siteVisitService from "@/services/siteVisitService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { Box, Tooltip, Snackbar, Alert } from "@mui/material";
@@ -28,7 +29,14 @@ const SiteVisitForm = dynamic(() => import("./components/SiteVisitForm"), { ssr:
 const SiteSurveyForm = dynamic(() => import("./components/SiteSurveyForm"), { ssr: false });
 
 const COLUMN_FILTER_KEYS = [
-  "inquiry_id",
+  "inquiry_number",
+  "inquiry_number_op",
+  "customer_name",
+  "customer_name_op",
+  "mobile_number",
+  "mobile_number_op",
+  "address",
+  "address_op",
   "inquiry_date_of_inquiry_from",
   "inquiry_date_of_inquiry_to",
   "inquiry_date_of_inquiry_op",
@@ -95,7 +103,7 @@ export default function SiteVisitPage() {
   const [exporting, setExporting] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [initialGalleryKey, setInitialGalleryKey] = useState(null);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -146,16 +154,16 @@ export default function SiteVisitPage() {
     setTableKey((prev) => prev + 1);
   }, []);
 
-  const handleOpenSidebar = useCallback(async (row) => {
-    setLoadingRecord(true);
+  const handleOpenSidebar = useCallback((row, galleryKey = null) => {
     setSelectedRecord(row);
+    setInitialGalleryKey(galleryKey);
     setSidebarOpen(true);
-    setLoadingRecord(false);
   }, []);
 
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedRecord(null);
+    setInitialGalleryKey(null);
   }, []);
 
   const fetcher = useMemo(
@@ -173,13 +181,54 @@ export default function SiteVisitPage() {
   const columns = useMemo(
     () => [
       {
-        field: "inquiry_id",
-        label: "Inquiry ID",
+        field: "inquiry_number",
+        label: "Inquiry #",
         sortable: true,
         filterType: "text",
-        filterKey: "inquiry_id",
+        filterKey: "inquiry_number",
+        operatorKey: "inquiry_number_op",
         defaultFilterOperator: "contains",
-        render: (row) => row.inquiry_id || "-",
+        render: (row) => row.inquiry_number || "-",
+      },
+      {
+        field: "customer_name",
+        label: "Customer",
+        sortable: true,
+        filterType: "text",
+        filterKey: "customer_name",
+        operatorKey: "customer_name_op",
+        defaultFilterOperator: "contains",
+        render: (row) => row.customer_name || "-",
+      },
+      {
+        field: "mobile_number",
+        label: "Mobile",
+        sortable: true,
+        filterType: "text",
+        filterKey: "mobile_number",
+        operatorKey: "mobile_number_op",
+        defaultFilterOperator: "contains",
+        render: (row) => (
+          <span className="select-text cursor-text text-xs">{row.mobile_number || "-"}</span>
+        ),
+      },
+      {
+        field: "address",
+        label: "Address",
+        sortable: true,
+        filterType: "text",
+        filterKey: "address",
+        operatorKey: "address_op",
+        defaultFilterOperator: "contains",
+        render: (row) => {
+          const addr = row.address;
+          if (!addr) return "-";
+          return (
+            <span className="text-xs" title={addr}>
+              {addr.length > 40 ? `${addr.substring(0, 40)}...` : addr}
+            </span>
+          );
+        },
       },
       {
         field: "inquiry_date_of_inquiry",
@@ -294,7 +343,25 @@ export default function SiteVisitPage() {
         render: (row) => {
           const photo = row.site_visit_visit_photo;
           if (!photo) return "-";
-          return <span className="text-muted-foreground">Yes</span>;
+          return (
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded border border-border overflow-hidden hover:border-[#00823b]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00823b]/40"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenSidebar(row, "visit_photo");
+              }}
+              aria-label="View visit photo"
+              tabIndex={0}
+            >
+              <BucketImage
+                path={photo}
+                getUrl={siteVisitService.getDocumentUrl}
+                alt="Visit photo"
+                sx={{ width: 40, height: 40, objectFit: "cover", borderRadius: 0, display: "block" }}
+              />
+            </button>
+          );
         },
       },
       {
@@ -360,34 +427,6 @@ export default function SiteVisitPage() {
     }
     return { q: undefined, ...obj };
   }, [filters]);
-
-  const sidebarContent = useMemo(() => {
-    if (!selectedRecord) return null;
-    const r = selectedRecord;
-    return (
-      <div className="pr-1 space-y-3">
-        <p className="font-semibold">Site Visit #{r.site_visit_id ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Inquiry ID</p>
-        <p className="text-sm">{r.inquiry_id ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Inquiry Status</p>
-        <p className="text-sm">{r.inquiry_status ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Visit Status</p>
-        <p className="text-sm">{r.site_visit_visit_status ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Visit Date</p>
-        <p className="text-sm">{formatDate(r.site_visit_visit_date) ?? "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Capacity</p>
-        <p className="text-sm">{r.inquiry_capacity != null ? `${r.inquiry_capacity} KW` : "-"}</p>
-        <p className="text-xs font-semibold text-muted-foreground">Roof Type</p>
-        <p className="text-sm">{r.site_visit_roof_type ?? "-"}</p>
-        {r.site_visit_remarks && (
-          <>
-            <p className="text-xs font-semibold text-muted-foreground">Remarks</p>
-            <p className="text-sm">{r.site_visit_remarks}</p>
-          </>
-        )}
-      </div>
-    );
-  }, [selectedRecord]);
 
   const handleSubmit = async (formData, files) => {
     setLoading(true);
@@ -468,15 +507,12 @@ export default function SiteVisitPage() {
           />
         </div>
 
-        <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Site Visit Details">
-          {loadingRecord ? (
-            <div className="flex min-h-[200px] items-center justify-center">
-              <span className="text-muted-foreground">Loading...</span>
-            </div>
-          ) : (
-            sidebarContent
-          )}
-        </DetailsSidebar>
+        <SiteVisitDetailsDrawer
+          open={sidebarOpen}
+          onClose={handleCloseSidebar}
+          siteVisit={selectedRecord}
+          initialGalleryKey={initialGalleryKey}
+        />
 
         <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
           <DialogContent className={DIALOG_FORM_LARGE}>
