@@ -28,7 +28,7 @@ import AddressFields, { isIndiaCountry } from "@/components/common/AddressFields
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
 import { mapBomResponseToForm } from "./useProjectBomMapper";
-import { calculateTotals } from "./quotationCalculations";
+import { calculateTotals, syncTotalFromCapacityAndRate } from "./quotationCalculations";
 import TechnicalSection from "./TechnicalSection";
 import ExtraMaterialsSection from "./ExtraMaterialsSection";
 
@@ -194,9 +194,12 @@ export default function QuotationForm({
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
         const capacity = Number(formData.project_capacity);
-        if (capacity > 0 && value !== "" && !Number.isNaN(Number(value))) {
-            const totalProjectValue = Number((Number(value) * capacity).toFixed(2));
-            patchForm({ price_per_kw: value, total_project_value: totalProjectValue });
+        const syncedTotal = syncTotalFromCapacityAndRate({
+            project_capacity: capacity,
+            price_per_kw: value,
+        });
+        if (syncedTotal != null) {
+            patchForm({ price_per_kw: value, total_project_value: syncedTotal });
             setErrors((prev) => {
                 const next = { ...prev };
                 delete next.price_per_kw;

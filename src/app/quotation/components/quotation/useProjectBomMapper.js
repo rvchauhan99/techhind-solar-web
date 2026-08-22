@@ -3,6 +3,8 @@
  * Component should NOT manually loop BOM; use this hook.
  */
 
+import { syncTotalFromCapacityAndRate } from "./quotationCalculations";
+
 /**
  * Normalize product with make id and name for Autocomplete fallback (from API).
  * @param {Record<string, unknown>} product
@@ -55,7 +57,7 @@ export function mapBomResponseToForm(response) {
     Object.assign(formPatch, {
         project_price_id: datas.id ?? "",
         price_per_kw: datas.price_per_kwa != null ? Number(datas.price_per_kwa).toFixed(2) : "",
-        total_project_value: datas.total_project_value ?? "",
+        // total_project_value set after live capacity (do not trust stale master total)
         netmeter_amount: datas.netmeter_amount ?? 0,
         structure_amount: datas.structure_amount ?? "",
         subsidy_amount: datas.subsidy_amount ?? "",
@@ -262,6 +264,18 @@ export function mapBomResponseToForm(response) {
     }
 
     formPatch.project_capacity = project_capacity;
+
+    const syncedTotal = syncTotalFromCapacityAndRate({
+        project_capacity,
+        price_per_kw: formPatch.price_per_kw,
+    });
+    if (syncedTotal != null) {
+        formPatch.total_project_value = syncedTotal;
+    } else if (datas.total_project_value != null && datas.total_project_value !== "") {
+        formPatch.total_project_value = datas.total_project_value;
+    } else {
+        formPatch.total_project_value = "";
+    }
 
     return { formPatch, bomProductBySection };
 }
