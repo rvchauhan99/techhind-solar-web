@@ -17,6 +17,7 @@ import {
 
 const SIDEBAR_STORAGE_KEY = "solar-sidebar-collapsed";
 const FOCUS_FULLSCREEN_KEY = "solar-focus-fullscreen";
+const MOBILE_MQ = "(max-width: 1023px)";
 
 function getStoredSidebarCollapsed() {
   if (typeof window === "undefined") return false;
@@ -44,6 +45,7 @@ export default function DashboardLayout({ children }) {
     getStoredSidebarCollapsed()
   );
   const [sidebarHoverExpanded, setSidebarHoverExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [focusFullscreen, setFocusFullscreen] = useState(() =>
     getStoredFocusFullscreen()
@@ -51,9 +53,17 @@ export default function DashboardLayout({ children }) {
   const [docFullscreen, setDocFullscreen] = useState(false);
   const [nativeFsSupported, setNativeFsSupported] = useState(false);
 
-  // Determine the actual layout bounds vs floating state
-  const isFloatingHover = sidebarCollapsed && sidebarHoverExpanded;
+  // Desktop layout bounds vs floating hover (desktop only)
+  const isFloatingHover =
+    !isMobile && sidebarCollapsed && sidebarHoverExpanded;
   const layoutSidebarExpanded = !sidebarCollapsed;
+
+  // Mobile drawer must never use the desktop icon-rail width (w-16)
+  const sidebarShellWidthClass = isMobile
+    ? "w-64 max-w-[85vw]"
+    : layoutSidebarExpanded || isFloatingHover
+      ? "w-64"
+      : "w-16";
 
   const persistFocusFullscreen = useCallback((next) => {
     setFocusFullscreen(next);
@@ -73,8 +83,37 @@ export default function DashboardLayout({ children }) {
   };
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(MOBILE_MQ);
+    const sync = () => {
+      const mobile = mq.matches;
+      setIsMobile(mobile);
+      if (mobile) setSidebarHoverExpanded(false);
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
     if (focusFullscreen) setSidebarOpen(false);
   }, [focusFullscreen]);
+
+  // Close mobile drawer on navigate
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll while mobile drawer is open
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (!isMobile || !sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isMobile, sidebarOpen]);
 
   useEffect(() => {
     if (!focusFullscreen && typeof document !== "undefined" && document.fullscreenElement) {
@@ -108,15 +147,22 @@ export default function DashboardLayout({ children }) {
         });
         return;
       }
-      if (e.key === "Escape" && focusFullscreen) {
+      if (e.key === "Escape") {
         if (isDialogOpen()) return;
-        e.preventDefault();
-        persistFocusFullscreen(false);
+        if (sidebarOpen && isMobile) {
+          e.preventDefault();
+          setSidebarOpen(false);
+          return;
+        }
+        if (focusFullscreen) {
+          e.preventDefault();
+          persistFocusFullscreen(false);
+        }
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [focusFullscreen, persistFocusFullscreen]);
+  }, [focusFullscreen, persistFocusFullscreen, sidebarOpen, isMobile]);
 
   useEffect(() => {
     const hasToken = typeof window !== "undefined" && !!getAccessToken();
@@ -189,28 +235,32 @@ export default function DashboardLayout({ children }) {
         </div>
       )}
 
-      {/* Sidebar: hidden in focus fullscreen */}
+      {/* Sidebar: off-canvas on mobile; persistent on lg+ */}
       {!focusFullscreen && (
         <div
-          className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out lg:translate-x-0 ${layoutSidebarExpanded || isFloatingHover ? "w-64" : "w-16"
-            } ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${isFloatingHover ? "shadow-xl border-r border-border" : ""
-            }`}
-          onMouseEnter={() =>
-            sidebarCollapsed && setSidebarHoverExpanded(true)
-          }
-          onMouseLeave={() => setSidebarHoverExpanded(false)}
+          className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out lg:translate-x-0 ${sidebarShellWidthClass} ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          } ${isFloatingHover ? "shadow-xl border-r border-border" : ""} ${
+            isMobile && sidebarOpen ? "shadow-xl" : ""
+          }`}
+          onMouseEnter={() => {
+            if (!isMobile && sidebarCollapsed) setSidebarHoverExpanded(true);
+          }}
+          onMouseLeave={() => {
+            if (!isMobile) setSidebarHoverExpanded(false);
+          }}
         >
           <Sidebar
             setSidebarOpen={setSidebarOpen}
-            collapsed={sidebarCollapsed && !sidebarHoverExpanded}
+            collapsed={!isMobile && sidebarCollapsed && !sidebarHoverExpanded}
             onToggleCollapse={handleToggleCollapse}
             onEnterFocusFullscreen={() => persistFocusFullscreen(true)}
           />
         </div>
       )}
 
-      {/* Sidebar Overlay (Mobile or when floating) */}
-      {!focusFullscreen && (sidebarOpen || (isFloatingHover && false)) && (
+      {/* Mobile drawer backdrop */}
+      {!focusFullscreen && sidebarOpen && (
         <div
           className="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
@@ -221,12 +271,17 @@ export default function DashboardLayout({ children }) {
         />
       )}
 
-      {/* Main Content: push layout; padding matching layout bounds, NOT floating hover bounds */}
+      {/* Main Content: desktop padding only; mobile is full width */}
       <div
-        className={`flex flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${focusFullscreen ? "lg:pl-0" : layoutSidebarExpanded ? "lg:pl-64" : "lg:pl-16"
-          }`}
+        className={`flex flex-1 flex-col overflow-hidden transition-[padding] duration-300 ease-in-out ${
+          focusFullscreen
+            ? "lg:pl-0"
+            : layoutSidebarExpanded
+              ? "lg:pl-64"
+              : "lg:pl-16"
+        }`}
       >
-        {/* Mobile bar: hidden in focus fullscreen */}
+        {/* Mobile top bar */}
         {!focusFullscreen && (
           <div className="border-border bg-background flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:hidden">
             <Button
@@ -234,6 +289,8 @@ export default function DashboardLayout({ children }) {
               size="icon"
               className="min-w-10!"
               onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+              aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? (
                 <IconX className="h-5 w-5" />
@@ -260,7 +317,6 @@ export default function DashboardLayout({ children }) {
           </div>
         )}
 
-        {/* Page Content */}
         <main
           className={
             focusFullscreen

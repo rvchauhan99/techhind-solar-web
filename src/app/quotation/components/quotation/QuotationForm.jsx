@@ -25,7 +25,7 @@ import { toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import AddressFields, { isIndiaCountry } from "@/components/common/AddressFields";
 
-import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
+import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS, getProjectDrivenResetPatch } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
 import { mapBomResponseToForm } from "./useProjectBomMapper";
 import { calculateTotals, syncTotalFromCapacityAndRate } from "./quotationCalculations";
@@ -107,6 +107,7 @@ export default function QuotationForm({
     const [loadingOptions, setLoadingOptions] = useState(false);
     const [lastFetchedProductBySection, setLastFetchedProductBySection] = useState({});
     const bomProductsBySectionRef = useRef({});
+    const projectLoadSeqRef = useRef(0);
     const [expandedAccordions, setExpandedAccordions] = useState(DEFAULT_EXPANDED_ACCORDIONS);
 
     const handleAccordionChange = useCallback((panel) => (event, isExpanded) => {
@@ -148,22 +149,35 @@ export default function QuotationForm({
     }, []);
 
     const handleProjectPriceChange = useCallback(async (projectPriceId) => {
-        if (!projectPriceId) {
-            bomProductsBySectionRef.current = {};
-            setLastFetchedProductBySection({});
-            return;
-        }
+        const seq = ++projectLoadSeqRef.current;
+        const resetPatch = getProjectDrivenResetPatch();
+
+        // Strict clear first so prior project tech/price cannot linger
+        bomProductsBySectionRef.current = {};
+        setLastFetchedProductBySection({});
+        patchForm({ ...resetPatch, project_price_id: projectPriceId || "" });
+
+        if (!projectPriceId) return;
+
         try {
             const response = await quotationService.getProjectPriceBomDetails({ id: projectPriceId });
+            if (seq !== projectLoadSeqRef.current) return;
+
             const data = response?.result ?? response?.data ?? response;
-            if (!data || response?.success === false) return;
+            if (!data || response?.status === false || response?.success === false) {
+                toastError(response?.message || "Failed to load project BOM details");
+                return;
+            }
+
             const { formPatch, bomProductBySection } = mapBomResponseToForm(response);
             bomProductsBySectionRef.current = bomProductBySection;
             patchForm({ ...formPatch, project_price_id: projectPriceId });
             setLastFetchedProductBySection(bomProductBySection);
         } catch (err) {
+            if (seq !== projectLoadSeqRef.current) return;
             bomProductsBySectionRef.current = {};
             setLastFetchedProductBySection({});
+            toastError(err?.response?.data?.message || err?.message || "Failed to load project details");
         }
     }, [patchForm]);
 
@@ -181,7 +195,12 @@ export default function QuotationForm({
             if (cancelled) return;
             const projectPrices = r?.result ?? [];
             setOptions((prev) => ({ ...prev, projectPrices }));
-            if (formData.project_price_id && !projectPrices.some((price) => price.id === formData.project_price_id)) {
+            // Only clear when the loaded list is non-empty and id is missing (avoid race clears).
+            if (
+                formData.project_price_id &&
+                projectPrices.length > 0 &&
+                !projectPrices.some((price) => price.id === formData.project_price_id)
+            ) {
                 patchForm({ project_price_id: "" });
                 handleProjectPriceChange("");
             }
@@ -189,7 +208,9 @@ export default function QuotationForm({
             if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
         });
         return () => { cancelled = true; };
-    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, formData.project_price_id, patchForm, handleProjectPriceChange]);
+        // Omit project_price_id — selecting a project must not refetch/clear the list.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- project_price_id intentionally excluded
+    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, patchForm, handleProjectPriceChange]);
 
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
