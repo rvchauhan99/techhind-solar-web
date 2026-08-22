@@ -116,11 +116,17 @@ export default function PhoneField({
           aria-describedby={error && helperText ? errorId : undefined}
         />
       </div>
-      {error && helperText && (
-        <p id={errorId} className="mt-1.5 text-xs text-destructive">
+      {helperText ? (
+        <p
+          id={error ? errorId : undefined}
+          className={cn(
+            "mt-1.5 text-xs",
+            error ? "text-destructive" : "text-muted-foreground"
+          )}
+        >
           {helperText}
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
