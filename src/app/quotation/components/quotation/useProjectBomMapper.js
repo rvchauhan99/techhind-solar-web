@@ -4,6 +4,7 @@
  */
 
 import { syncTotalFromCapacityAndRate } from "./quotationCalculations";
+import { getProjectDrivenResetPatch } from "./quotationConfig";
 
 /**
  * Normalize product with make id and name for Autocomplete fallback (from API).
@@ -53,8 +54,8 @@ export function mapBomResponseToForm(response) {
         description: element?.description ?? product?.product_description ?? "",
     });
 
-    // Initialize all BOM-driven fields
-    Object.assign(formPatch, {
+    // Initialize all BOM-driven fields from shared project reset
+    Object.assign(formPatch, getProjectDrivenResetPatch(), {
         project_price_id: datas.id ?? "",
         price_per_kw: datas.price_per_kwa != null ? Number(datas.price_per_kwa).toFixed(2) : "",
         // total_project_value set after live capacity (do not trust stale master total)
@@ -62,63 +63,7 @@ export function mapBomResponseToForm(response) {
         structure_amount: datas.structure_amount ?? "",
         subsidy_amount: datas.subsidy_amount ?? "",
         state_subsidy_amount: datas.state_subsidy ?? "",
-        structure_height: "",
-        structure_material: "",
-        structure_product: "",
-        structure_items: [],
-        panel_size: "",
-        panel_quantity: "",
-        panel_make_ids: [],
-        panel_type: "",
-        panel_warranty: "",
-        panel_performance_warranty: "",
-        panel_product: "",
-        inverter_size: "",
-        inverter_quantity: "",
-        inverter_make_ids: [],
-        inverter_warranty: "",
-        inverter_product: "",
-        hybrid_inverter_size: "",
-        hybrid_inverter_quantity: "",
-        hybrid_inverter_make_ids: [],
-        hybrid_inverter_warranty: "",
-        hybrid_inverter_product: "",
-        battery_size: "",
-        battery_quantity: "",
-        battery_make_ids: [],
-        battery_type: "",
-        battery_warranty: "",
-        battery_product: "",
-        battery_description_text: "",
-        acdb_quantity: "",
-        acdb_description: "",
-        acdb_product: "",
-        dcdb_quantity: "",
-        dcdb_description: "",
-        dcdb_product: "",
-        cable_ac_quantity: "",
-        cable_ac_make_ids: [],
-        cable_ac_description: "",
-        cable_ac_product: "",
-        cable_dc_quantity: "",
-        cable_dc_make_ids: [],
-        cable_dc_description: "",
-        cable_dc_product: "",
-        cable_ac_items: [],
-        cable_dc_items: [],
-        cable_la_items: [],
-        cable_earthing_items: [],
-        accessories_items: [],
-        earthing_quantity: "",
-        earthing_make_ids: [],
-        earthing_description: "",
-        earthing_product: "",
-        earthing_description_text: "",
-        la_quantity: "",
-        la_make_ids: [],
-        la_description: "",
-        la_product: "",
-        lightening_arrester_description_text: "",
+        system_warranty_years: datas.system_warranty ?? "",
     });
 
     for (let i = 0; i < bomDetails.length; i++) {
