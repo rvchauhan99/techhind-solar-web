@@ -109,6 +109,14 @@ export function useQuotationState({ user, defaultValues = {} }) {
             const normalizedValue =
                 type === "checkbox" ? checked : value === undefined ? "" : value;
 
+            if (
+                (name === "customer_name" || name === "mobile_number") &&
+                formData.inquiry_id != null &&
+                formData.inquiry_id !== ""
+            ) {
+                return;
+            }
+
             if (name === "state_id") {
                 setFormData((prev) => ({ ...prev, state_id: normalizedValue, city_id: "" }));
                 if (errors.state_id || errors.city_id) {
@@ -154,7 +162,7 @@ export function useQuotationState({ user, defaultValues = {} }) {
 
             setFormData((prev) => ({ ...prev, [name]: normalizedValue }));
         },
-        [errors]
+        [errors, formData.inquiry_id]
     );
 
     const handleAutocompleteChange = useCallback((name, value) => {

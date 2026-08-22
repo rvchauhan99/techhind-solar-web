@@ -227,8 +227,12 @@ export default function InquiryPage() {
               </Button>
             )}
             <Button
-              variant="outline"
+              variant={showAssignment ? "default" : "outline"}
               onClick={() => {
+                if (showAssignment) {
+                  setShowAssignment(false);
+                  return;
+                }
                 setView("list");
                 setShowAssignment(true);
                 setShowDeadOnly(false);
@@ -297,6 +301,7 @@ export default function InquiryPage() {
             <ListView
               onRefresh={handleRefreshInquiries}
               showAssignment={showAssignment}
+              onExitAssignment={() => setShowAssignment(false)}
               filterParams={{ is_dead: showDeadOnly, ...activeFilters() }}
             />
           )}

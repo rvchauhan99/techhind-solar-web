@@ -108,7 +108,12 @@ export default function QuotationForm({
     const [lastFetchedProductBySection, setLastFetchedProductBySection] = useState({});
     const bomProductsBySectionRef = useRef({});
     const projectLoadSeqRef = useRef(0);
+    const projectPriceIdRef = useRef(formData.project_price_id);
     const [expandedAccordions, setExpandedAccordions] = useState(DEFAULT_EXPANDED_ACCORDIONS);
+
+    useEffect(() => {
+        projectPriceIdRef.current = formData.project_price_id;
+    }, [formData.project_price_id]);
 
     const handleAccordionChange = useCallback((panel) => (event, isExpanded) => {
         setExpandedAccordions((prev) => ({ ...prev, [panel]: isExpanded }));
@@ -148,19 +153,42 @@ export default function QuotationForm({
         return () => { cancelled = true; };
     }, []);
 
-    const handleProjectPriceChange = useCallback(async (projectPriceId) => {
+    const handleProjectPriceChange = useCallback(async (projectPriceId, options = {}) => {
+        const { clearOnly = false } = options;
+        const nextId = projectPriceId || "";
+
+        // Soft clear via Autocomplete X — keep technical/price details
+        if (!nextId) {
+            if (clearOnly) {
+                ++projectLoadSeqRef.current; // invalidate in-flight BOM loads
+                projectPriceIdRef.current = "";
+                patchForm({ project_price_id: "" });
+                return;
+            }
+            ++projectLoadSeqRef.current;
+            projectPriceIdRef.current = "";
+            bomProductsBySectionRef.current = {};
+            setLastFetchedProductBySection({});
+            patchForm({ ...getProjectDrivenResetPatch(), project_price_id: "" });
+            return;
+        }
+
+        // Same project re-selected — no wipe/reload
+        if (String(projectPriceIdRef.current) === String(nextId)) {
+            return;
+        }
+
         const seq = ++projectLoadSeqRef.current;
+        projectPriceIdRef.current = nextId;
         const resetPatch = getProjectDrivenResetPatch();
 
         // Strict clear first so prior project tech/price cannot linger
         bomProductsBySectionRef.current = {};
         setLastFetchedProductBySection({});
-        patchForm({ ...resetPatch, project_price_id: projectPriceId || "" });
-
-        if (!projectPriceId) return;
+        patchForm({ ...resetPatch, project_price_id: nextId });
 
         try {
-            const response = await quotationService.getProjectPriceBomDetails({ id: projectPriceId });
+            const response = await quotationService.getProjectPriceBomDetails({ id: nextId });
             if (seq !== projectLoadSeqRef.current) return;
 
             const data = response?.result ?? response?.data ?? response;
@@ -171,7 +199,7 @@ export default function QuotationForm({
 
             const { formPatch, bomProductBySection } = mapBomResponseToForm(response);
             bomProductsBySectionRef.current = bomProductBySection;
-            patchForm({ ...formPatch, project_price_id: projectPriceId });
+            patchForm({ ...formPatch, project_price_id: nextId });
             setLastFetchedProductBySection(bomProductBySection);
         } catch (err) {
             if (seq !== projectLoadSeqRef.current) return;
@@ -302,6 +330,8 @@ export default function QuotationForm({
 
     const fallbackBySection = lastFetchedProductBySection;
     const totals = useMemo(() => calculateTotals(formData), [formData]);
+    const isCustomerIdentityLocked =
+        formData.inquiry_id != null && formData.inquiry_id !== "";
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -412,10 +442,36 @@ export default function QuotationForm({
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Customer Name" name="customer_name" value={formData.customer_name} onChange={handleChange} required error={!!errors.customer_name} helperText={errors.customer_name} />
+                        <Input
+                            fullWidth
+                            label="Customer Name"
+                            name="customer_name"
+                            value={formData.customer_name}
+                            onChange={handleChange}
+                            required
+                            disabled={isCustomerIdentityLocked}
+                            error={!!errors.customer_name}
+                            helperText={
+                                errors.customer_name ||
+                                (isCustomerIdentityLocked ? "From inquiry — not editable" : undefined)
+                            }
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <PhoneField fullWidth name="mobile_number" label="Mobile Number" value={formData.mobile_number ?? ""} onChange={handleChange} required error={!!errors.mobile_number} helperText={errors.mobile_number} />
+                        <PhoneField
+                            fullWidth
+                            name="mobile_number"
+                            label="Mobile Number"
+                            value={formData.mobile_number ?? ""}
+                            onChange={handleChange}
+                            required
+                            disabled={isCustomerIdentityLocked}
+                            error={!!errors.mobile_number}
+                            helperText={
+                                errors.mobile_number ||
+                                (isCustomerIdentityLocked ? "From inquiry — not editable" : null)
+                            }
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Email" name="email" type="email" value={formData.email} onChange={handleChange} error={!!errors.email} helperText={errors.email} />
@@ -522,8 +578,13 @@ export default function QuotationForm({
                             }}
                             value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || (formData.project_price_id ? { id: formData.project_price_id } : null)}
                             onChange={(e, newValue) => {
-                                handleChange({ target: { name: "project_price_id", value: newValue?.id ?? "" } });
-                                handleProjectPriceChange(newValue?.id ?? "");
+                                const nextId = newValue?.id ?? "";
+                                handleChange({ target: { name: "project_price_id", value: nextId } });
+                                if (!nextId) {
+                                    handleProjectPriceChange("", { clearOnly: true });
+                                } else {
+                                    handleProjectPriceChange(nextId);
+                                }
                             }}
                             placeholder="Type to search..."
                             disabled={!formData.project_scheme_id || !formData.state_id || !formData.order_type_id || loadingOptions}
