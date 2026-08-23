@@ -25,10 +25,10 @@ import { toastError } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import AddressFields, { isIndiaCountry } from "@/components/common/AddressFields";
 
-import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS } from "./quotationConfig";
+import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS, getProjectDrivenResetPatch } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
 import { mapBomResponseToForm } from "./useProjectBomMapper";
-import { calculateTotals } from "./quotationCalculations";
+import { calculateTotals, syncTotalFromCapacityAndRate } from "./quotationCalculations";
 import TechnicalSection from "./TechnicalSection";
 import ExtraMaterialsSection from "./ExtraMaterialsSection";
 
@@ -107,7 +107,13 @@ export default function QuotationForm({
     const [loadingOptions, setLoadingOptions] = useState(false);
     const [lastFetchedProductBySection, setLastFetchedProductBySection] = useState({});
     const bomProductsBySectionRef = useRef({});
+    const projectLoadSeqRef = useRef(0);
+    const projectPriceIdRef = useRef(formData.project_price_id);
     const [expandedAccordions, setExpandedAccordions] = useState(DEFAULT_EXPANDED_ACCORDIONS);
+
+    useEffect(() => {
+        projectPriceIdRef.current = formData.project_price_id;
+    }, [formData.project_price_id]);
 
     const handleAccordionChange = useCallback((panel) => (event, isExpanded) => {
         setExpandedAccordions((prev) => ({ ...prev, [panel]: isExpanded }));
@@ -147,23 +153,59 @@ export default function QuotationForm({
         return () => { cancelled = true; };
     }, []);
 
-    const handleProjectPriceChange = useCallback(async (projectPriceId) => {
-        if (!projectPriceId) {
+    const handleProjectPriceChange = useCallback(async (projectPriceId, options = {}) => {
+        const { clearOnly = false } = options;
+        const nextId = projectPriceId || "";
+
+        // Soft clear via Autocomplete X — keep technical/price details
+        if (!nextId) {
+            if (clearOnly) {
+                ++projectLoadSeqRef.current; // invalidate in-flight BOM loads
+                projectPriceIdRef.current = "";
+                patchForm({ project_price_id: "" });
+                return;
+            }
+            ++projectLoadSeqRef.current;
+            projectPriceIdRef.current = "";
             bomProductsBySectionRef.current = {};
             setLastFetchedProductBySection({});
+            patchForm({ ...getProjectDrivenResetPatch(), project_price_id: "" });
             return;
         }
+
+        // Same project re-selected — no wipe/reload
+        if (String(projectPriceIdRef.current) === String(nextId)) {
+            return;
+        }
+
+        const seq = ++projectLoadSeqRef.current;
+        projectPriceIdRef.current = nextId;
+        const resetPatch = getProjectDrivenResetPatch();
+
+        // Strict clear first so prior project tech/price cannot linger
+        bomProductsBySectionRef.current = {};
+        setLastFetchedProductBySection({});
+        patchForm({ ...resetPatch, project_price_id: nextId });
+
         try {
-            const response = await quotationService.getProjectPriceBomDetails({ id: projectPriceId });
+            const response = await quotationService.getProjectPriceBomDetails({ id: nextId });
+            if (seq !== projectLoadSeqRef.current) return;
+
             const data = response?.result ?? response?.data ?? response;
-            if (!data || response?.success === false) return;
+            if (!data || response?.status === false || response?.success === false) {
+                toastError(response?.message || "Failed to load project BOM details");
+                return;
+            }
+
             const { formPatch, bomProductBySection } = mapBomResponseToForm(response);
             bomProductsBySectionRef.current = bomProductBySection;
-            patchForm({ ...formPatch, project_price_id: projectPriceId });
+            patchForm({ ...formPatch, project_price_id: nextId });
             setLastFetchedProductBySection(bomProductBySection);
         } catch (err) {
+            if (seq !== projectLoadSeqRef.current) return;
             bomProductsBySectionRef.current = {};
             setLastFetchedProductBySection({});
+            toastError(err?.response?.data?.message || err?.message || "Failed to load project details");
         }
     }, [patchForm]);
 
@@ -181,7 +223,12 @@ export default function QuotationForm({
             if (cancelled) return;
             const projectPrices = r?.result ?? [];
             setOptions((prev) => ({ ...prev, projectPrices }));
-            if (formData.project_price_id && !projectPrices.some((price) => price.id === formData.project_price_id)) {
+            // Only clear when the loaded list is non-empty and id is missing (avoid race clears).
+            if (
+                formData.project_price_id &&
+                projectPrices.length > 0 &&
+                !projectPrices.some((price) => price.id === formData.project_price_id)
+            ) {
                 patchForm({ project_price_id: "" });
                 handleProjectPriceChange("");
             }
@@ -189,14 +236,19 @@ export default function QuotationForm({
             if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
         });
         return () => { cancelled = true; };
-    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, formData.project_price_id, patchForm, handleProjectPriceChange]);
+        // Omit project_price_id — selecting a project must not refetch/clear the list.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- project_price_id intentionally excluded
+    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, patchForm, handleProjectPriceChange]);
 
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
         const capacity = Number(formData.project_capacity);
-        if (capacity > 0 && value !== "" && !Number.isNaN(Number(value))) {
-            const totalProjectValue = Number((Number(value) * capacity).toFixed(2));
-            patchForm({ price_per_kw: value, total_project_value: totalProjectValue });
+        const syncedTotal = syncTotalFromCapacityAndRate({
+            project_capacity: capacity,
+            price_per_kw: value,
+        });
+        if (syncedTotal != null) {
+            patchForm({ price_per_kw: value, total_project_value: syncedTotal });
             setErrors((prev) => {
                 const next = { ...prev };
                 delete next.price_per_kw;
@@ -278,6 +330,8 @@ export default function QuotationForm({
 
     const fallbackBySection = lastFetchedProductBySection;
     const totals = useMemo(() => calculateTotals(formData), [formData]);
+    const isCustomerIdentityLocked =
+        formData.inquiry_id != null && formData.inquiry_id !== "";
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -388,10 +442,36 @@ export default function QuotationForm({
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth label="Customer Name" name="customer_name" value={formData.customer_name} onChange={handleChange} required error={!!errors.customer_name} helperText={errors.customer_name} />
+                        <Input
+                            fullWidth
+                            label="Customer Name"
+                            name="customer_name"
+                            value={formData.customer_name}
+                            onChange={handleChange}
+                            required
+                            disabled={isCustomerIdentityLocked}
+                            error={!!errors.customer_name}
+                            helperText={
+                                errors.customer_name ||
+                                (isCustomerIdentityLocked ? "From inquiry — not editable" : undefined)
+                            }
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <PhoneField fullWidth name="mobile_number" label="Mobile Number" value={formData.mobile_number ?? ""} onChange={handleChange} required error={!!errors.mobile_number} helperText={errors.mobile_number} />
+                        <PhoneField
+                            fullWidth
+                            name="mobile_number"
+                            label="Mobile Number"
+                            value={formData.mobile_number ?? ""}
+                            onChange={handleChange}
+                            required
+                            disabled={isCustomerIdentityLocked}
+                            error={!!errors.mobile_number}
+                            helperText={
+                                errors.mobile_number ||
+                                (isCustomerIdentityLocked ? "From inquiry — not editable" : null)
+                            }
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth label="Email" name="email" type="email" value={formData.email} onChange={handleChange} error={!!errors.email} helperText={errors.email} />
@@ -466,24 +546,30 @@ export default function QuotationForm({
                         <AutocompleteField
                             name="order_type_id"
                             label="Order Type"
+                            required
                             asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
                             referenceModel="order_type.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.order_type_id ? { id: formData.order_type_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "order_type_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            error={!!errors.order_type_id}
+                            helperText={errors.order_type_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <AutocompleteField
                             name="project_scheme_id"
                             label="Project Scheme"
+                            required
                             asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
                             referenceModel="project_scheme.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "project_scheme_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            error={!!errors.project_scheme_id}
+                            helperText={errors.project_scheme_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
@@ -498,8 +584,13 @@ export default function QuotationForm({
                             }}
                             value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || (formData.project_price_id ? { id: formData.project_price_id } : null)}
                             onChange={(e, newValue) => {
-                                handleChange({ target: { name: "project_price_id", value: newValue?.id ?? "" } });
-                                handleProjectPriceChange(newValue?.id ?? "");
+                                const nextId = newValue?.id ?? "";
+                                handleChange({ target: { name: "project_price_id", value: nextId } });
+                                if (!nextId) {
+                                    handleProjectPriceChange("", { clearOnly: true });
+                                } else {
+                                    handleProjectPriceChange(nextId);
+                                }
                             }}
                             placeholder="Type to search..."
                             disabled={!formData.project_scheme_id || !formData.state_id || !formData.order_type_id || loadingOptions}

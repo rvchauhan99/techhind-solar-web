@@ -15,6 +15,9 @@ export const getInquiryById = (id) =>
 export const updateInquiry = (id, payload) =>
   apiClient.put(`/inquiry/${id}`, payload).then((r) => r.data);
 
+export const assignInquiries = (payload) =>
+  apiClient.post("/inquiry/assign", payload).then((r) => r.data);
+
 export const downloadInquiryImportSample = () =>
   apiClient.get("/inquiry/import/sample", { responseType: "blob" }).then((r) => r.data);
 
@@ -37,6 +40,7 @@ export default {
   createInquiry,
   getInquiryById,
   updateInquiry,
+  assignInquiries,
   downloadInquiryImportSample,
   uploadInquiryCsv,
   getInquirySummary,

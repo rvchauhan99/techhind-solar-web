@@ -5,6 +5,10 @@ import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import MakeAutocomplete from "./MakeAutocomplete";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
+import {
+    computeProjectCapacityFromPanel,
+    syncTotalFromCapacityAndRate,
+} from "./quotationCalculations";
 
 const COMPACT_FORM_SPACING = 0.5;
 
@@ -246,14 +250,26 @@ export default function TechnicalSection({
                             value={getProducts(products, "panel").find((p) => p.id == formData.panel_product) || (formData.panel_product ? { id: formData.panel_product } : null)}
                             onChange={(e, newValue) => {
                                 const findProduct = newValue;
-                                patchForm({
+                                const qty = formData.panel_quantity;
+                                const project_capacity = computeProjectCapacityFromPanel(
+                                    findProduct?.capacity,
+                                    qty
+                                );
+                                const patch = {
                                     panel_product: findProduct?.id ?? "",
                                     panel_make_ids: findProduct?.product_make_id ? [findProduct.product_make_id] : [],
                                     panel_size: findProduct?.capacity ?? "",
                                     panel_type: findProduct?.properties?.panel?.type ?? "",
                                     panel_warranty: findProduct?.properties?.additional?.warranty ?? findProduct?.properties?.panel?.warranty ?? "",
                                     panel_performance_warranty: findProduct?.properties?.additional?.performance_warranty ?? findProduct?.properties?.panel?.performance_warranty ?? "",
+                                    project_capacity,
+                                };
+                                const syncedTotal = syncTotalFromCapacityAndRate({
+                                    project_capacity,
+                                    price_per_kw: formData.price_per_kw,
                                 });
+                                if (syncedTotal != null) patch.total_project_value = syncedTotal;
+                                patchForm(patch);
                             }}
                             placeholder="Type to search..."
                             disabled={disabled}
@@ -281,10 +297,20 @@ export default function TechnicalSection({
                                 handleChange(e);
                                 const findProduct = products.find((p) => p.id == formData.panel_product);
                                 const qty = e.target.value;
-                                patchForm({
+                                const project_capacity = computeProjectCapacityFromPanel(
+                                    findProduct?.capacity,
+                                    qty
+                                );
+                                const patch = {
                                     panel_quantity: qty,
-                                    project_capacity: (((findProduct?.capacity ?? 0) * (qty ?? 0)) / 1000).toFixed(2),
+                                    project_capacity,
+                                };
+                                const syncedTotal = syncTotalFromCapacityAndRate({
+                                    project_capacity,
+                                    price_per_kw: formData.price_per_kw,
                                 });
+                                if (syncedTotal != null) patch.total_project_value = syncedTotal;
+                                patchForm(patch);
                             }}
                             disabled={disabled}
                             sx={disabledSx}

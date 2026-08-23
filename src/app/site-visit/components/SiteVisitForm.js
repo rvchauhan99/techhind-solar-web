@@ -7,7 +7,6 @@ import {
   FormControl,
   FormControlLabel,
   FormHelperText,
-  Checkbox,
   Alert,
   Typography,
   InputLabel,
@@ -21,11 +20,23 @@ import {
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
 import { Button as ActionButton } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import siteVisitService from "@/services/siteVisitService";
 import userService from "@/services/userMasterService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import {
+  GEOLOCATION_ERROR_MESSAGE,
+  getCurrentPosition,
+  isValidLatitude,
+  isValidLongitude,
+} from "@/utils/geolocation";
+import {
+  formatInquiryOptionLabel,
+  loadInquiryById,
+  loadInquiryOptions,
+} from "@/app/site-visit/utils/inquiryOptions";
 
 export default function SiteVisitForm({
   defaultValues = null,
@@ -78,13 +89,14 @@ export default function SiteVisitForm({
     other_images_videos: [],
   });
 
-  const [inquiries, setInquiries] = useState([]);
-  const [loadingInquiries, setLoadingInquiries] = useState(false);
+  const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [roofTypes, setRoofTypes] = useState([]);
   const [loadingRoofTypes, setLoadingRoofTypes] = useState(false);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [errors, setErrors] = useState({});
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
   useEffect(() => {
     if (defaultValues) {
@@ -116,25 +128,26 @@ export default function SiteVisitForm({
       };
       setFormData(sanitizedValues);
     }
-    fetchInquiries();
     fetchRoofTypes();
     fetchUsers();
   }, [defaultValues]);
 
-  const fetchInquiries = async () => {
-    setLoadingInquiries(true);
-    try {
-      const response = await siteVisitService.getInquiries();
-      const result = response.result || response;
-      const data = result.data || result || [];
-      setInquiries(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching inquiries:", error);
-      setInquiries([]);
-    } finally {
-      setLoadingInquiries(false);
-    }
-  };
+  // Preload selected inquiry for edit / from-inquiry so Autocomplete shows rich label
+  useEffect(() => {
+    const inquiryId = defaultValues?.inquiry_id;
+    if (inquiryId == null || inquiryId === "") return;
+    let cancelled = false;
+    const preload = async () => {
+      const inquiry = await loadInquiryById(inquiryId);
+      if (!cancelled && inquiry) {
+        setSelectedInquiry(inquiry);
+      }
+    };
+    preload();
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultValues?.inquiry_id]);
 
   const fetchRoofTypes = async () => {
     setLoadingRoofTypes(true);
@@ -179,9 +192,9 @@ export default function SiteVisitForm({
     }
   };
 
-  const handleCheckboxChange = (e) => {
-    const { name, checked } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: checked }));
+  const handleInquiryChange = (e, newValue) => {
+    setSelectedInquiry(newValue || null);
+    handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } });
   };
 
   const handleRadioChange = (e) => {
@@ -210,6 +223,41 @@ export default function SiteVisitForm({
         delete newErrors[fieldName];
         return newErrors;
       });
+    }
+  };
+
+  const handleLocateMe = async () => {
+    setLocationError("");
+    setLocating(true);
+    try {
+      const { latitude, longitude } = await getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      });
+
+      if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+        setLocationError(GEOLOCATION_ERROR_MESSAGE);
+        return;
+      }
+
+      const lat = Number(latitude).toFixed(6);
+      const lng = Number(longitude).toFixed(6);
+      setFormData((prev) => ({
+        ...prev,
+        site_latitude: lat,
+        site_longitude: lng,
+      }));
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.site_latitude;
+        delete next.site_longitude;
+        return next;
+      });
+    } catch (err) {
+      setLocationError(err?.message || GEOLOCATION_ERROR_MESSAGE);
+    } finally {
+      setLocating(false);
     }
   };
 
@@ -276,6 +324,17 @@ export default function SiteVisitForm({
       }
       if (!files.visit_photo) {
         validationErrors.visit_photo = "Visit photo is required";
+      }
+
+      const latRaw = formData.site_latitude;
+      const lngRaw = formData.site_longitude;
+      const latProvided = latRaw !== "" && latRaw != null;
+      const lngProvided = lngRaw !== "" && lngRaw != null;
+      if (latProvided && !isValidLatitude(latRaw)) {
+        validationErrors.site_latitude = "Latitude must be between -90 and 90";
+      }
+      if (lngProvided && !isValidLongitude(lngRaw)) {
+        validationErrors.site_longitude = "Longitude must be between -180 and 180";
       }
     }
 
@@ -433,16 +492,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 4 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
@@ -515,16 +574,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 6 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
@@ -569,16 +628,16 @@ export default function SiteVisitForm({
             <Grid size={{ xs: 12, md: 4 }}>
               <AutocompleteField
                 label="Inquiry *"
-                placeholder="Type to search..."
-                options={inquiries}
-                getOptionLabel={(i) => (i?.inquiry_number ? `Inquiry #${i.inquiry_number}` : String(i?.id ?? ""))}
-                value={inquiries.find((i) => i.id === parseInt(formData.inquiry_id)) || (formData.inquiry_id ? { id: formData.inquiry_id } : null)}
-                onChange={(e, newValue) => handleChange({ target: { name: "inquiry_id", value: newValue?.id ?? "" } })}
+                placeholder="Search name, phone, or inquiry #"
+                asyncLoadOptions={loadInquiryOptions}
+                resolveOptionById={loadInquiryById}
+                getOptionLabel={formatInquiryOptionLabel}
+                value={selectedInquiry}
+                onChange={handleInquiryChange}
                 required
                 error={!!errors.inquiry_id}
                 helperText={errors.inquiry_id}
                 disabled={formData.isFromInquiry}
-                loading={loadingInquiries}
               />
             </Grid>
 
@@ -614,19 +673,41 @@ export default function SiteVisitForm({
         {/* Regular Fields - Only show when Visited is selected */}
         {formData.visit_status === "Visited" && (
           <>
-            {/* Site Latitude */}
+            {/* Site Latitude + Locate Me (GPS-only; manual entry disabled) */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <Input
-                fullWidth
-                name="site_latitude"
-                label="Site Latitude"
-                type="number"
-                value={formData.site_latitude}
-                onChange={handleChange}
-              />
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.75 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Input
+                    fullWidth
+                    name="site_latitude"
+                    label="Site Latitude"
+                    type="number"
+                    value={formData.site_latitude}
+                    disabled
+                    error={!!errors.site_latitude}
+                    helperText={errors.site_latitude}
+                    sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }}
+                  />
+                </Box>
+                <Box sx={{ pt: "22px", flexShrink: 0 }}>
+                  <ActionButton
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    loading={locating}
+                    disabled={locating}
+                    aria-label="Locate Me"
+                    startIcon={!locating ? <MyLocationIcon fontSize="small" /> : undefined}
+                    onClick={handleLocateMe}
+                    className="shrink-0 whitespace-nowrap"
+                  >
+                    {locating ? "Detecting location…" : "Locate Me"}
+                  </ActionButton>
+                </Box>
+              </Box>
             </Grid>
 
-            {/* Site Longitude */}
+            {/* Site Longitude (GPS-only; manual entry disabled) */}
             <Grid size={{ xs: 12, md: 4 }}>
               <Input
                 fullWidth
@@ -634,9 +715,20 @@ export default function SiteVisitForm({
                 label="Site Longitude"
                 type="number"
                 value={formData.site_longitude}
-                onChange={handleChange}
+                disabled
+                error={!!errors.site_longitude}
+                helperText={errors.site_longitude}
+                sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }}
               />
             </Grid>
+
+            {locationError ? (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity="error" onClose={() => setLocationError("")} sx={{ py: 0.5 }}>
+                  {locationError}
+                </Alert>
+              </Grid>
+            ) : null}
 
             {/* Height of Parapet */}
             <Grid size={{ xs: 12, md: 4 }}>
@@ -940,23 +1032,13 @@ export default function SiteVisitForm({
               </FormControl>
             </Grid>
 
-            {/* Do not send message checkbox */}
+            {/* Do not send message — hidden until message integration is ready */}
 
           </>
         )}
 
         <Grid size={12}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  name="do_not_send_message"
-                  checked={formData.do_not_send_message}
-                  onChange={handleCheckboxChange}
-                />
-              }
-              label="Do not send message to customer"
-            />
+          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", mt: 2 }}>
             <Box sx={{ display: "flex", gap: 2 }}>
               {onCancel && (
                 <ActionButton type="button" variant="outline" onClick={onCancel} disabled={loading}>
