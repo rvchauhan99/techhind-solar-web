@@ -43,6 +43,8 @@ export function validateQuotation(formData) {
     if (!formData.taluka || String(formData.taluka).trim() === "") {
         errors.taluka = "Taluka is required";
     }
+    if (!formData.order_type_id) errors.order_type_id = "Order Type is required";
+    if (!formData.project_scheme_id) errors.project_scheme_id = "Project Scheme is required";
     if (!formData.project_capacity) errors.project_capacity = "Project Capacity is required";
     if (!formData.price_per_kw) errors.price_per_kw = "Price Per KW is required";
     if (!formData.total_project_value) errors.total_project_value = "Total Project Value is required";
