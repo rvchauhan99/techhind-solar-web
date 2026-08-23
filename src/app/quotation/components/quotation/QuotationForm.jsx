@@ -546,24 +546,30 @@ export default function QuotationForm({
                         <AutocompleteField
                             name="order_type_id"
                             label="Order Type"
+                            required
                             asyncLoadOptions={(q) => getReferenceOptionsSearch("order_type.model", { q, limit: 20 })}
                             referenceModel="order_type.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.order_type_id ? { id: formData.order_type_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "order_type_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            error={!!errors.order_type_id}
+                            helperText={errors.order_type_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <AutocompleteField
                             name="project_scheme_id"
                             label="Project Scheme"
+                            required
                             asyncLoadOptions={(q) => getReferenceOptionsSearch("project_scheme.model", { q, limit: 20 })}
                             referenceModel="project_scheme.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
                             onChange={(e, newValue) => handleChange({ target: { name: "project_scheme_id", value: newValue?.id ?? "" } })}
                             placeholder="Type to search..."
+                            error={!!errors.project_scheme_id}
+                            helperText={errors.project_scheme_id}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
