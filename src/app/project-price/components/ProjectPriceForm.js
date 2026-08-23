@@ -19,6 +19,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { syncTotalFromCapacityAndRate } from "@/app/quotation/components/quotation/quotationCalculations";
 
 export default function ProjectPriceForm({
   defaultValues = {},
@@ -232,10 +233,16 @@ export default function ProjectPriceForm({
       singleBom.bom_detail.forEach(function (dd) {
         if (dd?.product?.product_type?.name?.toLowerCase() == 'panel') {
           let bomQty = (isNaN(dd.quantity) || !dd.quantity) ? 1 : parseFloat(dd.quantity)
-          setFormData((prev) => ({
-            ...prev,
-            project_capacity: (parseFloat(dd?.product?.capacity ?? 0) * bomQty) / 1000
-          }));
+          setFormData((prev) => {
+            const project_capacity = (parseFloat(dd?.product?.capacity ?? 0) * bomQty) / 1000;
+            const patch = { ...prev, project_capacity };
+            const syncedTotal = syncTotalFromCapacityAndRate({
+              project_capacity,
+              price_per_kw: prev.price_per_kwa,
+            });
+            if (syncedTotal != null) patch.total_project_value = syncedTotal;
+            return patch;
+          });
         }
       })
     }

@@ -128,7 +128,12 @@ const STATUS_OPTIONS = [
   { value: "Converted", label: "Converted" },
 ];
 
-export default function ListView({ onRefresh, showAssignment = false, filterParams = {} }) {
+export default function ListView({
+  onRefresh,
+  showAssignment = false,
+  onExitAssignment = null,
+  filterParams = {},
+}) {
   const router = useRouter();
   const listingState = useListingQueryState({
     defaultLimit: 20,
@@ -157,12 +162,17 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
 
   const [assignmentData, setAssignmentData] = useState({
     handled_by: "",
-    channel_partner: "",
-    inquiry_by: "",
   });
   const [assignmentErrors, setAssignmentErrors] = useState({});
   const [assigning, setAssigning] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  useEffect(() => {
+    if (showAssignment) return;
+    setSelectedInquiryIds(new Set());
+    setAssignmentData({ handled_by: "" });
+    setAssignmentErrors({});
+  }, [showAssignment]);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback(
@@ -374,11 +384,21 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     }
   };
 
+  const handleExitAssignment = () => {
+    setSelectedInquiryIds(new Set());
+    setAssignmentData({ handled_by: "" });
+    setAssignmentErrors({});
+    if (typeof onExitAssignment === "function") {
+      onExitAssignment();
+    }
+  };
+
+  const selectedCount = selectedInquiryIds.size;
+  const canAssign = selectedCount > 0 && Boolean(assignmentData.handled_by) && !assigning;
+
   const handleAssign = async () => {
     const errors = {};
     if (!assignmentData.handled_by) errors.handled_by = "Handled By is required";
-    if (!assignmentData.channel_partner) errors.channel_partner = "Channel Partner is required";
-    if (!assignmentData.inquiry_by) errors.inquiry_by = "Inquired By is required";
     if (Object.keys(errors).length > 0) {
       setAssignmentErrors(errors);
       return;
@@ -390,17 +410,19 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
     setAssigning(true);
     setAssignmentErrors({});
     try {
-      const updatePromises = Array.from(selectedInquiryIds).map((inquiryId) =>
-        inquiryService.updateInquiry(inquiryId, {
-          handled_by: assignmentData.handled_by,
-          channel_partner: assignmentData.channel_partner,
-          inquiry_by: assignmentData.inquiry_by,
-        })
-      );
-      await Promise.all(updatePromises);
-      setSnackbar({ open: true, message: `Successfully assigned ${selectedInquiryIds.size} inquiry(s)`, severity: "success" });
+      const response = await inquiryService.assignInquiries({
+        inquiry_ids: Array.from(selectedInquiryIds),
+        handled_by: assignmentData.handled_by,
+      });
+      const result = response?.result ?? response?.data ?? response;
+      const updated = Number(result?.updated ?? selectedInquiryIds.size);
+      setSnackbar({
+        open: true,
+        message: `Successfully assigned ${updated} inquiry(s)`,
+        severity: "success",
+      });
       setSelectedInquiryIds(new Set());
-      setAssignmentData({ handled_by: "", channel_partner: "", inquiry_by: "" });
+      setAssignmentData({ handled_by: "" });
       setReloadTrigger((prev) => prev + 1);
       if (onRefresh) await onRefresh();
     } catch (err) {
@@ -507,23 +529,6 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         ),
       },
       {
-        field: "project_scheme",
-        label: "Project Scheme",
-        filterType: "text",
-        filterKey: "project_scheme",
-        defaultFilterOperator: "contains",
-      },
-      {
-        field: "capacity",
-        label: "Capacity",
-        filterType: "number",
-        filterKey: "capacity",
-        filterKeyTo: "capacity_to",
-        operatorKey: "capacity_op",
-        defaultFilterOperator: "equals",
-        render: (row) => (row.capacity ? `${Number(row.capacity).toFixed(2)} KW` : "-"),
-      },
-      {
         field: "customer_name",
         label: "Name",
         filterType: "text",
@@ -543,17 +548,27 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         ),
       },
       {
-        field: "address",
-        label: "Address",
+        field: "handled_by",
+        label: "Handled By",
         filterType: "text",
-        filterKey: "address",
+        filterKey: "handled_by",
         defaultFilterOperator: "contains",
       },
       {
-        field: "landmark_area",
-        label: "Area",
+        field: "capacity",
+        label: "Capacity",
+        filterType: "number",
+        filterKey: "capacity",
+        filterKeyTo: "capacity_to",
+        operatorKey: "capacity_op",
+        defaultFilterOperator: "equals",
+        render: (row) => (row.capacity ? `${Number(row.capacity).toFixed(2)} KW` : "-"),
+      },
+      {
+        field: "project_scheme",
+        label: "Project Scheme",
         filterType: "text",
-        filterKey: "landmark_area",
+        filterKey: "project_scheme",
         defaultFilterOperator: "contains",
       },
       {
@@ -564,30 +579,18 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         defaultFilterOperator: "contains",
       },
       {
-        field: "state_name",
-        label: "State",
+        field: "landmark_area",
+        label: "Area",
         filterType: "text",
-        filterKey: "state_name",
+        filterKey: "landmark_area",
         defaultFilterOperator: "contains",
       },
       {
-        field: "pin_code",
-        label: "Pincode",
+        field: "address",
+        label: "Address",
         filterType: "text",
-        filterKey: "pin_code",
+        filterKey: "address",
         defaultFilterOperator: "contains",
-      },
-      {
-        field: "discom_name",
-        label: "Discom",
-        filterType: "text",
-        filterKey: "discom_name",
-        defaultFilterOperator: "contains",
-      },
-      {
-        field: "rating",
-        label: "Rating",
-        render: (row) => (row.rating ? renderRating(row.rating) : "-"),
       },
       {
         field: "date_of_inquiry",
@@ -610,17 +613,22 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         render: (row) => formatDate(row.next_reminder_date),
       },
       {
-        field: "order_type",
-        label: "Order Type",
-        filterType: "text",
-        filterKey: "order_type",
-        defaultFilterOperator: "contains",
+        field: "rating",
+        label: "Rating",
+        render: (row) => (row.rating ? renderRating(row.rating) : "-"),
       },
       {
         field: "inquiry_source",
         label: "Source",
         filterType: "text",
         filterKey: "inquiry_source",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "order_type",
+        label: "Order Type",
+        filterType: "text",
+        filterKey: "order_type",
         defaultFilterOperator: "contains",
       },
       {
@@ -638,27 +646,31 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         defaultFilterOperator: "contains",
       },
       {
+        field: "discom_name",
+        label: "Discom",
+        filterType: "text",
+        filterKey: "discom_name",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "pin_code",
+        label: "Pincode",
+        filterType: "text",
+        filterKey: "pin_code",
+        defaultFilterOperator: "contains",
+      },
+      {
+        field: "state_name",
+        label: "State",
+        filterType: "text",
+        filterKey: "state_name",
+        defaultFilterOperator: "contains",
+      },
+      {
         field: "remarks",
         label: "Inquiry Remarks",
         filterType: "text",
         filterKey: "remarks",
-        defaultFilterOperator: "contains",
-      },
-      {
-        field: "assigned_on",
-        label: "Assigned On",
-        filterType: "date",
-        filterKey: "assigned_on_from",
-        filterKeyTo: "assigned_on_to",
-        operatorKey: "assigned_on_op",
-        defaultFilterOperator: "inRange",
-        render: (row) => formatDate(row.assigned_on),
-      },
-      {
-        field: "handled_by",
-        label: "Handled By",
-        filterType: "text",
-        filterKey: "handled_by",
         defaultFilterOperator: "contains",
       },
       {
@@ -674,6 +686,16 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
         filterType: "text",
         filterKey: "channel_partner",
         defaultFilterOperator: "contains",
+      },
+      {
+        field: "assigned_on",
+        label: "Assigned On",
+        filterType: "date",
+        filterKey: "assigned_on_from",
+        filterKeyTo: "assigned_on_to",
+        operatorKey: "assigned_on_op",
+        defaultFilterOperator: "inRange",
+        render: (row) => formatDate(row.assigned_on),
       },
       {
         field: "created_at",
@@ -711,9 +733,33 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
           }}
         >
         {showAssignment && (
-          <Box sx={{ mb: 1, p: FORM_PADDING, bgcolor: "background.default", borderRadius: 2, flexShrink: 0 }}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems="flex-start" sx={{ width: "100%" }}>
-              <div className="min-w-[200px] flex-1">
+          <Box
+            sx={{
+              mb: 1,
+              px: FORM_PADDING,
+              py: 0.75,
+              bgcolor: "background.default",
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              flexShrink: 0,
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", md: "center" }}
+              sx={{ width: "100%" }}
+            >
+              <Box sx={{ minWidth: 0, flexShrink: 0 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
+                  Assign mode
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
+                  Select inquiries on this page, then choose Handled By
+                </Typography>
+              </Box>
+              <div className="min-w-[180px] max-w-sm w-full md:flex-1">
                 <AutocompleteField
                   name="handled_by"
                   label="Handled By"
@@ -728,44 +774,42 @@ export default function ListView({ onRefresh, showAssignment = false, filterPara
                   helperText={assignmentErrors.handled_by}
                 />
               </div>
-              <div className="min-w-[200px] flex-1">
-                <AutocompleteField
-                  name="channel_partner"
-                  label="Channel Partner"
-                  required
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
-                  referenceModel="user.model"
-                  getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
-                  value={assignmentData.channel_partner ? { id: assignmentData.channel_partner } : null}
-                  onChange={(e, newValue) => handleAssignmentChange("channel_partner", newValue?.id ?? "")}
-                  placeholder="Type to search..."
-                  error={!!assignmentErrors.channel_partner}
-                  helperText={assignmentErrors.channel_partner}
-                />
-              </div>
-              <div className="min-w-[200px] flex-1">
-                <AutocompleteField
-                  name="inquiry_by"
-                  label="Inquired By"
-                  required
-                  asyncLoadOptions={(q) => getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })}
-                  referenceModel="user.model"
-                  getOptionLabel={(u) => u?.name ?? u?.email ?? u?.username ?? (u?.id != null ? String(u.id) : "")}
-                  value={assignmentData.inquiry_by ? { id: assignmentData.inquiry_by } : null}
-                  onChange={(e, newValue) => handleAssignmentChange("inquiry_by", newValue?.id ?? "")}
-                  placeholder="Type to search..."
-                  error={!!assignmentErrors.inquiry_by}
-                  helperText={assignmentErrors.inquiry_by}
-                />
-              </div>
-              <Button
-                size="sm"
-                onClick={handleAssign}
-                disabled={assigning || selectedInquiryIds.size === 0}
-                className="min-w-[120px] h-14 self-start"
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ flexShrink: 0, flexWrap: "wrap" }}
               >
-                {assigning ? "Assigning..." : `Assign (${selectedInquiryIds.size})`}
-              </Button>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ whiteSpace: "nowrap", px: 0.5 }}
+                  aria-live="polite"
+                >
+                  {selectedCount} selected
+                </Typography>
+                <Button
+                  size="sm"
+                  onClick={handleAssign}
+                  disabled={!canAssign}
+                  className="min-w-[96px]"
+                >
+                  {assigning
+                    ? "Assigning…"
+                    : selectedCount > 0
+                      ? `Assign · ${selectedCount}`
+                      : "Assign"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExitAssignment}
+                  disabled={assigning}
+                  className="min-w-[72px]"
+                >
+                  Done
+                </Button>
+              </Stack>
             </Stack>
           </Box>
         )}
