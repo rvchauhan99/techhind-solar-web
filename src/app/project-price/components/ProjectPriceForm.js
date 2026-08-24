@@ -19,7 +19,13 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import { syncTotalFromCapacityAndRate } from "@/app/quotation/components/quotation/quotationCalculations";
+import {
+  syncTotalFromCapacityAndRate,
+  syncRateFromCapacityAndTotal,
+  roundToRupee,
+  roundToPaise,
+  toWholeRupeeOrEmpty,
+} from "@/app/quotation/components/quotation/quotationCalculations";
 
 export default function ProjectPriceForm({
   defaultValues = {},
@@ -79,12 +85,15 @@ export default function ProjectPriceForm({
         order_type_id: defaultValues.order_type_id ?? "",
         bill_of_material_id: defaultValues.bill_of_material_id ?? "",
         project_capacity: defaultValues.project_capacity ?? "",
-        price_per_kwa: defaultValues.price_per_kwa ?? "",
-        total_project_value: defaultValues.total_project_value ?? "",
-        state_subsidy: defaultValues.state_subsidy ?? "",
+        price_per_kwa:
+          defaultValues.price_per_kwa != null && defaultValues.price_per_kwa !== ""
+            ? roundToPaise(defaultValues.price_per_kwa)
+            : "",
+        total_project_value: toWholeRupeeOrEmpty(defaultValues.total_project_value),
+        state_subsidy: toWholeRupeeOrEmpty(defaultValues.state_subsidy),
         structure_amount: defaultValues.structure_amount ?? "",
         netmeter_amount: defaultValues.netmeter_amount ?? "",
-        subsidy_amount: defaultValues.subsidy_amount ?? "",
+        subsidy_amount: toWholeRupeeOrEmpty(defaultValues.subsidy_amount),
         system_warranty: defaultValues.system_warranty ?? "",
         is_locked:
           defaultValues.is_locked !== undefined ? defaultValues.is_locked : false,
@@ -336,6 +345,7 @@ export default function ProjectPriceForm({
               error={!!errors.project_capacity}
               helperText={errors.project_capacity}
               required
+              inputProps={{ step: "0.01" }}
             />
           </Grid>
         </Grid>
@@ -356,21 +366,19 @@ export default function ProjectPriceForm({
               helperText={errors.price_per_kwa}
               disabled={Number(formData.project_capacity) <= 0}
               required
-              slotProps={{
-                input: {
-                  sx: {
-                    '&.Mui-disabled': { bgcolor: 'grey.300' }
-                  }
-                }
-              }}
+              inputProps={{ step: "0.01" }}
+              className={Number(formData.project_capacity) <= 0 ? "bg-slate-200" : undefined}
               onChange={(e) => {
-                handleChange(e);
-                let totalProjectValue = (Number(e.target.value) * Number(formData.project_capacity)).toFixed(2)
+                const rate = e.target.value;
+                const syncedTotal = syncTotalFromCapacityAndRate({
+                  project_capacity: formData.project_capacity,
+                  price_per_kw: rate,
+                });
                 setFormData({
                   ...formData,
-                  price_per_kwa: Number(e.target.value),
-                  total_project_value: Number(totalProjectValue)
-                })
+                  price_per_kwa: rate === "" ? "" : Number(rate),
+                  ...(syncedTotal != null ? { total_project_value: syncedTotal } : {}),
+                });
               }}
             />
           </Grid>
@@ -386,21 +394,24 @@ export default function ProjectPriceForm({
               helperText={errors.total_project_value}
               disabled={Number(formData.project_capacity) <= 0}
               required
-              slotProps={{
-                input: {
-                  sx: {
-                    '&.Mui-disabled': { bgcolor: 'grey.300' }
-                  }
-                }
-              }}
+              inputProps={{ step: "1" }}
+              className={Number(formData.project_capacity) <= 0 ? "bg-slate-200" : undefined}
               onChange={(e) => {
-                // handleChange(e);
-                let pricePerKwa = (Number(e.target.value) / Number(formData.project_capacity)).toFixed(2)
+                const raw = e.target.value;
+                if (raw === "" || Number.isNaN(Number(raw))) {
+                  setFormData({ ...formData, total_project_value: raw });
+                  return;
+                }
+                const roundedTotal = roundToRupee(raw);
+                const pricePerKwa = syncRateFromCapacityAndTotal({
+                  project_capacity: formData.project_capacity,
+                  total_project_value: roundedTotal,
+                });
                 setFormData({
                   ...formData,
-                  total_project_value: Number(e.target.value),
-                  price_per_kwa: Number(pricePerKwa)
-                })
+                  total_project_value: roundedTotal,
+                  ...(pricePerKwa != null ? { price_per_kwa: pricePerKwa } : {}),
+                });
               }}
             />
           </Grid>
@@ -412,9 +423,17 @@ export default function ProjectPriceForm({
               label="State Subsidy"
               name="state_subsidy"
               value={formData.state_subsidy}
-              onChange={handleChange}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || Number.isNaN(Number(raw))) {
+                  setFormData((prev) => ({ ...prev, state_subsidy: raw }));
+                  return;
+                }
+                setFormData((prev) => ({ ...prev, state_subsidy: roundToRupee(raw) }));
+              }}
               error={!!errors.state_subsidy}
               helperText={errors.state_subsidy}
+              inputProps={{ step: "1" }}
             />
           </Grid>
           <Grid item xs={12} sm={6} md={4}>
@@ -451,9 +470,17 @@ export default function ProjectPriceForm({
               label="Subsidy Amount"
               name="subsidy_amount"
               value={formData.subsidy_amount}
-              onChange={handleChange}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === "" || Number.isNaN(Number(raw))) {
+                  setFormData((prev) => ({ ...prev, subsidy_amount: raw }));
+                  return;
+                }
+                setFormData((prev) => ({ ...prev, subsidy_amount: roundToRupee(raw) }));
+              }}
               error={!!errors.subsidy_amount}
               helperText={errors.subsidy_amount}
+              inputProps={{ step: "1" }}
             />
           </Grid>
         </Grid>
