@@ -3,7 +3,12 @@
  * Component should NOT manually loop BOM; use this hook.
  */
 
-import { syncTotalFromCapacityAndRate } from "./quotationCalculations";
+import {
+    syncTotalFromCapacityAndRate,
+    roundToRupee,
+    roundToPaise,
+    toWholeRupeeOrEmpty,
+} from "./quotationCalculations";
 import { getProjectDrivenResetPatch } from "./quotationConfig";
 
 /**
@@ -57,12 +62,12 @@ export function mapBomResponseToForm(response) {
     // Initialize all BOM-driven fields from shared project reset
     Object.assign(formPatch, getProjectDrivenResetPatch(), {
         project_price_id: datas.id ?? "",
-        price_per_kw: datas.price_per_kwa != null ? Number(datas.price_per_kwa).toFixed(2) : "",
-        // total_project_value set after live capacity (do not trust stale master total)
+        price_per_kw: datas.price_per_kwa != null ? roundToPaise(datas.price_per_kwa) : "",
+        // total_project_value set from master after capacity (see below)
         netmeter_amount: datas.netmeter_amount ?? 0,
         structure_amount: datas.structure_amount ?? "",
-        subsidy_amount: datas.subsidy_amount ?? "",
-        state_subsidy_amount: datas.state_subsidy ?? "",
+        subsidy_amount: toWholeRupeeOrEmpty(datas.subsidy_amount),
+        state_subsidy_amount: toWholeRupeeOrEmpty(datas.state_subsidy),
         system_warranty_years: datas.system_warranty ?? "",
     });
 
@@ -210,16 +215,16 @@ export function mapBomResponseToForm(response) {
 
     formPatch.project_capacity = project_capacity;
 
-    const syncedTotal = syncTotalFromCapacityAndRate({
-        project_capacity,
-        price_per_kw: formPatch.price_per_kw,
-    });
-    if (syncedTotal != null) {
-        formPatch.total_project_value = syncedTotal;
-    } else if (datas.total_project_value != null && datas.total_project_value !== "") {
-        formPatch.total_project_value = datas.total_project_value;
+    // Prefer master total (rupee-rounded) so quotation matches project price exactly.
+    // Fallback to rate × capacity only when master total is missing.
+    if (datas.total_project_value != null && datas.total_project_value !== "") {
+        formPatch.total_project_value = roundToRupee(datas.total_project_value);
     } else {
-        formPatch.total_project_value = "";
+        const syncedTotal = syncTotalFromCapacityAndRate({
+            project_capacity,
+            price_per_kw: formPatch.price_per_kw,
+        });
+        formPatch.total_project_value = syncedTotal != null ? syncedTotal : "";
     }
 
     return { formPatch, bomProductBySection };

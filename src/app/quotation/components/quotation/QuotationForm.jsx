@@ -28,7 +28,12 @@ import AddressFields, { isIndiaCountry } from "@/components/common/AddressFields
 import { TECHNICAL_SECTIONS, DEFAULT_EXPANDED_ACCORDIONS, getProjectDrivenResetPatch } from "./quotationConfig";
 import { useQuotationState } from "./useQuotationState";
 import { mapBomResponseToForm } from "./useProjectBomMapper";
-import { calculateTotals, syncTotalFromCapacityAndRate } from "./quotationCalculations";
+import {
+    calculateTotals,
+    syncTotalFromCapacityAndRate,
+    syncRateFromCapacityAndTotal,
+    roundToRupee,
+} from "./quotationCalculations";
 import TechnicalSection from "./TechnicalSection";
 import ExtraMaterialsSection from "./ExtraMaterialsSection";
 
@@ -264,8 +269,15 @@ export default function QuotationForm({
         const value = e.target.value === undefined ? "" : e.target.value;
         const capacity = Number(formData.project_capacity);
         if (capacity > 0 && value !== "" && !Number.isNaN(Number(value))) {
-            const pricePerKw = Number((Number(value) / capacity).toFixed(2));
-            patchForm({ total_project_value: value, price_per_kw: pricePerKw });
+            const roundedTotal = roundToRupee(value);
+            const pricePerKw = syncRateFromCapacityAndTotal({
+                project_capacity: capacity,
+                total_project_value: roundedTotal,
+            });
+            patchForm({
+                total_project_value: roundedTotal,
+                ...(pricePerKw != null ? { price_per_kw: pricePerKw } : {}),
+            });
             setErrors((prev) => {
                 const next = { ...prev };
                 delete next.price_per_kw;
@@ -657,22 +669,22 @@ export default function QuotationForm({
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Project Capacity" name="project_capacity" value={formData.project_capacity} onChange={handleChange} required disabled error={!!errors.project_capacity} helperText={errors.project_capacity} sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
+                        <Input fullWidth type="number" inputProps={{ step: "0.01" }} label="Project Capacity" name="project_capacity" value={formData.project_capacity} onChange={handleChange} required disabled error={!!errors.project_capacity} helperText={errors.project_capacity} sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Price Per KW" name="price_per_kw" value={formData.price_per_kw} onChange={handlePricePerKwChange} disabled={projectPriceDisabled} required error={!!errors.price_per_kw} helperText={errors.price_per_kw} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" inputProps={{ step: "0.01" }} label="Price Per KW" name="price_per_kw" value={formData.price_per_kw} onChange={handlePricePerKwChange} disabled={projectPriceDisabled} required error={!!errors.price_per_kw} helperText={errors.price_per_kw} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Total Project Value" name="total_project_value" value={formData.total_project_value} onChange={handleTotalProjectValueChange} disabled={projectPriceDisabled} required error={!!errors.total_project_value} helperText={errors.total_project_value} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" inputProps={{ step: "1" }} label="Total Project Value" name="total_project_value" value={formData.total_project_value} onChange={handleTotalProjectValueChange} disabled={projectPriceDisabled} required error={!!errors.total_project_value} helperText={errors.total_project_value} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth type="number" label="Structure Amount" name="structure_amount" value={formData.structure_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="Subsidy Amount" name="subsidy_amount" value={formData.subsidy_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" inputProps={{ step: "1" }} label="Subsidy Amount" name="subsidy_amount" value={formData.subsidy_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" label="State Subsidy Amount" name="state_subsidy_amount" value={formData.state_subsidy_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
+                        <Input fullWidth type="number" inputProps={{ step: "1" }} label="State Subsidy Amount" name="state_subsidy_amount" value={formData.state_subsidy_amount} onChange={handleChange} disabled={projectPriceDisabled} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth type="number" label="Netmeter Amount" name="netmeter_amount" value={formData.netmeter_amount} onChange={handleChange} />
