@@ -20,18 +20,25 @@ import {
   setStoredPaymentChannel,
 } from "@/utils/paymentChannelPreference";
 
+const DEFAULT_STATUS = "pending_approval";
+
+const ALL_INITIAL_FILTERS = {
+  start_date: "", end_date: "", branch_id: "", handled_by: "",
+  payment_mode_id: "", status: [DEFAULT_STATUS],
+  order_number: "", order_no: "", receipt_number: "",
+  customer_name: "", client_name: "", search: "",
+};
+
 const B2C_INITIAL_FILTERS = {
   start_date: "", end_date: "", branch_id: "", handled_by: "",
-  payment_mode_id: "", status: null, order_number: "",
+  payment_mode_id: "", status: [DEFAULT_STATUS], order_number: "",
   receipt_number: "", customer_name: "", search: "",
 };
 
 const B2B_INITIAL_FILTERS = {
-  start_date: "", end_date: "", payment_mode_id: "", status: null,
+  start_date: "", end_date: "", payment_mode_id: "", status: [DEFAULT_STATUS],
   order_no: "", receipt_number: "", client_name: "", search: "",
 };
-
-const INITIAL_FILTERS = B2C_INITIAL_FILTERS;
 
 const STATUS_OPTIONS = [
   { value: "pending_approval", label: "Pending Approval" },
@@ -53,7 +60,6 @@ const DATE_PRESETS = [
   { label: "Last 3M", fn: () => { const n = new Date(), p = new Date(n); p.setMonth(n.getMonth() - 3); return { start_date: p.toISOString().split("T")[0], end_date: n.toISOString().split("T")[0] }; } },
 ];
 
-// Status quick-filter tabs
 const STATUS_TABS = [
   { value: null, label: "All", icon: null, cls: "text-slate-600 border-slate-200 hover:border-slate-400" },
   { value: "pending_approval", label: "Pending", icon: IconClock, cls: "text-amber-600 border-amber-200 hover:border-amber-400", activeCls: "bg-amber-50 border-amber-400 text-amber-700" },
@@ -61,14 +67,36 @@ const STATUS_TABS = [
   { value: "rejected", label: "Rejected", icon: IconX, cls: "text-red-500 border-red-200 hover:border-red-400", activeCls: "bg-red-50 border-red-400 text-red-600" },
 ];
 
+const CHANNEL_TABS = [
+  { value: "all", label: "All" },
+  { value: "b2c", label: "B2C" },
+  { value: "b2b", label: "B2B" },
+];
+
+function isDefaultPendingStatus(v) {
+  return Array.isArray(v) && v.length === 1 && v[0] === DEFAULT_STATUS;
+}
+
+function getInitialFiltersForChannel(ch) {
+  if (ch === "b2b") return B2B_INITIAL_FILTERS;
+  if (ch === "b2c") return B2C_INITIAL_FILTERS;
+  return ALL_INITIAL_FILTERS;
+}
+
 function countActive(f) {
   if (!f) return 0;
-  return Object.values(f).filter((v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)).length;
+  return Object.entries(f).filter(([key, v]) => {
+    if (key === "status" && isDefaultPendingStatus(v)) return false;
+    return v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+  }).length;
 }
 
 function getChips(filters) {
   return Object.entries(filters)
-    .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .filter(([key, v]) => {
+      if (key === "status" && isDefaultPendingStatus(v)) return false;
+      return v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+    })
     .map(([key, value]) => ({
       key,
       label: FILTER_LABELS[key] || key,
@@ -78,22 +106,34 @@ function getChips(filters) {
     }));
 }
 
-const CHANNEL_TABS = [
-  { value: "b2c", label: "B2C" },
-  { value: "b2b", label: "B2B" },
-];
+function getQuickSearchPlaceholder(channel) {
+  if (channel === "b2b") return "Quick Search (Order/Client/Receipt)";
+  if (channel === "b2c") return "Quick Search (Order/Receipt/Customer/Keyword)";
+  return "Quick Search (Order/Customer/Client/Receipt)";
+}
 
 export default function PaymentAuditPage() {
-  const [channel, setChannel] = useState(() => getStoredPaymentChannel("b2c"));
-  const [filters, setFilters] = useState(B2C_INITIAL_FILTERS);
-  const [appliedFilters, setAppliedFilters] = useState(B2C_INITIAL_FILTERS);
+  const [channel, setChannel] = useState(() => {
+    return getStoredPaymentChannel("all")
+  });
+  const [filters, setFilters] = useState(() => {
+    return getInitialFiltersForChannel(getStoredPaymentChannel("all"))
+  });
+  const [appliedFilters, setAppliedFilters] = useState(() => {
+    return getInitialFiltersForChannel(getStoredPaymentChannel("all"))
+  });
   const [refreshKey, setRefreshKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
-  const [activeStatusTab, setActiveStatusTab] = useState(null); // null = All
+  const [activeStatusTab, setActiveStatusTab] = useState(DEFAULT_STATUS);
   const [quickSearch, setQuickSearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const searchFeedbackTimerRef = useRef(null);
+
+  const showB2cFilters = channel === "b2c" || channel === "all";
+  const showB2bFilters = channel === "b2b" || channel === "all";
+  const showB2cTable = channel === "b2c" || channel === "all";
+  const showB2bTable = channel === "b2b" || channel === "all";
 
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
   const activeCount = countActive(appliedFilters);
@@ -106,22 +146,24 @@ export default function PaymentAuditPage() {
   };
 
   const handleChannelChange = (ch) => {
-    const init = ch === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    const init = getInitialFiltersForChannel(ch);
     setStoredPaymentChannel(ch);
     setChannel(ch);
     setFilters(init);
     setAppliedFilters(init);
-    setActiveStatusTab(null);
+    setActiveStatusTab(DEFAULT_STATUS);
+    setActivePreset(null);
     setQuickSearch("");
     setRefreshKey((k) => k + 1);
   };
 
   const handleReset = () => {
-    const init = channel === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    const init = getInitialFiltersForChannel(channel);
     setFilters(init);
     setAppliedFilters(init);
     setActivePreset(null);
-    setActiveStatusTab(null);
+    setActiveStatusTab(DEFAULT_STATUS);
+    setQuickSearch("");
     setRefreshKey((k) => k + 1);
   };
 
@@ -159,11 +201,11 @@ export default function PaymentAuditPage() {
   };
 
   const removeChip = (key) => {
-    const init = channel === "b2b" ? B2B_INITIAL_FILTERS : B2C_INITIAL_FILTERS;
+    const init = getInitialFiltersForChannel(channel);
     const next = { ...appliedFilters, [key]: init[key] };
     setFilters(next);
     setAppliedFilters(next);
-    if (key === "status") setActiveStatusTab(null);
+    if (key === "status") setActiveStatusTab(DEFAULT_STATUS);
     if (key === "start_date" || key === "end_date") setActivePreset(null);
     setRefreshKey((k) => k + 1);
   };
@@ -283,7 +325,7 @@ export default function PaymentAuditPage() {
                 value={quickSearch}
                 onValueChange={handleQuickSearchChange}
                 isSearching={isSearching}
-                placeholder={channel === "b2b" ? "Quick Search (Order/Client/Receipt)" : "Quick Search (Order/Receipt/Customer/Keyword)"}
+                placeholder={getQuickSearchPlaceholder(channel)}
                 className="w-full sm:w-[320px] sm:ml-auto"
               />
             </div>
@@ -298,7 +340,7 @@ export default function PaymentAuditPage() {
                   label="Date To" name="end_date" value={filters.end_date || ""}
                   onChange={(e) => fc("end_date", e.target.value || null)}
                 />
-                {channel === "b2c" && (
+                {showB2cFilters && (
                   <>
                     <AutocompleteField
                       usePortal
@@ -334,10 +376,16 @@ export default function PaymentAuditPage() {
                   name="status" label="Status" multiple options={STATUS_OPTIONS}
                   getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
                   value={(Array.isArray(filters.status) ? filters.status : []).map((v) => STATUS_OPTIONS.find((s) => s.value === v)).filter(Boolean)}
-                  onChange={(e, v) => { fc("status", v?.length ? v.map((o) => o.value) : null); setActiveStatusTab(null); }}
+                  onChange={(e, v) => {
+                    const nextStatus = v?.length ? v.map((o) => o.value) : null;
+                    fc("status", nextStatus);
+                    setActiveStatusTab(
+                      Array.isArray(nextStatus) && nextStatus.length === 1 ? nextStatus[0] : null
+                    );
+                  }}
                   placeholder="All Statuses"
                 />
-                {channel === "b2c" ? (
+                {showB2cFilters && (
                   <>
                     <Input
                       name="order_number" label="Order Number" value={filters.order_number || ""}
@@ -348,7 +396,8 @@ export default function PaymentAuditPage() {
                       onChange={(e) => fc("customer_name", e.target.value || null)} placeholder="Search customer…"
                     />
                   </>
-                ) : (
+                )}
+                {showB2bFilters && (
                   <>
                     <Input
                       name="order_no" label="Order No" value={filters.order_no || ""}
@@ -395,12 +444,27 @@ export default function PaymentAuditPage() {
             </div>
           )}
 
-          {/* ── Audit Table ─────────────────────────────────────────────────── */}
-          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            {channel === "b2b" ? (
-              <B2bPaymentAuditTable key={`b2b-${refreshKey}`} filterParams={appliedFilters} />
-            ) : (
-              <PaymentAuditTable key={`b2c-${refreshKey}`} filterParams={appliedFilters} />
+          {/* ── Audit Table(s) ──────────────────────────────────────────────── */}
+          <div className="space-y-1.5">
+            {showB2cTable && (
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                {channel === "all" && (
+                  <div className="px-2.5 py-1 border-b border-slate-100 text-[11px] font-semibold text-slate-600">
+                    B2C Payments
+                  </div>
+                )}
+                <PaymentAuditTable key={`b2c-${refreshKey}`} filterParams={appliedFilters} />
+              </div>
+            )}
+            {showB2bTable && (
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                {channel === "all" && (
+                  <div className="px-2.5 py-1 border-b border-slate-100 text-[11px] font-semibold text-slate-600">
+                    B2B Payments
+                  </div>
+                )}
+                <B2bPaymentAuditTable key={`b2b-${refreshKey}`} filterParams={appliedFilters} />
+              </div>
             )}
           </div>
 
