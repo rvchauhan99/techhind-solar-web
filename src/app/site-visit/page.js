@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IconMapPin, IconClipboardList, IconFileDescription } from "@tabler/icons-react";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +28,9 @@ import { formatDate } from "@/utils/dataTableUtils";
 
 const SiteVisitForm = dynamic(() => import("./components/SiteVisitForm"), { ssr: false });
 const SiteSurveyForm = dynamic(() => import("./components/SiteSurveyForm"), { ssr: false });
+
+const LIST_VIEW_PENDING = "pending";
+const LIST_VIEW_COMPLETED = "completed";
 
 const COLUMN_FILTER_KEYS = [
   "inquiry_number",
@@ -41,7 +45,6 @@ const COLUMN_FILTER_KEYS = [
   "inquiry_date_of_inquiry_to",
   "inquiry_date_of_inquiry_op",
   "inquiry_status",
-  "site_visit_visit_status",
   "site_visit_visit_date_from",
   "site_visit_visit_date_to",
   "site_visit_visit_date_op",
@@ -71,12 +74,28 @@ const STATUS_OPTIONS = [
   { value: "Under Discussion", label: "Under Discussion" },
 ];
 
-const VISIT_STATUS_OPTIONS = [
-  { value: "Pending", label: "Pending" },
-  { value: "Visited", label: "Visited" },
-  { value: "Rescheduled", label: "Rescheduled" },
-  { value: "Cancelled", label: "Cancelled" },
-];
+const mapRowToFormDefaults = (row) => {
+  if (!row) return null;
+  return {
+    id: row.site_visit_id,
+    inquiry_id: row.inquiry_id ? String(row.inquiry_id) : "",
+    visit_status: row.site_visit_visit_status || "Pending",
+    remarks: row.site_visit_remarks ?? "",
+    schedule_on: row.site_visit_schedule_on
+      ? String(row.site_visit_schedule_on).slice(0, 10)
+      : "",
+    schedule_remarks: row.site_visit_schedule_remarks ?? "",
+    visit_assign_to: row.site_visit_visit_assign_to ?? "",
+    visit_date: row.site_visit_visit_date
+      ? String(row.site_visit_visit_date).slice(0, 10)
+      : "",
+    visited_by: row.site_visit_visited_by ?? "",
+    next_reminder_date: row.site_visit_next_reminder_date
+      ? String(row.site_visit_next_reminder_date).slice(0, 10)
+      : "",
+    isFromInquiry: true,
+  };
+};
 
 export default function SiteVisitPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -93,6 +112,7 @@ export default function SiteVisitPage() {
   });
   const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
 
+  const [listView, setListView] = useState(LIST_VIEW_PENDING);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
@@ -105,8 +125,16 @@ export default function SiteVisitPage() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [initialGalleryKey, setInitialGalleryKey] = useState(null);
 
+  const isPendingView = listView === LIST_VIEW_PENDING;
+
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
+
+  const handleListViewChange = useCallback((value) => {
+    setListView(value);
+    setPage(1);
+    setTableKey((prev) => prev + 1);
+  }, [setPage]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -114,6 +142,12 @@ export default function SiteVisitPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      if (exportParams.inquiry_status) {
+        exportParams.status = exportParams.inquiry_status;
+        delete exportParams.inquiry_status;
+      }
+      exportParams.visit_status =
+        listView === LIST_VIEW_COMPLETED ? "Visited" : "Pending,Rescheduled";
       const blob = await siteVisitService.exportSiteVisits(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -130,7 +164,7 @@ export default function SiteVisitPage() {
     } finally {
       setExporting(false);
     }
-  }, [filters]);
+  }, [filters, listView]);
 
   const handleOpenModal = useCallback((row = null) => {
     setSelectedRow(row);
@@ -260,10 +294,15 @@ export default function SiteVisitPage() {
         field: "site_visit_visit_status",
         label: "Visit Status",
         sortable: true,
-        filterType: "select",
-        filterKey: "site_visit_visit_status",
-        filterOptions: VISIT_STATUS_OPTIONS,
         render: (row) => row.site_visit_visit_status || "-",
+      },
+      {
+        field: "visit_assign_to_name",
+        label: "Assigned To",
+        sortable: false,
+        render: (row) =>
+          row.visit_assign_to_name ||
+          (row.site_visit_visit_assign_to ? `User #${row.site_visit_visit_assign_to}` : "-"),
       },
       {
         field: "site_visit_visit_date",
@@ -394,24 +433,24 @@ export default function SiteVisitPage() {
                   <IconClipboardList className="size-4" />
                 </Button>
               </Tooltip>
-            ) : (
-              <Tooltip title="View/Edit Site Visit">
+            ) : currentPerm.can_update || currentPerm.can_create ? (
+              <Tooltip title="Edit / Reassign">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-sm"
                   onClick={() => handleOpenModal(row)}
-                  aria-label="View/Edit Site Visit"
+                  aria-label="Edit site visit"
                 >
                   <IconMapPin className="size-4" />
                 </Button>
               </Tooltip>
-            )}
+            ) : null}
           </Box>
         ),
       },
     ],
-    [handleOpenModal, handleOpenSurveyModal, handleOpenSidebar]
+    [handleOpenModal, handleOpenSurveyModal, handleOpenSidebar, currentPerm.can_update, currentPerm.can_create]
   );
 
   const filterParams = useMemo(() => {
@@ -421,23 +460,41 @@ export default function SiteVisitPage() {
       obj.status = obj.inquiry_status;
       delete obj.inquiry_status;
     }
-    if (obj.site_visit_visit_status) {
-      obj.visit_status = obj.site_visit_visit_status;
-      delete obj.site_visit_visit_status;
-    }
+    obj.visit_status = isPendingView ? "Pending,Rescheduled" : "Visited";
     return { q: undefined, ...obj };
-  }, [filters]);
+  }, [filters, isPendingView]);
 
   const handleSubmit = async (formData, files) => {
     setLoading(true);
     setServerError(null);
     try {
-      await siteVisitService.create(formData, files);
-      toastSuccess("Site visit created successfully");
+      const siteVisitId = selectedRow?.site_visit_id || formData?.id;
+      const isEdit =
+        !!siteVisitId &&
+        ["Pending", "Rescheduled"].includes(
+          selectedRow?.site_visit_visit_status || formData?.visit_status
+        );
+
+      if (isEdit) {
+        await siteVisitService.update(siteVisitId, {
+          visit_status: formData.visit_status,
+          visit_assign_to: formData.visit_assign_to,
+          schedule_on: formData.schedule_on,
+          schedule_remarks: formData.schedule_remarks,
+          remarks: formData.remarks,
+        });
+        toastSuccess("Site visit updated successfully");
+      } else {
+        await siteVisitService.create(formData, files);
+        toastSuccess("Site visit created successfully");
+      }
       handleCloseAddModal();
       setServerError(null);
     } catch (error) {
-      const msg = error.response?.data?.message || error.message || "An error occurred while creating the site visit";
+      const msg =
+        error.response?.data?.message ||
+        error.message ||
+        "An error occurred while saving the site visit";
       setServerError(msg);
       toastError(msg);
     } finally {
@@ -476,8 +533,18 @@ export default function SiteVisitPage() {
         exportDisabled={exporting}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <Tabs value={listView} onValueChange={handleListViewChange} className="w-full">
+            <TabsList className="h-7 bg-white border border-slate-200 rounded-lg px-1 py-0 w-fit">
+              <TabsTrigger value={LIST_VIEW_PENDING} className="text-[11px] font-semibold px-2 py-1">
+                Pending
+              </TabsTrigger>
+              <TabsTrigger value={LIST_VIEW_COMPLETED} className="text-[11px] font-semibold px-2 py-1">
+                Completed
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <PaginatedTable
-            key={tableKey}
+            key={`${tableKey}-${listView}`}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}
@@ -517,17 +584,23 @@ export default function SiteVisitPage() {
         <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
           <DialogContent className={DIALOG_FORM_LARGE}>
             <DialogHeader>
-              <DialogTitle>{selectedRow ? "View/Edit Site Visit" : "Add Site Visit"}</DialogTitle>
+              <DialogTitle>
+                {selectedRow ? "Edit Site Visit" : "Add Site Visit"}
+              </DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
               <SiteVisitForm
                 defaultValues={
-                  selectedRow ? { inquiry_id: selectedRow.inquiry_id ? String(selectedRow.inquiry_id) : "" } : null
+                  selectedRow
+                    ? mapRowToFormDefaults(selectedRow)
+                    : isPendingView
+                      ? { visit_status: "Pending" }
+                      : null
                 }
                 onSubmit={handleSubmit}
                 onCancel={handleCloseAddModal}
                 loading={loading}
-                serverError={null}
+                serverError={serverError}
                 onClearServerError={() => setServerError(null)}
               />
             </div>
