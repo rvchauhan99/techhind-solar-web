@@ -5,6 +5,13 @@ import { useState, useEffect, useCallback } from "react";
 import { getInitialFormData, getInitialTechnicalRemarks } from "./quotationConfig";
 import { validateQuotation } from "./quotationValidation";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
+import { toWholeRupeeOrEmpty, roundToPaise } from "./quotationCalculations";
+
+const WHOLE_RUPEE_KEYS = new Set([
+    "total_project_value",
+    "subsidy_amount",
+    "state_subsidy_amount",
+]);
 
 const toNumber = (v) =>
     v === "" || v === null || v === undefined ? null : Number(v);
@@ -77,10 +84,12 @@ export function useQuotationState({ user, defaultValues = {} }) {
     useEffect(() => {
         if (!defaultValues || Object.keys(defaultValues).length === 0) return;
         const cleanedValues = Object.fromEntries(
-            Object.entries(defaultValues).map(([key, value]) => [
-                key,
-                value === null || value === undefined ? "" : value,
-            ])
+            Object.entries(defaultValues).map(([key, value]) => {
+                if (value === null || value === undefined) return [key, ""];
+                if (WHOLE_RUPEE_KEYS.has(key)) return [key, toWholeRupeeOrEmpty(value)];
+                if (key === "price_per_kw" && value !== "") return [key, roundToPaise(value)];
+                return [key, value];
+            })
         );
         cleanedValues.technical_remarks = extractTechnicalRemarks(defaultValues);
         const extraRows = extractExtraMaterials(defaultValues);
@@ -130,6 +139,11 @@ export function useQuotationState({ user, defaultValues = {} }) {
                 return;
             }
 
+            let nextValue = normalizedValue;
+            if (WHOLE_RUPEE_KEYS.has(name) && normalizedValue !== "" && !Number.isNaN(Number(normalizedValue))) {
+                nextValue = toWholeRupeeOrEmpty(normalizedValue);
+            }
+
             if (name === "mobile_number" && normalizedValue && String(normalizedValue).trim() !== "") {
                 const phoneValidation = validateE164Phone(String(normalizedValue), { required: true });
                 if (!phoneValidation.isValid) {
@@ -160,7 +174,7 @@ export function useQuotationState({ user, defaultValues = {} }) {
                 });
             }
 
-            setFormData((prev) => ({ ...prev, [name]: normalizedValue }));
+            setFormData((prev) => ({ ...prev, [name]: nextValue }));
         },
         [errors, formData.inquiry_id]
     );
