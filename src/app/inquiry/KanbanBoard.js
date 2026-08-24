@@ -1022,48 +1022,19 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                                           sx={{ height: 20 }}
                                         />
                                       </Stack>
-                                      <Stack direction="row" spacing={0.25} alignItems="center" sx={{ flex: "0 0 auto" }}>
-                                        {(() => {
-                                          const flag = item.siteVisitFlag || "not_assigned";
-                                          const meta = SITE_VISIT_FLAG_META[flag] || SITE_VISIT_FLAG_META.not_assigned;
-                                          return (
-                                            <Tooltip title={meta.label}>
-                                              <Chip
-                                                size="small"
-                                                label={meta.label}
-                                                color={meta.color}
-                                                onClick={(e) => handleSiteVisitBadgeClick(e, item)}
-                                                onKeyDown={(e) => {
-                                                  if (e.key === "Enter" || e.key === " ") {
-                                                    handleSiteVisitBadgeClick(e, item);
-                                                  }
-                                                }}
-                                                tabIndex={0}
-                                                aria-label={`Site visit status: ${meta.label}`}
-                                                sx={{
-                                                  height: 20,
-                                                  fontSize: "0.65rem",
-                                                  cursor: "pointer",
-                                                  maxWidth: 110,
-                                                }}
-                                              />
-                                            </Tooltip>
-                                          );
-                                        })()}
-                                        <Tooltip title="More actions">
-                                          <IconButton
-                                            size="small"
-                                            sx={{ flex: "0 0 auto" }}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              e.preventDefault();
-                                              handleMenuOpen(e, item);
-                                            }}
-                                          >
-                                            <MoreVertIcon fontSize="small" />
-                                          </IconButton>
-                                        </Tooltip>
-                                      </Stack>
+                                      <Tooltip title="More actions">
+                                        <IconButton
+                                          size="small"
+                                          sx={{ flex: "0 0 auto" }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            handleMenuOpen(e, item);
+                                          }}
+                                        >
+                                          <MoreVertIcon fontSize="small" />
+                                        </IconButton>
+                                      </Tooltip>
                                     </Stack>
 
                                     {/* Customer name */}
@@ -1139,6 +1110,38 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                                           Handled By: <b>{item.handledBy}</b>
                                         </Typography>
                                       )}
+                                      {(() => {
+                                        const flag = item.siteVisitFlag || "not_assigned";
+                                        const meta = SITE_VISIT_FLAG_META[flag] || SITE_VISIT_FLAG_META.not_assigned;
+                                        return (
+                                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minHeight: 20 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                              Site Visit Status:
+                                            </Typography>
+                                            <Tooltip title={meta.label}>
+                                              <Chip
+                                                size="small"
+                                                label={meta.label}
+                                                color={meta.color}
+                                                onClick={(e) => handleSiteVisitBadgeClick(e, item)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter" || e.key === " ") {
+                                                    handleSiteVisitBadgeClick(e, item);
+                                                  }
+                                                }}
+                                                tabIndex={0}
+                                                aria-label={`Site visit status: ${meta.label}`}
+                                                sx={{
+                                                  height: 20,
+                                                  fontSize: "0.65rem",
+                                                  cursor: "pointer",
+                                                  maxWidth: 110,
+                                                }}
+                                              />
+                                            </Tooltip>
+                                          </Stack>
+                                        );
+                                      })()}
                                       {item.dateOfInquiry && (
                                         <Typography
                                           variant="caption"
