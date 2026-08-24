@@ -110,10 +110,15 @@ function formatManagerSummary(form) {
   return `Managers: ${names} (round-robin)`;
 }
 
+function formatLeadDestinationLabel(destination) {
+  return String(destination || "").toLowerCase() === "b2b" ? "B2B" : "B2C";
+}
+
 function FormRow({ form, onConfigure }) {
   const [pulling, setPulling] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const managerSummary = formatManagerSummary(form);
+  const destinationLabel = formatLeadDestinationLabel(form.lead_destination);
 
   const handlePull = async () => {
     setPulling(true);
@@ -139,6 +144,16 @@ function FormRow({ form, onConfigure }) {
         <p className="text-xs text-muted-foreground">
           Form ID: {form.form_id}
           {form.form_status ? ` · ${form.form_status}` : ""}
+          {" · "}
+          <span className={destinationLabel === "B2B" ? "text-violet-700 font-medium" : "text-slate-600 font-medium"}>
+            Routes to {destinationLabel} leads
+          </span>
+          {form.lead_ingest_enabled === false ? (
+            <>
+              {" · "}
+              <span className="font-medium text-red-600">Ingest disabled</span>
+            </>
+          ) : null}
         </p>
         {managerSummary ? (
           <p className="mt-0.5 text-xs text-blue-700">
@@ -179,9 +194,14 @@ function FormRow({ form, onConfigure }) {
       <Button
         size="sm"
         variant="outline"
-        disabled={pulling}
+        disabled={pulling || form.lead_ingest_enabled === false}
         onClick={handlePull}
         className="ml-3 shrink-0"
+        title={
+          form.lead_ingest_enabled === false
+            ? "Lead ingest is disabled for this form"
+            : "Pull leads from Meta"
+        }
       >
         <IconCloudDownload className="mr-1 h-3.5 w-3.5" />
         {pulling ? "Pulling…" : "Pull Leads"}
@@ -374,6 +394,8 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
   const [selectedFormId, setSelectedFormId] = useState("");
   const [managerIds, setManagerIds] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
+  const [leadDestination, setLeadDestination] = useState("b2c");
+  const [leadIngestEnabled, setLeadIngestEnabled] = useState(true);
   const [configLoading, setConfigLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -448,6 +470,8 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
     if (!selectedFormId) {
       setManagerIds([]);
       setManagerOptions([]);
+      setLeadDestination("b2c");
+      setLeadIngestEnabled(true);
       return;
     }
     let cancelled = false;
@@ -463,12 +487,18 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
           label: m.name || `User #${m.id}`,
         }));
         setManagerOptions(opts);
+        setLeadDestination(
+          String(data?.lead_destination || "").toLowerCase() === "b2b" ? "b2b" : "b2c"
+        );
+        setLeadIngestEnabled(data?.lead_ingest_enabled !== false);
       })
       .catch((err) => {
         if (!cancelled) {
           toastError(err?.response?.data?.message || "Failed to load assignment config");
           setManagerIds([]);
           setManagerOptions([]);
+          setLeadDestination("b2c");
+          setLeadIngestEnabled(true);
         }
       })
       .finally(() => {
@@ -484,15 +514,24 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
       toastError("Select a lead form first");
       return;
     }
+    const normalizedManagers = managerIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    if (leadDestination === "b2b" && normalizedManagers.length === 0) {
+      toastError("Select at least one Form Manager for B2B lead routing");
+      return;
+    }
     setSaving(true);
     try {
       await metaService.saveFormAutoAssignment(Number(selectedFormId), {
-        user_ids: managerIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+        user_ids: normalizedManagers,
+        lead_destination: leadDestination,
+        lead_ingest_enabled: leadIngestEnabled,
       });
-      toastSuccess("Form auto-assignment saved");
+      toastSuccess("Form configuration saved");
       onSaved?.();
     } catch (err) {
-      toastError(err?.response?.data?.message || "Failed to save assignment");
+      toastError(err?.response?.data?.message || "Failed to save configuration");
     } finally {
       setSaving(false);
     }
@@ -507,12 +546,14 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
     >
         <div className="mb-2 flex items-center gap-2">
           <IconUsers className="h-4 w-4 text-blue-600" />
-          <h2 className="text-sm font-semibold">Form-wise Auto Assignment</h2>
+          <h2 className="text-sm font-semibold">Form-wise Lead Routing &amp; Assignment</h2>
         </div>
         <p className="mb-3 text-xs text-muted-foreground">
-          Assign incoming Meta leads to one or more Form Managers. Multiple managers use round-robin.
+          Choose whether this Meta form creates B2C (Marketing) or B2B leads, enable/disable ingest,
+          and assign Form Managers. Disabled forms skip live webhook and manual Pull Leads.
+          Unset destination defaults to B2C.
         </p>
-        <div className="relative z-30 grid gap-2 overflow-visible md:grid-cols-2 lg:grid-cols-4">
+        <div className="relative z-30 grid gap-2 overflow-visible md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <Select
             label="Meta Page"
             size="small"
@@ -556,6 +597,26 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
               </MenuItem>
             ))}
           </Select>
+          <Select
+            label="Lead Destination"
+            size="small"
+            value={leadDestination}
+            onChange={(e) => setLeadDestination(e.target.value)}
+            disabled={!selectedFormId || configLoading}
+          >
+            <MenuItem value="b2c">B2C (Marketing Leads)</MenuItem>
+            <MenuItem value="b2b">B2B Leads</MenuItem>
+          </Select>
+          <Select
+            label="Lead Ingest"
+            size="small"
+            value={leadIngestEnabled ? "enabled" : "disabled"}
+            onChange={(e) => setLeadIngestEnabled(e.target.value === "enabled")}
+            disabled={!selectedFormId || configLoading}
+          >
+            <MenuItem value="enabled">Enabled</MenuItem>
+            <MenuItem value="disabled">Disabled</MenuItem>
+          </Select>
           <div className="relative z-40 overflow-visible md:col-span-2">
             <MultiSelect
               name="form_managers"
@@ -585,8 +646,27 @@ function FormAutoAssignmentSection({ accounts, focus, sectionRef, onSaved }) {
             />
           </div>
         </div>
+        {leadDestination === "b2b" && (
+          <p className="mt-2 text-[11px] text-amber-700">
+            B2B routing requires at least one Form Manager (assignee is mandatory for B2B leads).
+          </p>
+        )}
+        {!leadIngestEnabled && (
+          <p className="mt-2 text-[11px] text-red-600">
+            Ingest disabled — live Meta leads and manual Pull Leads will not fetch or create records for this form.
+          </p>
+        )}
         <div className="mt-2 flex justify-end">
-          <Button size="sm" disabled={!selectedFormId || saving || configLoading} onClick={handleSave}>
+          <Button
+            size="sm"
+            disabled={
+              !selectedFormId ||
+              saving ||
+              configLoading ||
+              (leadDestination === "b2b" && managerIds.length === 0)
+            }
+            onClick={handleSave}
+          >
             {saving ? "Saving…" : "Save Configuration"}
           </Button>
         </div>
