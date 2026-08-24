@@ -209,15 +209,15 @@ export default function AddCallDetailsForm({
     if (!leadId) return;
     try {
       setSaving(true);
-      // 1) Save follow-up
-      await marketingLeadsService.addFollowUp(
-        leadId,
-        buildPayload(
-          selectedPaymentType
-            ? { payment_type: selectedPaymentType }
-            : {}
-        )
-      );
+      // 1) Save follow-up without forcing status=converted (convert API owns that)
+      const followUpOverrides = {
+        ...(selectedPaymentType ? { payment_type: selectedPaymentType } : {}),
+      };
+      const followUpPayload = buildPayload(followUpOverrides);
+      if (followUpPayload.status === "converted") {
+        delete followUpPayload.status;
+      }
+      await marketingLeadsService.addFollowUp(leadId, followUpPayload);
       // 2) Convert lead to inquiry (idempotent on backend)
       const convertPayload = {};
       if (selectedPaymentType) convertPayload.payment_type = selectedPaymentType;
@@ -242,6 +242,7 @@ export default function AddCallDetailsForm({
         err?.message ||
         "Failed to convert lead to inquiry";
       toastError(msg);
+      // Keep confirm step open so user can retry/cancel; do not call onConverted
     } finally {
       setSaving(false);
     }
