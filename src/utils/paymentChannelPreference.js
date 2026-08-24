@@ -1,14 +1,16 @@
 const STORAGE_KEY = "solar_payment_channel";
 
-export function getStoredPaymentChannel(fallback = "b2c") {
+const VALID_CHANNELS = new Set(["all", "b2b", "b2c"]);
+
+export function getStoredPaymentChannel(fallback = "all") {
   if (typeof window === "undefined") return fallback;
   const value = sessionStorage.getItem(STORAGE_KEY);
-  return value === "b2b" || value === "b2c" ? value : fallback;
+  return VALID_CHANNELS.has(value) ? value : fallback;
 }
 
 export function setStoredPaymentChannel(channel) {
   if (typeof window === "undefined") return;
-  if (channel === "b2b" || channel === "b2c") {
+  if (VALID_CHANNELS.has(channel)) {
     sessionStorage.setItem(STORAGE_KEY, channel);
   }
 }
