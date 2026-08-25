@@ -170,6 +170,10 @@ export const create = (payload, files = {}) => {
   }).then((r) => r.data);
 };
 
+/** Update Pending/Rescheduled site visit (JSON body; no file upload). */
+export const update = (id, payload = {}) =>
+  apiClient.put(`/site-visit/${id}`, payload).then((r) => r.data);
+
 /** Get signed URL for site visit document/photo by bucket key. Returns url string. */
 export const getDocumentUrl = (path) =>
   apiClient.get('/site-visit/document-url', { params: { path } }).then((r) => r.data?.result?.url ?? r.data?.url ?? null);
@@ -179,6 +183,7 @@ export default {
   getById,
   exportSiteVisits,
   create,
+  update,
   getRoofTypes,
   getInquiries,
   getDocumentUrl,

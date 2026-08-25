@@ -20,6 +20,7 @@ import LoadingButton from "@/components/common/LoadingButton";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 import { validatePostalCode } from "@/utils/validators";
+import { toastError } from "@/utils/toast";
 
 export default function MarketingLeadForm(props) {
   const { defaultValues: propDefaultValues, onSubmit, loading } = props;
@@ -37,11 +38,6 @@ export default function MarketingLeadForm(props) {
     opt?.name ??
     opt?.source_name ??
     (opt?.id != null ? String(opt.id) : "");
-
-  const [options, setOptions] = useState({
-    states: [],
-    cities: [],
-  });
 
   const isEdit = useMemo(() => !!defaultValues?.id, [defaultValues]);
 
@@ -66,24 +62,6 @@ export default function MarketingLeadForm(props) {
       state_text: dv?.state_text || prev.state_text || "",
     }));
   }, [propDefaultValues]);
-
-  useEffect(() => {
-    const loadOptions = async () => {
-      try {
-        const [statesRes, citiesRes] = await Promise.all([
-          mastersService.getReferenceOptions("state.model"),
-          mastersService.getReferenceOptions("city.model"),
-        ]);
-        setOptions({
-          states: statesRes?.result || [],
-          cities: citiesRes?.result || [],
-        });
-      } catch (err) {
-        console.error("Failed to load reference options", err);
-      }
-    };
-    loadOptions();
-  }, [isEdit]);
 
   useEffect(() => {
     const loadDefaultBranch = async () => {
@@ -147,6 +125,7 @@ export default function MarketingLeadForm(props) {
         ...prev,
         state_id: value,
         city_id: "",
+        city_name: "",
       }));
       if (errors.state_id || errors.city_id) {
         setErrors((prev) => {
@@ -192,6 +171,7 @@ export default function MarketingLeadForm(props) {
 
     if (Object.keys(newErrors).length) {
       setErrors(newErrors);
+      toastError("Please fix the highlighted fields");
       return;
     }
 
@@ -357,48 +337,43 @@ export default function MarketingLeadForm(props) {
               requiredState
             />
             <AutocompleteField
+              key={`city-${formData.state_id || "none"}`}
               name="city_id"
               label="City"
-              usePortal
-              dropdownPlacement="top"
-              options={options.cities.filter((c) => {
-                if (!formData.state_id) return false;
-                const cityStateId =
-                  typeof c.state_id === "string"
-                    ? parseInt(c.state_id, 10)
-                    : c.state_id;
-                const selectedStateId =
-                  typeof formData.state_id === "string"
-                    ? parseInt(formData.state_id, 10)
-                    : formData.state_id;
-                return cityStateId === selectedStateId;
-              })}
-              getOptionLabel={getOptionLabel}
-              value={(() => {
-                const filtered = options.cities.filter((c) => {
-                  if (!formData.state_id) return false;
-                  const cityStateId =
-                    typeof c.state_id === "string"
-                      ? parseInt(c.state_id, 10)
-                      : c.state_id;
-                  const selectedStateId =
-                    typeof formData.state_id === "string"
-                      ? parseInt(formData.state_id, 10)
-                      : formData.state_id;
-                  return cityStateId === selectedStateId;
+              asyncLoadOptions={(q) => {
+                if (!formData.state_id) return Promise.resolve([]);
+                return getReferenceOptionsSearch("city.model", {
+                  q,
+                  limit: 40,
+                  state_id: formData.state_id,
                 });
-                return (
-                  filtered.find((c) => c.id == formData.city_id) ||
-                  (formData.city_id ? { id: formData.city_id } : null)
-                );
-              })()}
-              onChange={(e, v) =>
-                handleChange({
-                  target: { name: "city_id", value: v?.id ?? "" },
-                })
+              }}
+              referenceModel="city.model"
+              getOptionLabel={getOptionLabel}
+              value={
+                formData.city_id
+                  ? { id: formData.city_id, name: formData.city_name }
+                  : null
               }
+              onChange={(e, v) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  city_id: v?.id ?? "",
+                  city_name: v?.name ?? v?.label ?? "",
+                }));
+                if (errors.city_id) {
+                  setErrors((prev) => {
+                    const copy = { ...prev };
+                    delete copy.city_id;
+                    return copy;
+                  });
+                }
+              }}
               placeholder="Type to search..."
               disabled={!formData.state_id}
+              required={isIndiaCountry(formData.country)}
+              error={!!errors.city_id}
+              helperText={errors.city_id}
             />
             <Input
               name="address"
