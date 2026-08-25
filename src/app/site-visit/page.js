@@ -20,13 +20,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { IconMapPin, IconClipboardList, IconFileDescription } from "@tabler/icons-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { IconMapPin, IconClipboardList, IconFileDescription, IconCircleCheck } from "@tabler/icons-react";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/utils/dataTableUtils";
 
 const SiteVisitForm = dynamic(() => import("./components/SiteVisitForm"), { ssr: false });
 const SiteSurveyForm = dynamic(() => import("./components/SiteSurveyForm"), { ssr: false });
+
+const LIST_VIEW_PENDING = "pending";
+const LIST_VIEW_COMPLETED = "completed";
+
+const FORM_MODE_CREATE = "create";
+const FORM_MODE_EDIT = "edit";
+const FORM_MODE_COMPLETE = "complete";
+
+const EDIT_VISIT_STATUSES = ["Pending", "Rescheduled", "Cancelled"];
+const COMPLETE_VISIT_STATUSES = ["Visited"];
 
 const COLUMN_FILTER_KEYS = [
   "inquiry_number",
@@ -41,7 +52,6 @@ const COLUMN_FILTER_KEYS = [
   "inquiry_date_of_inquiry_to",
   "inquiry_date_of_inquiry_op",
   "inquiry_status",
-  "site_visit_visit_status",
   "site_visit_visit_date_from",
   "site_visit_visit_date_to",
   "site_visit_visit_date_op",
@@ -71,12 +81,44 @@ const STATUS_OPTIONS = [
   { value: "Under Discussion", label: "Under Discussion" },
 ];
 
-const VISIT_STATUS_OPTIONS = [
-  { value: "Pending", label: "Pending" },
-  { value: "Visited", label: "Visited" },
-  { value: "Rescheduled", label: "Rescheduled" },
-  { value: "Cancelled", label: "Cancelled" },
-];
+const mapRowToFormDefaults = (row) => {
+  if (!row) return null;
+  return {
+    id: row.site_visit_id,
+    inquiry_id: row.inquiry_id ? String(row.inquiry_id) : "",
+    visit_status: row.site_visit_visit_status || "Pending",
+    remarks: row.site_visit_remarks ?? "",
+    schedule_on: row.site_visit_schedule_on
+      ? String(row.site_visit_schedule_on).slice(0, 10)
+      : "",
+    schedule_remarks: row.site_visit_schedule_remarks ?? "",
+    visit_assign_to: row.site_visit_visit_assign_to ?? "",
+    visit_date: row.site_visit_visit_date
+      ? String(row.site_visit_visit_date).slice(0, 10)
+      : "",
+    visited_by: row.site_visit_visited_by ?? "",
+    next_reminder_date: row.site_visit_next_reminder_date
+      ? String(row.site_visit_next_reminder_date).slice(0, 10)
+      : "",
+    isFromInquiry: true,
+  };
+};
+
+const mapRowToCompleteDefaults = (row) => {
+  if (!row) return null;
+  return {
+    inquiry_id: row.inquiry_id ? String(row.inquiry_id) : "",
+    visit_status: "Visited",
+    remarks: row.site_visit_remarks ?? "",
+    isFromInquiry: true,
+  };
+};
+
+const getFormModalTitle = (mode) => {
+  if (mode === FORM_MODE_COMPLETE) return "Complete Site Visit";
+  if (mode === FORM_MODE_EDIT) return "Edit Site Visit";
+  return "Add Site Visit";
+};
 
 export default function SiteVisitPage() {
   const { modulePermissions, currentModuleId } = useAuth();
@@ -93,7 +135,9 @@ export default function SiteVisitPage() {
   });
   const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
 
+  const [listView, setListView] = useState(LIST_VIEW_PENDING);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [formModalMode, setFormModalMode] = useState(FORM_MODE_CREATE);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
   const [tableKey, setTableKey] = useState(0);
@@ -105,8 +149,16 @@ export default function SiteVisitPage() {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [initialGalleryKey, setInitialGalleryKey] = useState(null);
 
+  const isPendingView = listView === LIST_VIEW_PENDING;
+
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
+
+  const handleListViewChange = useCallback((value) => {
+    setListView(value);
+    setPage(1);
+    setTableKey((prev) => prev + 1);
+  }, [setPage]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -114,6 +166,12 @@ export default function SiteVisitPage() {
       const exportParams = Object.fromEntries(
         Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
       );
+      if (exportParams.inquiry_status) {
+        exportParams.status = exportParams.inquiry_status;
+        delete exportParams.inquiry_status;
+      }
+      exportParams.visit_status =
+        listView === LIST_VIEW_COMPLETED ? "Visited" : "Pending,Rescheduled";
       const blob = await siteVisitService.exportSiteVisits(exportParams);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -130,10 +188,20 @@ export default function SiteVisitPage() {
     } finally {
       setExporting(false);
     }
-  }, [filters]);
+  }, [filters, listView]);
 
   const handleOpenModal = useCallback((row = null) => {
     setSelectedRow(row);
+    setFormModalMode(row ? FORM_MODE_EDIT : FORM_MODE_CREATE);
+    setServerError(null);
+    setShowAddModal(true);
+  }, []);
+
+  const handleOpenComplete = useCallback((row) => {
+    if (!row) return;
+    setSelectedRow(row);
+    setFormModalMode(FORM_MODE_COMPLETE);
+    setServerError(null);
     setShowAddModal(true);
   }, []);
 
@@ -145,6 +213,7 @@ export default function SiteVisitPage() {
   const handleCloseAddModal = useCallback(() => {
     setShowAddModal(false);
     setSelectedRow(null);
+    setFormModalMode(FORM_MODE_CREATE);
     setTableKey((prev) => prev + 1);
   }, []);
 
@@ -260,10 +329,15 @@ export default function SiteVisitPage() {
         field: "site_visit_visit_status",
         label: "Visit Status",
         sortable: true,
-        filterType: "select",
-        filterKey: "site_visit_visit_status",
-        filterOptions: VISIT_STATUS_OPTIONS,
         render: (row) => row.site_visit_visit_status || "-",
+      },
+      {
+        field: "visit_assign_to_name",
+        label: "Assigned To",
+        sortable: false,
+        render: (row) =>
+          row.visit_assign_to_name ||
+          (row.site_visit_visit_assign_to ? `User #${row.site_visit_visit_assign_to}` : "-"),
       },
       {
         field: "site_visit_visit_date",
@@ -395,23 +469,47 @@ export default function SiteVisitPage() {
                 </Button>
               </Tooltip>
             ) : (
-              <Tooltip title="View/Edit Site Visit">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => handleOpenModal(row)}
-                  aria-label="View/Edit Site Visit"
-                >
-                  <IconMapPin className="size-4" />
-                </Button>
-              </Tooltip>
+              <>
+                {currentPerm.can_create ? (
+                  <Tooltip title="Complete Visit">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleOpenComplete(row)}
+                      aria-label="Complete site visit"
+                    >
+                      <IconCircleCheck className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+                {currentPerm.can_update || currentPerm.can_create ? (
+                  <Tooltip title="Edit / Reassign">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleOpenModal(row)}
+                      aria-label="Edit site visit"
+                    >
+                      <IconMapPin className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+              </>
             )}
           </Box>
         ),
       },
     ],
-    [handleOpenModal, handleOpenSurveyModal, handleOpenSidebar]
+    [
+      handleOpenModal,
+      handleOpenComplete,
+      handleOpenSurveyModal,
+      handleOpenSidebar,
+      currentPerm.can_update,
+      currentPerm.can_create,
+    ]
   );
 
   const filterParams = useMemo(() => {
@@ -421,23 +519,42 @@ export default function SiteVisitPage() {
       obj.status = obj.inquiry_status;
       delete obj.inquiry_status;
     }
-    if (obj.site_visit_visit_status) {
-      obj.visit_status = obj.site_visit_visit_status;
-      delete obj.site_visit_visit_status;
-    }
+    obj.visit_status = isPendingView ? "Pending,Rescheduled" : "Visited";
     return { q: undefined, ...obj };
-  }, [filters]);
+  }, [filters, isPendingView]);
 
   const handleSubmit = async (formData, files) => {
     setLoading(true);
     setServerError(null);
     try {
-      await siteVisitService.create(formData, files);
-      toastSuccess("Site visit created successfully");
+      if (formModalMode === FORM_MODE_EDIT) {
+        const siteVisitId = selectedRow?.site_visit_id || formData?.id;
+        if (!siteVisitId) {
+          throw new Error("Site visit id is required for update");
+        }
+        await siteVisitService.update(siteVisitId, {
+          visit_status: formData.visit_status,
+          visit_assign_to: formData.visit_assign_to,
+          schedule_on: formData.schedule_on,
+          schedule_remarks: formData.schedule_remarks,
+          remarks: formData.remarks,
+        });
+        toastSuccess("Site visit updated successfully");
+      } else {
+        await siteVisitService.create(formData, files);
+        toastSuccess(
+          formModalMode === FORM_MODE_COMPLETE
+            ? "Site visit completed successfully"
+            : "Site visit created successfully"
+        );
+      }
       handleCloseAddModal();
       setServerError(null);
     } catch (error) {
-      const msg = error.response?.data?.message || error.message || "An error occurred while creating the site visit";
+      const msg =
+        error.response?.data?.message ||
+        error.message ||
+        "An error occurred while saving the site visit";
       setServerError(msg);
       toastError(msg);
     } finally {
@@ -476,8 +593,18 @@ export default function SiteVisitPage() {
         exportDisabled={exporting}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
+          <Tabs value={listView} onValueChange={handleListViewChange} className="w-full">
+            <TabsList className="h-7 bg-white border border-slate-200 rounded-lg px-1 py-0 w-fit">
+              <TabsTrigger value={LIST_VIEW_PENDING} className="text-[11px] font-semibold px-2 py-1">
+                Pending
+              </TabsTrigger>
+              <TabsTrigger value={LIST_VIEW_COMPLETED} className="text-[11px] font-semibold px-2 py-1">
+                Completed
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
           <PaginatedTable
-            key={tableKey}
+            key={`${tableKey}-${listView}`}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}
@@ -517,17 +644,31 @@ export default function SiteVisitPage() {
         <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
           <DialogContent className={DIALOG_FORM_LARGE}>
             <DialogHeader>
-              <DialogTitle>{selectedRow ? "View/Edit Site Visit" : "Add Site Visit"}</DialogTitle>
+              <DialogTitle>{getFormModalTitle(formModalMode)}</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
               <SiteVisitForm
+                key={`${formModalMode}-${selectedRow?.site_visit_id || "new"}`}
                 defaultValues={
-                  selectedRow ? { inquiry_id: selectedRow.inquiry_id ? String(selectedRow.inquiry_id) : "" } : null
+                  formModalMode === FORM_MODE_COMPLETE
+                    ? mapRowToCompleteDefaults(selectedRow)
+                    : formModalMode === FORM_MODE_EDIT
+                      ? mapRowToFormDefaults(selectedRow)
+                      : isPendingView
+                        ? { visit_status: "Pending" }
+                        : null
+                }
+                allowedVisitStatuses={
+                  formModalMode === FORM_MODE_EDIT
+                    ? EDIT_VISIT_STATUSES
+                    : formModalMode === FORM_MODE_COMPLETE
+                      ? COMPLETE_VISIT_STATUSES
+                      : undefined
                 }
                 onSubmit={handleSubmit}
                 onCancel={handleCloseAddModal}
                 loading={loading}
-                serverError={null}
+                serverError={serverError}
                 onClearServerError={() => setServerError(null)}
               />
             </div>

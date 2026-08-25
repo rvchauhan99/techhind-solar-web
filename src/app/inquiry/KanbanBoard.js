@@ -37,7 +37,9 @@ import { Snackbar, Alert, CircularProgress } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import MapIcon from "@mui/icons-material/Map";
 import { toastSuccess, toastError } from "@/utils/toast";
+import SiteVisitDetailsDrawer from "@/components/common/SiteVisitDetailsDrawer";
 
 const COLUMN_WIDTH = 330;
 const COLUMN_HEIGHT = "100%"; // Let the parent container control the height
@@ -47,6 +49,12 @@ import { useRouter } from "next/navigation";
 
 // ===== Helpers =====
 const kwLabel = (kw) => `${Number(kw || 0).toFixed(2)} KW`;
+
+const SITE_VISIT_FLAG_META = {
+  not_assigned: { label: "Not Assigned", color: "error" },
+  assigned: { label: "Assigned", color: "warning" },
+  done: { label: "Site Visit Done", color: "success" },
+};
 
 const STATUS_COLUMNS = {
   New: { id: "new", title: "New", color: "#dc3545" },
@@ -151,6 +159,8 @@ const buildBoardState = (inquiries = []) => {
       assignedOn: inq.assigned_on || inq.date_of_inquiry,
       nextReminder: inq.next_reminder_date,
       status: inq.status, // Store original status
+      siteVisitFlag: inq.site_visit_flag || "not_assigned",
+      siteVisitId: inq.site_visit_id || null,
     });
   });
 
@@ -196,6 +206,11 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
   const [menuInquiryId, setMenuInquiryId] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [siteVisitModalOpen, setSiteVisitModalOpen] = useState(false);
+  const [siteVisitMode, setSiteVisitMode] = useState("complete"); // complete | assign | edit
+  const [editingSiteVisitId, setEditingSiteVisitId] = useState(null);
+  const [siteVisitFormDefaults, setSiteVisitFormDefaults] = useState(null);
+  const [siteVisitDetailsOpen, setSiteVisitDetailsOpen] = useState(false);
+  const [siteVisitDetailsRecord, setSiteVisitDetailsRecord] = useState(null);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [markDeadModalOpen, setMarkDeadModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -381,17 +396,97 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     setServerError(null);
   };
 
-  const handleOpenSiteVisitModal = (inquiryId) => {
+  const handleOpenSiteVisitModal = (inquiryId, mode = "complete") => {
     setSelectedInquiryId(inquiryId);
+    setSiteVisitMode(mode);
+    setEditingSiteVisitId(null);
+    setSiteVisitFormDefaults(
+      mode === "assign"
+        ? {
+            inquiry_id: inquiryId || "",
+            visit_status: "Pending",
+            isFromInquiry: true,
+          }
+        : {
+            inquiry_id: inquiryId || "",
+            visit_status: "Visited",
+            isFromInquiry: true,
+          }
+    );
     setSiteVisitModalOpen(true);
     setSiteVisitServerError(null);
     handleMenuClose();
   };
 
+  const handleAssignSiteVisit = () => {
+    if (menuInquiryId) {
+      handleOpenSiteVisitModal(menuInquiryId, "assign");
+    }
+  };
+
   const handleCloseSiteVisitModal = () => {
     setSiteVisitModalOpen(false);
     setSelectedInquiryId(null);
+    setSiteVisitMode("complete");
+    setEditingSiteVisitId(null);
+    setSiteVisitFormDefaults(null);
     setSiteVisitServerError(null);
+  };
+
+  const handleOpenSiteVisitDetails = async (siteVisitId) => {
+    if (!siteVisitId) return;
+    try {
+      const response = await siteVisitService.getById(siteVisitId);
+      const result = response?.result ?? response;
+      setSiteVisitDetailsRecord(result);
+      setSiteVisitDetailsOpen(true);
+    } catch (err) {
+      toastError(err.response?.data?.message || err.message || "Failed to load site visit");
+    }
+  };
+
+  const handleEditAssignedSiteVisit = async (inquiryId, siteVisitId) => {
+    if (!siteVisitId) {
+      handleOpenSiteVisitModal(inquiryId, "assign");
+      return;
+    }
+    try {
+      const response = await siteVisitService.getById(siteVisitId);
+      const result = response?.result ?? response;
+      setSelectedInquiryId(inquiryId);
+      setSiteVisitMode("edit");
+      setEditingSiteVisitId(result.id);
+      setSiteVisitFormDefaults({
+        id: result.id,
+        inquiry_id: result.inquiry_id ? String(result.inquiry_id) : String(inquiryId),
+        visit_status: result.visit_status || "Pending",
+        schedule_on: result.schedule_on ? String(result.schedule_on).slice(0, 10) : "",
+        schedule_remarks: result.schedule_remarks ?? "",
+        visit_assign_to: result.visit_assign_to ?? "",
+        remarks: result.remarks ?? "",
+        isFromInquiry: true,
+      });
+      setSiteVisitModalOpen(true);
+      setSiteVisitServerError(null);
+      handleMenuClose();
+    } catch (err) {
+      toastError(err.response?.data?.message || err.message || "Failed to load site visit");
+    }
+  };
+
+  const handleSiteVisitBadgeClick = (e, item) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const flag = item.siteVisitFlag || "not_assigned";
+    if (flag === "not_assigned") {
+      handleOpenSiteVisitModal(item.id, "assign");
+      return;
+    }
+    if (flag === "assigned") {
+      handleEditAssignedSiteVisit(item.id, item.siteVisitId);
+      return;
+    }
+    handleOpenSiteVisitDetails(item.siteVisitId);
   };
 
   const handleSubmit = async (payload) => {
@@ -426,20 +521,34 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     setSiteVisitLoading(true);
     setSiteVisitServerError(null);
     try {
-      // Ensure inquiry_id is set
       const payload = {
         ...formData,
         inquiry_id: selectedInquiryId || formData.inquiry_id,
       };
-      await siteVisitService.create(payload, files);
+
+      if (siteVisitMode === "edit" && editingSiteVisitId) {
+        await siteVisitService.update(editingSiteVisitId, {
+          visit_status: payload.visit_status,
+          visit_assign_to: payload.visit_assign_to,
+          schedule_on: payload.schedule_on,
+          schedule_remarks: payload.schedule_remarks,
+          remarks: payload.remarks,
+        });
+        toastSuccess("Site visit updated successfully");
+      } else {
+        await siteVisitService.create(payload, files);
+        toastSuccess(
+          siteVisitMode === "assign"
+            ? "Site visit assigned successfully"
+            : "Site visit created successfully"
+        );
+      }
       handleCloseSiteVisitModal();
-      // Refresh inquiries list after successful site visit creation
-      // Site visit creation will automatically update inquiry status to "Site Visit Done"
       if (onRefresh) {
         await onRefresh();
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || "Failed to create site visit";
+      const errorMessage = err.response?.data?.message || err.message || "Failed to save site visit";
       setSiteVisitServerError(errorMessage);
     } finally {
       setSiteVisitLoading(false);
@@ -563,8 +672,15 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     // Check if this transition requires a site visit (any status → Site Visit Done)
     // If moving to "Site Visit Done", show site visit modal instead of directly updating
     if (destinationStatus === "Site Visit Done") {
-      // Open site visit modal with pre-filled inquiry_id
+      // Open site visit modal with pre-filled inquiry_id (Visited / complete flow)
       setSelectedInquiryId(inquiryItem.id);
+      setSiteVisitMode("complete");
+      setEditingSiteVisitId(null);
+      setSiteVisitFormDefaults({
+        inquiry_id: inquiryItem.id || "",
+        visit_status: "Visited",
+        isFromInquiry: true,
+      });
       setSiteVisitModalOpen(true);
       setSiteVisitServerError(null);
       // Don't update status here - site visit creation will handle it
@@ -870,17 +986,17 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                                         t.palette.background.paper,
                                     }}
                                   >
-                                    {/* Top row: Inquiry # + Source + Capacity + actions */}
+                                    {/* Top row: Inquiry # + Source + Capacity + SV badge + actions */}
                                     <Stack
                                       direction="row"
                                       alignItems="center"
                                       justifyContent="space-between"
-                                      sx={{ flexWrap: "wrap" }}
+                                      sx={{ flexWrap: "wrap", gap: 0.5 }}
                                     >
                                       <Stack
                                         direction="row"
                                         spacing={0.5}
-                                        sx={{ flexWrap: "wrap" }}
+                                        sx={{ flexWrap: "wrap", alignItems: "center", minWidth: 0 }}
                                       >
                                         <Typography
                                           variant="caption"
@@ -994,6 +1110,38 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
                                           Handled By: <b>{item.handledBy}</b>
                                         </Typography>
                                       )}
+                                      {(() => {
+                                        const flag = item.siteVisitFlag || "not_assigned";
+                                        const meta = SITE_VISIT_FLAG_META[flag] || SITE_VISIT_FLAG_META.not_assigned;
+                                        return (
+                                          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ minHeight: 20 }}>
+                                            <Typography variant="caption" color="text.secondary">
+                                              Site Visit Status:
+                                            </Typography>
+                                            <Tooltip title={meta.label}>
+                                              <Chip
+                                                size="small"
+                                                label={meta.label}
+                                                color={meta.color}
+                                                onClick={(e) => handleSiteVisitBadgeClick(e, item)}
+                                                onKeyDown={(e) => {
+                                                  if (e.key === "Enter" || e.key === " ") {
+                                                    handleSiteVisitBadgeClick(e, item);
+                                                  }
+                                                }}
+                                                tabIndex={0}
+                                                aria-label={`Site visit status: ${meta.label}`}
+                                                sx={{
+                                                  height: 20,
+                                                  fontSize: "0.65rem",
+                                                  cursor: "pointer",
+                                                  maxWidth: 110,
+                                                }}
+                                              />
+                                            </Tooltip>
+                                          </Stack>
+                                        );
+                                      })()}
                                       {item.dateOfInquiry && (
                                         <Typography
                                           variant="caption"
@@ -1071,6 +1219,12 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
           </ListItemIcon>
           <ListItemText primary="Create Followup" />
         </MenuItem>
+        <MenuItem onClick={handleAssignSiteVisit}>
+          <ListItemIcon>
+            <MapIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Assign Site Visit" />
+        </MenuItem>
         <MenuItem onClick={() => handleQuotation()}>
           <ListItemIcon>
             <UploadFileIcon fontSize="small" />
@@ -1131,16 +1285,24 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
       <Modal open={siteVisitModalOpen} onClose={handleCloseSiteVisitModal}>
         <Box sx={siteVisitModalStyle}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-            <Typography variant="h6">Add Site Visit</Typography>
+            <Typography variant="h6">
+              {siteVisitMode === "assign"
+                ? "Assign Site Visit"
+                : siteVisitMode === "edit"
+                  ? "Edit Site Visit"
+                  : "Add Site Visit"}
+            </Typography>
             <IconButton onClick={handleCloseSiteVisitModal} size="small" color="error">
               <CloseIcon />
             </IconButton>
           </Box>
           <SiteVisitForm
-            defaultValues={{
-              inquiry_id: selectedInquiryId || "",
-              isFromInquiry: true
-            }}
+            defaultValues={
+              siteVisitFormDefaults || {
+                inquiry_id: selectedInquiryId || "",
+                isFromInquiry: true,
+              }
+            }
             onSubmit={handleSiteVisitSubmit}
             loading={siteVisitLoading}
             serverError={siteVisitServerError}
@@ -1149,6 +1311,15 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
           />
         </Box>
       </Modal>
+
+      <SiteVisitDetailsDrawer
+        open={siteVisitDetailsOpen}
+        onClose={() => {
+          setSiteVisitDetailsOpen(false);
+          setSiteVisitDetailsRecord(null);
+        }}
+        siteVisit={siteVisitDetailsRecord}
+      />
 
       {/* Upload Documents Modal */}
       <Modal
