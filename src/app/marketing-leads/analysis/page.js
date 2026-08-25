@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import DateField from "@/components/common/DateField";
 import Select, { MenuItem } from "@/components/common/Select";
 import MultiSelect from "@/components/common/MultiSelect";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import marketingLeadsService from "@/services/marketingLeadsService";
-import mastersService from "@/services/mastersService";
+import mastersService, { getReferenceOptionsSearch } from "@/services/mastersService";
 import companyService from "@/services/companyService";
 import { formatInrCompact } from "@/utils/currencyFormatters";
 import {
@@ -58,7 +59,7 @@ import {
 
 const INITIAL_FILTERS = {
   from: "", to: "", branch_id: "", source_ids: [], status: [],
-  priority: [], campaign_id: "", lead_segment: "", product_interest: "", assigned_to: "",
+  priority: [], campaign_id: "", campaign_name: "", lead_segment: "", product_interest: "", assigned_to: "", assigned_to_name: "",
 };
 
 const STATUS_COLORS = {
@@ -92,13 +93,17 @@ const FILTER_LABELS = {
   lead_segment: "Segment", product_interest: "Product", assigned_to: "Assigned To",
 };
 
-function getChips(filters, branches, sources, users) {
+function getChips(filters, branches, sources) {
   return Object.entries(filters)
-    .filter(([, v]) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .filter(([key, v]) => {
+      if (key === "campaign_name" || key === "assigned_to_name") return false;
+      return v != null && v !== "" && !(Array.isArray(v) && v.length === 0);
+    })
     .map(([key, value]) => {
       let valStr = String(value);
       if (key === "branch_id") valStr = branches.find((b) => String(b.id) === String(value))?.name || value;
-      if (key === "assigned_to") valStr = users.find((u) => String(u.id) === String(value))?.name || value;
+      if (key === "assigned_to") valStr = filters.assigned_to_name || value;
+      if (key === "campaign_id") valStr = filters.campaign_name || value;
       if (key === "status") valStr = (Array.isArray(value) ? value : [value]).map(s => s.replace(/_/g, " ")).join(", ");
       if (key === "source_ids") valStr = (Array.isArray(value) ? value : [value]).map(s => sources.find(src => String(src.id) === String(s))?.source_name || s).join(", ");
       return { key, label: FILTER_LABELS[key] || key, value: valStr };
@@ -255,15 +260,13 @@ export default function MarketingLeadAnalysisPage() {
 
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
-  const [userOptions, setUserOptions] = useState([]);
   const [breakdownTab, setBreakdownTab] = useState("source");
 
   useEffect(() => {
     Promise.all([
       companyService.listBranches().then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
       mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
-      mastersService.getReferenceOptions("user.model", { status_in: "active,inactive" }).then((r) => { const d = r?.result ?? r?.data ?? r; return Array.isArray(d) ? d : []; }),
-    ]).then(([b, s, u]) => { setBranchOptions(b); setSourceOptions(s); setUserOptions(u); }).catch(() => { });
+    ]).then(([b, s]) => { setBranchOptions(b); setSourceOptions(s); }).catch(() => { });
   }, []);
 
   const loadSummary = useCallback(async (overrideFilters) => {
@@ -301,6 +304,8 @@ export default function MarketingLeadAnalysisPage() {
 
   const removeChip = (key) => {
     const next = { ...filters, [key]: INITIAL_FILTERS[key] };
+    if (key === "campaign_id") next.campaign_name = "";
+    if (key === "assigned_to") next.assigned_to_name = "";
     setFilters(next);
     if (key === "status") setActiveStatusTab(null);
     if (key === "from" || key === "to") setActivePreset(null);
@@ -355,8 +360,8 @@ export default function MarketingLeadAnalysisPage() {
 
   const leadHref = useCallback((params = {}) => buildLeadHref(params, filters), [filters]);
 
-  const activeFilterCount = [filters.from, filters.to, filters.branch_id, filters.source_ids?.length > 0, filters.status?.length > 0, filters.priority?.length > 0, filters.lead_segment, filters.product_interest, filters.assigned_to].filter(Boolean).length;
-  const chips = getChips(filters, branchOptions, sourceOptions, userOptions);
+  const activeFilterCount = [filters.from, filters.to, filters.branch_id, filters.source_ids?.length > 0, filters.status?.length > 0, filters.priority?.length > 0, filters.campaign_id, filters.lead_segment, filters.product_interest, filters.assigned_to].filter(Boolean).length;
+  const chips = getChips(filters, branchOptions, sourceOptions);
 
   const oc = summary?.order_conversion || {};
   const ocKpis = oc.kpis || {};
@@ -475,7 +480,7 @@ export default function MarketingLeadAnalysisPage() {
           </div>
 
           {/* ── Collapsible Filters ─────────────────────────────────────────── */}
-          <Card className="rounded-xl shadow-sm border-slate-200 bg-white">
+          <Card className="rounded-xl shadow-sm border-slate-200 bg-white overflow-visible">
             <button
               onClick={() => setFiltersOpen((o) => !o)}
               className="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-50 transition-colors rounded-xl"
@@ -487,7 +492,7 @@ export default function MarketingLeadAnalysisPage() {
               {filtersOpen ? <IconChevronUp size={13} className="text-slate-400" /> : <IconChevronDown size={13} className="text-slate-400" />}
             </button>
             {filtersOpen && (
-              <div className="border-t border-slate-100 px-3 py-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+              <div className="border-t border-slate-100 px-3 py-2.5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 overflow-visible relative z-20">
                 <DateField label="From Date" name="from" fullWidth value={filters.from} onChange={(e) => fc("from", e.target.value)} />
                 <DateField label="To Date" name="to" fullWidth value={filters.to} onChange={(e) => fc("to", e.target.value)} />
                 <Select name="branch_id" label="Branch" fullWidth value={filters.branch_id} onChange={(e) => fc("branch_id", e.target.value)}>
@@ -495,6 +500,27 @@ export default function MarketingLeadAnalysisPage() {
                   {branchOptions.map((b) => <MenuItem key={b.id} value={String(b.id)}>{b.name ?? b.label ?? b.id}</MenuItem>)}
                 </Select>
                 <MultiSelect name="source_ids" label="Sources" fullWidth placeholder="Sources…" options={sourceOptions.map((s) => ({ value: String(s.id), label: s.source_name || s.name || String(s.id) }))} value={filters.source_ids} onChange={(e) => fc("source_ids", e.target.value)} />
+                <AutocompleteField
+                  label="Campaign"
+                  asyncLoadOptions={(q) => getReferenceOptionsSearch("campaign.model", { q, limit: 20 })}
+                  referenceModel="campaign.model"
+                  getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                  value={
+                    filters.campaign_id
+                      ? { id: filters.campaign_id, name: filters.campaign_name }
+                      : null
+                  }
+                  onChange={(_e, v) =>
+                    setFilters((p) => ({
+                      ...p,
+                      campaign_id: v?.id != null && v?.id !== "" ? String(v.id) : "",
+                      campaign_name: v?.name ?? v?.label ?? "",
+                    }))
+                  }
+                  placeholder="All campaigns"
+                  clearable
+                  usePortal
+                />
                 <MultiSelect name="status" label="Status" fullWidth placeholder="Status…" options={[{ value: "new", label: "New" }, { value: "viewed", label: "Viewed" }, { value: "follow_up", label: "Follow Up" }, { value: "converted", label: "Converted" }, { value: "not_interested", label: "Not Interested" }, { value: "junk", label: "Junk" }]} value={filters.status} onChange={(e) => { fc("status", e.target.value); setActiveStatusTab(null); }} />
                 <MultiSelect name="priority" label="Priority" fullWidth placeholder="Priority…" options={[{ value: "hot", label: "🔴 Hot" }, { value: "high", label: "🟠 High" }, { value: "medium", label: "🟡 Medium" }, { value: "low", label: "⚪ Low" }]} value={filters.priority} onChange={(e) => fc("priority", e.target.value)} />
                 <Select name="lead_segment" label="Segment" fullWidth value={filters.lead_segment} onChange={(e) => fc("lead_segment", e.target.value)}>
@@ -510,10 +536,29 @@ export default function MarketingLeadAnalysisPage() {
                   <MenuItem value="solar_water_heater">Water Heater</MenuItem>
                   <MenuItem value="solar_pump">Solar Pump</MenuItem>
                 </Select>
-                <Select name="assigned_to" label="Assigned To" fullWidth value={filters.assigned_to} onChange={(e) => fc("assigned_to", e.target.value)}>
-                  <MenuItem value="">All Users</MenuItem>
-                  {userOptions.map((u) => <MenuItem key={u.id} value={String(u.id)}>{u.name ?? u.label ?? `User #${u.id}`}</MenuItem>)}
-                </Select>
+                <AutocompleteField
+                  label="Assigned To"
+                  asyncLoadOptions={(q) =>
+                    getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                  }
+                  referenceModel="user.model"
+                  getOptionLabel={(o) => o?.name ?? o?.label ?? o?.email ?? ""}
+                  value={
+                    filters.assigned_to
+                      ? { id: filters.assigned_to, name: filters.assigned_to_name }
+                      : null
+                  }
+                  onChange={(_e, v) =>
+                    setFilters((p) => ({
+                      ...p,
+                      assigned_to: v?.id != null && v?.id !== "" ? String(v.id) : "",
+                      assigned_to_name: v?.name ?? v?.label ?? v?.email ?? "",
+                    }))
+                  }
+                  placeholder="All users"
+                  clearable
+                  usePortal
+                />
               </div>
             )}
           </Card>
