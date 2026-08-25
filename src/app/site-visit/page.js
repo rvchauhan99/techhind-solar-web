@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { IconMapPin, IconClipboardList, IconFileDescription } from "@tabler/icons-react";
+import { IconMapPin, IconClipboardList, IconFileDescription, IconCircleCheck } from "@tabler/icons-react";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/utils/dataTableUtils";
@@ -31,6 +31,13 @@ const SiteSurveyForm = dynamic(() => import("./components/SiteSurveyForm"), { ss
 
 const LIST_VIEW_PENDING = "pending";
 const LIST_VIEW_COMPLETED = "completed";
+
+const FORM_MODE_CREATE = "create";
+const FORM_MODE_EDIT = "edit";
+const FORM_MODE_COMPLETE = "complete";
+
+const EDIT_VISIT_STATUSES = ["Pending", "Rescheduled", "Cancelled"];
+const COMPLETE_VISIT_STATUSES = ["Visited"];
 
 const COLUMN_FILTER_KEYS = [
   "inquiry_number",
@@ -97,6 +104,22 @@ const mapRowToFormDefaults = (row) => {
   };
 };
 
+const mapRowToCompleteDefaults = (row) => {
+  if (!row) return null;
+  return {
+    inquiry_id: row.inquiry_id ? String(row.inquiry_id) : "",
+    visit_status: "Visited",
+    remarks: row.site_visit_remarks ?? "",
+    isFromInquiry: true,
+  };
+};
+
+const getFormModalTitle = (mode) => {
+  if (mode === FORM_MODE_COMPLETE) return "Complete Site Visit";
+  if (mode === FORM_MODE_EDIT) return "Edit Site Visit";
+  return "Add Site Visit";
+};
+
 export default function SiteVisitPage() {
   const { modulePermissions, currentModuleId } = useAuth();
   const currentPerm = modulePermissions?.[currentModuleId] || {
@@ -114,6 +137,7 @@ export default function SiteVisitPage() {
 
   const [listView, setListView] = useState(LIST_VIEW_PENDING);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [formModalMode, setFormModalMode] = useState(FORM_MODE_CREATE);
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
   const [tableKey, setTableKey] = useState(0);
@@ -168,6 +192,16 @@ export default function SiteVisitPage() {
 
   const handleOpenModal = useCallback((row = null) => {
     setSelectedRow(row);
+    setFormModalMode(row ? FORM_MODE_EDIT : FORM_MODE_CREATE);
+    setServerError(null);
+    setShowAddModal(true);
+  }, []);
+
+  const handleOpenComplete = useCallback((row) => {
+    if (!row) return;
+    setSelectedRow(row);
+    setFormModalMode(FORM_MODE_COMPLETE);
+    setServerError(null);
     setShowAddModal(true);
   }, []);
 
@@ -179,6 +213,7 @@ export default function SiteVisitPage() {
   const handleCloseAddModal = useCallback(() => {
     setShowAddModal(false);
     setSelectedRow(null);
+    setFormModalMode(FORM_MODE_CREATE);
     setTableKey((prev) => prev + 1);
   }, []);
 
@@ -433,24 +468,48 @@ export default function SiteVisitPage() {
                   <IconClipboardList className="size-4" />
                 </Button>
               </Tooltip>
-            ) : currentPerm.can_update || currentPerm.can_create ? (
-              <Tooltip title="Edit / Reassign">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => handleOpenModal(row)}
-                  aria-label="Edit site visit"
-                >
-                  <IconMapPin className="size-4" />
-                </Button>
-              </Tooltip>
-            ) : null}
+            ) : (
+              <>
+                {currentPerm.can_create ? (
+                  <Tooltip title="Complete Visit">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleOpenComplete(row)}
+                      aria-label="Complete site visit"
+                    >
+                      <IconCircleCheck className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+                {currentPerm.can_update || currentPerm.can_create ? (
+                  <Tooltip title="Edit / Reassign">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleOpenModal(row)}
+                      aria-label="Edit site visit"
+                    >
+                      <IconMapPin className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+              </>
+            )}
           </Box>
         ),
       },
     ],
-    [handleOpenModal, handleOpenSurveyModal, handleOpenSidebar, currentPerm.can_update, currentPerm.can_create]
+    [
+      handleOpenModal,
+      handleOpenComplete,
+      handleOpenSurveyModal,
+      handleOpenSidebar,
+      currentPerm.can_update,
+      currentPerm.can_create,
+    ]
   );
 
   const filterParams = useMemo(() => {
@@ -468,14 +527,11 @@ export default function SiteVisitPage() {
     setLoading(true);
     setServerError(null);
     try {
-      const siteVisitId = selectedRow?.site_visit_id || formData?.id;
-      const isEdit =
-        !!siteVisitId &&
-        ["Pending", "Rescheduled"].includes(
-          selectedRow?.site_visit_visit_status || formData?.visit_status
-        );
-
-      if (isEdit) {
+      if (formModalMode === FORM_MODE_EDIT) {
+        const siteVisitId = selectedRow?.site_visit_id || formData?.id;
+        if (!siteVisitId) {
+          throw new Error("Site visit id is required for update");
+        }
         await siteVisitService.update(siteVisitId, {
           visit_status: formData.visit_status,
           visit_assign_to: formData.visit_assign_to,
@@ -486,7 +542,11 @@ export default function SiteVisitPage() {
         toastSuccess("Site visit updated successfully");
       } else {
         await siteVisitService.create(formData, files);
-        toastSuccess("Site visit created successfully");
+        toastSuccess(
+          formModalMode === FORM_MODE_COMPLETE
+            ? "Site visit completed successfully"
+            : "Site visit created successfully"
+        );
       }
       handleCloseAddModal();
       setServerError(null);
@@ -584,18 +644,26 @@ export default function SiteVisitPage() {
         <Dialog open={showAddModal} onOpenChange={(open) => !open && handleCloseAddModal()}>
           <DialogContent className={DIALOG_FORM_LARGE}>
             <DialogHeader>
-              <DialogTitle>
-                {selectedRow ? "Edit Site Visit" : "Add Site Visit"}
-              </DialogTitle>
+              <DialogTitle>{getFormModalTitle(formModalMode)}</DialogTitle>
             </DialogHeader>
             <div className="flex-1 min-h-0 overflow-y-auto pr-1 pt-2">
               <SiteVisitForm
+                key={`${formModalMode}-${selectedRow?.site_visit_id || "new"}`}
                 defaultValues={
-                  selectedRow
-                    ? mapRowToFormDefaults(selectedRow)
-                    : isPendingView
-                      ? { visit_status: "Pending" }
-                      : null
+                  formModalMode === FORM_MODE_COMPLETE
+                    ? mapRowToCompleteDefaults(selectedRow)
+                    : formModalMode === FORM_MODE_EDIT
+                      ? mapRowToFormDefaults(selectedRow)
+                      : isPendingView
+                        ? { visit_status: "Pending" }
+                        : null
+                }
+                allowedVisitStatuses={
+                  formModalMode === FORM_MODE_EDIT
+                    ? EDIT_VISIT_STATUSES
+                    : formModalMode === FORM_MODE_COMPLETE
+                      ? COMPLETE_VISIT_STATUSES
+                      : undefined
                 }
                 onSubmit={handleSubmit}
                 onCancel={handleCloseAddModal}
