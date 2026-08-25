@@ -45,6 +45,7 @@ export default function SiteVisitForm({
   serverError = null,
   onClearServerError = () => { },
   onCancel = null,
+  allowedVisitStatuses = null,
 }) {
   const todayYYYYMMDD = () => {
     const d = new Date();
@@ -98,12 +99,24 @@ export default function SiteVisitForm({
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
 
+  const visitStatusOptions = Array.isArray(allowedVisitStatuses) && allowedVisitStatuses.length > 0
+    ? allowedVisitStatuses
+    : ["Visited", "Rescheduled", "Cancelled", "Pending"];
+
+  const canSelectVisitStatus = (status) => visitStatusOptions.includes(status);
+
   useEffect(() => {
     if (defaultValues) {
       // Ensure all string fields are strings (not null or undefined)
+      let visitStatus = defaultValues.visit_status || "Visited";
+      if (Array.isArray(allowedVisitStatuses) && allowedVisitStatuses.length > 0) {
+        if (!allowedVisitStatuses.includes(visitStatus)) {
+          visitStatus = allowedVisitStatuses[0];
+        }
+      }
       const sanitizedValues = {
         inquiry_id: defaultValues.inquiry_id ?? "",
-        visit_status: defaultValues.visit_status || "Visited",
+        visit_status: visitStatus,
         remarks: defaultValues.remarks ?? "",
         next_reminder_date: defaultValues.next_reminder_date ?? "",
         site_latitude: defaultValues.site_latitude ?? "0",
@@ -474,10 +487,18 @@ export default function SiteVisitForm({
                 }
               }}
             >
-              <FormControlLabel value="Visited" control={<Radio />} label="Visited" />
-              <FormControlLabel value="Rescheduled" control={<Radio />} label="Rescheduled" />
-              <FormControlLabel value="Cancelled" control={<Radio />} label="Cancelled" />
-              <FormControlLabel value="Pending" control={<Radio />} label="Schedule" />
+              {canSelectVisitStatus("Visited") && (
+                <FormControlLabel value="Visited" control={<Radio />} label="Visited" />
+              )}
+              {canSelectVisitStatus("Rescheduled") && (
+                <FormControlLabel value="Rescheduled" control={<Radio />} label="Rescheduled" />
+              )}
+              {canSelectVisitStatus("Cancelled") && (
+                <FormControlLabel value="Cancelled" control={<Radio />} label="Cancelled" />
+              )}
+              {canSelectVisitStatus("Pending") && (
+                <FormControlLabel value="Pending" control={<Radio />} label="Schedule" />
+              )}
             </RadioGroup>
             {errors.visit_status && (
               <FormHelperText error>{errors.visit_status}</FormHelperText>
