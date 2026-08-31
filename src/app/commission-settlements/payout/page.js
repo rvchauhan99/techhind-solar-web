@@ -49,6 +49,7 @@ import {
   QUICK_ROLE_FILTERS,
   normalizeFilterRoles,
   roleFilterQueryParam,
+  roleLabel,
   buildRoleFilterChips,
   filtersForActiveCount,
 } from "../utils/roleFilters";
@@ -543,7 +544,7 @@ export default function CommissionPayoutPage() {
       { field: "settlement_number", label: "Settlement", sortable: false, render: (row) => row.settlement_number || "—" },
       { field: "order_number", label: "Order", sortable: false, render: (row) => formatOrderNumberFromRow(row) },
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "—" },
-      { field: "role", label: "Role", sortable: false, render: (row) => row.role || "—" },
+      { field: "role", label: "Role", sortable: false, render: (row) => roleLabel(row.role) || "—" },
       {
         field: "gross",
         label: "Gross",

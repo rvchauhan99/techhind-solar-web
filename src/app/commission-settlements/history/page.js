@@ -116,6 +116,7 @@ const DATE_PRESETS = [
 const ROLE_FILTER_OPTIONS = [
   { value: "handled_by", label: "Handled by" },
   { value: "channel_partner", label: "Channel partner" },
+  { value: "inquiry_by", label: "Inquiry by" },
   { value: "fabricator", label: "Fabricator" },
   { value: "installer", label: "Installer" },
   { value: "fabricator_installer", label: "Fabricator & installer" },
@@ -125,6 +126,7 @@ const ROLE_OPTIONS = [
   { value: "", label: "All roles" },
   { value: "handled_by", label: "Handled by" },
   { value: "channel_partner", label: "Channel partner" },
+  { value: "inquiry_by", label: "Inquiry by" },
 ];
 
 const FILTER_LABELS = {

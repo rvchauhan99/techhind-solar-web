@@ -1,0 +1,27 @@
+---
+description: Mandatory delivery and QA standards for all TechHind Solar development
+alwaysApply: true
+---
+
+# Development delivery standards
+
+Before marking **any** task complete:
+
+1. Read and follow the **techhind-delivery-qa** skill (`~/.cursor/skills/techhind-delivery-qa/SKILL.md`).
+2. Default environment is **local**: API `http://127.0.0.1:5142/api`, web `http://localhost:3000`.
+3. Pick the correct **verification tier** (Smoke / Standard / Critical / Regression). Do not skip.
+4. UI changes must match existing components (compact layout, `ProtectedRoute`, module permission keys).
+5. New API fields require solar-api migration + service; wire through `src/services/` and forms/lists.
+
+## Completion message must include
+
+- **Test tier** used
+- **Cases run** (test IDs or steps)
+- **Skipped** cases with reason
+- **Evidence** (page route, network call, or screenshot note)
+
+## Commission / settlement UI changes
+
+- Run `npm run test:commission-qa` in techhind-solar-api
+- Manually verify affected pages under `/commission-settlements/*` and `/user-order-commission-rates`
+- Add role labels to `roleFilters.js` when new commission roles are introduced

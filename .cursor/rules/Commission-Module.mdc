@@ -1,0 +1,14 @@
+---
+description: Commission UI QA quick reference when editing commission pages
+globs: "**/commission-settlements/**,**/user-order-commission-rates/**"
+alwaysApply: false
+---
+
+# Commission UI
+
+When editing commission settlement or rate pages:
+
+1. Verify on local web with Super Admin login.
+2. Run `npm run test:commission-qa` in techhind-solar-api.
+3. New roles → update `src/app/commission-settlements/utils/roleFilters.js`.
+4. Offset rules apply to Handled by, Channel partner, and Inquiry by only.
