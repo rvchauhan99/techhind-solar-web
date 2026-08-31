@@ -201,6 +201,7 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         <DetailRow label="Created By" value={r.user?.name} />
         <DetailRow label="Handled By" value={r.inquiry?.handledBy?.name} />
         <DetailRow label="Inquiry By" value={r.inquiry?.inquiryBy?.name} />
+        <DetailRow label="Channel Partner" value={r.inquiry?.channelPartner?.name} />
         <DetailRow label="Branch" value={r.branch?.name} />
         <DetailRow label="Inquiry #" value={r.inquiry?.inquiry_number} />
       </div>
