@@ -58,6 +58,8 @@ const emptyForm = {
   website: "",
   inquiry_source_id: "",
   inquiry_source_name: "",
+  campaign_id: "",
+  campaign_name: "",
   assigned_to: "",
   assigned_to_name: "",
   assigned_by_name: "",
@@ -135,6 +137,8 @@ export default function B2bLeadForm({
       products,
       inquiry_source_id: dv.inquiry_source_id || "",
       inquiry_source_name: dv.inquiry_source_name || dv.inquirySource?.source_name || "",
+      campaign_id: dv.campaign_id || "",
+      campaign_name: dv.campaign_name || dv.campaign?.name || dv.tags?.fb_form_name || "",
       assigned_to: dv.assigned_to || "",
       assigned_to_name: dv.assigned_to_name || dv.assignedTo?.name || "",
       assigned_by_name: dv.assigned_by_name || dv.assignedBy?.name || "",
@@ -206,6 +210,8 @@ export default function B2bLeadForm({
       ...formData,
       country: formData.country || DEFAULT_COUNTRY,
       inquiry_source_id: formData.inquiry_source_id || null,
+      campaign_id: formData.campaign_id || null,
+      campaign_name: formData.campaign_name || null,
       assigned_to: formData.assigned_to || null,
       state_id: formData.state_id || null,
       state: formData.state || formData.state_text || "",
@@ -454,6 +460,22 @@ export default function B2bLeadForm({
                 }}
                 error={!!errors.inquiry_source_id}
                 helperText={errors.inquiry_source_id}
+                disabled={readOnly}
+              />
+              <AutocompleteField
+                label="Campaign"
+                referenceModel="campaign.model"
+                asyncLoadOptions={(q) => getReferenceOptionsSearch("campaign.model", { q, limit: 20 })}
+                getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                value={
+                  formData.campaign_id
+                    ? { id: formData.campaign_id, name: formData.campaign_name }
+                    : null
+                }
+                onChange={(_e, v) => {
+                  setField("campaign_id", v?.id ?? "");
+                  setField("campaign_name", v?.name ?? "");
+                }}
                 disabled={readOnly}
               />
               <AutocompleteField

@@ -467,6 +467,21 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                         #{lead.lead_number || lead.id}
                                       </Typography>
                                       <Stack direction="row" alignItems="center" spacing={0.25}>
+                                        {(lead.campaign_name || lead.fb_form_name || lead.tags?.fb_form_name) && (
+                                          <Chip
+                                            label={
+                                              lead.campaign_name ||
+                                              lead.fb_form_name ||
+                                              lead.tags?.fb_form_name
+                                            }
+                                            size="small"
+                                            sx={{
+                                              height: 18,
+                                              fontSize: "0.62rem",
+                                              maxWidth: 140,
+                                            }}
+                                          />
+                                        )}
                                         <IconButton
                                           size="small"
                                           onClick={(e) => handleMenuOpen(e, lead)}
@@ -505,6 +520,11 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                       {lead.city && (
                                         <Typography variant="caption" color="text.secondary">
                                           City: {lead.city}
+                                        </Typography>
+                                      )}
+                                      {lead.inquiry_source_name && (
+                                        <Typography variant="caption" color="text.secondary">
+                                          Source: {lead.inquiry_source_name}
                                         </Typography>
                                       )}
                                       {lead.assigned_to_name && (
