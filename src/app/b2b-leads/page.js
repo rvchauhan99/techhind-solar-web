@@ -11,6 +11,7 @@ import {
   IconHome,
   IconUserPlus,
   IconDownload,
+  IconUpload,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
@@ -147,6 +148,13 @@ export default function B2bLeadsPage() {
             >
               <IconUserPlus className="mr-2 size-4" />
               Assign Leads
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/b2b-leads/upload")}
+            >
+              <IconUpload className="mr-2 size-4" />
+              Import Leads
             </Button>
             <Button
               variant="outline"
