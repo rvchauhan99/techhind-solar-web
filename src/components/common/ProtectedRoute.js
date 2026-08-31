@@ -17,6 +17,7 @@ const PATH_WHITELIST = new Set([
   "/marketing-leads/view",
   "/marketing-leads/analysis",
   "/marketing-leads/upload",
+  "/b2b-leads/upload",
   "/b2b-leads/analysis",
   "/access-denied",
   "/user-profile",

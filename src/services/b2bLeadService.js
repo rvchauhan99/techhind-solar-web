@@ -67,6 +67,43 @@ export const exportB2bLeads = (params = {}) =>
     .get("/b2b-leads/export", { params, responseType: "blob" })
     .then((r) => r.data);
 
+export const uploadB2bLeads = (file, extra = {}) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  Object.entries(extra || {}).forEach(([key, value]) => {
+    if (value != null && value !== "") {
+      formData.append(key, value);
+    }
+  });
+  return apiClient
+    .post("/b2b-leads/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const previewB2bLeadsUpload = (file, extra = {}) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  Object.entries(extra || {}).forEach(([key, value]) => {
+    if (value != null && value !== "") {
+      formData.append(key, value);
+    }
+  });
+  return apiClient
+    .post("/b2b-leads/bulk/preview", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const downloadB2bLeadsTemplate = () =>
+  apiClient
+    .get("/b2b-leads/bulk/template", {
+      responseType: "blob",
+    })
+    .then((r) => r.data);
+
 export default {
   getB2bLeads,
   getB2bLeadById,
@@ -87,4 +124,7 @@ export default {
   getB2bLeadsAnalysis,
   exportB2bLeadsAnalysis,
   exportB2bLeads,
+  uploadB2bLeads,
+  previewB2bLeadsUpload,
+  downloadB2bLeadsTemplate,
 };
