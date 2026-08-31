@@ -16,6 +16,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toastSuccess, toastError } from "@/utils/toast";
 import {
+  formatMetaPullSummary,
+  downloadMetaPullLeadsCsv,
+} from "@/utils/metaPullLeadsReport";
+import {
   IconBrandFacebook,
   IconRefresh,
   IconTrash,
@@ -87,25 +91,78 @@ function SubscribedBadge({ subscribed }) {
 
 // ─── FormRow ──────────────────────────────────────────────────────────────────
 
-function FormRow({ form, onSyncLeads, loading }) {
+function FormRow({ form }) {
+  const [pulling, setPulling] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+
+  const handlePull = async () => {
+    setPulling(true);
+    setLastResult(null);
+    try {
+      const res = await axios.post(`/meta/forms/${form.id}/sync-leads`);
+      const data = res?.data?.data ?? {};
+      const msg = res?.data?.message || formatMetaPullSummary(data);
+      toastSuccess(msg);
+      setLastResult({ type: "success", msg, data });
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Lead sync failed";
+      toastError(msg);
+      setLastResult({ type: "error", msg });
+    } finally {
+      setPulling(false);
+    }
+  };
+
+  const handleDownloadReport = () => {
+    const details = lastResult?.data?.details;
+    if (!Array.isArray(details) || details.length === 0) return;
+    downloadMetaPullLeadsCsv(
+      details,
+      form.form_name || lastResult?.data?.form_name
+    );
+  };
+
   return (
-    <div className="flex items-center justify-between rounded border border-border bg-background px-3 py-2 text-sm">
-      <div>
-        <p className="font-medium">{form.form_name || "Untitled Form"}</p>
-        <p className="text-xs text-muted-foreground">
-          ID: {form.form_id} {form.form_status ? `· ${form.form_status}` : ""}
-        </p>
+    <div className="rounded border border-border bg-background px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">{form.form_name || "Untitled Form"}</p>
+          <p className="text-xs text-muted-foreground">
+            ID: {form.form_id} {form.form_status ? `· ${form.form_status}` : ""}
+          </p>
+          {lastResult?.type === "success" && lastResult.data ? (
+            <p className="mt-0.5 text-xs text-green-600">
+              {formatMetaPullSummary(lastResult.data)}
+            </p>
+          ) : null}
+          {lastResult?.type === "success" &&
+          Array.isArray(lastResult.data?.details) &&
+          lastResult.data.details.length > 0 ? (
+            <button
+              type="button"
+              className="mt-0.5 block text-xs font-medium text-blue-700 underline hover:no-underline"
+              onClick={handleDownloadReport}
+              aria-label="Download CSV report for pulled Meta leads"
+            >
+              Download CSV report
+            </button>
+          ) : null}
+          {lastResult?.type === "error" ? (
+            <p className="mt-0.5 text-xs text-red-500">{lastResult.msg}</p>
+          ) : null}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pulling}
+          onClick={handlePull}
+          className="shrink-0"
+          title="Manually pull all leads for this form"
+        >
+          <IconCloudDownload className="mr-1 h-3.5 w-3.5" />
+          {pulling ? "Pulling…" : "Pull Leads"}
+        </Button>
       </div>
-      <Button
-        size="sm"
-        variant="outline"
-        disabled={loading}
-        onClick={() => onSyncLeads(form.id)}
-        title="Manually pull all leads for this form"
-      >
-        <IconCloudDownload className="mr-1 h-3.5 w-3.5" />
-        Pull Leads
-      </Button>
     </div>
   );
 }
@@ -169,15 +226,6 @@ function PageRow({ page, accountId, onPageAction }) {
     }
   };
 
-  const handleSyncLeads = async (formId) => {
-    try {
-      const res = await axios.post(`/meta/forms/${formId}/sync-leads`);
-      toastSuccess(res?.data?.message || "Leads synced");
-    } catch (err) {
-      toastError(err?.response?.data?.message || "Lead sync failed");
-    }
-  };
-
   return (
     <div className="rounded-lg border border-border bg-muted/30">
       <div className="flex items-center justify-between px-4 py-3">
@@ -237,12 +285,7 @@ function PageRow({ page, accountId, onPageAction }) {
             </p>
           ) : (
             forms.map((form) => (
-              <FormRow
-                key={form.id}
-                form={form}
-                onSyncLeads={handleSyncLeads}
-                loading={false}
-              />
+              <FormRow key={form.id} form={form} />
             ))
           )}
         </div>
