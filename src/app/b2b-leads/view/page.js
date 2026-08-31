@@ -17,8 +17,11 @@ import {
   IconBuilding,
   IconUpload,
   IconDownload,
-  IconHistory
+  IconHistory,
 } from "@tabler/icons-react";
+import FacebookLeadDetailsSection, {
+  isFacebookMarketingLead,
+} from "@/components/marketing-leads/FacebookLeadDetailsSection";
 import b2bLeadService from "@/services/b2bLeadService";
 import moment from "moment";
 import { formatDate } from "@/utils/dataTableUtils";
@@ -177,6 +180,13 @@ function InfoTile({ label, value, className = "" }) {
 
 /** Left sidebar: compact lead info card */
 function LeadInfoCard({ lead }) {
+  const tags =
+    lead?.tags && typeof lead.tags === "object" && !Array.isArray(lead.tags) ? lead.tags : null;
+  const meta = tags?.fb_metadata || {};
+  const isFb = isFacebookMarketingLead(lead);
+  const campaignLabel =
+    lead.campaign_name || tags?.fb_form_name || tags?.fb_campaign_name || null;
+
   return (
     <Card className="bg-white dark:bg-zinc-900 border-border">
       <CardHeader className="border-b py-2 px-3 sm:px-4 shrink-0">
@@ -230,9 +240,22 @@ function LeadInfoCard({ lead }) {
         {/* Source & Assignment */}
         <div className="space-y-1.5">
           <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-1 mb-1.5">
-            Assignment
+            Source & Assignment
           </div>
           <InfoTile label="Source" value={lead.inquiry_source_name} />
+          <InfoTile label="Campaign" value={campaignLabel} />
+          {isFb && tags && (
+            <>
+              <InfoTile label="Form" value={tags.fb_form_name || tags.fb_form_id} />
+              <InfoTile label="Page" value={tags.fb_page_name || tags.fb_page_id} />
+              <InfoTile label="Ad" value={tags.fb_ad_name || meta.ad_name} />
+              <InfoTile label="Ad Set" value={meta.adset_name} />
+              <InfoTile label="Platform" value={meta.platform} />
+              {meta.is_organic != null && (
+                <InfoTile label="Organic" value={meta.is_organic ? "Yes" : "No"} />
+              )}
+            </>
+          )}
           <InfoTile label="Assigned To" value={lead.assigned_to_name || "Unassigned"} />
           <InfoTile label="Assigned By" value={lead.assigned_by_name} />
         </div>
@@ -695,7 +718,10 @@ function B2bLeadViewContent() {
 
           {/* Right main column (8/9 wide) */}
           <div className="md:col-span-8 lg:col-span-9 flex flex-col gap-3">
-            
+            {isFacebookMarketingLead(lead) && (
+              <FacebookLeadDetailsSection lead={lead} />
+            )}
+
             {!isConverted && (
               <Card className="bg-white dark:bg-zinc-900 border-border">
                 <CardHeader className="border-b py-2 px-3 sm:px-4 shrink-0">
