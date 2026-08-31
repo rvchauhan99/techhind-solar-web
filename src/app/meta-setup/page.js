@@ -30,6 +30,10 @@ import {
   IconAlertCircle,
   IconCheck,
 } from "@tabler/icons-react";
+import {
+  formatMetaPullSummary,
+  downloadMetaPullLeadsCsv,
+} from "@/utils/metaPullLeadsReport";
 import { toastSuccess, toastError } from "@/utils/toast";
 import metaService from "@/services/metaService";
 import Select, { MenuItem } from "@/components/common/Select";
@@ -125,9 +129,10 @@ function FormRow({ form, onConfigure }) {
     setLastResult(null);
     try {
       const res = await metaService.syncLeads(form.id);
-      const msg = res?.message || `${res?.data?.created ?? 0} new leads imported`;
+      const data = res?.data ?? {};
+      const msg = res?.message || formatMetaPullSummary(data);
       toastSuccess(msg);
-      setLastResult({ type: "success", msg });
+      setLastResult({ type: "success", msg, data });
     } catch (err) {
       const msg = err?.response?.data?.message || "Lead pull failed";
       toastError(msg);
@@ -135,6 +140,15 @@ function FormRow({ form, onConfigure }) {
     } finally {
       setPulling(false);
     }
+  };
+
+  const handleDownloadReport = () => {
+    const details = lastResult?.data?.details;
+    if (!Array.isArray(details) || details.length === 0) return;
+    downloadMetaPullLeadsCsv(
+      details,
+      form.form_name || lastResult?.data?.form_name
+    );
   };
 
   return (
@@ -183,13 +197,26 @@ function FormRow({ form, onConfigure }) {
             </button>
           </p>
         ) : null}
-        {lastResult && (
-          <p
-            className={`mt-0.5 text-xs ${lastResult.type === "success" ? "text-green-600" : "text-red-500"}`}
-          >
-            {lastResult.msg}
+        {lastResult?.type === "success" && lastResult.data ? (
+          <p className="mt-0.5 text-xs text-green-600">
+            {formatMetaPullSummary(lastResult.data)}
           </p>
-        )}
+        ) : null}
+        {lastResult?.type === "success" &&
+        Array.isArray(lastResult.data?.details) &&
+        lastResult.data.details.length > 0 ? (
+          <button
+            type="button"
+            className="mt-0.5 block text-xs font-medium text-blue-700 underline hover:no-underline"
+            onClick={handleDownloadReport}
+            aria-label="Download CSV report for pulled Meta leads"
+          >
+            Download CSV report
+          </button>
+        ) : null}
+        {lastResult?.type === "error" ? (
+          <p className="mt-0.5 text-xs text-red-500">{lastResult.msg}</p>
+        ) : null}
       </div>
       <Button
         size="sm"
