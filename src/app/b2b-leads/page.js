@@ -206,7 +206,7 @@ export default function B2bLeadsPage() {
                 setKanbanFilters(EMPTY_VALUES);
               }}
               defaultOpen={false}
-              hideFields={["customer_name", "campaign_id", "inquiry_source_id", "branch_id"]}
+              hideFields={["customer_name", "branch_id"]}
               statusOptions={B2B_STATUS_OPTIONS}
               priorityOptions={B2B_PRIORITY_OPTIONS}
               extraFields={extraFields}

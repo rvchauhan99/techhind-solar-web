@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconPhone } from "@tabler/icons-react";
+import { IconPhone, IconBrandFacebook } from "@tabler/icons-react";
+import { isFacebookMarketingLead } from "@/components/marketing-leads/FacebookLeadDetailsSection";
 import { Badge } from "@/components/ui/badge";
 import moment from "moment";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -289,6 +290,14 @@ export default function ListView({ sharedFilters = null }) {
         sortable: true,
         render: (row) => (
           <span className="inline-flex items-center gap-1 font-semibold text-xs text-foreground">
+            {isFacebookMarketingLead(row) && (
+              <span
+                className="inline-flex shrink-0 text-[#1877F2]"
+                title={row.tags?.fb_form_name || row.fb_form_name || "Facebook Lead"}
+              >
+                <IconBrandFacebook className="size-3.5" />
+              </span>
+            )}
             {(row.company_name || "-").toUpperCase()}
           </span>
         ),
@@ -307,6 +316,17 @@ export default function ListView({ sharedFilters = null }) {
             <IconPhone className="size-3.5" /> {row.mobile_number}
           </span>
         ),
+      },
+      {
+        field: "inquiry_source_name",
+        label: "Source",
+        render: (row) => row.inquiry_source_name || "-",
+      },
+      {
+        field: "campaign_name",
+        label: "Campaign",
+        render: (row) =>
+          row.campaign_name || row.fb_form_name || row.tags?.fb_form_name || "-",
       },
       {
         field: "city",
@@ -450,7 +470,7 @@ export default function ListView({ sharedFilters = null }) {
         onApply={handleApplyFilters}
         onClear={handleClearFilters}
         defaultOpen={false}
-        hideFields={["customer_name", "campaign_id", "inquiry_source_id", "branch_id"]}
+        hideFields={["customer_name", "branch_id"]}
         statusOptions={B2B_STATUS_OPTIONS}
         priorityOptions={B2B_PRIORITY_OPTIONS}
         extraFields={extraFields}
