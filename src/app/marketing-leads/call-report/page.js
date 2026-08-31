@@ -26,6 +26,7 @@ export default function MarketingLeadsCallReportPage() {
   const [summary, setSummary] = useState([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [userOptions, setUserOptions] = useState([]);
+  const [visibility, setVisibility] = useState("all");
 
   useEffect(() => {
     mastersService
@@ -50,6 +51,7 @@ export default function MarketingLeadsCallReportPage() {
       });
       const payload = res?.result || res?.data || res;
       setSummary(payload?.summary || []);
+      setVisibility(payload?.meta?.visibility === "my_team" ? "my_team" : "all");
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to load call report";
@@ -184,6 +186,7 @@ export default function MarketingLeadsCallReportPage() {
                 </h1>
                 <p className="text-xs text-muted-foreground">
                   Telecaller-wise call summary and details
+                  {visibility === "my_team" ? " · My team scope" : ""}
                 </p>
               </div>
             </div>
