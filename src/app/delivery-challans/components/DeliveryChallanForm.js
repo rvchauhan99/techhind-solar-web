@@ -160,8 +160,8 @@ export default function DeliveryChallanForm({
             const pending = Math.max(0, planned - shipped + returned);
             const stockRow = stockMap && stockMap[line.product_id];
             const available =
-                stockRow && stockRow.quantity_available != null && !Number.isNaN(Number(stockRow.quantity_available))
-                    ? Number(stockRow.quantity_available)
+                stockRow && stockRow.quantity_on_hand != null && !Number.isNaN(Number(stockRow.quantity_on_hand))
+                    ? Number(stockRow.quantity_on_hand)
                     : 0;
             const unitName = p?.measurement_unit_name || line.measurement_unit_name || "";
             return {
@@ -516,7 +516,7 @@ export default function DeliveryChallanForm({
             const stockRes = await stockService.getStocksByWarehouse(order.planned_warehouse_id);
             const stockList = stockRes?.result || stockRes || [];
             const stockItem = Array.isArray(stockList) ? stockList.find((s) => s.product_id === p.id) : null;
-            available = Number(stockItem?.quantity_available) || 0;
+            available = Number(stockItem?.quantity_on_hand) || 0;
 
             if (p.serial_required) {
                 const serRes = await stockService.getAvailableSerials(p.id, order.planned_warehouse_id);
@@ -1802,7 +1802,7 @@ export default function DeliveryChallanForm({
                                             const inLines = lines.some((l) => l.product_id === p.id);
                                             const selected = dialogSelectedProduct?.id === p.id;
                                             const avail = stockByProductId[p.id];
-                                            const qty = Number.isFinite(Number(avail?.quantity_available)) ? Number(avail?.quantity_available) : 0;
+                                            const qty = Number.isFinite(Number(avail?.quantity_on_hand)) ? Number(avail?.quantity_on_hand) : 0;
                                             return (
                                                 <TableRow
                                                     key={p.id}
