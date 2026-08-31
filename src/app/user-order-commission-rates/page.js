@@ -358,6 +358,12 @@ export default function UserOrderCommissionRatesPage() {
         render: (row) => fmtRate(row.as_channel_partner_per_kw),
       },
       {
+        field: "as_inquiry_by_per_kw",
+        label: "Inquiry/kW",
+        sortable: false,
+        render: (row) => fmtRate(row.as_inquiry_by_per_kw),
+      },
+      {
         field: "as_fabrication_per_kw",
         label: "Fab/kW",
         sortable: false,
@@ -478,6 +484,7 @@ export default function UserOrderCommissionRatesPage() {
         <p>Handled by: {fmtRate(r.as_handled_by_per_kw)}</p>
         <p>Handled by (with CP): {fmtRate(r.as_handled_by_per_kw_with_channel_partner)}</p>
         <p>Channel partner: {fmtRate(r.as_channel_partner_per_kw)}</p>
+        <p>Inquiry by: {fmtRate(r.as_inquiry_by_per_kw)}</p>
         <p className="text-xs font-semibold text-muted-foreground">Fabrication & installation (per kW)</p>
         <p>Fabrication: {fmtRate(r.as_fabrication_per_kw)}</p>
         <p>Installation: {fmtRate(r.as_installation_per_kw)}</p>
