@@ -38,6 +38,9 @@ import {
   loadInquiryOptions,
 } from "@/app/site-visit/utils/inquiryOptions";
 
+const OPEN_VISIT_WARNING_MESSAGE =
+  "This inquiry already has a pending site visit. Please complete, reschedule, or cancel the existing visit before scheduling a new one.";
+
 export default function SiteVisitForm({
   defaultValues = null,
   onSubmit,
@@ -98,6 +101,8 @@ export default function SiteVisitForm({
   const [errors, setErrors] = useState({});
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [openVisitWarning, setOpenVisitWarning] = useState(null);
+  const [checkingOpenVisit, setCheckingOpenVisit] = useState(false);
 
   const visitStatusOptions = Array.isArray(allowedVisitStatuses) && allowedVisitStatuses.length > 0
     ? allowedVisitStatuses
@@ -161,6 +166,49 @@ export default function SiteVisitForm({
       cancelled = true;
     };
   }, [defaultValues?.inquiry_id]);
+
+  useEffect(() => {
+    const inquiryId = formData.inquiry_id;
+    const visitStatus = formData.visit_status;
+    const editingId = defaultValues?.id ? Number(defaultValues.id) : null;
+
+    if (
+      !inquiryId ||
+      (visitStatus !== "Pending" && visitStatus !== "Rescheduled")
+    ) {
+      setOpenVisitWarning(null);
+      return;
+    }
+
+    let cancelled = false;
+    const checkOpenVisit = async () => {
+      setCheckingOpenVisit(true);
+      try {
+        const response = await siteVisitService.getList({
+          inquiry_id: inquiryId,
+          visit_status: "Pending,Rescheduled",
+          limit: 1,
+        });
+        if (cancelled) return;
+        const result = response?.result || response;
+        const rows = result?.data || [];
+        const conflicting = rows.find((row) => {
+          const rowId = Number(row.site_visit_id || row.id);
+          return !editingId || rowId !== editingId;
+        });
+        setOpenVisitWarning(conflicting ? OPEN_VISIT_WARNING_MESSAGE : null);
+      } catch {
+        if (!cancelled) setOpenVisitWarning(null);
+      } finally {
+        if (!cancelled) setCheckingOpenVisit(false);
+      }
+    };
+
+    checkOpenVisit();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.inquiry_id, formData.visit_status, defaultValues?.id]);
 
   const fetchRoofTypes = async () => {
     setLoadingRoofTypes(true);
@@ -401,6 +449,11 @@ export default function SiteVisitForm({
       {serverError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={onClearServerError}>
           {serverError}
+        </Alert>
+      )}
+      {openVisitWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {openVisitWarning}
         </Alert>
       )}
 
@@ -1066,7 +1119,7 @@ export default function SiteVisitForm({
                   Cancel
                 </ActionButton>
               )}
-              <LoadingButton type="submit" loading={loading} className="min-w-[120px]">
+              <LoadingButton type="submit" loading={loading || checkingOpenVisit} className="min-w-[120px]">
                 Add
               </LoadingButton>
             </Box>
