@@ -38,6 +38,7 @@ import BlockIcon from "@mui/icons-material/Block";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import MapIcon from "@mui/icons-material/Map";
+import EventRepeatIcon from "@mui/icons-material/EventRepeat";
 import { toastSuccess, toastError } from "@/utils/toast";
 import SiteVisitDetailsDrawer from "@/components/common/SiteVisitDetailsDrawer";
 
@@ -224,6 +225,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [dragState, setDragState] = useState({ isDragging: false, sourceStatus: null, destinationStatus: null, isValid: true });
   const [pendingDragStatus, setPendingDragStatus] = useState(null); // Store destination status for followup modal
+  const [siteVisitBadgeMenu, setSiteVisitBadgeMenu] = useState({ anchor: null, item: null });
 
   useEffect(() => {
     setData(buildBoardState(inquiries));
@@ -424,6 +426,16 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
     }
   };
 
+  const handleScheduleRevisit = () => {
+    if (menuInquiryId) {
+      handleOpenSiteVisitModal(menuInquiryId, "assign");
+    }
+  };
+
+  const handleCloseSiteVisitBadgeMenu = () => {
+    setSiteVisitBadgeMenu({ anchor: null, item: null });
+  };
+
   const handleCloseSiteVisitModal = () => {
     setSiteVisitModalOpen(false);
     setSelectedInquiryId(null);
@@ -486,7 +498,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
       handleEditAssignedSiteVisit(item.id, item.siteVisitId);
       return;
     }
-    handleOpenSiteVisitDetails(item.siteVisitId);
+    setSiteVisitBadgeMenu({ anchor: e.currentTarget, item });
   };
 
   const handleSubmit = async (payload) => {
@@ -1219,12 +1231,23 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
           </ListItemIcon>
           <ListItemText primary="Create Followup" />
         </MenuItem>
-        <MenuItem onClick={handleAssignSiteVisit}>
-          <ListItemIcon>
-            <MapIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText primary="Assign Site Visit" />
-        </MenuItem>
+        {(() => {
+          const inquiry = inquiries.find((inq) => String(inq.id) === menuInquiryId);
+          const flag = inquiry?.site_visit_flag || "not_assigned";
+          if (flag === "assigned") return null;
+          return (
+            <MenuItem onClick={flag === "done" ? handleScheduleRevisit : handleAssignSiteVisit}>
+              <ListItemIcon>
+                {flag === "done" ? (
+                  <EventRepeatIcon fontSize="small" />
+                ) : (
+                  <MapIcon fontSize="small" />
+                )}
+              </ListItemIcon>
+              <ListItemText primary={flag === "done" ? "Schedule Revisit" : "Assign Site Visit"} />
+            </MenuItem>
+          );
+        })()}
         <MenuItem onClick={() => handleQuotation()}>
           <ListItemIcon>
             <UploadFileIcon fontSize="small" />
@@ -1254,6 +1277,37 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
             <BlockIcon fontSize="small" color="error" />
           </ListItemIcon>
           <ListItemText sx={{ color: "error.main" }}>Mark as Dead</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      <Menu
+        anchorEl={siteVisitBadgeMenu.anchor}
+        open={Boolean(siteVisitBadgeMenu.anchor)}
+        onClose={handleCloseSiteVisitBadgeMenu}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+      >
+        <MenuItem
+          onClick={() => {
+            handleOpenSiteVisitDetails(siteVisitBadgeMenu.item?.siteVisitId);
+            handleCloseSiteVisitBadgeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <VisibilityIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="View Details" />
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            handleOpenSiteVisitModal(siteVisitBadgeMenu.item?.id, "assign");
+            handleCloseSiteVisitBadgeMenu();
+          }}
+        >
+          <ListItemIcon>
+            <EventRepeatIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Schedule Revisit" />
         </MenuItem>
       </Menu>
 
