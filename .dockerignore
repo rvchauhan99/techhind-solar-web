@@ -1,0 +1,10 @@
+# Local dev / QA only — exclude from production Docker images
+.cursor/
+.env.local
+.env*.local
+
+# Test and coverage artifacts
+coverage/
+**/*.test.js
+**/*.spec.js
+**/__tests__/

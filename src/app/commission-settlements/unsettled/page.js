@@ -55,6 +55,7 @@ import {
   QUICK_ROLE_FILTERS,
   normalizeFilterRoles,
   roleFilterQueryParam,
+  roleLabel,
   buildRoleFilterChips,
   filtersForActiveCount,
 } from "../utils/roleFilters";
@@ -383,7 +384,7 @@ export default function CommissionUnsettledPage() {
       { field: "id", label: "ID", sortable: false, width: 64, render: (row) => row.id },
       { field: "order_number", label: "Order", sortable: false, render: (row) => formatOrderNumberFromRow(row, { emptyFallback: "-" }) },
       { field: "beneficiary_name", label: "User", sortable: false, render: (row) => row.beneficiary_name || "-" },
-      { field: "role", label: "Role", sortable: false, render: (row) => row.role || "-" },
+      { field: "role", label: "Role", sortable: false, render: (row) => roleLabel(row.role) || "-" },
       {
         field: "original_amount",
         label: "System",
@@ -659,7 +660,7 @@ export default function CommissionUnsettledPage() {
           )}
 
           <p className="text-[10px] text-muted-foreground px-0.5">
-            Red / amber rules apply to Handled by and Channel partner only. Fabricator, Installer, and
+            Red / amber rules apply to Handled by, Channel partner, and Inquiry by only. Fabricator, Installer, and
             Fabricator &amp; installer lines are not blocked or reduced by order outstanding. Red: outstanding
             exceeds combined sales commission (cannot submit). Amber: outstanding offset on approval; include all
             pending sales lines for that order when submitting.
