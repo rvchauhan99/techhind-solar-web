@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Chip,
@@ -48,6 +47,11 @@ const COLUMN_HEIGHT = "100%";
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
 
+const openMarketingLeadInNewTab = (id, page = "view") => {
+  if (!id) return;
+  window.open(`/marketing-leads/${page}?id=${id}`, "_blank", "noopener,noreferrer");
+};
+
 const STATUS_COLUMNS = [
   { key: "new", title: "New", color: "#0ea5e9" },
   { key: "viewed", title: "Viewed", color: "#6366f1" },
@@ -73,7 +77,6 @@ function buildBoardState(leads = []) {
 }
 
 export default function KanbanBoard({ leads = [], onRefresh }) {
-  const router = useRouter();
   const { user } = useAuth();
   const canDeleteMarketingLead = useRoleAccess(RBAC_CONFIG_KEYS.MARKETING_LEADS_DELETE);
   const [query, setQuery] = useState("");
@@ -88,6 +91,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
   const [pendingLeadId, setPendingLeadId] = useState(null);
   const [pendingLead, setPendingLead] = useState(null);
   const [pendingToStatus, setPendingToStatus] = useState(null);
+  const pointerStart = useRef({ x: 0, y: 0 });
 
   const handleMenuOpen = (event, lead) => {
     event.stopPropagation();
@@ -101,12 +105,12 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
   };
 
   const handleView = () => {
-    if (menuLead?.id) router.push(`/marketing-leads/view?id=${menuLead.id}`);
+    if (menuLead?.id) openMarketingLeadInNewTab(menuLead.id, "view");
     handleMenuClose();
   };
 
   const handleEdit = () => {
-    if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
+    if (menuLead?.id) openMarketingLeadInNewTab(menuLead.id, "edit");
     handleMenuClose();
   };
 
@@ -387,6 +391,16 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                     {...dragProvided.draggableProps}
                                     {...dragProvided.dragHandleProps}
                                     elevation={0}
+                                    onPointerDown={(e) => {
+                                      pointerStart.current = { x: e.clientX, y: e.clientY };
+                                    }}
+                                    onClick={(e) => {
+                                      if (e.target.closest?.("button, [role='button'], a")) return;
+                                      const dx = Math.abs(e.clientX - pointerStart.current.x);
+                                      const dy = Math.abs(e.clientY - pointerStart.current.y);
+                                      if (dx > 5 || dy > 5) return;
+                                      openMarketingLeadInNewTab(lead.id, "view");
+                                    }}
                                     sx={{
                                       mb: 0.5,
                                       p: 0.5,
@@ -412,7 +426,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                         variant="caption"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          router.push(`/marketing-leads/view?id=${lead.id}`);
+                                          openMarketingLeadInNewTab(lead.id, "view");
                                         }}
                                         sx={{
                                           fontWeight: 600,
