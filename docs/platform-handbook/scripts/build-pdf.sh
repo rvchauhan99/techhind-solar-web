@@ -27,9 +27,11 @@ CHAPTERS=(
   "$HANDBOOK_DIR/modules/15-reports-audit.md"
   "$HANDBOOK_DIR/modules/16-settings-administration.md"
   "$HANDBOOK_DIR/modules/17-document-outputs.md"
+  "$HANDBOOK_DIR/modules/18-production-assembly.md"
   "$HANDBOOK_DIR/workflows/lead-to-installation.md"
   "$HANDBOOK_DIR/workflows/procurement-to-stock.md"
   "$HANDBOOK_DIR/workflows/b2b-order-to-invoice.md"
+  "$HANDBOOK_DIR/workflows/bom-to-finished-good.md"
 )
 
 : > "$COMBINED_MD"

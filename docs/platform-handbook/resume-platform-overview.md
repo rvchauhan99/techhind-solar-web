@@ -21,6 +21,7 @@ Built and ship a production Solar CRM/ERP that unifies pre-sales, project execut
 - Designed and developed a full-lifecycle **Solar Management Platform** (lead → inquiry → quotation → order → fabrication/installation → delivery → payment → service) for solar EPC and trading businesses.
 - Implemented **role-based modules** for sales, operations, warehouse, finance, service, and management with dashboards, Kanban pipelines, and approval workflows.
 - Built **procurement & serialized inventory** (purchase orders, stock transfers/adjustments, panel/inverter serial tracking, delivery challans) shared across project and B2B flows.
+- Delivered **Production / Assembly** (BOM master, work orders, backflush booking, component issue, FG receipt, production dashboard, PDF picklists) with inventory ledger integration.
 - Delivered **B2B trading** (dealer quotes, sales orders, shipments, invoicing, outstanding) alongside residential/commercial project sales.
 - Developed **payments, outstanding follow-up, commission accrual/payout**, and audit trails for financial accountability.
 - Built **after-sales service & warranty** (tickets, claims, spare/material requests) linked to installed assets and serial history.
@@ -50,6 +51,7 @@ Built and ship a production Solar CRM/ERP that unifies pre-sales, project execut
 | Pre-sales | Marketing leads, Meta campaigns, inquiries, site visits, quotations |
 | Sales & execution | Orders, fabrication, installation approval, delivery challans |
 | Supply chain | Suppliers, POs, stock, serialized panels/inverters |
+| Production / Assembly | BOM master, work orders, bookings, FG receipt, picklists |
 | B2B | Dealer quotes → orders → shipments → invoices |
 | Finance | Collections, outstanding, commission settlement |
 | Service | Tickets, warranty claims, spare parts |

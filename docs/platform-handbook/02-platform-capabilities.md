@@ -29,15 +29,15 @@ Approval workflows for quotations, installations, payments, and commissions. Ful
 | Team | Key capabilities |
 |------|------------------|
 | Sales & marketing | Leads, inquiries, quotations, follow-ups |
-| Operations | Orders, fabrication, installation, delivery |
-| Warehouse | Stock, purchase orders, challans, serial tracking |
+| Operations | Orders, fabrication, installation, delivery, work orders |
+| Warehouse | Stock, purchase orders, challans, serial tracking, production picklists |
 | Finance | Payments, outstanding, B2B invoicing, commission |
 | Service | Tickets, warranty claims, material requests |
 | Management | Dashboards, reports, approvals |
 
 ## Integrated Modules
 
-Sales, execution, inventory, B2B trading, commission, and service modules share the same customer and order data — so information entered once is available everywhere it is needed.
+Sales, execution, inventory, production/assembly, B2B trading, commission, and service modules share the same customer and order data — so information entered once is available everywhere it is needed.
 
 ---
 

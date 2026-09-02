@@ -42,11 +42,36 @@ export function getAllowedRoutes(modules) {
   return routes;
 }
 
+function routeMatchesPath(route, path) {
+  return path === route || (route !== "/" && path.startsWith(route + "/"));
+}
+
+/**
+ * Pick the most specific allowed route that matches a path (longest route wins).
+ * @param {string} pathname
+ * @param {string[]} allowedRoutes
+ * @returns {string|null}
+ */
+export function findBestMatchingRoute(pathname, allowedRoutes) {
+  if (!pathname || typeof pathname !== "string") return null;
+  const path = normalizePath(pathname);
+  if (!path) return null;
+
+  let bestRoute = null;
+  for (const route of allowedRoutes || []) {
+    const normalizedRoute = normalizePath(route);
+    if (!normalizedRoute || !routeMatchesPath(normalizedRoute, path)) continue;
+    if (!bestRoute || normalizedRoute.length > bestRoute.length) {
+      bestRoute = normalizedRoute;
+    }
+  }
+  return bestRoute;
+}
+
 /**
  * Check if a path is allowed given a list of allowed routes.
- * Path is allowed if it exactly matches a route or is a child (path starts with route + "/").
- * Path and routes are normalized (trim, no trailing slash) so /inquiry/ and /inquiry match.
- * Order view/edit are also allowed when user has confirm-orders or closed-orders (same as backend child-API convention).
+ * Uses longest-route matching so sibling modules like /production-bookings and
+ * /production-bookings/new resolve independently.
  * @param {string} pathname - e.g. "/purchase-orders", "/inquiry/add", "/order/view"
  * @param {string[]} allowedRoutes - from getAllowedRoutes(profile.modules)
  * @returns {boolean}
@@ -71,7 +96,5 @@ export function isPathAllowedByRoutes(pathname, allowedRoutes) {
   ) {
     return true;
   }
-  return allowedRoutes.some(
-    (route) => path === route || (route !== "/" && path.startsWith(route + "/"))
-  );
+  return findBestMatchingRoute(pathname, allowedRoutes) != null;
 }

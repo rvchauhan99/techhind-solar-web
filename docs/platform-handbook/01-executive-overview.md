@@ -9,8 +9,8 @@ TechHind Solar CRM is a complete **Solar Management System** for EPC companies, 
 | Stakeholder | What they gain |
 |-------------|----------------|
 | Sales & marketing | Lead pipeline, inquiries, quotations, conversion tracking |
-| Operations | Order execution, fabrication, installation, delivery |
-| Warehouse | Purchase orders, stock, serial tracking, dispatch |
+| Operations | Order execution, fabrication, installation, delivery, production/assembly |
+| Warehouse | Purchase orders, stock, serial tracking, dispatch, work order picking |
 | Finance | Collections, outstanding tracking, B2B invoicing |
 | Service teams | Tickets, warranty, spare parts |
 | Management | Dashboards, KPIs, approvals, reports |
@@ -20,6 +20,7 @@ TechHind Solar CRM is a complete **Solar Management System** for EPC companies, 
 - **Pre-Sales** — Marketing leads, Meta campaigns, inquiries, site visits, quotations
 - **Sales** — Orders from quotation to confirmation, amendments, payments
 - **Execution** — Fabrication, installation approval, delivery challans
+- **Production / Assembly** — BOM master, work orders, component issue, finished-good receipt
 - **Supply chain** — Suppliers, purchase orders, stock, serialized inventory
 - **B2B** — Dealer quotes, orders, shipments, invoices
 - **Commission** — Partner incentives with approval and payout

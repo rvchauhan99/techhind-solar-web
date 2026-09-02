@@ -15,6 +15,9 @@ export const SERIAL_MASTER_CODE_OPTIONS = [
   { value: "B2BINVOICE", label: "B2BINVOICE — B2B Invoice" },
   { value: "B2BSALESORDER", label: "B2BSALESORDER — B2B Sales Order" },
   { value: "B2BSALESQUOTE", label: "B2BSALESQUOTE — B2B Sales Quote" },
+  { value: "PRODBOM", label: "PRODBOM — Production BOM" },
+  { value: "PRODORDER", label: "PRODORDER — Work Order" },
+  { value: "PRODBOOKING", label: "PRODBOOKING — Production Booking" },
 ];
 
 const KNOWN = new Set(SERIAL_MASTER_CODE_OPTIONS.map((o) => o.value));

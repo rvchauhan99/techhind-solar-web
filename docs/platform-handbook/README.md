@@ -10,8 +10,8 @@ Customer-facing platform documentation for the TechHind Solar Management System.
 | `01-executive-overview.md` | Platform value proposition |
 | `02-platform-architecture.md` | High-level architecture for stakeholders |
 | `03-getting-started.md` | Login, navigation, search |
-| `modules/` | 13 module chapters (04–16) |
-| `workflows/` | End-to-end business workflows |
+| `modules/` | 14 module chapters (04–18) |
+| `workflows/` | End-to-end business workflows (including Production / Assembly) |
 | `assets/screenshots/` | Demo screenshots from `demo.techhind.in` |
 | `scripts/` | Screenshot capture and PDF build |
 | `output/` | Generated PDF (gitignored) |
@@ -64,3 +64,15 @@ After capture, review `scripts/coverage-report.json`. Latest demo run: **64/65**
 2. Re-run `npm run docs:screenshots`.
 3. Update affected module chapters in `modules/`.
 4. Re-run `npm run docs:pdf`.
+
+**Note:** The Production / Assembly chapter (`modules/18-production-assembly.md`) is text-only documentation and does not require screenshot manifest entries.
+
+## Production / Assembly customer pack
+
+Build a standalone ZIP for module introduction (PDF + Markdown sources, no screenshots):
+
+```bash
+npm run docs:production-pack
+```
+
+Output: `docs/platform-handbook/production-module-pack/output/TechHind-Production-Assembly-Module-Pack.zip`
