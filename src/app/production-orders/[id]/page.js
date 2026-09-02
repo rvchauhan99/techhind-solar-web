@@ -10,6 +10,7 @@ import {
   IconPencil,
   IconPercentage,
   IconPlayerStop,
+  IconPrinter,
   IconTool,
   IconX,
 } from "@tabler/icons-react"
@@ -25,6 +26,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { formatCurrency, formatDate } from "@/utils/dataTableUtils"
 import { getApiErrorMessage } from "@/utils/toast"
 import { AP } from "@/utils/assemblyProductionLabels"
+import { printPicklistById, printWorkOrderById } from "@/utils/productionOrderPrintUtils"
 import useProductionOrderActions from "../components/useProductionOrderActions"
 import ProductionOrderActionDialog from "../components/ProductionOrderActionDialog"
 import {
@@ -54,6 +56,8 @@ function ProductionOrderDetailContent() {
 
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [printingPicklist, setPrintingPicklist] = useState(false)
   const [detail, setDetail] = useState(null)
   const [tab, setTab] = useState("overview")
 
@@ -102,6 +106,28 @@ function ProductionOrderDetailContent() {
       setExporting(false)
     }
   }, [id, order?.order_no])
+
+  const handlePrint = useCallback(async () => {
+    if (!id) return
+    setPrinting(true)
+    try {
+      const ok = await printWorkOrderById(id)
+      if (ok) toast.success(`${AP.orders.singular} PDF downloaded`)
+    } finally {
+      setPrinting(false)
+    }
+  }, [id])
+
+  const handlePrintPicklist = useCallback(async () => {
+    if (!id) return
+    setPrintingPicklist(true)
+    try {
+      const ok = await printPicklistById(id)
+      if (ok) toast.success("Picklist PDF downloaded")
+    } finally {
+      setPrintingPicklist(false)
+    }
+  }, [id])
 
   const isOpen = order?.status === "APPROVED" || order?.status === "IN_PROGRESS"
   const actionRow = order
@@ -236,6 +262,34 @@ function ProductionOrderDetailContent() {
                 >
                   <IconX className="size-4" />
                   Cancel
+                </Button>
+              )}
+              {currentPerm.can_read && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1"
+                  onClick={handlePrint}
+                  disabled={printing}
+                  loading={printing}
+                >
+                  <IconPrinter className="size-4" />
+                  Print {AP.orders.singular}
+                </Button>
+              )}
+              {currentPerm.can_read && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1"
+                  onClick={handlePrintPicklist}
+                  disabled={printingPicklist}
+                  loading={printingPicklist}
+                >
+                  <IconPrinter className="size-4" />
+                  Print Picklist
                 </Button>
               )}
               <Button

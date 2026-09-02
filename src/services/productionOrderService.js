@@ -20,6 +20,26 @@ export const exportProductionOrderDetail = (id) =>
     .get(`/production-orders/${id}/export`, { responseType: "blob" })
     .then((r) => r.data);
 
+export const downloadWorkOrderPdf = (id) =>
+  apiClient.get(`/production-orders/${id}/pdf`, { responseType: "blob" }).then((r) => {
+    const disposition = r.headers?.["content-disposition"] || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return {
+      blob: r.data,
+      filename: match?.[1] || `work-order-${id}.pdf`,
+    };
+  });
+
+export const downloadPicklistPdf = (id) =>
+  apiClient.get(`/production-orders/${id}/picklist/pdf`, { responseType: "blob" }).then((r) => {
+    const disposition = r.headers?.["content-disposition"] || "";
+    const match = disposition.match(/filename="?([^"]+)"?/i);
+    return {
+      blob: r.data,
+      filename: match?.[1] || `work-order-picklist-${id}.pdf`,
+    };
+  });
+
 export const createProductionOrder = (payload) =>
   apiClient.post("/production-orders", payload).then((r) => r.data);
 
@@ -45,6 +65,8 @@ export default {
   getProductionOrderShortage,
   getProductionOrderDetail,
   exportProductionOrderDetail,
+  downloadWorkOrderPdf,
+  downloadPicklistPdf,
   createProductionOrder,
   updateProductionOrder,
   approveProductionOrder,

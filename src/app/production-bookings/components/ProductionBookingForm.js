@@ -150,9 +150,7 @@ export default function ProductionBookingForm({
                         const previous = previousByProduct.get(line.component_product_id);
                         return {
                             ...line,
-                            consumed_quantity: String(
-                                previous?.consumed_quantity ?? line.suggested_consumed_quantity
-                            ),
+                            consumed_quantity: String(line.suggested_consumed_quantity),
                             scrap_quantity: String(previous?.scrap_quantity ?? 0),
                             scrap_reason: previous?.scrap_reason ?? "",
                             serials: previous?.serials ?? [],
@@ -690,9 +688,10 @@ export default function ProductionBookingForm({
                                                                         <Input
                                                                             type="number"
                                                                             value={line.consumed_quantity}
-                                                                            onChange={(e) => updateLine(index, { consumed_quantity: e.target.value })}
-                                                                            min={0}
-                                                                            className="h-7 text-xs text-right bg-background/50 focus:bg-background focus:ring-2 focus:ring-primary/30 transition-all"
+                                                                            readOnly
+                                                                            disabled
+                                                                            aria-label={`${line.product_name} consumed quantity (fixed by backflush)`}
+                                                                            className="h-7 text-xs text-right bg-muted/40 cursor-not-allowed opacity-100"
                                                                         />
                                                                     </td>
                                                                     <td className="px-1.5 py-1 align-middle">
