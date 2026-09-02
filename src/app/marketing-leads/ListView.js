@@ -11,7 +11,6 @@ import LeadListFilterPanel, {
 } from "@/components/common/LeadListFilterPanel";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import marketingLeadsService from "@/services/marketingLeadsService";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -34,6 +33,11 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const NON_EDITABLE_STATUSES = ["converted", "not_interested", "junk"];
+
+const openMarketingLeadInNewTab = (id, page = "view") => {
+  if (!id) return;
+  window.open(`/marketing-leads/${page}?id=${id}`, "_blank", "noopener,noreferrer");
+};
 
 const LEAD_LIST_FILTER_KEYS = [
   "customer_name",
@@ -104,7 +108,6 @@ const getPriorityBadgeVariant = (priority) => {
 };
 
 export default function ListView() {
-  const router = useRouter();
   const { user } = useAuth();
   const canDeleteMarketingLead = useRoleAccess(RBAC_CONFIG_KEYS.MARKETING_LEADS_DELETE);
   const listingState = useListingQueryState({
@@ -145,14 +148,14 @@ export default function ListView() {
   }, []);
 
   const handleView = useCallback(() => {
-    if (menuLead?.id) router.push(`/marketing-leads/view?id=${menuLead.id}`);
+    if (menuLead?.id) openMarketingLeadInNewTab(menuLead.id, "view");
     handleMenuClose();
-  }, [menuLead, router]);
+  }, [menuLead, handleMenuClose]);
 
   const handleEdit = useCallback(() => {
-    if (menuLead?.id) router.push(`/marketing-leads/edit?id=${menuLead.id}`);
+    if (menuLead?.id) openMarketingLeadInNewTab(menuLead.id, "edit");
     handleMenuClose();
-  }, [menuLead, router, handleMenuClose]);
+  }, [menuLead, handleMenuClose]);
 
   const handleDeleteClick = useCallback(() => {
     if (!menuLead?.id) return;
@@ -241,7 +244,11 @@ export default function ListView() {
         field: "lead_number",
         label: "Lead No",
         sortable: true,
-        render: (row) => <span className="text-muted-foreground">{row.lead_number || `ML-${row.id}`}</span>,
+        render: (row) => (
+          <span className="text-primary cursor-pointer hover:underline">
+            {row.lead_number || `ML-${row.id}`}
+          </span>
+        ),
       },
       {
         field: "customer_name",
@@ -411,7 +418,7 @@ export default function ListView() {
           onRowsPerPageChange={setLimit}
           onQChange={setQ}
           onSortChange={setSort}
-          onRowClick={(row) => router.push(`/marketing-leads/view?id=${row.id}`)}
+          onRowClick={(row) => openMarketingLeadInNewTab(row.id, "view")}
           persistScrollbars
         />
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} transformOrigin={{ vertical: "top", horizontal: "right" }}>
