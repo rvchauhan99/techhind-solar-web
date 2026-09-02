@@ -9,6 +9,7 @@ import Loader from "@/components/common/Loader";
 import ProductionOrderForm from "../components/ProductionOrderForm";
 import productionOrderService from "@/services/productionOrderService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionOrderContent() {
     const router = useRouter();
@@ -22,11 +23,11 @@ function NewProductionOrderContent() {
             const response = await productionOrderService.createProductionOrder(payload);
             const created = response?.result || response;
             toast.success(
-                `Production order ${created?.order_no || ""} created as DRAFT. Approve it to start booking.`
+                `${AP.orders.singular} ${created?.order_no || ""} created as DRAFT. Approve it to start booking.`
             );
             setTimeout(() => router.push("/production-orders"), 800);
         } catch (err) {
-            const message = getApiErrorMessage(err, "Failed to create production order");
+            const message = getApiErrorMessage(err, `Failed to create ${AP.orders.singular.toLowerCase()}`);
             setServerError(message);
             toast.error(message);
         } finally {
@@ -36,9 +37,9 @@ function NewProductionOrderContent() {
 
     return (
         <AddEditPageShell
-            title="New Production Order"
+            title={AP.orders.new}
             listHref="/production-orders"
-            listLabel="Production Orders"
+            listLabel={AP.orders.title}
             className="gap-2"
         >
             <ProductionOrderForm

@@ -1,0 +1,42 @@
+export const AP = {
+  parent: "Production / Assembly",
+  dashboard: {
+    menu: "Production/Assembly Dashboard",
+    title: "Production/Assembly Dashboard",
+  },
+  bom: {
+    menu: "BOM Master",
+    title: "BOM Master",
+    singular: "BOM",
+    new: "New BOM Master",
+    edit: "Edit BOM Master",
+    details: "BOM Master Details",
+    activate: "Activate BOM Master",
+    deactivate: "Deactivate BOM Master",
+  },
+  orders: {
+    menu: "Work Orders",
+    title: "Work Orders",
+    singular: "Work Order",
+    orderNo: "Work Order No",
+    new: "New Work Order",
+    edit: "Edit Work Order",
+    approve: "Approve Work Order",
+    cancel: "Cancel Work Order",
+    shortClose: "Short Close Work Order",
+    bookAssembly: "Production/Assembly Booking",
+  },
+  book: {
+    menu: "Production/Assembly Booking",
+    title: "Production/Assembly Booking",
+    action: "Confirm & Post Booking",
+    cancelDialog: "Cancel Production/Assembly Booking",
+    details: "Production/Assembly Booking Details",
+  },
+  history: {
+    menu: "Booking History",
+    title: "Booking History",
+    singular: "Booking",
+  },
+  fg: "Finished Good (FG)",
+};

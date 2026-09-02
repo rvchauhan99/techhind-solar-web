@@ -7,6 +7,7 @@ import { Input as ShadInput } from "@/components/ui/input";
 import { IconSearch } from "@tabler/icons-react";
 import productionDashboardService from "@/services/productionDashboardService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 const money = (value) => Number(value || 0).toFixed(2);
 
@@ -100,7 +101,7 @@ export default function SerialGenealogyPanel() {
                             <span className="font-semibold">{genealogy.booking?.booking_no || "-"}</span>
                         </div>
                         <div>
-                            <span className="block text-muted-foreground">Production Order</span>
+                            <span className="block text-muted-foreground">{AP.orders.singular}</span>
                             {genealogy.booking?.production_order?.order_no || "-"}
                         </div>
                         <div>

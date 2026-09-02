@@ -9,6 +9,7 @@ import Loader from "@/components/common/Loader";
 import ProductionBookingForm from "../components/ProductionBookingForm";
 import productionBookingService from "@/services/productionBookingService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionBookingContent() {
     const router = useRouter();
@@ -23,7 +24,7 @@ function NewProductionBookingContent() {
             const response = await productionBookingService.createProductionBooking(payload);
             const created = response?.result || response;
             toast.success(
-                `Booking ${created?.booking_no || ""} saved as DRAFT. Post it to move stock and the ledger.`
+                `Booking ${created?.booking_no || ""} posted. Components issued, finished good received, inventory updated.`
             );
             setTimeout(() => router.push("/production-bookings"), 800);
         } catch (err) {
@@ -37,9 +38,9 @@ function NewProductionBookingContent() {
 
     return (
         <AddEditPageShell
-            title="New Production Booking"
+            title={AP.book.title}
             listHref="/production-bookings"
-            listLabel="Production Bookings"
+            listLabel={AP.history.menu}
             className="gap-2"
         >
             <ProductionBookingForm

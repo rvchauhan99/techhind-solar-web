@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import { FORM_PADDING } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 const COST_TYPE_OPTIONS = [
     { value: "LABOUR", label: "Labour" },
@@ -377,7 +378,7 @@ export default function ProductionBomForm({
                             helperText={formErrors.bom_name}
                         />
                         <AutocompleteField
-                            label="Finished Good *"
+                            label={`${AP.fg} *`}
                             placeholder="Type to search..."
                             options={[]}
                             usePortal

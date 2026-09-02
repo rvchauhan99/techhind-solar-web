@@ -31,6 +31,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 const COLUMN_FILTER_KEYS = [
     "bom_code",
@@ -181,7 +182,7 @@ export default function ProductionBomPage() {
             },
             {
                 field: "fg_product",
-                label: "Finished Good",
+                label: AP.fg.replace(" (FG)", ""),
                 sortable: false,
                 filterType: "text",
                 filterKey: "fg_product_name",
@@ -384,7 +385,7 @@ export default function ProductionBomPage() {
                 <hr className="border-border" />
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
                     <div>
-                        <span className="block font-semibold text-muted-foreground">Finished Good</span>
+                        <span className="block font-semibold text-muted-foreground">{AP.fg.replace(" (FG)", "")}</span>
                         {bom.fgProduct?.product_name || "-"}
                     </div>
                     <div>
@@ -489,21 +490,21 @@ export default function ProductionBomPage() {
 
     const actionCopy = {
         activate: {
-            title: "Activate Production BOM",
+            title: AP.bom.activate,
             description:
                 "This version becomes the ACTIVE default BOM for the finished good. Other versions lose their default flag.",
             action: "Activate",
         },
         deactivate: {
-            title: "Deactivate Production BOM",
+            title: AP.bom.deactivate,
             description:
-                "The BOM will no longer be selectable for new production orders. Open orders keep their frozen snapshot.",
+                "The BOM will no longer be selectable for new work orders. Open work orders keep their frozen snapshot.",
             action: "Deactivate",
         },
         clone: {
             title: "Clone as New Version",
             description:
-                "A DRAFT copy is created with the next version number so you can revise it without affecting open orders.",
+                "A DRAFT copy is created with the next version number so you can revise it without affecting open work orders.",
             action: "Clone",
         },
     };
@@ -512,7 +513,7 @@ export default function ProductionBomPage() {
     return (
         <ProtectedRoute>
             <ListingPageContainer
-                title="Production BOM"
+                title={AP.bom.title}
                 addButtonLabel={currentPerm.can_create ? "Create BOM" : undefined}
                 onAddClick={currentPerm.can_create ? () => router.push("/production-bom/new") : undefined}
                 exportButtonLabel="Export"
@@ -553,7 +554,7 @@ export default function ProductionBomPage() {
                 />
             </ListingPageContainer>
 
-            <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title="Production BOM Details">
+            <DetailsSidebar open={sidebarOpen} onClose={handleCloseSidebar} title={AP.bom.details}>
                 {sidebarContent}
             </DetailsSidebar>
 

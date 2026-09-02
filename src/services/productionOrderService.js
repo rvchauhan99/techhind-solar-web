@@ -12,6 +12,14 @@ export const getProductionOrderById = (id) =>
 export const getProductionOrderShortage = (id) =>
   apiClient.get(`/production-orders/${id}/shortage`).then((r) => r.data);
 
+export const getProductionOrderDetail = (id) =>
+  apiClient.get(`/production-orders/${id}/detail`).then((r) => r.data);
+
+export const exportProductionOrderDetail = (id) =>
+  apiClient
+    .get(`/production-orders/${id}/export`, { responseType: "blob" })
+    .then((r) => r.data);
+
 export const createProductionOrder = (payload) =>
   apiClient.post("/production-orders", payload).then((r) => r.data);
 
@@ -35,6 +43,8 @@ export default {
   exportProductionOrders,
   getProductionOrderById,
   getProductionOrderShortage,
+  getProductionOrderDetail,
+  exportProductionOrderDetail,
   createProductionOrder,
   updateProductionOrder,
   approveProductionOrder,

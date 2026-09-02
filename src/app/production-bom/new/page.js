@@ -9,6 +9,7 @@ import Loader from "@/components/common/Loader";
 import ProductionBomForm from "../components/ProductionBomForm";
 import productionBomService from "@/services/productionBomService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionBomContent() {
     const router = useRouter();
@@ -20,7 +21,7 @@ function NewProductionBomContent() {
         setServerError(null);
         try {
             await productionBomService.createProductionBom(payload);
-            toast.success("Production BOM created as DRAFT. Activate it to use in production orders.");
+            toast.success(`${AP.bom.singular} created as DRAFT. Activate it to use in work orders.`);
             setTimeout(() => router.push("/production-bom"), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, "Failed to create production BOM");
@@ -33,9 +34,9 @@ function NewProductionBomContent() {
 
     return (
         <AddEditPageShell
-            title="New Production BOM"
+            title={AP.bom.new}
             listHref="/production-bom"
-            listLabel="Production BOM"
+            listLabel={AP.bom.title}
             className="gap-2"
         >
             <ProductionBomForm

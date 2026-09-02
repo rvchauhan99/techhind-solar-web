@@ -20,6 +20,7 @@ import productService from "@/services/productService";
 import stockService from "@/services/stockService";
 import productionBomService from "@/services/productionBomService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
+import { AP } from "@/utils/assemblyProductionLabels";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -501,7 +502,7 @@ export default function ProductionOrderForm({
                             <>
                                 {hasShortage && (
                                     <Alert severity="warning" sx={{ mb: 0.75 }}>
-                                        Some mandatory components are short at this warehouse. The order can still be
+                                        Some mandatory components are short at this warehouse. The {AP.orders.singular.toLowerCase()} can still be
                                         created, but posting a booking will be blocked until stock is available.
                                     </Alert>
                                 )}

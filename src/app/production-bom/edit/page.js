@@ -9,6 +9,7 @@ import Loader from "@/components/common/Loader";
 import ProductionBomForm from "../components/ProductionBomForm";
 import productionBomService from "@/services/productionBomService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 function EditProductionBomContent() {
     const router = useRouter();
@@ -21,7 +22,7 @@ function EditProductionBomContent() {
     useEffect(() => {
         const id = searchParams.get("id");
         if (!id) {
-            setServerError("Production BOM ID is required");
+            setServerError(`${AP.bom.singular} ID is required`);
             setLoadingRecord(false);
             return;
         }
@@ -36,7 +37,7 @@ function EditProductionBomContent() {
             const result = response?.result || response;
 
             if (!result) {
-                setServerError("Production BOM not found");
+                setServerError(`${AP.bom.singular} not found`);
                 return;
             }
             if (result.status === "ACTIVE") {
@@ -89,7 +90,7 @@ function EditProductionBomContent() {
         setServerError(null);
         try {
             await productionBomService.updateProductionBom(searchParams.get("id"), payload);
-            toast.success("Production BOM updated successfully");
+            toast.success(`${AP.bom.singular} updated successfully`);
             setTimeout(() => router.push("/production-bom"), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, "Failed to update production BOM");
@@ -102,7 +103,7 @@ function EditProductionBomContent() {
 
     if (loadingRecord) {
         return (
-            <AddEditPageShell title="Edit Production BOM" listHref="/production-bom" listLabel="Production BOM">
+            <AddEditPageShell title={AP.bom.edit} listHref="/production-bom" listLabel={AP.bom.title}>
                 <div className="flex min-h-[50vh] items-center justify-center">
                     <Loader />
                 </div>
@@ -112,7 +113,7 @@ function EditProductionBomContent() {
 
     if (serverError && !defaultValues.id) {
         return (
-            <AddEditPageShell title="Edit Production BOM" listHref="/production-bom" listLabel="Production BOM">
+            <AddEditPageShell title={AP.bom.edit} listHref="/production-bom" listLabel={AP.bom.title}>
                 <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {serverError}
                 </div>
@@ -122,9 +123,9 @@ function EditProductionBomContent() {
 
     return (
         <AddEditPageShell
-            title="Edit Production BOM"
+            title={AP.bom.edit}
             listHref="/production-bom"
-            listLabel="Production BOM"
+            listLabel={AP.bom.title}
             className="gap-2"
         >
             <ProductionBomForm

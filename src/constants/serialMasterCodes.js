@@ -16,7 +16,7 @@ export const SERIAL_MASTER_CODE_OPTIONS = [
   { value: "B2BSALESORDER", label: "B2BSALESORDER — B2B Sales Order" },
   { value: "B2BSALESQUOTE", label: "B2BSALESQUOTE — B2B Sales Quote" },
   { value: "PRODBOM", label: "PRODBOM — Production BOM" },
-  { value: "PRODORDER", label: "PRODORDER — Production Order" },
+  { value: "PRODORDER", label: "PRODORDER — Work Order" },
   { value: "PRODBOOKING", label: "PRODBOOKING — Production Booking" },
 ];
 

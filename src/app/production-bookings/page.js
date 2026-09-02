@@ -8,9 +8,11 @@ import productionBookingService from "@/services/productionBookingService";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
+import ProductionBookingFilterPanel from "@/components/common/ProductionBookingFilterPanel";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Input as ShadInput } from "@/components/ui/input";
 import {
     AlertDialog,
@@ -22,38 +24,38 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { IconCircleCheck, IconEye, IconPencil, IconX } from "@tabler/icons-react";
+import { IconEye, IconX } from "@tabler/icons-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
+import { cn } from "@/lib/utils";
+import {
+    PRODUCTION_BOOKING_FILTER_KEYS,
+    PRODUCTION_BOOKING_STATUS_SUMMARY_CHIPS,
+    getStatusVariant,
+} from "./components/productionBookingUi";
 
-const COLUMN_FILTER_KEYS = [
-    "booking_no",
-    "booking_no_op",
-    "order_no",
-    "order_no_op",
-    "warehouse_name",
-    "warehouse_name_op",
-    "fg_product_name",
-    "fg_product_name_op",
-    "status",
-    "booking_date_from",
-    "booking_date_to",
-    "booking_date_op",
-];
+const pickParam = (value) =>
+    value != null && String(value).trim() !== "" ? value : undefined;
 
-const STATUS_OPTIONS = [
-    { value: "DRAFT", label: "Draft" },
-    { value: "POSTED", label: "Posted" },
-    { value: "CANCELLED", label: "Cancelled" },
-];
-
-const getStatusVariant = (status) => {
-    if (status === "POSTED") return "default";
-    if (status === "CANCELLED") return "destructive";
-    return "outline";
-};
+const buildListQuery = (p = {}) => ({
+    page: p.page,
+    limit: p.limit,
+    sortBy: p.sortBy || "id",
+    sortOrder: p.sortOrder || "DESC",
+    q: pickParam(p.q),
+    booking_no: pickParam(p.booking_no),
+    order_no: pickParam(p.order_no),
+    warehouse_id: pickParam(p.warehouse_id),
+    fg_product_id: pickParam(p.fg_product_id),
+    status: pickParam(p.status),
+    booking_date_from: pickParam(p.booking_date_from),
+    booking_date_to: pickParam(p.booking_date_to),
+    production_order_id: pickParam(p.production_order_id),
+    include_summary: "true",
+});
 
 const money = (value) => Number(value || 0).toFixed(2);
 
@@ -67,12 +69,25 @@ export default function ProductionBookingsPage() {
         can_delete: false,
     };
 
-    const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
-        useListingQueryState({ defaultLimit: 20, filterKeys: COLUMN_FILTER_KEYS });
+    const {
+        page,
+        limit,
+        q,
+        sortBy,
+        sortOrder,
+        filters,
+        setPage,
+        setLimit,
+        setFilters,
+        setSort,
+        clearFilters,
+    } = useListingQueryState({ defaultLimit: 20, filterKeys: PRODUCTION_BOOKING_FILTER_KEYS });
 
     const [tableKey, setTableKey] = useState(0);
     const [totalCount, setTotalCount] = useState(0);
+    const [summary, setSummary] = useState(null);
     const [exporting, setExporting] = useState(false);
+    const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [loadingRecord, setLoadingRecord] = useState(false);
@@ -80,15 +95,22 @@ export default function ProductionBookingsPage() {
     const [cancelReason, setCancelReason] = useState("");
     const [actionSubmitting, setActionSubmitting] = useState(false);
 
-    const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
-    const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
-
     const filterParams = useMemo(
         () =>
             Object.fromEntries(
                 Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
             ),
         [filters]
+    );
+
+    const quickSearch = filters.q || q || "";
+
+    const handleStatusChipClick = useCallback(
+        (status) => {
+            const next = filters.status === status ? "" : status;
+            setFilters({ ...filters, status: next });
+        },
+        [filters, setFilters]
     );
 
     const handleOpenSidebar = useCallback(async (id) => {
@@ -113,7 +135,7 @@ export default function ProductionBookingsPage() {
     const handleExport = useCallback(async () => {
         setExporting(true);
         try {
-            const blob = await productionBookingService.exportProductionBookings(filterParams);
+            const blob = await productionBookingService.exportProductionBookings(buildListQuery(filterParams));
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -132,24 +154,17 @@ export default function ProductionBookingsPage() {
 
     const handleActionConfirm = async () => {
         if (!pendingAction) return;
-        const { type, row } = pendingAction;
+        const { row } = pendingAction;
 
-        if (type === "cancel" && !cancelReason.trim()) {
+        if (!cancelReason.trim()) {
             toast.error("A cancellation reason is required");
             return;
         }
 
         setActionSubmitting(true);
         try {
-            if (type === "post") {
-                await productionBookingService.postProductionBooking(row.id);
-                toast.success(
-                    `Booking ${row.booking_no} posted. Components issued, finished good received and the ledger updated.`
-                );
-            } else {
-                await productionBookingService.cancelProductionBooking(row.id, cancelReason.trim());
-                toast.success(`Booking ${row.booking_no} cancelled and all stock movements reversed`);
-            }
+            await productionBookingService.cancelProductionBooking(row.id, cancelReason.trim());
+            toast.success(`Booking ${row.booking_no} cancelled and all stock movements reversed`);
             setTableKey((prev) => prev + 1);
             setPendingAction(null);
             setCancelReason("");
@@ -166,46 +181,29 @@ export default function ProductionBookingsPage() {
                 field: "booking_no",
                 label: "Booking No",
                 sortable: true,
-                filterType: "text",
-                filterKey: "booking_no",
-                defaultFilterOperator: "contains",
             },
             {
                 field: "booking_date",
                 label: "Date",
                 sortable: true,
-                filterType: "date",
-                filterKey: "booking_date_from",
-                filterKeyTo: "booking_date_to",
-                operatorKey: "booking_date_op",
-                defaultFilterOperator: "inRange",
                 render: (row) => (row.booking_date ? formatDate(row.booking_date) : "-"),
             },
             {
                 field: "order_no",
-                label: "Production Order",
+                label: AP.orders.singular,
                 sortable: false,
-                filterType: "text",
-                filterKey: "order_no",
-                defaultFilterOperator: "contains",
                 render: (row) => row.productionOrder?.order_no || "-",
             },
             {
                 field: "warehouse",
                 label: "Warehouse",
                 sortable: false,
-                filterType: "text",
-                filterKey: "warehouse_name",
-                defaultFilterOperator: "contains",
                 render: (row) => row.warehouse?.name || "-",
             },
             {
                 field: "fg_product",
-                label: "Finished Good",
+                label: AP.fg.replace(" (FG)", ""),
                 sortable: false,
-                filterType: "text",
-                filterKey: "fg_product_name",
-                defaultFilterOperator: "contains",
                 render: (row) => row.fgProduct?.product_name || "-",
             },
             { field: "good_quantity", label: "Good", sortable: true },
@@ -248,9 +246,6 @@ export default function ProductionBookingsPage() {
                 field: "status",
                 label: "Status",
                 sortable: true,
-                filterType: "select",
-                filterKey: "status",
-                filterOptions: STATUS_OPTIONS,
                 render: (row) => (
                     <Badge
                         variant={getStatusVariant(row.status)}
@@ -277,32 +272,6 @@ export default function ProductionBookingsPage() {
                         >
                             <IconEye className="size-4" />
                         </Button>
-                        {row.status === "DRAFT" && perms?.can_update && (
-                            <Button
-                                size="icon"
-                                variant="ghost"
-                                className="size-8"
-                                onClick={() => router.push(`/production-bookings/edit?id=${row.id}`)}
-                                title="Edit"
-                                aria-label="Edit"
-                            >
-                                <IconPencil className="size-4" />
-                            </Button>
-                        )}
-                        {row.status === "DRAFT" && perms?.can_update && (
-                            <Button
-                                size="icon"
-                                variant="success"
-                                onClick={() => {
-                                    setCancelReason("");
-                                    setPendingAction({ type: "post", row });
-                                }}
-                                title="Post"
-                                aria-label="Post"
-                            >
-                                <IconCircleCheck className="size-4" />
-                            </Button>
-                        )}
                         {row.status === "POSTED" && perms?.can_update && (
                             <Button
                                 size="icon"
@@ -322,29 +291,17 @@ export default function ProductionBookingsPage() {
                 ),
             },
         ],
-        [handleOpenSidebar, router]
+        [handleOpenSidebar]
     );
 
     const fetcher = useMemo(
         () => async (params) => {
-            const p = params || {};
-            const response = await productionBookingService.getProductionBookings({
-                page: p.page,
-                limit: p.limit,
-                sortBy: p.sortBy || "id",
-                sortOrder: p.sortOrder || "DESC",
-                booking_no: p.booking_no || undefined,
-                order_no: p.order_no || undefined,
-                warehouse_name: p.warehouse_name || undefined,
-                fg_product_name: p.fg_product_name || undefined,
-                status: p.status || undefined,
-                booking_date_from: p.booking_date_from || undefined,
-                booking_date_to: p.booking_date_to || undefined,
-            });
+            const response = await productionBookingService.getProductionBookings(buildListQuery(params));
             const result = response?.result || response;
+            setSummary(result?.meta?.summary || null);
             return {
                 data: result?.data || [],
-                meta: result?.meta || { total: 0, page: p.page, pages: 0, limit: p.limit },
+                meta: result?.meta || { total: 0, page: params.page, pages: 0, limit: params.limit },
             };
         },
         [tableKey]
@@ -374,7 +331,7 @@ export default function ProductionBookingsPage() {
                 <hr className="border-border" />
                 <div className="grid grid-cols-2 gap-1.5 text-xs">
                     <div>
-                        <span className="block font-semibold text-muted-foreground">Production Order</span>
+                        <span className="block font-semibold text-muted-foreground">{AP.orders.singular}</span>
                         {booking.productionOrder?.order_no || "-"}
                     </div>
                     <div>
@@ -505,40 +462,75 @@ export default function ProductionBookingsPage() {
         );
     }, [loadingRecord, selectedBooking]);
 
-    const isCancelAction = pendingAction?.type === "cancel";
-
     return (
         <ProtectedRoute>
             <ListingPageContainer
-                title="Production Bookings"
-                addButtonLabel={currentPerm.can_create ? "New Booking" : undefined}
+                title={AP.history.title}
+                addButtonLabel={currentPerm.can_create ? AP.book.menu : undefined}
                 onAddClick={currentPerm.can_create ? () => router.push("/production-bookings/new") : undefined}
                 exportButtonLabel="Export"
                 onExportClick={handleExport}
                 exportDisabled={exporting}
+                fullWidth
             >
+                <ProductionBookingFilterPanel
+                    open={filterPanelOpen}
+                    onToggle={setFilterPanelOpen}
+                    values={filters}
+                    onApply={(v) => {
+                        setFilters(v, true);
+                        setFilterPanelOpen(false);
+                    }}
+                    onClear={() => clearFilters({ keepQuickSearch: false })}
+                />
+
+                {summary && (
+                    <Card className="mb-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1 px-2.5 py-1.5">
+                            <span className="mr-1 text-[9px] font-bold uppercase tracking-tighter text-slate-400">
+                                By status
+                            </span>
+                            {PRODUCTION_BOOKING_STATUS_SUMMARY_CHIPS.map((chip) => {
+                                const selected = String(filters.status || "") === chip.key;
+                                return (
+                                    <button
+                                        key={chip.key}
+                                        type="button"
+                                        className={cn(
+                                            "inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter transition-colors",
+                                            selected
+                                                ? "border-green-600 bg-green-600 text-white shadow-sm"
+                                                : "border-slate-200 bg-slate-50 text-slate-700 hover:border-green-300 hover:bg-green-50"
+                                        )}
+                                        onClick={() => handleStatusChipClick(chip.key)}
+                                    >
+                                        {chip.label}: {Number(summary[chip.key] || 0)}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </Card>
+                )}
+
                 <PaginatedTable
                     key={tableKey}
                     columns={columns}
                     fetcher={fetcher}
-                    moduleKey="production-bookings"
-                    height="calc(100vh - 200px)"
+                    moduleKey="production-bookings-history"
+                    height="calc(100vh - 280px)"
                     showSearch={false}
                     showPagination={false}
                     compactDensity
                     onTotalChange={setTotalCount}
-                    columnFilterValues={columnFilterValues}
-                    onColumnFilterChange={handleColumnFilterChange}
-                    filterParams={{ q: undefined, ...filterParams }}
+                    filterParams={filterParams}
                     onRowClick={(row) => handleOpenSidebar(row.id)}
                     page={page}
                     limit={limit}
-                    q={q}
+                    q={quickSearch}
                     sortBy={sortBy || "id"}
                     sortOrder={sortOrder || "DESC"}
                     onPageChange={(zeroBased) => setPage(zeroBased + 1)}
                     onRowsPerPageChange={setLimit}
-                    onQChange={setQ}
                     onSortChange={setSort}
                 />
                 <PaginationControls
@@ -554,7 +546,7 @@ export default function ProductionBookingsPage() {
             <DetailsSidebar
                 open={sidebarOpen}
                 onClose={handleCloseSidebar}
-                title="Production Booking Details"
+                title={AP.book.details}
             >
                 {sidebarContent}
             </DetailsSidebar>
@@ -570,13 +562,9 @@ export default function ProductionBookingsPage() {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {isCancelAction ? "Cancel Production Booking" : "Post Production Booking"}
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>{AP.book.cancelDialog}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            {isCancelAction
-                                ? "Cancelling posts mirror ledger entries: components return to stock, the finished good is removed, and component serials become available again. This is refused once a finished-good serial has moved downstream."
-                                : "Posting issues the component quantities out of stock, marks scanned serials as issued, receives the finished good at its computed cost and writes the inventory ledger. This cannot be undone except by cancelling the booking."}
+                            Cancelling posts mirror ledger entries: components return to stock, the finished good is removed, and component serials become available again. This is refused once a finished-good serial has moved downstream.
                             {pendingAction && (
                                 <span className="mt-2 block text-muted-foreground">
                                     Booking: {pendingAction.row.booking_no} · good{" "}
@@ -587,15 +575,13 @@ export default function ProductionBookingsPage() {
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    {isCancelAction && (
-                        <ShadInput
-                            value={cancelReason}
-                            onChange={(e) => setCancelReason(e.target.value)}
-                            placeholder="Cancellation reason (required)"
-                            aria-label="Cancellation reason"
-                            disabled={actionSubmitting}
-                        />
-                    )}
+                    <ShadInput
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        placeholder="Cancellation reason (required)"
+                        aria-label="Cancellation reason"
+                        disabled={actionSubmitting}
+                    />
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={actionSubmitting}>Close</AlertDialogCancel>
                         <AlertDialogAction
@@ -603,7 +589,7 @@ export default function ProductionBookingsPage() {
                             disabled={actionSubmitting}
                             loading={actionSubmitting}
                         >
-                            {isCancelAction ? "Cancel Booking" : "Post"}
+                            Cancel Booking
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

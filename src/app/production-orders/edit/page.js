@@ -9,6 +9,7 @@ import Loader from "@/components/common/Loader";
 import ProductionOrderForm from "../components/ProductionOrderForm";
 import productionOrderService from "@/services/productionOrderService";
 import { getApiErrorMessage } from "@/utils/toast";
+import { AP } from "@/utils/assemblyProductionLabels";
 
 function EditProductionOrderContent() {
     const router = useRouter();
@@ -21,7 +22,7 @@ function EditProductionOrderContent() {
     useEffect(() => {
         const id = searchParams.get("id");
         if (!id) {
-            setServerError("Production order ID is required");
+            setServerError(`${AP.orders.singular} ID is required`);
             setLoadingRecord(false);
             return;
         }
@@ -36,11 +37,11 @@ function EditProductionOrderContent() {
             const result = response?.result || response;
 
             if (!result) {
-                setServerError("Production order not found");
+                setServerError(`${AP.orders.singular} not found`);
                 return;
             }
             if (result.status !== "DRAFT") {
-                setServerError(`Only DRAFT production orders can be edited. This order is ${result.status}.`);
+                setServerError(`Only DRAFT ${AP.orders.title.toLowerCase()} can be edited. This ${AP.orders.singular.toLowerCase()} is ${result.status}.`);
                 return;
             }
 
@@ -57,7 +58,7 @@ function EditProductionOrderContent() {
                 remarks: result.remarks || "",
             });
         } catch (error) {
-            setServerError(getApiErrorMessage(error, "Failed to load production order"));
+            setServerError(getApiErrorMessage(error, `Failed to load ${AP.orders.singular.toLowerCase()}`));
         } finally {
             setLoadingRecord(false);
         }
@@ -68,10 +69,10 @@ function EditProductionOrderContent() {
         setServerError(null);
         try {
             await productionOrderService.updateProductionOrder(searchParams.get("id"), payload);
-            toast.success("Production order updated successfully");
+            toast.success(`${AP.orders.singular} updated successfully`);
             setTimeout(() => router.push("/production-orders"), 800);
         } catch (err) {
-            const message = getApiErrorMessage(err, "Failed to update production order");
+            const message = getApiErrorMessage(err, `Failed to update ${AP.orders.singular.toLowerCase()}`);
             setServerError(message);
             toast.error(message);
         } finally {
@@ -82,9 +83,9 @@ function EditProductionOrderContent() {
     if (loadingRecord) {
         return (
             <AddEditPageShell
-                title="Edit Production Order"
+                title={AP.orders.edit}
                 listHref="/production-orders"
-                listLabel="Production Orders"
+                listLabel={AP.orders.title}
             >
                 <div className="flex min-h-[50vh] items-center justify-center">
                     <Loader />
@@ -96,9 +97,9 @@ function EditProductionOrderContent() {
     if (serverError && !defaultValues.id) {
         return (
             <AddEditPageShell
-                title="Edit Production Order"
+                title={AP.orders.edit}
                 listHref="/production-orders"
-                listLabel="Production Orders"
+                listLabel={AP.orders.title}
             >
                 <div role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                     {serverError}
@@ -109,9 +110,9 @@ function EditProductionOrderContent() {
 
     return (
         <AddEditPageShell
-            title="Edit Production Order"
+            title={AP.orders.edit}
             listHref="/production-orders"
-            listLabel="Production Orders"
+            listLabel={AP.orders.title}
             className="gap-2"
         >
             <ProductionOrderForm

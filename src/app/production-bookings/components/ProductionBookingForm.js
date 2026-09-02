@@ -1,50 +1,31 @@
 "use client";
 
 import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from "react";
-import {
-    Box,
-    Alert,
-    CircularProgress,
-    IconButton,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    Chip,
-    Collapse,
-    TextField,
-    Divider,
-    Typography,
-    FormHelperText,
-} from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import QrCodeScannerIcon from "@mui/icons-material/QrCodeScanner";
-import ClearIcon from "@mui/icons-material/Clear";
 import companyService from "@/services/companyService";
 import productionOrderService from "@/services/productionOrderService";
 import productionBookingService from "@/services/productionBookingService";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
-import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import FormContainer from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
-import FormGrid from "@/components/common/FormGrid";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
 import BarcodeScanner from "@/components/common/BarcodeScanner";
 import { splitSerialInput, fillSerialSlots } from "@/utils/serialInput";
-import { FORM_PADDING } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { getApiErrorMessage } from "@/utils/toast";
-
-const DENSE_TABLE_SX = {
-    "& th": { py: 0.5, px: 0.75, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" },
-    "& td": { py: 0.5, px: 0.75, fontSize: 12 },
-};
+import { AP } from "@/utils/assemblyProductionLabels";
+import { cn } from "@/lib/utils";
+import {
+    IconChevronDown,
+    IconChevronUp,
+    IconScan,
+    IconX,
+    IconLoader2,
+    IconAlertCircle,
+    IconCheck
+} from "@tabler/icons-react";
 
 const toNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -144,7 +125,6 @@ export default function ProductionBookingForm({
         if (defaultValues.productionOrder) setOrderOption(defaultValues.productionOrder);
     }, [defaultValues]);
 
-    // Backflush suggests component consumption and costs for the chosen output quantity.
     const loadBackflush = useCallback(
         async ({ orderId, good, rejected, preserveEdits }) => {
             if (!orderId || good + rejected <= 0) {
@@ -200,7 +180,6 @@ export default function ProductionBookingForm({
         loadBackflush({ orderId, good: goodQty, rejected: rejectedQty, preserveEdits: true });
     }, [formData.production_order_id, goodQty, rejectedQty, loadBackflush]);
 
-    // A serialized finished good is one unit per booking, so keep the slots in sync.
     useEffect(() => {
         if (!isSerializedFg) {
             setFgSerials([]);
@@ -434,7 +413,7 @@ export default function ProductionBookingForm({
         const errs = {};
         const nextLineErrors = {};
 
-        if (!formData.production_order_id) errs.production_order_id = "Production order is required";
+        if (!formData.production_order_id) errs.production_order_id = `${AP.orders.singular} is required`;
         if (!formData.booking_date) errs.booking_date = "Booking date is required";
         if (outputQuantity <= 0) errs.good_quantity = "Book at least one good or rejected unit";
         if (isSerializedFg && outputQuantity !== 1) {
@@ -450,7 +429,7 @@ export default function ProductionBookingForm({
             }
         }
         if (backflush?.remaining_quantity != null && outputQuantity > backflush.remaining_quantity) {
-            errs.good_quantity = `Only ${backflush.remaining_quantity} unit(s) remain on this order`;
+            errs.good_quantity = `Only ${backflush.remaining_quantity} unit(s) remain on this ${AP.orders.singular.toLowerCase()}`;
         }
         if (componentLines.length === 0) errs.components = "Backflush the component requirement first";
 
@@ -525,561 +504,564 @@ export default function ProductionBookingForm({
     };
 
     return (
-        <FormContainer className="flex-1 min-h-0 flex flex-col">
+        <FormContainer className="flex-1 min-h-0 flex flex-col bg-muted/10">
             <form
                 id="production-booking-form"
                 onSubmit={handleSubmit}
                 onKeyDown={preventEnterSubmit}
-                className="mx-auto w-full max-w-[1280px] flex flex-col flex-1 min-h-0"
+                className="mx-auto w-full max-w-[1600px] flex flex-col flex-1 min-h-0"
                 noValidate
             >
-                <Box sx={{ p: FORM_PADDING }}>
+                <div className="p-3 md:p-4 flex flex-col gap-4">
+                    {/* Error Alert */}
                     {serverError && (
-                        <Alert severity="error" sx={{ mb: 1 }} onClose={onClearServerError}>
-                            {serverError}
-                        </Alert>
+                        <div className="flex items-center justify-between rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                            <div className="flex items-center gap-2">
+                                <IconAlertCircle className="h-4 w-4" />
+                                <span>{serverError}</span>
+                            </div>
+                            <Button variant="ghost" size="icon-sm" onClick={onClearServerError} className="text-destructive hover:bg-destructive/20 hover:text-destructive">
+                                <IconX className="h-4 w-4" />
+                            </Button>
+                        </div>
                     )}
 
-                    <FormGrid cols={2} className="lg:grid-cols-4">
-                        <AutocompleteField
-                            label="Production Order *"
-                            placeholder="Type to search approved orders..."
-                            options={[]}
-                            usePortal
-                            disabled={isEdit}
-                            asyncLoadOptions={async (search) => {
-                                const res = await productionOrderService.getProductionOrders({
-                                    q: search || undefined,
-                                    order_no: search || undefined,
-                                    open_only: true,
-                                    limit: 20,
-                                });
-                                const result = res?.result || res;
-                                return result?.data || [];
-                            }}
-                            resolveOptionById={async (id) => {
-                                if (id == null || id === "") return null;
-                                const res = await productionOrderService.getProductionOrderById(id);
-                                return res?.result || res || null;
-                            }}
-                            getOptionLabel={(order) => orderLabel(order) || String(order?.id ?? "")}
-                            value={orderOption || (formData.production_order_id ? { id: parseInt(formData.production_order_id, 10) } : null)}
-                            onChange={(e, newValue) => {
-                                setOrderOption(newValue);
-                                setComponentLines([]);
-                                setFgSerials([]);
-                                handleChange({
-                                    target: { name: "production_order_id", value: newValue?.id ?? "" },
-                                });
-                            }}
-                            required
-                            error={!!formErrors.production_order_id}
-                            helperText={formErrors.production_order_id}
-                        />
-                        <DateField
-                            name="booking_date"
-                            label="Booking Date *"
-                            value={formData.booking_date}
-                            onChange={handleChange}
-                            required
-                            error={!!formErrors.booking_date}
-                            helperText={formErrors.booking_date}
-                        />
-                        <Input
-                            name="good_quantity"
-                            label="Good Qty *"
-                            type="number"
-                            value={formData.good_quantity}
-                            onChange={handleChange}
-                            inputProps={{ min: 0 }}
-                            error={!!formErrors.good_quantity}
-                            helperText={
-                                formErrors.good_quantity ||
-                                (backflush ? `Remaining on order: ${backflush.remaining_quantity}` : "")
-                            }
-                        />
-                        <Input
-                            name="rejected_quantity"
-                            label="Rejected Qty"
-                            type="number"
-                            value={formData.rejected_quantity}
-                            onChange={handleChange}
-                            inputProps={{ min: 0 }}
-                            helperText={rejectedQty > 0 ? "Rejected units go to the rejection warehouse" : ""}
-                        />
-                        {rejectedQty > 0 && (
-                            <>
+                    {/* TOP BAR: ORDER DETAILS */}
+                    <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-md shadow-md overflow-hidden transition-all duration-300 hover:shadow-lg">
+                        <div className="p-3.5 md:p-4 flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between border-b border-border/50 bg-gradient-to-br from-card via-card to-muted/20">
+                            <div className="w-full xl:w-[350px] shrink-0 relative group">
+                                <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/30 to-primary/10 rounded-lg blur opacity-0 group-hover:opacity-100 transition duration-500"></div>
                                 <AutocompleteField
-                                    label="Rejection Warehouse *"
-                                    placeholder="Type to search..."
-                                    options={warehouses}
-                                    getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
-                                    value={
-                                        warehouses.find(
-                                            (w) => w.id === parseInt(formData.rejection_warehouse_id, 10)
-                                        ) || null
-                                    }
-                                    onChange={(e, newValue) =>
+                                    label={`${AP.orders.singular} *`}
+                                    placeholder={`Search approved ${AP.orders.title.toLowerCase()}...`}
+                                    options={[]}
+                                    usePortal
+                                    disabled={isEdit}
+                                    asyncLoadOptions={async (search) => {
+                                        const res = await productionOrderService.getProductionOrders({
+                                            q: search || undefined,
+                                            order_no: search || undefined,
+                                            open_only: true,
+                                            limit: 20,
+                                        });
+                                        const result = res?.result || res;
+                                        return result?.data || [];
+                                    }}
+                                    resolveOptionById={async (id) => {
+                                        if (id == null || id === "") return null;
+                                        const res = await productionOrderService.getProductionOrderById(id);
+                                        return res?.result || res || null;
+                                    }}
+                                    getOptionLabel={(order) => orderLabel(order) || String(order?.id ?? "")}
+                                    value={orderOption || (formData.production_order_id ? { id: parseInt(formData.production_order_id, 10) } : null)}
+                                    onChange={(e, newValue) => {
+                                        setOrderOption(newValue);
+                                        setComponentLines([]);
+                                        setFgSerials([]);
                                         handleChange({
-                                            target: { name: "rejection_warehouse_id", value: newValue?.id ?? "" },
-                                        })
-                                    }
+                                            target: { name: "production_order_id", value: newValue?.id ?? "" },
+                                        });
+                                    }}
                                     required
-                                    error={!!formErrors.rejection_warehouse_id}
-                                    helperText={
-                                        formErrors.rejection_warehouse_id ||
-                                        "Leave the configured default unless routing elsewhere"
-                                    }
+                                    error={!!formErrors.production_order_id}
+                                    helperText={formErrors.production_order_id}
                                 />
-                                <div className="md:col-span-2">
-                                    <Input
-                                        name="rejection_reason"
-                                        label="Rejection Reason *"
-                                        value={formData.rejection_reason}
+                            </div>
+                            
+                            {backflush && (
+                                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-1">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Order No</span>
+                                        <span className="font-bold text-foreground text-sm">{backflush.order_no}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Finished Good</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-foreground text-sm">{backflush.fg_product_name}</span>
+                                            {isSerializedFg && (
+                                                <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0 text-[10px] font-bold text-primary uppercase">
+                                                    Serial
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Planned</span>
+                                        <span className="font-semibold text-foreground text-sm">{backflush.planned_quantity}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Booked</span>
+                                        <span className="font-semibold text-foreground text-sm">{backflush.already_booked_quantity}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 border-l pl-4 border-border/50">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Remaining</span>
+                                        <span className="font-black text-2xl leading-none bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">{backflush.remaining_quantity}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {backflushError && (
+                            <div className="p-4 bg-destructive/5 text-destructive text-sm border-t border-destructive/10 flex items-center gap-2">
+                                <IconAlertCircle className="h-4 w-4" />
+                                {backflushError}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* TWO COLUMN LAYOUT */}
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+                        
+                        {/* LEFT SIDE: COMPONENT ISSUE & OPERATIONS */}
+                        <div className="xl:col-span-8 flex flex-col gap-4">
+                            <FormSection title="Component Issue" className="h-full border-transparent bg-transparent p-0 m-0 shadow-none">
+                                {formErrors.components && (
+                                    <div className="mb-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                                        <IconAlertCircle className="h-4 w-4" />
+                                        <span>{formErrors.components}</span>
+                                    </div>
+                                )}
+
+                                {loadingBackflush && (
+                                    <div className="flex items-center justify-center py-12 bg-card rounded-xl border border-border shadow-sm">
+                                        <IconLoader2 className="h-8 w-8 animate-spin text-primary" />
+                                    </div>
+                                )}
+
+                                {!loadingBackflush && componentLines.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-8 text-center bg-muted/30">
+                                        <p className="text-xs text-muted-foreground">
+                                            Select a {AP.orders.singular.toLowerCase()} above to view required components.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {!loadingBackflush && componentLines.length > 0 && (
+                                    <div className="rounded-xl border border-border/60 bg-card/90 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+                                        <div className="overflow-x-auto thin-scrollbar">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-muted/50 border-b border-border">
+                                                    <tr>
+                                                        <th className="px-2 py-2 text-left font-medium text-muted-foreground">Component</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Standard</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">On Hand</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground w-24">Consumed</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground w-20">Scrap</th>
+                                                        <th className="px-2 py-2 text-left font-medium text-muted-foreground w-36">Scrap Reason</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Variance</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Rate</th>
+                                                        <th className="px-2 py-2 text-right font-medium text-muted-foreground">Amount</th>
+                                                        <th className="px-2 py-2 text-left font-medium text-muted-foreground">Serials</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border">
+                                                    {componentLines.map((line, index) => {
+                                                        const consumed = parseInt(line.consumed_quantity, 10) || 0;
+                                                        const scrap = parseInt(line.scrap_quantity, 10) || 0;
+                                                        const issued = consumed + scrap;
+                                                        const variance = round(issued - toNumber(line.standard_quantity), 4);
+                                                        const serialCount = (line.serials || []).length;
+                                                        const serialComplete = serialCount === issued && issued > 0;
+                                                        const isRowError = !!lineErrors[index];
+                                                        
+                                                        return (
+                                                            <Fragment key={line.component_product_id}>
+                                                                <tr className={cn(
+                                                                    "transition-all duration-200 hover:bg-muted/40 hover:shadow-[inset_3px_0_0_0] hover:shadow-primary/60",
+                                                                    isRowError && "bg-destructive/5 hover:bg-destructive/10 hover:shadow-destructive"
+                                                                )}>
+                                                                    <td className="px-2 py-2 align-middle">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="font-medium">{line.product_name}</span>
+                                                                            {line.serial_required && (
+                                                                                <span className="inline-flex h-4 items-center rounded-full bg-primary/10 px-1.5 text-[9px] font-bold tracking-wider text-primary uppercase">
+                                                                                    Serial
+                                                                                </span>
+                                                                            )}
+                                                                            {line.is_optional && (
+                                                                                <span className="inline-flex h-4 items-center rounded-full bg-secondary px-1.5 text-[9px] font-bold tracking-wider text-secondary-foreground uppercase">
+                                                                                    Optional
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-2 py-2 text-right align-middle">{line.standard_quantity}</td>
+                                                                    <td className="px-2 py-2 text-right align-middle">{line.quantity_on_hand}</td>
+                                                                    <td className="px-1.5 py-1 align-middle">
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={line.consumed_quantity}
+                                                                            onChange={(e) => updateLine(index, { consumed_quantity: e.target.value })}
+                                                                            min={0}
+                                                                            className="h-7 text-xs text-right bg-background/50 focus:bg-background focus:ring-2 focus:ring-primary/30 transition-all"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-1.5 py-1 align-middle">
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={line.scrap_quantity}
+                                                                            onChange={(e) => updateLine(index, { scrap_quantity: e.target.value })}
+                                                                            min={0}
+                                                                            className="h-7 text-xs text-right bg-background/50 focus:bg-background focus:ring-2 focus:ring-primary/30 transition-all"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-1.5 py-1 align-middle">
+                                                                        <Input
+                                                                            placeholder={scrap > 0 ? "Required" : "-"}
+                                                                            value={line.scrap_reason}
+                                                                            onChange={(e) => updateLine(index, { scrap_reason: e.target.value })}
+                                                                            disabled={scrap <= 0}
+                                                                            className="h-7 text-xs bg-background/50 focus:bg-background focus:ring-2 focus:ring-primary/30 transition-all"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-2 py-2 text-right align-middle">
+                                                                        <span className={cn(
+                                                                            "font-medium",
+                                                                            variance > 0 ? "text-destructive" : variance < 0 ? "text-success" : "text-muted-foreground"
+                                                                        )}>
+                                                                            {variance > 0 ? "+" : ""}{variance}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-2 py-2 text-right align-middle text-muted-foreground">{toNumber(line.rate).toFixed(2)}</td>
+                                                                    <td className="px-2 py-2 text-right align-middle font-medium">
+                                                                        {round(issued * toNumber(line.rate), 2).toFixed(2)}
+                                                                    </td>
+                                                                    <td className="px-2 py-2 align-middle">
+                                                                        {line.serial_required ? (
+                                                                            <Button
+                                                                                type="button"
+                                                                                size="sm"
+                                                                                variant={serialComplete ? "outline" : "default"}
+                                                                                onClick={() => toggleSerialPanel(index)}
+                                                                                disabled={issued <= 0}
+                                                                                className={cn("h-7 text-xs w-full justify-between gap-1 px-2 shadow-none transition-colors", serialComplete && "border-success text-success hover:bg-success/10 hover:text-success")}
+                                                                            >
+                                                                                <div className="flex items-center gap-1">
+                                                                                    {serialComplete ? <IconCheck className="h-3 w-3" /> : <IconScan className="h-3 w-3" />}
+                                                                                    <span>{serialCount} / {issued}</span>
+                                                                                </div>
+                                                                                {openSerialLine === index ? (
+                                                                                    <IconChevronUp className="h-3 w-3 opacity-50" />
+                                                                                ) : (
+                                                                                    <IconChevronDown className="h-3 w-3 opacity-50" />
+                                                                                )}
+                                                                            </Button>
+                                                                        ) : (
+                                                                            <span className="text-muted-foreground/50 px-2">-</span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                                {isRowError && (
+                                                                    <tr className="bg-destructive/5 border-t-0">
+                                                                        <td colSpan={10} className="px-3 pb-2.5 pt-0 text-xs text-destructive">
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <IconAlertCircle className="h-3.5 w-3.5" />
+                                                                                {lineErrors[index]}
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                                
+                                                                {/* Serial Panel Dropdown */}
+                                                                {openSerialLine === index && (
+                                                                    <tr className="bg-muted/30">
+                                                                        <td colSpan={10} className="p-0 border-b border-border shadow-inner">
+                                                                            <div className="animate-in slide-in-from-top-2 fade-in duration-200">
+                                                                                <div className="p-5 space-y-5">
+                                                                                    <div className="flex flex-col md:flex-row gap-4 items-start md:items-center bg-card rounded-lg border border-border p-4 shadow-sm">
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="outline"
+                                                                                            className="w-full md:w-auto h-11 gap-2 font-medium"
+                                                                                            onClick={() => setScannerOpen(true)}
+                                                                                        >
+                                                                                            <IconScan className="h-5 w-5 text-primary" />
+                                                                                            Open Camera Scanner
+                                                                                        </Button>
+                                                                                        <BarcodeScanner
+                                                                                            open={scannerOpen}
+                                                                                            hint={`Scanning ${line.product_name}`}
+                                                                                            onScan={(value) => {
+                                                                                                const firstEmpty = serialSlots.findIndex(v => !(v || "").trim());
+                                                                                                const idx = firstEmpty !== -1 ? firstEmpty : 0;
+                                                                                                if (value?.trim()) handleSlotBulkOrSingle(idx, value);
+                                                                                                setScannerOpen(false);
+                                                                                            }}
+                                                                                            onClose={() => setScannerOpen(false)}
+                                                                                        />
+                                                                                        <div className="hidden md:block w-px h-11 bg-border"></div>
+                                                                                        <div className="flex-1 w-full relative">
+                                                                                            <Input
+                                                                                                inputRef={gunScanRef}
+                                                                                                placeholder="Point scanner gun here, then scan..."
+                                                                                                value={gunScanValue}
+                                                                                                onChange={(e) => setGunScanValue(e.target.value)}
+                                                                                                onKeyDown={handleGunScanKeyDown}
+                                                                                                className="pl-10 h-11 bg-background text-base"
+                                                                                            />
+                                                                                            <IconScan className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {serialSlotError && (
+                                                                                        <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive border border-destructive/20">
+                                                                                            <IconAlertCircle className="h-5 w-5 flex-shrink-0" />
+                                                                                            <span className="flex-1 font-medium">{serialSlotError}</span>
+                                                                                            <button type="button" onClick={() => setSerialSlotError("")} className="hover:opacity-70">
+                                                                                                <IconX className="h-5 w-5" />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                                                        {serialSlots.map((value, slotIdx) => (
+                                                                                            <div key={slotIdx} className="relative group">
+                                                                                                <Input
+                                                                                                    label={`Serial ${slotIdx + 1} of ${serialSlots.length}`}
+                                                                                                    value={value}
+                                                                                                    onChange={(e) => handleSlotBulkOrSingle(slotIdx, e.target.value)}
+                                                                                                    onKeyDown={(e) => handleSlotKeyDown(slotIdx, e)}
+                                                                                                    inputRef={(el) => { serialInputRefs.current[slotIdx] = el; }}
+                                                                                                    autoComplete="off"
+                                                                                                    className="pr-10 bg-background font-mono font-semibold"
+                                                                                                />
+                                                                                                {value?.trim() && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        tabIndex={-1}
+                                                                                                        onClick={() => handleSlotChange(slotIdx, "")}
+                                                                                                        className="absolute right-2.5 top-[34px] rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                                                    >
+                                                                                                        <IconX className="h-4 w-4" />
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+
+                                                                                    <div className="flex justify-end gap-3 pt-2">
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            onClick={() => toggleSerialPanel(index)}
+                                                                                            disabled={serialValidating}
+                                                                                            className="h-10 px-6 font-medium"
+                                                                                        >
+                                                                                            Cancel
+                                                                                        </Button>
+                                                                                        <LoadingButton
+                                                                                            type="button"
+                                                                                            onClick={handleSerialPanelDone}
+                                                                                            loading={serialValidating}
+                                                                                            className="min-w-[120px] h-10 font-semibold"
+                                                                                        >
+                                                                                            Done
+                                                                                        </LoadingButton>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </FormSection>
+
+                            {backflush?.operations?.length > 0 && (
+                                <FormSection title="Operation Costs (from BOM)" className="border-transparent bg-transparent p-0 m-0 shadow-none">
+                                    <div className="rounded-xl border border-border/60 bg-card/90 overflow-hidden shadow-sm transition-all duration-300 hover:shadow-md">
+                                        <div className="overflow-x-auto thin-scrollbar">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-muted/50 border-b border-border">
+                                                    <tr>
+                                                        <th className="px-3 py-2 text-left font-medium text-muted-foreground w-12">Seq</th>
+                                                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Operation</th>
+                                                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Cost Type</th>
+                                                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Std Minutes</th>
+                                                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Rate / Hour</th>
+                                                        <th className="px-3 py-2 text-right font-medium text-muted-foreground">Cost</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-border">
+                                                    {backflush.operations.map((op) => (
+                                                        <tr key={`${op.sequence_no}-${op.operation_name}`} className="transition-all duration-200 hover:bg-muted/40">
+                                                            <td className="px-3 py-2 text-muted-foreground">{op.sequence_no}</td>
+                                                            <td className="px-3 py-2 font-medium">{op.operation_name}</td>
+                                                            <td className="px-3 py-2 text-muted-foreground">
+                                                                <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[10px] uppercase font-bold">
+                                                                    {op.cost_type}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right">{op.std_time_minutes}</td>
+                                                            <td className="px-3 py-2 text-right text-muted-foreground">{toNumber(op.rate_per_hour).toFixed(2)}</td>
+                                                            <td className="px-3 py-2 text-right font-medium">{toNumber(op.cost).toFixed(2)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </FormSection>
+                            )}
+                        </div>
+
+                        {/* RIGHT SIDE: PRODUCTION BOOKING */}
+                        <div className="xl:col-span-4 flex flex-col gap-4 xl:sticky xl:top-4">
+                            
+                            <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-md shadow-md overflow-hidden flex flex-col relative transition-all duration-300 hover:shadow-lg">
+                                <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-primary to-primary/50"></div>
+                                <div className="border-b border-border/50 bg-muted/10 px-4 py-3">
+                                    <h3 className="text-base font-bold text-foreground drop-shadow-sm">{AP.book.title}</h3>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">Enter execution details for this run.</p>
+                                </div>
+                                <div className="p-4 flex flex-col gap-3.5">
+                                    <DateField
+                                        name="booking_date"
+                                        label="Booking Date *"
+                                        value={formData.booking_date}
                                         onChange={handleChange}
                                         required
-                                        error={!!formErrors.rejection_reason}
-                                        helperText={formErrors.rejection_reason}
+                                        error={!!formErrors.booking_date}
+                                        helperText={formErrors.booking_date}
+                                    />
+                                    
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Input
+                                            name="good_quantity"
+                                            label="Good Qty *"
+                                            type="number"
+                                            value={formData.good_quantity}
+                                            onChange={handleChange}
+                                            min={0}
+                                            error={!!formErrors.good_quantity}
+                                            helperText={formErrors.good_quantity}
+                                        />
+                                        <Input
+                                            name="rejected_quantity"
+                                            label="Rejected Qty"
+                                            type="number"
+                                            value={formData.rejected_quantity}
+                                            onChange={handleChange}
+                                            min={0}
+                                            helperText={rejectedQty > 0 ? "Rejection routing applies" : ""}
+                                        />
+                                    </div>
+
+                                    {rejectedQty > 0 && (
+                                        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 p-4 bg-muted/30 rounded-lg border border-border/50">
+                                            <AutocompleteField
+                                                label="Rejection Warehouse *"
+                                                placeholder="Type to search..."
+                                                options={warehouses}
+                                                getOptionLabel={(w) => w?.name ?? String(w?.id ?? "")}
+                                                value={warehouses.find((w) => w.id === parseInt(formData.rejection_warehouse_id, 10)) || null}
+                                                onChange={(e, newValue) => handleChange({ target: { name: "rejection_warehouse_id", value: newValue?.id ?? "" } })}
+                                                required
+                                                error={!!formErrors.rejection_warehouse_id}
+                                                helperText={formErrors.rejection_warehouse_id}
+                                            />
+                                            <Input
+                                                name="rejection_reason"
+                                                label="Rejection Reason *"
+                                                value={formData.rejection_reason}
+                                                onChange={handleChange}
+                                                required
+                                                error={!!formErrors.rejection_reason}
+                                                helperText={formErrors.rejection_reason}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <Input
+                                        name="remarks"
+                                        label="Remarks"
+                                        value={formData.remarks}
+                                        onChange={handleChange}
+                                        placeholder="Add any additional notes here..."
                                     />
                                 </div>
-                            </>
-                        )}
-                        <div className="md:col-span-2">
-                            <Input
-                                name="remarks"
-                                label="Remarks"
-                                value={formData.remarks}
-                                onChange={handleChange}
-                            />
-                        </div>
-                    </FormGrid>
+                            </div>
 
-                    {backflushError && (
-                        <Alert severity="error" sx={{ mt: 1 }}>
-                            {backflushError}
-                        </Alert>
-                    )}
-
-                    {backflush && (
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-border bg-muted/40 p-1.5 text-xs">
-                            <span>
-                                <span className="text-muted-foreground">Order </span>
-                                <span className="font-semibold">{backflush.order_no}</span>
-                            </span>
-                            <span>
-                                <span className="text-muted-foreground">Finished Good </span>
-                                <span className="font-semibold">{backflush.fg_product_name}</span>
-                                {isSerializedFg && (
-                                    <Chip label="Serial" size="small" color="primary" sx={{ ml: 0.75, height: 18 }} />
-                                )}
-                            </span>
-                            <span>
-                                <span className="text-muted-foreground">Planned </span>
-                                {backflush.planned_quantity}
-                            </span>
-                            <span>
-                                <span className="text-muted-foreground">Already booked </span>
-                                {backflush.already_booked_quantity}
-                            </span>
-                            <span>
-                                <span className="text-muted-foreground">Remaining </span>
-                                <span className="font-semibold">{backflush.remaining_quantity}</span>
-                            </span>
-                        </div>
-                    )}
-
-                    <FormSection title="Component Consumption" className="mt-1.5">
-                        {formErrors.components && (
-                            <Alert severity="error" sx={{ mb: 0.75 }}>
-                                {formErrors.components}
-                            </Alert>
-                        )}
-
-                        {loadingBackflush && (
-                            <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-                                <CircularProgress size={22} />
-                            </Box>
-                        )}
-
-                        {!loadingBackflush && componentLines.length === 0 && (
-                            <p className="py-2 text-xs text-muted-foreground">
-                                Select a production order and enter a quantity to backflush the component
-                                requirement.
-                            </p>
-                        )}
-
-                        {!loadingBackflush && componentLines.length > 0 && (
-                            <TableContainer component={Paper}>
-                                <Table size="small" sx={DENSE_TABLE_SX}>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Component</TableCell>
-                                            <TableCell align="right">Standard</TableCell>
-                                            <TableCell align="right">On Hand</TableCell>
-                                            <TableCell align="right" sx={{ width: 96 }}>
-                                                Consumed
-                                            </TableCell>
-                                            <TableCell align="right" sx={{ width: 88 }}>
-                                                Scrap
-                                            </TableCell>
-                                            <TableCell sx={{ width: 160 }}>Scrap Reason</TableCell>
-                                            <TableCell align="right">Variance</TableCell>
-                                            <TableCell align="right">Rate</TableCell>
-                                            <TableCell align="right">Amount</TableCell>
-                                            <TableCell>Serials</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {componentLines.map((line, index) => {
-                                            const consumed = parseInt(line.consumed_quantity, 10) || 0;
-                                            const scrap = parseInt(line.scrap_quantity, 10) || 0;
-                                            const issued = consumed + scrap;
-                                            const variance = round(issued - toNumber(line.standard_quantity), 4);
-                                            const serialCount = (line.serials || []).length;
-                                            const serialComplete = serialCount === issued && issued > 0;
-                                            return (
-                                                <Fragment key={line.component_product_id}>
-                                                    <TableRow
-                                                        sx={lineErrors[index] ? { bgcolor: "error.light" } : undefined}
-                                                    >
-                                                        <TableCell>
-                                                            {line.product_name}
-                                                            {line.serial_required && (
-                                                                <Chip
-                                                                    label="Serial"
-                                                                    size="small"
-                                                                    color="primary"
-                                                                    sx={{ ml: 0.75, height: 18 }}
-                                                                />
-                                                            )}
-                                                            {line.is_optional && (
-                                                                <Chip
-                                                                    label="Optional"
-                                                                    size="small"
-                                                                    sx={{ ml: 0.75, height: 18 }}
-                                                                />
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell align="right">{line.standard_quantity}</TableCell>
-                                                        <TableCell align="right">{line.quantity_on_hand}</TableCell>
-                                                        <TableCell align="right">
-                                                            <TextField
-                                                                size="small"
-                                                                type="number"
-                                                                value={line.consumed_quantity}
-                                                                onChange={(e) =>
-                                                                    updateLine(index, { consumed_quantity: e.target.value })
-                                                                }
-                                                                inputProps={{ min: 0, style: { textAlign: "right", padding: "4px 6px", fontSize: 12 } }}
-                                                                sx={{ width: 80 }}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            <TextField
-                                                                size="small"
-                                                                type="number"
-                                                                value={line.scrap_quantity}
-                                                                onChange={(e) =>
-                                                                    updateLine(index, { scrap_quantity: e.target.value })
-                                                                }
-                                                                inputProps={{ min: 0, style: { textAlign: "right", padding: "4px 6px", fontSize: 12 } }}
-                                                                sx={{ width: 72 }}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <TextField
-                                                                size="small"
-                                                                fullWidth
-                                                                placeholder={scrap > 0 ? "Required" : "-"}
-                                                                value={line.scrap_reason}
-                                                                onChange={(e) =>
-                                                                    updateLine(index, { scrap_reason: e.target.value })
-                                                                }
-                                                                disabled={scrap <= 0}
-                                                                inputProps={{ style: { padding: "4px 6px", fontSize: 12 } }}
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell align="right">
-                                                            <span
-                                                                className={
-                                                                    variance > 0
-                                                                        ? "font-semibold text-destructive"
-                                                                        : variance < 0
-                                                                            ? "font-semibold text-green-700"
-                                                                            : undefined
-                                                                }
-                                                            >
-                                                                {variance}
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell align="right">{toNumber(line.rate).toFixed(2)}</TableCell>
-                                                        <TableCell align="right">
-                                                            {round(issued * toNumber(line.rate), 2).toFixed(2)}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {line.serial_required ? (
-                                                                <Button
-                                                                    type="button"
-                                                                    size="sm"
-                                                                    variant={serialComplete ? "outline" : "default"}
-                                                                    onClick={() => toggleSerialPanel(index)}
-                                                                    disabled={issued <= 0}
-                                                                    className="h-7 gap-1 px-2 text-xs"
-                                                                >
-                                                                    <QrCodeScannerIcon sx={{ fontSize: 16 }} />
-                                                                    {serialCount} / {issued}
-                                                                    {openSerialLine === index ? (
-                                                                        <ExpandLessIcon sx={{ fontSize: 16 }} />
-                                                                    ) : (
-                                                                        <ExpandMoreIcon sx={{ fontSize: 16 }} />
-                                                                    )}
-                                                                </Button>
-                                                            ) : (
-                                                                <span className="text-muted-foreground">-</span>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                    {lineErrors[index] && (
-                                                        <TableRow>
-                                                            <TableCell colSpan={10} sx={{ py: 0.25 }}>
-                                                                <FormHelperText error>{lineErrors[index]}</FormHelperText>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
-                                                    <TableRow>
-                                                        <TableCell colSpan={10} sx={{ p: 0, border: 0 }}>
-                                                            <Collapse in={openSerialLine === index} timeout="auto" unmountOnExit>
-                                                                <Box sx={{ p: 1, bgcolor: "action.hover" }}>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        className="mb-2 flex w-full min-h-[38px] touch-manipulation items-center justify-center gap-1.5"
-                                                                        onClick={() => setScannerOpen(true)}
-                                                                    >
-                                                                        <QrCodeScannerIcon sx={{ fontSize: 20 }} />
-                                                                        Scan Barcode / QR Code
-                                                                    </Button>
-                                                                    <BarcodeScanner
-                                                                        open={scannerOpen}
-                                                                        hint={`Scanning ${line.product_name}`}
-                                                                        onScan={(value) => {
-                                                                            const firstEmpty = serialSlots.findIndex(
-                                                                                (v) => !(v || "").trim()
-                                                                            );
-                                                                            const idx = firstEmpty !== -1 ? firstEmpty : 0;
-                                                                            if (value?.trim()) handleSlotBulkOrSingle(idx, value);
-                                                                            setScannerOpen(false);
-                                                                        }}
-                                                                        onClose={() => setScannerOpen(false)}
-                                                                    />
-                                                                    <TextField
-                                                                        inputRef={gunScanRef}
-                                                                        size="small"
-                                                                        fullWidth
-                                                                        label="Scan with gun"
-                                                                        placeholder="Scanner gun types here, then Enter"
-                                                                        value={gunScanValue}
-                                                                        onChange={(e) => setGunScanValue(e.target.value)}
-                                                                        onKeyDown={handleGunScanKeyDown}
-                                                                        variant="outlined"
-                                                                        sx={{ mb: 1 }}
-                                                                        helperText="Point scanner here; it will type and press Enter."
-                                                                    />
-                                                                    <Divider sx={{ mb: 1 }}>
-                                                                        <Typography variant="caption" color="text.secondary">
-                                                                            or type manually
-                                                                        </Typography>
-                                                                    </Divider>
-                                                                    {serialSlotError && (
-                                                                        <Alert
-                                                                            severity="error"
-                                                                            sx={{ mb: 1 }}
-                                                                            onClose={() => setSerialSlotError("")}
-                                                                        >
-                                                                            {serialSlotError}
-                                                                        </Alert>
-                                                                    )}
-                                                                    <Box
-                                                                        sx={{
-                                                                            display: "grid",
-                                                                            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr 1fr" },
-                                                                            gap: 1,
-                                                                            mb: 1,
-                                                                        }}
-                                                                    >
-                                                                        {serialSlots.map((value, slotIdx) => (
-                                                                            <TextField
-                                                                                key={slotIdx}
-                                                                                size="small"
-                                                                                fullWidth
-                                                                                label={`Serial ${slotIdx + 1} of ${serialSlots.length}`}
-                                                                                value={value}
-                                                                                onChange={(e) =>
-                                                                                    handleSlotBulkOrSingle(slotIdx, e.target.value)
-                                                                                }
-                                                                                onKeyDown={(e) => handleSlotKeyDown(slotIdx, e)}
-                                                                                inputRef={(el) => {
-                                                                                    serialInputRefs.current[slotIdx] = el;
-                                                                                }}
-                                                                                variant="outlined"
-                                                                                autoComplete="off"
-                                                                                InputProps={{
-                                                                                    endAdornment: value?.trim() ? (
-                                                                                        <IconButton
-                                                                                            size="small"
-                                                                                            tabIndex={-1}
-                                                                                            onClick={() => handleSlotChange(slotIdx, "")}
-                                                                                        >
-                                                                                            <ClearIcon fontSize="small" />
-                                                                                        </IconButton>
-                                                                                    ) : null,
-                                                                                }}
-                                                                            />
-                                                                        ))}
-                                                                    </Box>
-                                                                    <Box sx={{ display: "flex", gap: 1 }}>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            className="flex-1 min-h-[38px]"
-                                                                            onClick={() => toggleSerialPanel(index)}
-                                                                            disabled={serialValidating}
-                                                                        >
-                                                                            Cancel
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="sm"
-                                                                            className="flex-1 min-h-[38px]"
-                                                                            onClick={handleSerialPanelDone}
-                                                                            disabled={serialValidating}
-                                                                        >
-                                                                            {serialValidating ? "Validating…" : "Done"}
-                                                                        </Button>
-                                                                    </Box>
-                                                                </Box>
-                                                            </Collapse>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </Fragment>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        )}
-                    </FormSection>
-
-                    {isSerializedFg && outputQuantity > 0 && (
-                        <FormSection title="Finished Good Serial Numbers" className="mt-1.5">
-                            <Box
-                                sx={{
-                                    display: "grid",
-                                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                                    gap: 1,
-                                }}
-                            >
-                                {fgSerials.map((value, index) => (
-                                    <TextField
-                                        key={index}
-                                        size="small"
-                                        fullWidth
-                                        label={`FG Serial ${index + 1} (${index < goodQty ? "GOOD" : "REJECTED"})`}
-                                        value={value}
-                                        onChange={(e) => {
-                                            const nextValue = e.target.value;
-                                            setFgSerials((prev) => {
-                                                const next = [...prev];
-                                                next[index] = nextValue;
-                                                return next;
-                                            });
-                                            setFormErrors((prev) => {
-                                                const next = { ...prev };
-                                                delete next.fg_serials;
-                                                return next;
-                                            });
-                                        }}
-                                        variant="outlined"
-                                        autoComplete="off"
-                                        error={!!formErrors.fg_serials}
-                                        helperText={index === 0 ? formErrors.fg_serials : ""}
-                                    />
-                                ))}
-                            </Box>
-                        </FormSection>
-                    )}
-
-                    {backflush?.operations?.length > 0 && (
-                        <FormSection title="Operation Costs (from BOM standard)" className="mt-1.5">
-                            <TableContainer component={Paper}>
-                                <Table size="small" sx={DENSE_TABLE_SX}>
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell>Seq</TableCell>
-                                            <TableCell>Operation</TableCell>
-                                            <TableCell>Cost Type</TableCell>
-                                            <TableCell align="right">Std Minutes</TableCell>
-                                            <TableCell align="right">Rate / Hour</TableCell>
-                                            <TableCell align="right">Cost for this Booking</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {backflush.operations.map((op) => (
-                                            <TableRow key={`${op.sequence_no}-${op.operation_name}`}>
-                                                <TableCell>{op.sequence_no}</TableCell>
-                                                <TableCell>{op.operation_name}</TableCell>
-                                                <TableCell>{op.cost_type}</TableCell>
-                                                <TableCell align="right">{op.std_time_minutes}</TableCell>
-                                                <TableCell align="right">{toNumber(op.rate_per_hour).toFixed(2)}</TableCell>
-                                                <TableCell align="right">{toNumber(op.cost).toFixed(2)}</TableCell>
-                                            </TableRow>
+                            {isSerializedFg && outputQuantity > 0 && (
+                                <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-md shadow-md overflow-hidden flex flex-col transition-all duration-300 hover:shadow-lg">
+                                    <div className="border-b border-border/50 bg-muted/10 px-4 py-3 flex justify-between items-center">
+                                        <div>
+                                            <h3 className="text-sm font-bold text-foreground">Finished Good Serials</h3>
+                                            <p className="text-[10px] text-muted-foreground mt-0.5">Required for output units.</p>
+                                        </div>
+                                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                                            {fgSerials.length}
+                                        </span>
+                                    </div>
+                                    <div className="p-4 flex flex-col gap-3.5">
+                                        {fgSerials.map((value, index) => (
+                                            <Input
+                                                key={index}
+                                                label={`FG Serial ${index + 1} (${index < goodQty ? "GOOD" : "REJECTED"})`}
+                                                value={value}
+                                                onChange={(e) => {
+                                                    const nextValue = e.target.value;
+                                                    setFgSerials((prev) => {
+                                                        const next = [...prev];
+                                                        next[index] = nextValue;
+                                                        return next;
+                                                    });
+                                                    setFormErrors((prev) => {
+                                                        const next = { ...prev };
+                                                        delete next.fg_serials;
+                                                        return next;
+                                                    });
+                                                }}
+                                                autoComplete="off"
+                                                error={!!formErrors.fg_serials}
+                                                helperText={index === 0 ? formErrors.fg_serials : ""}
+                                                className="font-mono text-sm bg-background font-semibold h-8"
+                                            />
                                         ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        </FormSection>
-                    )}
+                                    </div>
+                                </div>
+                            )}
 
-                    {componentLines.length > 0 && (
-                        <div className="mt-1.5 grid grid-cols-2 gap-1.5 rounded-md border border-border bg-muted/40 p-1.5 text-xs sm:grid-cols-4">
-                            <div>
-                                <span className="block text-muted-foreground">Material Cost</span>
-                                <span className="font-semibold">{costPreview.material.toFixed(2)}</span>
+                            {/* ACTIONS WITH COST SUMMARY */}
+                            <div className="rounded-xl border border-border/60 bg-card/80 backdrop-blur-md shadow-lg p-3.5 flex flex-col gap-3 mt-auto relative overflow-hidden group">
+                                <div className="absolute -inset-1 bg-gradient-to-r from-primary/5 via-transparent to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500 blur-lg pointer-events-none"></div>
+                                {componentLines.length > 0 && (
+                                    <div className="flex justify-between items-center px-1 pb-2 border-b border-border/40 relative">
+                                        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">FG Unit Cost</span>
+                                        <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/70 drop-shadow-sm">
+                                            ₹{costPreview.unit.toFixed(2)}
+                                        </span>
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-muted-foreground leading-snug relative">
+                                    Submitting posts inventory immediately. This cannot be undone except by cancelling the booking from the register.
+                                </p>
+                                <div className="flex gap-2.5 relative">
+                                    {onCancel && (
+                                        <Button type="button" variant="outline" onClick={onCancel} disabled={loading} className="w-1/3 h-10 font-medium hover:bg-muted/50 transition-colors">
+                                            Cancel
+                                        </Button>
+                                    )}
+                                    <LoadingButton
+                                        type="submit"
+                                        form="production-booking-form"
+                                        loading={loading}
+                                        className={cn("h-10 text-sm font-bold tracking-wide shadow-md hover:shadow-lg hover:scale-[1.01] transition-all duration-300 bg-gradient-to-r from-primary to-primary/90", onCancel ? "w-2/3" : "w-full")}
+                                    >
+                                        {AP.book.action}
+                                    </LoadingButton>
+                                </div>
                             </div>
-                            <div>
-                                <span className="block text-muted-foreground">Operation Cost</span>
-                                <span className="font-semibold">{costPreview.operation.toFixed(2)}</span>
-                            </div>
-                            <div>
-                                <span className="block text-muted-foreground">Total Cost</span>
-                                <span className="font-semibold">{costPreview.total.toFixed(2)}</span>
-                            </div>
-                            <div>
-                                <span className="block text-muted-foreground">FG Unit Cost</span>
-                                <span className="font-semibold text-primary">{costPreview.unit.toFixed(2)}</span>
-                            </div>
+
                         </div>
-                    )}
-                </Box>
+                    </div>
+                </div>
             </form>
-
-            <FormActions>
-                {onCancel && (
-                    <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
-                        Cancel
-                    </Button>
-                )}
-                <LoadingButton
-                    type="submit"
-                    form="production-booking-form"
-                    loading={loading}
-                    className="min-w-[140px]"
-                >
-                    {isEdit ? "Update Draft" : "Save as Draft"}
-                </LoadingButton>
-            </FormActions>
         </FormContainer>
     );
 }
