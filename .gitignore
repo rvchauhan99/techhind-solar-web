@@ -60,3 +60,11 @@ docs/platform-handbook/scripts/demo-ids.json
 docs/platform-handbook/scripts/storageState.json
 docs/platform-handbook/assets/screenshots/pdfs/
 docs/platform-handbook/scripts/coverage-report.json
+
+# production module customer pack (generated)
+docs/platform-handbook/production-module-pack/output/*.pdf
+docs/platform-handbook/production-module-pack/output/*.zip
+docs/platform-handbook/production-module-pack/output/combined-production-module.md
+docs/platform-handbook/production-module-pack/output/production-guide-preview.html
+docs/platform-handbook/production-module-pack/markdown/staging/*.md
+!docs/platform-handbook/production-module-pack/markdown/staging/.gitkeep

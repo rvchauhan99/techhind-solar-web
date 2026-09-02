@@ -40,6 +40,14 @@ Digital warranty card for installed systems, linked to serial numbers and instal
 
 Material dispatch documents for warehouse-to-site delivery, with product quantities and serial numbers where applicable.
 
+## Work Order PDF
+
+Branded production summary for an approved work order: finished good, planned/produced quantities, component snapshot, BOM operations, booking register, and posted cost roll-up. Generated from the work order detail page for office and shop-floor reference.
+
+## Work Order Picklist PDF
+
+Warehouse picking sheet listing all components on a work order with required, issued, outstanding, on-hand, and shortage quantities. Highlights lines with stock shortage. Used before posting a production/assembly booking.
+
 ## Why It Matters for Your Business
 
 | Document | Business use |
@@ -50,9 +58,11 @@ Material dispatch documents for warehouse-to-site delivery, with product quantit
 | Payment receipt | Collection proof and customer records |
 | Warranty card | After-sales confidence and brand credibility |
 | Delivery challan | Logistics proof and inventory traceability |
+| Work Order PDF | Production planning and shop-floor reference |
+| Work Order Picklist | Component picking and shortage visibility |
 
 All documents use your **company profile** settings — logo, address, bank details, and terms configured once in administration.
 
 ---
 
-**Related:** [Quotations](modules/07-quotations.md) · [Order Lifecycle](modules/08-order-lifecycle.md) · [B2B Trading](modules/12-b2b-trading.md)
+**Related:** [Quotations](07-quotations.md) · [Order Lifecycle](08-order-lifecycle.md) · [B2B Trading](12-b2b-trading.md) · [Production / Assembly](18-production-assembly.md)
