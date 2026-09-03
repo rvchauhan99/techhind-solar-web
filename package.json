@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "docs:screenshots": "node docs/platform-handbook/scripts/discover-demo-ids.mjs && node docs/platform-handbook/scripts/capture-screenshots.mjs",
-    "docs:pdf": "bash docs/platform-handbook/scripts/build-pdf.sh"
+    "docs:pdf": "bash docs/platform-handbook/scripts/build-pdf.sh",
+    "docs:production-pack": "bash docs/platform-handbook/production-module-pack/scripts/build-production-pack.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",

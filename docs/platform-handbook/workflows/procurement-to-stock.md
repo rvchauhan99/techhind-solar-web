@@ -50,6 +50,11 @@ Supplier Setup → Purchase Order → PO Approval → Goods Receipt (PO Inward)
 - **Actions:** Reserved stock allocated to confirmed orders or B2B shipments
 - **Output:** Stock committed to customer demand
 
+### Stage 8: Production / Assembly (optional)
+- **Modules:** BOM Master, Work Orders, Production/Assembly Booking
+- **Actions:** Components from stock used to assemble finished goods at a production warehouse; FG added back to inventory
+- **Output:** Manufactured finished goods available for project orders, B2B shipments, or further dispatch
+
 ## Inventory Traceability
 
 Serialized products (panels, inverters) are tracked from **PO Inward** through **Installation** or **B2B Shipment** using the Serial Master configuration and Serialized Inventory Report.
@@ -66,5 +71,7 @@ Serialized products (panels, inverters) are tracked from **PO Inward** through *
 ## Related Chapters
 
 - [Procurement & Inventory](../modules/11-procurement-inventory.md)
+- [Production / Assembly](../modules/18-production-assembly.md)
 - [Order Lifecycle](../modules/08-order-lifecycle.md)
 - [B2B Trading](../modules/12-b2b-trading.md)
+- [Workflow: BOM to Finished Good](bom-to-finished-good.md)

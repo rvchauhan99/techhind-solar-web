@@ -3,7 +3,12 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
-import { getAllowedRoutes, isPathAllowedByRoutes, normalizePath } from "@/lib/permissionUtils";
+import {
+  findBestMatchingRoute,
+  getAllowedRoutes,
+  isPathAllowedByRoutes,
+  normalizePath,
+} from "@/lib/permissionUtils";
 
 /** Set to true to skip frontend module check (only backend will enforce). Revert to false when done testing. */
 const SKIP_FRONTEND_MODULE_CHECK = false;
@@ -62,29 +67,20 @@ export default function ProtectedRoute({ children }) {
 
       (async () => {
         try {
-          const normalizedPathname = normalizePath(pathname);
-          // Resolve permissions for the single module whose route matches the current pathname.
-          // Example: /inquiry/add or /inquiry/123 use the /inquiry module; we never fetch
-          // permissions for unrelated modules here to keep checks scoped to the opened page.
-          const matchPredicate = (m) => {
-            if (!m?.route) return false;
-            const normalizedRoute = normalizePath(m.route);
-            if (!normalizedRoute) return false;
-            return normalizedPathname === normalizedRoute || normalizedPathname.startsWith(normalizedRoute + "/");
-          };
+          const bestRoute = findBestMatchingRoute(pathname, getAllowedRoutes(modules));
 
-          const findModuleRecursive = (list) => {
+          const findModuleByRoute = (list, targetRoute) => {
             for (const mod of list || []) {
-              if (matchPredicate(mod)) return mod;
+              if (mod?.route && normalizePath(mod.route) === targetRoute) return mod;
               if (mod.submodules?.length) {
-                const found = findModuleRecursive(mod.submodules);
+                const found = findModuleByRoute(mod.submodules, targetRoute);
                 if (found) return found;
               }
             }
             return null;
           };
 
-          const moduleMatch = findModuleRecursive(modules);
+          const moduleMatch = bestRoute ? findModuleByRoute(modules, bestRoute) : null;
           if (moduleMatch?.id) {
             setCurrentModuleId(moduleMatch.id);
             await fetchPermissionForModule(moduleMatch.id, true);
