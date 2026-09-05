@@ -26,6 +26,7 @@ import b2bLeadService from "@/services/b2bLeadService";
 import moment from "moment";
 import { formatDate } from "@/utils/dataTableUtils";
 import AddCallDetailsForm from "../components/AddCallDetailsForm";
+import ConvertLeadPanel from "../components/ConvertLeadPanel";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -33,7 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/common/Loader";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import Select, { MenuItem } from "@/components/common/Select";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 
@@ -106,6 +107,11 @@ function LeadHeroBanner({ lead, onEdit, onConvert, onOpenTimeline }) {
               Client: {lead.converted_client_code}
             </span>
           )}
+          {(lead.converted_user_name || lead.converted_user_id) && (
+            <span className="inline-flex items-center gap-1 bg-teal-100 text-teal-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-teal-200">
+              Channel Partner: {lead.converted_user_name || `#${lead.converted_user_id}`}
+            </span>
+          )}
         </div>
 
         <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground leading-tight flex items-center gap-2">
@@ -155,7 +161,7 @@ function LeadHeroBanner({ lead, onEdit, onConvert, onOpenTimeline }) {
         {!isConverted && (
           <Button size="sm" onClick={onConvert}>
             <IconTransform className="size-4 mr-1.5" />
-            Convert to Client
+            Convert
           </Button>
         )}
       </div>
@@ -258,6 +264,15 @@ function LeadInfoCard({ lead }) {
           )}
           <InfoTile label="Assigned To" value={lead.assigned_to_name || "Unassigned"} />
           <InfoTile label="Assigned By" value={lead.assigned_by_name} />
+          {lead.converted_client_code && (
+            <InfoTile label="Converted Client" value={lead.converted_client_code} />
+          )}
+          {(lead.converted_user_name || lead.converted_user_email) && (
+            <InfoTile
+              label="Converted Channel Partner"
+              value={[lead.converted_user_name, lead.converted_user_email].filter(Boolean).join(" · ")}
+            />
+          )}
         </div>
 
         {/* Requirements */}
@@ -628,6 +643,8 @@ function B2bLeadViewContent() {
   const [error, setError] = useState(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   const load = async () => {
     try {
@@ -658,15 +675,31 @@ function B2bLeadViewContent() {
     await load();
   };
 
-  const handleConvert = async () => {
-    if (!window.confirm("Convert this lead to a B2B Client?")) return;
+  const handleConvert = () => {
+    setConvertOpen(true);
+  };
+
+  const handleConfirmConvert = async (convertPayload = { convert_as: "client" }) => {
     try {
-      const res = await b2bLeadService.convertB2bLead(leadId);
+      setConverting(true);
+      const res = await b2bLeadService.convertB2bLead(leadId, convertPayload);
       const result = res?.result ?? res;
-      toast.success(`Converted to client ${result.client_code || result.client_id}`);
+      if (result?.convert_target === "channel_partner" || result?.user_id) {
+        const label = result?.user_name || result?.user_email || result?.user_id;
+        toast.success(
+          label
+            ? `Converted to Channel Partner ${label}`
+            : "Converted to Channel Partner"
+        );
+      } else {
+        toast.success(`Converted to client ${result.client_code || result.client_id}`);
+      }
+      setConvertOpen(false);
       await load();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Conversion failed");
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -760,6 +793,19 @@ function B2bLeadViewContent() {
         open={timelineOpen}
         onClose={() => setTimelineOpen(false)}
       />
+      <Dialog open={convertOpen} onOpenChange={(open) => !converting && setConvertOpen(open)}>
+        <DialogContent className={DIALOG_FORM_MEDIUM} showCloseButton={!converting}>
+          <DialogHeader>
+            <DialogTitle>Convert B2B Lead</DialogTitle>
+          </DialogHeader>
+          <ConvertLeadPanel
+            lead={lead}
+            saving={converting}
+            showBack={false}
+            onConfirm={handleConfirmConvert}
+          />
+        </DialogContent>
+      </Dialog>
     </AddEditPageShell>
   );
 }

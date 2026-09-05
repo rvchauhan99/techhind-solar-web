@@ -9,10 +9,10 @@ import FormContainer from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import LoadingButton from "@/components/common/LoadingButton";
-import { Button } from "@/components/ui/button";
 import b2bLeadService from "@/services/b2bLeadService";
 import { toastError, toastSuccess } from "@/utils/toast";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import ConvertLeadPanel from "./ConvertLeadPanel";
 
 const CHANNEL_OPTIONS = [
   { value: "phone_call", label: "Call" },
@@ -79,7 +79,9 @@ export default function AddCallDetailsForm({
   }, [initialState, leadId, forcedStatus, forcedOutcome]);
 
   const isAlreadyConverted =
-    lead?.status === "converted" || !!lead?.converted_client_id;
+    lead?.status === "converted" ||
+    !!lead?.converted_client_id ||
+    !!lead?.converted_user_id;
 
   const buildPayload = useCallback(
     (overrides = {}) => {
@@ -160,36 +162,48 @@ export default function AddCallDetailsForm({
     [leadId, formData, forcedOutcome, onSaved, lead, buildPayload]
   );
 
-  const handleConfirmConvert = useCallback(async () => {
-    if (!leadId) return;
-    try {
-      setSaving(true);
-      await b2bLeadService.addB2bLeadFollowUp(leadId, buildPayload());
-      const res = await b2bLeadService.convertB2bLead(leadId);
-      const client = res?.result ?? res?.data ?? res;
-      const clientCode = client?.client_code || client?.code || "";
-      toastSuccess(
-        clientCode
-          ? `B2B Lead converted successfully (${clientCode})`
-          : "B2B Lead converted successfully"
-      );
-      setConvertConfirmStep(false);
-      setFormData((prev) => ({
-        ...prev,
-        ...INITIAL_FORM,
-        contacted_at: new Date().toISOString(),
-        contact_channel: prev.contact_channel,
-      }));
-      onConverted?.(client);
-      onSaved?.();
-    } catch (err) {
-      const msg =
-        err?.response?.data?.message || err?.message || "Failed to convert lead";
-      toastError(msg);
-    } finally {
-      setSaving(false);
-    }
-  }, [leadId, buildPayload, onConverted, onSaved]);
+  const handleConfirmConvert = useCallback(
+    async (convertPayload = { convert_as: "client" }) => {
+      if (!leadId) return;
+      try {
+        setSaving(true);
+        await b2bLeadService.addB2bLeadFollowUp(leadId, buildPayload());
+        const res = await b2bLeadService.convertB2bLead(leadId, convertPayload);
+        const result = res?.result ?? res?.data ?? res;
+        if (result?.convert_target === "channel_partner" || result?.user_id) {
+          const label = result?.user_name || result?.user_email || result?.user_id;
+          toastSuccess(
+            label
+              ? `B2B Lead converted to Channel Partner (${label})`
+              : "B2B Lead converted to Channel Partner"
+          );
+        } else {
+          const clientCode = result?.client_code || result?.code || "";
+          toastSuccess(
+            clientCode
+              ? `B2B Lead converted successfully (${clientCode})`
+              : "B2B Lead converted successfully"
+          );
+        }
+        setConvertConfirmStep(false);
+        setFormData((prev) => ({
+          ...prev,
+          ...INITIAL_FORM,
+          contacted_at: new Date().toISOString(),
+          contact_channel: prev.contact_channel,
+        }));
+        onConverted?.(result);
+        onSaved?.();
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message || err?.message || "Failed to convert lead";
+        toastError(msg);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [leadId, buildPayload, onConverted, onSaved]
+  );
 
   return (
     <FormContainer className="mx-auto ml-2 pr-1 max-w-full">
@@ -290,61 +304,12 @@ export default function AddCallDetailsForm({
           </FormSection>
         </form>
       ) : (
-        <FormSection title="Convert B2B lead?">
-          <div className="space-y-3 py-1 text-sm">
-            <p className="text-muted-foreground">
-              This will log the call outcome and convert this lead to a B2B client.
-              The lead will be marked as <span className="font-semibold">Converted</span>{" "}
-              and hidden from day-to-day lead views unless you filter by converted status.
-            </p>
-            {lead && (
-              <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs space-y-1.5">
-                <div className="flex gap-2">
-                  <span className="w-20 text-muted-foreground">Lead</span>
-                  <span className="font-medium">
-                    {lead.company_name || "-"}{" "}
-                    {lead.lead_number ? `(#${lead.lead_number})` : ""}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-20 text-muted-foreground">Contact</span>
-                  <span>{lead.contact_person || "-"}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-20 text-muted-foreground">Mobile</span>
-                  <span>{lead.mobile_number || "-"}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-20 text-muted-foreground">City</span>
-                  <span>{lead.city || "N/A"}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-20 text-muted-foreground">GSTIN</span>
-                  <span>{lead.gstin || "N/A"}</span>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              onClick={() => setConvertConfirmStep(false)}
-              disabled={saving}
-            >
-              Back
-            </Button>
-            <LoadingButton
-              size="sm"
-              type="button"
-              onClick={handleConfirmConvert}
-              loading={saving}
-            >
-              Convert to Client
-            </LoadingButton>
-          </div>
-        </FormSection>
+        <ConvertLeadPanel
+          lead={lead}
+          saving={saving}
+          onBack={() => setConvertConfirmStep(false)}
+          onConfirm={handleConfirmConvert}
+        />
       )}
     </FormContainer>
   );
