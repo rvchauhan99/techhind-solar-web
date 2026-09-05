@@ -33,6 +33,7 @@ import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import SubstituteProductPicker from "@/components/common/SubstituteProductPicker";
 
 /** Number of days after planner completion during which the planner remains editable. */
 const PLANNER_EDITABLE_DAYS = 100;
@@ -97,6 +98,147 @@ function mergeRowAdjustmentsIntoSurvivor(surv, dup) {
     };
     return { merged, error: null };
 }
+
+const normalizeIdList = (raw) => {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set();
+    const ids = [];
+    for (const value of raw) {
+        const id = Number(value);
+        if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+    }
+    return ids;
+};
+
+const getLineOriginalProductId = (line) => {
+    const original = Number(line?.original_product_id);
+    if (Number.isInteger(original) && original > 0) return original;
+    const current = Number(line?.product_id);
+    return Number.isInteger(current) && current > 0 ? current : null;
+};
+
+/**
+ * Build structured picker options for original + substitutes on a BOM plan line.
+ * Closed-field display uses product_name only; Original/Alt + avail are picker-only.
+ */
+const buildSubstituteSelectOptions = (line) => {
+    const originalId = getLineOriginalProductId(line);
+    if (!originalId) return [];
+
+    const byId = new Map();
+    const pushOption = (raw, { isOriginal = false } = {}) => {
+        if (!raw) return;
+        const id = Number(raw.id ?? raw.product_id);
+        if (!Number.isInteger(id) || id <= 0 || byId.has(id)) return;
+        const name = raw.product_name || raw.name || `Product #${id}`;
+        const typeName = raw.product_type_name || raw.productType?.name || "";
+        const makeName = raw.product_make_name || raw.productMake?.name || "";
+        const avail =
+            raw.available_qty != null && Number.isFinite(Number(raw.available_qty))
+                ? Number(raw.available_qty)
+                : null;
+        byId.set(id, {
+            id,
+            product_name: name,
+            product_type_id: raw.product_type_id ?? raw.productType?.id ?? null,
+            product_type_name: typeName,
+            product_make_id: raw.product_make_id ?? raw.productMake?.id ?? null,
+            product_make_name: makeName,
+            measurement_unit_id: raw.measurement_unit_id ?? null,
+            measurement_unit_name:
+                raw.measurement_unit_name || raw.measurementUnit?.unit || "",
+            serial_required: !!raw.serial_required,
+            tracking_type: raw.tracking_type || null,
+            gst_percent: raw.gst_percent,
+            capacity: raw.capacity,
+            available_qty: avail,
+            is_original: isOriginal,
+        });
+    };
+
+    const p = line.product_snapshot || line;
+    const currentId = Number(line.product_id);
+    const originalFromApi = line.original_product;
+
+    if (currentId === originalId) {
+        pushOption(
+            {
+                ...(typeof originalFromApi === "object" && originalFromApi ? originalFromApi : {}),
+                ...p,
+                id: originalId,
+            },
+            { isOriginal: true }
+        );
+    } else {
+        pushOption(
+            originalFromApi ||
+                (line.substitute_products || []).find((s) => Number(s.id) === originalId) || {
+                    id: originalId,
+                    product_name: `Product #${originalId}`,
+                },
+            { isOriginal: true }
+        );
+        pushOption({ ...p, id: currentId });
+    }
+
+    (line.substitute_products || []).forEach((s) => pushOption(s));
+
+    normalizeIdList(line.substitute_product_ids).forEach((id) => {
+        if (!byId.has(id)) pushOption({ id, product_name: `Product #${id}` });
+    });
+
+    const subIds = normalizeIdList(line.substitute_product_ids);
+    const ordered = [];
+    if (byId.has(originalId)) ordered.push(byId.get(originalId));
+    subIds.forEach((id) => {
+        if (id !== originalId && byId.has(id)) ordered.push(byId.get(id));
+    });
+    byId.forEach((opt, id) => {
+        if (id !== originalId && !subIds.includes(id)) ordered.push(opt);
+    });
+    return ordered;
+};
+
+const applyProductFieldsToBomLine = (line, selected) => {
+    if (!selected?.id) return line;
+    const productName = selected.product_name || "";
+    const typeName = selected.product_type_name || "";
+    const makeName = selected.product_make_name || "";
+    const measurementUnitName = selected.measurement_unit_name || "";
+    const serialRequired = !!selected.serial_required;
+    return {
+        ...line,
+        product_id: Number(selected.id),
+        product_type_id: selected.product_type_id ?? line.product_type_id ?? null,
+        product_make_id: selected.product_make_id ?? line.product_make_id ?? null,
+        measurement_unit_id: selected.measurement_unit_id ?? line.measurement_unit_id ?? null,
+        product_name: productName,
+        product_type_name: typeName,
+        product_make_name: makeName,
+        measurement_unit_name: measurementUnitName,
+        serial_required: serialRequired,
+        tracking_type: selected.tracking_type ?? line.tracking_type,
+        gst_percent: selected.gst_percent ?? line.gst_percent,
+        capacity: selected.capacity ?? line.capacity,
+        available_qty: selected.available_qty ?? null,
+        product_snapshot: {
+            ...(line.product_snapshot || {}),
+            product_name: productName,
+            product_type_name: typeName,
+            product_make_name: makeName,
+            measurement_unit_name: measurementUnitName,
+            serial_required: serialRequired,
+            product_type_id: selected.product_type_id ?? null,
+            product_make_id: selected.product_make_id ?? null,
+            measurement_unit_id: selected.measurement_unit_id ?? null,
+            tracking_type: selected.tracking_type ?? null,
+            gst_percent: selected.gst_percent,
+            capacity: selected.capacity,
+        },
+    };
+};
 
 /**
  * Merge duplicate BOM plan rows by product_id (matches API mergeBomSnapshotLinesByProductId).
@@ -439,14 +581,22 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         // local UI state; we will persist only planned quantities back to the API.
         if (Array.isArray(orderData.bom_snapshot)) {
             const qty = (n) => (n != null && !Number.isNaN(Number(n)) ? Number(n) : 0);
-            const nextPlan = orderData.bom_snapshot.map((line, index) => ({
-                    // retain the original line for reference
+            const nextPlan = orderData.bom_snapshot.map((line, index) => {
+                const originalProductId = getLineOriginalProductId(line);
+                const substituteIds = normalizeIdList(line.substitute_product_ids).filter(
+                    (id) => id !== originalProductId
+                );
+                return {
                     ...line,
-                    // stable key for React rendering
-                    __rowKey: `${orderData.id}-${index}-${line.product_id ?? "unknown"}`,
-                    // mark as part of the current planning scope
+                    original_product_id: originalProductId,
+                    original_product: line.original_product || null,
+                    substitute_product_ids: substituteIds,
+                    substitute_products: Array.isArray(line.substitute_products)
+                        ? line.substitute_products
+                        : [],
+                    // stable across substitute swaps (do not include current product_id)
+                    __rowKey: `${orderData.id}-${index}-${originalProductId ?? line.product_id ?? "unknown"}`,
                     planned: true,
-                    // editable planned quantity (defaults from planned_qty or quantity)
                     planned_qty:
                         line.planned_qty != null && line.planned_qty !== ""
                             ? qty(line.planned_qty)
@@ -455,7 +605,8 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                         line.planned_qty != null && line.planned_qty !== ""
                             ? qty(line.planned_qty)
                             : qty(line.quantity),
-                }));
+                };
+            });
             setBomPlan(nextPlan);
             const nextAdjustmentByRow = {};
             nextPlan.forEach((line) => {
@@ -642,10 +793,19 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                     };
                     const baseQuantity = qty(rest.quantity, 0);
                     const plannedQty = qty(rest.planned_qty, baseQuantity);
+                    const originalProductId = getLineOriginalProductId(rest);
                     return {
                         ...rest,
                         quantity: baseQuantity || plannedQty,
                         planned_qty: plannedQty,
+                        original_product_id: originalProductId,
+                        original_product: rest.original_product || null,
+                        substitute_product_ids: normalizeIdList(rest.substitute_product_ids).filter(
+                            (id) => id !== originalProductId
+                        ),
+                        substitute_products: Array.isArray(rest.substitute_products)
+                            ? rest.substitute_products
+                            : [],
                         ...(planner_added && { planner_added: true }),
                     };
                 });
@@ -1078,6 +1238,48 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
         setAddBomOpen(false);
         setAddBomProduct(null);
         setAddBomQty(1);
+    };
+
+    const handleBomSubstituteChange = (rowKey, selected) => {
+        if (!selected?.id) return;
+        const selectedId = Number(selected.id);
+        const currentLine = (bomPlan || []).find((line) => line.__rowKey === rowKey);
+        if (!currentLine) return;
+        if (Number(currentLine.product_id) === selectedId) return;
+
+        const conflict = (bomPlan || []).some(
+            (line) => line.__rowKey !== rowKey && Number(line.product_id) === selectedId
+        );
+        if (conflict) {
+            toastError("That product is already on the plan — adjust qty on that line instead.");
+            return;
+        }
+
+        const originalId = getLineOriginalProductId(currentLine);
+        const allowed = new Set([
+            originalId,
+            ...normalizeIdList(currentLine.substitute_product_ids),
+        ]);
+        if (!allowed.has(selectedId)) {
+            toastError("Selected product is not an allowed substitute for this BOM line.");
+            return;
+        }
+
+        setBomPlan((prev) =>
+            prev.map((row) => {
+                if (row.__rowKey !== rowKey) return row;
+                return applyProductFieldsToBomLine(
+                    {
+                        ...row,
+                        original_product_id: originalId,
+                        original_product: row.original_product || null,
+                        substitute_product_ids: normalizeIdList(row.substitute_product_ids),
+                        substitute_products: row.substitute_products || [],
+                    },
+                    selected
+                );
+            })
+        );
     };
 
     const handleBomRemove = (rowKey) => {
@@ -1592,6 +1794,21 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
 
                                                 const isPlannerAdded = !!line.planner_added;
                                                 const canEditRow = hasPlannerElevatedAccess || isPlannerAdded;
+                                                const originalProductId = getLineOriginalProductId(line);
+                                                const substituteOptions = buildSubstituteSelectOptions(line);
+                                                const hasSubstituteChoices = substituteOptions.length > 1;
+                                                const isSubstituted =
+                                                    originalProductId != null &&
+                                                    Number(line.product_id) !== Number(originalProductId);
+                                                const canSwapSubstitute =
+                                                    hasSubstituteChoices &&
+                                                    !isPlannerLocked &&
+                                                    !isReadOnly &&
+                                                    !isBomEditingBlocked &&
+                                                    shippedQty === 0;
+                                                const selectedSubstitute =
+                                                    substituteOptions.find((o) => Number(o.id) === Number(line.product_id)) ||
+                                                    null;
 
                                                 return (
                                                     <tr
@@ -1610,7 +1827,31 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                 className="w-auto"
                                                             />
                                                         </td>
-                                                        <td className="p-2 align-middle">{productName}</td>
+                                                        <td className="p-2 align-middle min-w-[200px] overflow-visible">
+                                                            {canSwapSubstitute ? (
+                                                                <SubstituteProductPicker
+                                                                    options={substituteOptions}
+                                                                    value={selectedSubstitute}
+                                                                    displayName={productName}
+                                                                    isSubstituted={isSubstituted}
+                                                                    disabled={!canSwapSubstitute}
+                                                                    onChange={(newValue) =>
+                                                                        handleBomSubstituteChange(line.__rowKey, newValue)
+                                                                    }
+                                                                />
+                                                            ) : (
+                                                                <div className="space-y-0.5 min-w-[200px]">
+                                                                    <span className="text-xs" title={productName}>
+                                                                        {productName}
+                                                                    </span>
+                                                                    {isSubstituted && (
+                                                                        <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                                            Substituted
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </td>
                                                         <td className="p-2 align-middle">{typeName}</td>
                                                         <td className="p-2 align-middle">{makeName}</td>
                                                         <td className="p-2 text-right align-middle">
