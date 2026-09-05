@@ -7,6 +7,10 @@ export const getStatus = () =>
 export const connect = (payload) =>
   apiClient.post("/whatsapp-setup/connect", payload).then((r) => r.data)
 
+/** Dev/staging only — directly supply token + IDs without Embedded Signup */
+export const connectManual = (payload) =>
+  apiClient.post("/whatsapp-setup/connect-manual", payload).then((r) => r.data)
+
 export const disconnect = () =>
   apiClient.delete("/whatsapp-setup/disconnect").then((r) => r.data)
 
