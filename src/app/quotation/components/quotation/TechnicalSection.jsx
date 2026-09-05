@@ -9,6 +9,8 @@ import {
     computeProjectCapacityFromPanel,
     syncTotalFromCapacityAndRate,
 } from "./quotationCalculations";
+import PossibleSubstitutesHint from "./PossibleSubstitutesHint";
+import { getSubstitutesForProductId } from "./bomSubstituteUtils";
 
 const COMPACT_FORM_SPACING = 0.5;
 
@@ -58,6 +60,7 @@ export default function TechnicalSection({
     };
     const disabled = !!projectPriceDisabled;
     const disabledSx = disabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined;
+    const substitutesMap = formData?.bom_substitutes_by_product_id || {};
 
     const getMakeNameByProductId = (productId) => {
         const id = productId != null && productId !== "" ? Number(productId) : null;
@@ -118,6 +121,13 @@ export default function TechnicalSection({
                                     placeholder="Type to search..."
                                     disabled={disabled}
                                     sx={disabledSx}
+                                />
+                                <PossibleSubstitutesHint
+                                    substitutes={
+                                        item?.substitute_products?.length
+                                            ? item.substitute_products
+                                            : getSubstitutesForProductId(substitutesMap, productId)
+                                    }
                                 />
                             </Grid>
                             <Grid item size={{ xs: 12, md: 2 }}>
@@ -275,6 +285,9 @@ export default function TechnicalSection({
                             disabled={disabled}
                             sx={disabledSx}
                         />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.panel_product)}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input
@@ -385,6 +398,9 @@ export default function TechnicalSection({
                             disabled={disabled}
                             sx={disabledSx}
                         />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.inverter_product)}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input
@@ -457,6 +473,9 @@ export default function TechnicalSection({
                             placeholder="Type to search..."
                             disabled={disabled}
                             sx={disabledSx}
+                        />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.battery_product)}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -554,6 +573,9 @@ export default function TechnicalSection({
                             disabled={disabled}
                             sx={disabledSx}
                         />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.hybrid_inverter_product)}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input
@@ -625,6 +647,9 @@ export default function TechnicalSection({
                             disabled={disabled}
                             sx={disabledSx}
                         />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.acdb_product)}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
                         <Input
@@ -675,6 +700,9 @@ export default function TechnicalSection({
                             placeholder="Type to search..."
                             disabled={disabled}
                             sx={disabledSx}
+                        />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.dcdb_product)}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 4 }}>
@@ -803,6 +831,9 @@ export default function TechnicalSection({
                             disabled={disabled}
                             sx={disabledSx}
                         />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.earthing_product)}
+                        />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input
@@ -878,6 +909,9 @@ export default function TechnicalSection({
                             placeholder="Type to search..."
                             disabled={disabled}
                             sx={disabledSx}
+                        />
+                        <PossibleSubstitutesHint
+                            substitutes={getSubstitutesForProductId(substitutesMap, formData.la_product)}
                         />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>

@@ -402,10 +402,24 @@ export default function ProductionBookingsPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {booking.components.map((line) => (
+                                    {booking.components.map((line) => {
+                                        const originalId = Number(
+                                            line.original_component_product_id ?? line.component_product_id
+                                        );
+                                        const isSubstituted =
+                                            Number(line.component_product_id) !== originalId &&
+                                            Number.isFinite(originalId);
+                                        return (
                                         <tr key={line.id} className="border-t border-border">
                                             <td className="px-2 py-1">
-                                                {line.product?.product_name || "-"}
+                                                <div className="flex flex-wrap items-center gap-1">
+                                                    <span>{line.product?.product_name || "-"}</span>
+                                                    {isSubstituted ? (
+                                                        <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                            Substituted
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                                 {line.serials?.length > 0 && (
                                                     <span className="ml-1 text-muted-foreground">
                                                         ({line.serials.length} serial)
@@ -417,7 +431,8 @@ export default function ProductionBookingsPage() {
                                             <td className="px-2 py-1 text-right">{line.scrap_quantity}</td>
                                             <td className="px-2 py-1 text-right">{money(line.amount)}</td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

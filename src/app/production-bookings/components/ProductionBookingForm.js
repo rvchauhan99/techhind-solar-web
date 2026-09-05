@@ -26,6 +26,7 @@ import {
     IconAlertCircle,
     IconCheck
 } from "@tabler/icons-react";
+import SubstituteProductPicker from "@/components/common/SubstituteProductPicker";
 
 const toNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -35,6 +36,41 @@ const toNumber = (value, fallback = 0) => {
 const round = (value, decimals = 2) => {
     const factor = 10 ** decimals;
     return Math.round((toNumber(value) + Number.EPSILON) * factor) / factor;
+};
+
+const buildSubstitutePickerOptions = (line) => {
+    const originalId = Number(line.original_component_product_id || line.component_product_id);
+    const options = [
+        {
+            id: originalId,
+            product_name: line.original_product_name || line.product_name,
+            product_type_name: line.product_type_name || null,
+            product_make_name: line.product_make_name || null,
+            available_qty: line.original_quantity_on_hand ?? line.quantity_on_hand,
+            rate: line.original_rate ?? line.rate,
+            stock_id: line.original_stock_id ?? line.stock_id,
+            serial_required: !!line.original_serial_required,
+            tracking_type: line.original_tracking_type || line.tracking_type,
+            is_original: true,
+        },
+    ];
+    (line.substitute_products || []).forEach((sub) => {
+        const id = Number(sub.id);
+        if (!Number.isInteger(id) || id <= 0 || id === originalId) return;
+        options.push({
+            id,
+            product_name: sub.product_name,
+            product_type_name: sub.product_type_name || null,
+            product_make_name: sub.product_make_name || null,
+            available_qty: sub.available_qty ?? sub.quantity_on_hand ?? 0,
+            rate: sub.rate ?? line.rate,
+            stock_id: sub.stock_id ?? null,
+            serial_required: !!sub.serial_required,
+            tracking_type: sub.tracking_type || null,
+            is_original: false,
+        });
+    });
+    return options;
 };
 
 const orderLabel = (order) => {
@@ -143,18 +179,59 @@ export default function ProductionBookingForm({
                 const result = response?.result || response;
                 setBackflush(result);
                 setComponentLines((prev) => {
-                    const previousByProduct = new Map(
-                        (preserveEdits ? prev : []).map((line) => [line.component_product_id, line])
+                    const previousByOriginal = new Map(
+                        (preserveEdits ? prev : []).map((line) => [
+                            Number(line.original_component_product_id || line.component_product_id),
+                            line,
+                        ])
                     );
                     return (result?.components || []).map((line) => {
-                        const previous = previousByProduct.get(line.component_product_id);
-                        return {
+                        const originalId = Number(
+                            line.original_component_product_id || line.component_product_id
+                        );
+                        const previous = previousByOriginal.get(originalId);
+                        const base = {
                             ...line,
+                            original_component_product_id: originalId,
+                            original_product_name: line.product_name,
+                            original_quantity_on_hand: line.quantity_on_hand,
+                            original_rate: line.rate,
+                            original_stock_id: line.stock_id,
+                            original_serial_required: !!line.serial_required,
+                            original_tracking_type: line.tracking_type,
+                            substitute_product_ids: line.substitute_product_ids || [],
+                            substitute_products: line.substitute_products || [],
                             consumed_quantity: String(line.suggested_consumed_quantity),
                             scrap_quantity: String(previous?.scrap_quantity ?? 0),
                             scrap_reason: previous?.scrap_reason ?? "",
                             serials: previous?.serials ?? [],
                         };
+                        if (
+                            previous &&
+                            Number(previous.component_product_id) !== originalId &&
+                            (line.substitute_product_ids || []).map(Number).includes(
+                                Number(previous.component_product_id)
+                            )
+                        ) {
+                            const sub = (line.substitute_products || []).find(
+                                (s) => Number(s.id) === Number(previous.component_product_id)
+                            );
+                            return {
+                                ...base,
+                                component_product_id: Number(previous.component_product_id),
+                                product_name: sub?.product_name || previous.product_name,
+                                quantity_on_hand:
+                                    sub?.available_qty ??
+                                    sub?.quantity_on_hand ??
+                                    previous.quantity_on_hand,
+                                rate: sub?.rate ?? previous.rate ?? line.rate,
+                                stock_id: sub?.stock_id ?? previous.stock_id ?? null,
+                                serial_required: !!(sub?.serial_required ?? previous.serial_required),
+                                tracking_type: sub?.tracking_type || previous.tracking_type || line.tracking_type,
+                                serials: [],
+                            };
+                        }
+                        return base;
                     });
                 });
             } catch (error) {
@@ -483,6 +560,8 @@ export default function ProductionBookingForm({
                 .filter((line) => requiredSerialCount(line) > 0)
                 .map((line) => ({
                     component_product_id: line.component_product_id,
+                    original_component_product_id:
+                        line.original_component_product_id || line.component_product_id,
                     consumed_quantity: parseInt(line.consumed_quantity, 10) || 0,
                     scrap_quantity: parseInt(line.scrap_quantity, 10) || 0,
                     scrap_reason: String(line.scrap_reason || "").trim() || null,
@@ -660,27 +739,74 @@ export default function ProductionBookingForm({
                                                         const serialCount = (line.serials || []).length;
                                                         const serialComplete = serialCount === issued && issued > 0;
                                                         const isRowError = !!lineErrors[index];
+                                                        const originalId = Number(
+                                                            line.original_component_product_id || line.component_product_id
+                                                        );
+                                                        const isSubstituted =
+                                                            Number(line.component_product_id) !== originalId;
+                                                        const substituteOptions = buildSubstitutePickerOptions(line);
+                                                        const canSwapSubstitute =
+                                                            !isEdit && substituteOptions.length > 1;
+                                                        const selectedOption =
+                                                            substituteOptions.find(
+                                                                (o) => Number(o.id) === Number(line.component_product_id)
+                                                            ) || null;
                                                         
                                                         return (
-                                                            <Fragment key={line.component_product_id}>
+                                                            <Fragment key={originalId}>
                                                                 <tr className={cn(
                                                                     "transition-all duration-200 hover:bg-muted/40 hover:shadow-[inset_3px_0_0_0] hover:shadow-primary/60",
                                                                     isRowError && "bg-destructive/5 hover:bg-destructive/10 hover:shadow-destructive"
                                                                 )}>
-                                                                    <td className="px-2 py-2 align-middle">
-                                                                        <div className="flex items-center gap-1.5">
-                                                                            <span className="font-medium">{line.product_name}</span>
-                                                                            {line.serial_required && (
-                                                                                <span className="inline-flex h-4 items-center rounded-full bg-primary/10 px-1.5 text-[9px] font-bold tracking-wider text-primary uppercase">
-                                                                                    Serial
-                                                                                </span>
-                                                                            )}
-                                                                            {line.is_optional && (
-                                                                                <span className="inline-flex h-4 items-center rounded-full bg-secondary px-1.5 text-[9px] font-bold tracking-wider text-secondary-foreground uppercase">
-                                                                                    Optional
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
+                                                                    <td className="px-2 py-2 align-middle min-w-[200px] overflow-visible">
+                                                                        {canSwapSubstitute ? (
+                                                                            <SubstituteProductPicker
+                                                                                options={substituteOptions}
+                                                                                value={selectedOption}
+                                                                                displayName={line.product_name}
+                                                                                isSubstituted={isSubstituted}
+                                                                                disabled={!canSwapSubstitute}
+                                                                                onChange={(opt) => {
+                                                                                    if (!opt?.id) return;
+                                                                                    updateLine(index, {
+                                                                                        component_product_id: Number(opt.id),
+                                                                                        product_name: opt.product_name,
+                                                                                        quantity_on_hand:
+                                                                                            opt.available_qty ??
+                                                                                            opt.quantity_on_hand ??
+                                                                                            0,
+                                                                                        rate: opt.rate ?? line.rate,
+                                                                                        stock_id: opt.stock_id ?? null,
+                                                                                        serial_required: !!opt.serial_required,
+                                                                                        tracking_type:
+                                                                                            opt.tracking_type ||
+                                                                                            line.tracking_type,
+                                                                                        serials: [],
+                                                                                    });
+                                                                                }}
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="space-y-0.5">
+                                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                    <span className="font-medium">{line.product_name}</span>
+                                                                                    {line.serial_required && (
+                                                                                        <span className="inline-flex h-4 items-center rounded-full bg-primary/10 px-1.5 text-[9px] font-bold tracking-wider text-primary uppercase">
+                                                                                            Serial
+                                                                                        </span>
+                                                                                    )}
+                                                                                    {line.is_optional && (
+                                                                                        <span className="inline-flex h-4 items-center rounded-full bg-secondary px-1.5 text-[9px] font-bold tracking-wider text-secondary-foreground uppercase">
+                                                                                            Optional
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                {isSubstituted && (
+                                                                                    <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                                                                                        Substituted
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
                                                                     </td>
                                                                     <td className="px-2 py-2 text-right align-middle">{line.standard_quantity}</td>
                                                                     <td className="px-2 py-2 text-right align-middle">{line.quantity_on_hand}</td>

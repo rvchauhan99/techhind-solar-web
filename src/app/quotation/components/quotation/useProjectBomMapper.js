@@ -10,6 +10,7 @@ import {
     toWholeRupeeOrEmpty,
 } from "./quotationCalculations";
 import { getProjectDrivenResetPatch } from "./quotationConfig";
+import { buildBomSubstitutesByProductId, normalizeSubstituteList } from "./bomSubstituteUtils";
 
 /**
  * Normalize product with make id and name for Autocomplete fallback (from API).
@@ -57,6 +58,10 @@ export function mapBomResponseToForm(response) {
         product_id: product?.id ?? "",
         quantity: element?.quantity ?? "",
         description: element?.description ?? product?.product_description ?? "",
+        substitute_product_ids: Array.isArray(element?.substitute_product_ids)
+            ? element.substitute_product_ids
+            : [],
+        substitute_products: normalizeSubstituteList(element?.substitute_products),
     });
 
     // Initialize all BOM-driven fields from shared project reset
@@ -69,6 +74,7 @@ export function mapBomResponseToForm(response) {
         subsidy_amount: toWholeRupeeOrEmpty(datas.subsidy_amount),
         state_subsidy_amount: toWholeRupeeOrEmpty(datas.state_subsidy),
         system_warranty_years: datas.system_warranty ?? "",
+        bom_substitutes_by_product_id: buildBomSubstitutesByProductId(bomDetails),
     });
 
     for (let i = 0; i < bomDetails.length; i++) {

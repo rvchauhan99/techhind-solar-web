@@ -8,6 +8,7 @@ import productionBookingService from "@/services/productionBookingService"
 import { formatCurrency, formatDate } from "@/utils/dataTableUtils"
 import { getApiErrorMessage } from "@/utils/toast"
 import { AP } from "@/utils/assemblyProductionLabels"
+import PossibleSubstitutesHint from "@/components/common/PossibleSubstitutesHint"
 import {
   formatDateTime,
   formatQty,
@@ -118,6 +119,9 @@ export function ProductionOrderComponentsTab({ shortage, order }) {
         ),
         quantity_on_hand: null,
         shortage_quantity: 0,
+        substitute_products: line.substitute_products || [],
+        substitute_available_total: null,
+        coverable_via_substitute: false,
       }))
 
   if (!lines.length) {
@@ -152,10 +156,22 @@ export function ProductionOrderComponentsTab({ shortage, order }) {
             >
               <Td>{line.line_no}</Td>
               <Td>
-                {line.product_name || "-"}
-                {line.serial_required ? (
-                  <span className="ml-1 text-muted-foreground">(serial)</span>
-                ) : null}
+                <div>
+                  <span>
+                    {line.product_name || "-"}
+                    {line.serial_required ? (
+                      <span className="ml-1 text-muted-foreground">(serial)</span>
+                    ) : null}
+                  </span>
+                  <PossibleSubstitutesHint substitutes={line.substitute_products} />
+                  {hasShortage &&
+                  Number(line.substitute_available_total || 0) > 0 ? (
+                    <p className="mt-0.5 mb-0 text-[10px] leading-snug text-amber-800">
+                      Alt avail {formatQty(line.substitute_available_total)}
+                      {line.coverable_via_substitute ? " (covers shortage)" : ""}
+                    </p>
+                  ) : null}
+                </div>
               </Td>
               <Td className="text-right">{formatQty(snapshot?.quantity_per ?? line.quantity_per)}</Td>
               <Td className="text-right">{formatQty(snapshot?.scrap_percent ?? line.scrap_percent, 2)}</Td>
@@ -201,10 +217,24 @@ function BookingExpandPanel({ booking, detail }) {
             </tr>
           </thead>
           <tbody>
-            {components.map((line) => (
+            {components.map((line) => {
+              const originalId = Number(
+                line.original_component_product_id ?? line.component_product_id
+              )
+              const isSubstituted =
+                Number(line.component_product_id) !== originalId &&
+                Number.isFinite(originalId)
+              return (
               <tr key={line.id || line.line_no}>
                 <Td>
-                  {line.product_name || "-"}
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span>{line.product_name || "-"}</span>
+                    {isSubstituted ? (
+                      <span className="inline-flex items-center rounded px-1 py-0 text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                        Substituted
+                      </span>
+                    ) : null}
+                  </div>
                   {line.serial_numbers?.length ? (
                     <span className="mt-0.5 block text-[10px] text-muted-foreground">
                       {line.serial_numbers.join(", ")}
@@ -225,7 +255,8 @@ function BookingExpandPanel({ booking, detail }) {
                 <Td className="text-right">{formatCurrency(line.amount)}</Td>
                 <Td className="text-right">{line.serial_count ?? line.serial_numbers?.length ?? 0}</Td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </DenseTable>
       ) : (
