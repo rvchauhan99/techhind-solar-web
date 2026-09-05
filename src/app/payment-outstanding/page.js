@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconCash, IconDownload, IconNotes, IconFilter, IconRefresh, IconCalendar, IconX, IconCoinRupee, IconHistory, IconPhoneCall, IconEye } from "@tabler/icons-react";
+import { IconCash, IconDownload, IconNotes, IconFilter, IconRefresh, IconCalendar, IconX, IconCoinRupee, IconHistory, IconPhoneCall, IconEye, IconBrandWhatsapp } from "@tabler/icons-react";
 import OrderListFilterPanel, {
   EMPTY_VALUES as ORDER_FILTER_EMPTY_VALUES,
   ORDER_STAGE_OPTIONS,
@@ -314,7 +314,22 @@ export default function PaymentOutstandingPage() {
     },
     {
       field: "outstanding", label: "Outstanding", sortable: true,
-      render: (row) => <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{fmtMoney(row.dataValues?.outstanding ?? row.outstanding)}</span>,
+      render: (row) => {
+        const lastWaAgent = row.dataValues?.last_wa_agent_sent ?? row.last_wa_agent_sent
+        return (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">₹{fmtMoney(row.dataValues?.outstanding ?? row.outstanding)}</span>
+            {lastWaAgent && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full bg-[#25D366]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#128c5d]"
+                title="Last auto-followed via WhatsApp Agent"
+              >
+                <IconBrandWhatsapp className="h-2.5 w-2.5" /> Auto
+              </span>
+            )}
+          </span>
+        )
+      },
     },
     { field: "payment_type", label: "Payment Type" },
     { field: "loanType.name", label: "Loan Type", render: (row) => <span className="text-[11px]">{row.loanType?.name || "-"}</span> },

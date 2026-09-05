@@ -45,16 +45,28 @@ export default function PaymentFollowUpHistory({ orderId, refreshKey }) {
             ) : rows.map((fu) => (
               <tr key={fu.id} className="border-b border-border last:border-b-0">
                 <td className="px-2 py-1">{fu.contacted_at ? new Date(fu.contacted_at).toLocaleString() : "-"}</td>
-                <td className="px-2 py-1 capitalize">{fu.contact_channel || "-"}</td>
+                <td className="px-2 py-1">
+                  <span className="inline-flex items-center gap-1 capitalize">
+                    {fu.contact_channel || "-"}
+                    {fu.is_agent_sent && fu.contact_channel === "whatsapp" && (
+                      <span className="inline-flex items-center rounded-full bg-[#25D366]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#128c5d]">
+                        Auto
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="px-2 py-1">
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-slate-50 text-slate-600 border-slate-200">
                     {(fu.outcome || "-").replaceAll("_", " ")}
                   </span>
+                  {fu.wa_status && (
+                    <span className="ml-1 text-[9px] text-muted-foreground">({fu.wa_status})</span>
+                  )}
                 </td>
                 <td className="px-2 py-1">₹{Number(fu.promised_amount || 0).toLocaleString("en-IN")}</td>
                 <td className="px-2 py-1">{fu.next_follow_up_at ? new Date(fu.next_follow_up_at).toLocaleString() : "-"}</td>
                 <td className="px-2 py-1 max-w-[240px] truncate" title={fu.notes || ""}>{fu.notes || "-"}</td>
-                <td className="px-2 py-1">{fu.createdByUser?.name || "-"}</td>
+                <td className="px-2 py-1">{fu.createdByUser?.name || (fu.is_agent_sent ? "WA Agent" : "-")}</td>
               </tr>
             ))}
           </tbody>
