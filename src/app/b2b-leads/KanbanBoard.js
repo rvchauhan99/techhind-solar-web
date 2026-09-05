@@ -731,7 +731,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
       )}
 
       <Dialog open={followUpDialogOpen} onOpenChange={(open) => !open && closeFollowUpDialog()}>
-        <DialogContent className="sm:max-w-3xl" showCloseButton>
+        <DialogContent className={`${DIALOG_FORM_MEDIUM} overflow-y-auto`} showCloseButton>
           <DialogHeader>
             <DialogTitle>
               Add Call Details {pendingStatusTitle ? `→ ${pendingStatusTitle}` : ""}
@@ -742,7 +742,7 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
               Follow-up is mandatory when changing lead stage.
             </div>
           )}
-          <div className="pt-2">
+          <div className="pt-2 min-h-0 overflow-y-auto">
             <AddCallDetailsForm
               leadId={pendingLeadId}
               lead={pendingLead}

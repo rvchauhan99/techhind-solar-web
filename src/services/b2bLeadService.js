@@ -30,8 +30,8 @@ export const listB2bLeadFollowUps = (id, params = {}) =>
 export const getB2bLeadTimeline = (id, params = {}) =>
   apiClient.get(`/b2b-leads/${id}/timeline`, { params }).then((r) => r.data);
 
-export const convertB2bLead = (id) =>
-  apiClient.post(`/b2b-leads/${id}/convert`).then((r) => r.data);
+export const convertB2bLead = (id, payload = {}) =>
+  apiClient.post(`/b2b-leads/${id}/convert`, payload).then((r) => r.data);
 
 export const listB2bLeadDocuments = (id) =>
   apiClient.get(`/b2b-leads/${id}/documents`).then((r) => r.data);
