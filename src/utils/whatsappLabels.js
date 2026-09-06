@@ -22,15 +22,17 @@ export const WA = {
 export const BUCKET_LABELS = {
   "7d": "1–7 Days Overdue",
   "15d": "8–15 Days Overdue",
-  "30d": "16–30 Days Overdue",
-  "30d_plus": "30+ Days Overdue",
+  "30d": "16–60 Days Overdue",
+  "60d_plus": "60+ Days Overdue (Escalated)",
+  "30d_plus": "30+ Days Overdue",   // legacy — kept for old log entries
 }
 
 export const BUCKET_COLORS = {
   "7d": "bg-blue-100 text-blue-700",
   "15d": "bg-yellow-100 text-yellow-700",
   "30d": "bg-orange-100 text-orange-700",
-  "30d_plus": "bg-red-100 text-red-700",
+  "60d_plus": "bg-red-100 text-red-800",
+  "30d_plus": "bg-red-100 text-red-700",  // legacy
 }
 
 // WA delivery status labels

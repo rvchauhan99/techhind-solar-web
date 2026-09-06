@@ -86,7 +86,7 @@ function BucketBadge({ bucket }) {
 
 export default function WhatsAppAgentLogsPage() {
   const { user } = useAuth()
-  const isSuperAdmin = user?.role?.toLowerCase() === "superadmin"
+  const isSuperAdmin = user?.role?.name?.toLowerCase() === "superadmin"
 
   const [logs, setLogs] = useState([])
   const [total, setTotal] = useState(0)
