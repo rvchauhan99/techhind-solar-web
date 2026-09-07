@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState, Suspense } from "react"
+import { useEffect, useRef, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { IconBrandWhatsapp, IconCheck, IconAlertCircle } from "@tabler/icons-react"
 import { Button } from "@/components/ui/button"
-import whatsappSetupService from "@/services/whatsappSetupService"
+import * as whatsappSetupService from "@/services/whatsappSetupService"
 import { getEffectiveTenantKey } from "@/utils/tenantKey"
+
+const WA_SESSION_KEY = "wa_embedded_signup_session"
 
 function getTenantKeyFromState(stateStr) {
   if (!stateStr) return ""
@@ -21,18 +23,89 @@ function getTenantKeyFromState(stateStr) {
   }
 }
 
+function readSessionAssets() {
+  try {
+    const raw = sessionStorage.getItem(WA_SESSION_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return {
+      waba_id: parsed?.waba_id || parsed?.wabaId || null,
+      phone_number_id: parsed?.phone_number_id || parsed?.phone_numberId || null,
+    }
+  } catch {
+    return {}
+  }
+}
+
+function storeSessionAssets(data) {
+  if (!data) return
+  const wabaId = data.waba_id || data.wabaId
+  const phoneId = data.phone_number_id || data.phone_numberId
+  if (!wabaId && !phoneId) return
+  try {
+    sessionStorage.setItem(
+      WA_SESSION_KEY,
+      JSON.stringify({
+        waba_id: wabaId || null,
+        phone_number_id: phoneId || null,
+      })
+    )
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
+function clearSessionAssets() {
+  try {
+    sessionStorage.removeItem(WA_SESSION_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 function OAuthCallbackContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [status, setStatus] = useState("loading")
   const [message, setMessage] = useState("")
+  const startedRef = useRef(false)
+
+  // Capture Embedded Signup session IDs (Meta postMessage) before/while connecting
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (!event.origin?.endsWith("facebook.com") && !event.origin?.endsWith("facebook.net")) {
+        return
+      }
+      try {
+        const payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data
+        if (payload?.type === "WA_EMBEDDED_SIGNUP" && payload?.data) {
+          storeSessionAssets(payload.data)
+        }
+      } catch {
+        // ignore non-JSON messages
+      }
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [])
 
   useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
+
     const code = searchParams.get("code")
     const state = searchParams.get("state")
     const tenantKeyFromQuery = searchParams.get("tenant_key")
     const error = searchParams.get("error")
     const errorDescription = searchParams.get("error_description")
+
+    // Query-param fallbacks if Meta appends asset IDs
+    const queryWaba = searchParams.get("waba_id")
+    const queryPhone = searchParams.get("phone_number_id")
+    if (queryWaba || queryPhone) {
+      storeSessionAssets({ waba_id: queryWaba, phone_number_id: queryPhone })
+    }
 
     if (error) {
       setStatus("error")
@@ -46,8 +119,6 @@ function OAuthCallbackContent() {
       return
     }
 
-    // Backend already bounced here from /api/whatsapp-setup/oauth/callback.
-    // Exchange code via authenticated connect endpoint (same as Meta Lead Ads pattern).
     const tenantKey = (
       tenantKeyFromQuery ||
       getTenantKeyFromState(state) ||
@@ -55,17 +126,31 @@ function OAuthCallbackContent() {
       ""
     ).trim()
 
-    whatsappSetupService
-      .connect({ code, ...(tenantKey ? { tenant_key: tenantKey } : {}) })
-      .then(() => {
+    // Brief wait so late postMessage session events can land in sessionStorage
+    const runConnect = async () => {
+      await new Promise((r) => setTimeout(r, 400))
+      const sessionAssets = readSessionAssets()
+
+      try {
+        await whatsappSetupService.connect({
+          code,
+          ...(tenantKey ? { tenant_key: tenantKey } : {}),
+          ...(sessionAssets.waba_id ? { waba_id: sessionAssets.waba_id } : {}),
+          ...(sessionAssets.phone_number_id
+            ? { phone_number_id: sessionAssets.phone_number_id }
+            : {}),
+        })
+        clearSessionAssets()
         setStatus("success")
         setMessage("WhatsApp Business account connected successfully!")
-      })
-      .catch((err) => {
+      } catch (err) {
         const msg = err?.response?.data?.message || err.message || "Connection failed"
         setStatus("error")
         setMessage(msg)
-      })
+      }
+    }
+
+    runConnect()
   }, [searchParams])
 
   return (
