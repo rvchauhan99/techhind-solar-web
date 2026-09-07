@@ -394,28 +394,82 @@ const AutocompleteField = forwardRef(function AutocompleteField(
 
   const isLoading = externalLoading || asyncLoading;
 
+  const renderOptionsList = ({ portal = false } = {}) => (
+    <ul
+      ref={portal ? dropdownRef : undefined}
+      className={cn(
+        "max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md",
+        !portal &&
+          cn(
+            "z-50 absolute left-0 right-0",
+            dropdownPlacement === "top" ? "bottom-full mb-1" : "mt-1 top-full"
+          )
+      )}
+      style={portal ? dropdownStyle : undefined}
+    >
+      {isLoading && (
+        <li className="px-3 py-2 flex items-center justify-center">
+          <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
+        </li>
+      )}
+      {!isLoading &&
+        !asyncError &&
+        filterOptions.map((opt, i) => (
+          <li
+            key={i}
+            role="option"
+            className={cn(
+              "cursor-pointer px-3 py-2 text-sm transition-colors",
+              i === activeIndex
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-primary hover:text-primary-foreground"
+            )}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              handleSelect(opt);
+            }}
+          >
+            {getOptionLabel(opt)}
+          </li>
+        ))}
+    </ul>
+  );
+
   if (multiple) {
     const selected = Array.isArray(value) ? value : [];
     return (
-      <div className={cn("w-full", fullWidth ? "max-w-full" : "max-w-md")} ref={containerRef}>
+      <div
+        className={cn("relative w-full", fullWidth ? "max-w-full" : "max-w-md")}
+        ref={containerRef}
+      >
         {label && (
           <Label className="mb-1.5 block text-sm font-medium">
             {label}
             {required && <span className="text-destructive ml-0.5">*</span>}
           </Label>
         )}
-        <div className="flex items-center rounded-lg border border-input bg-background px-2 py-1 min-h-10">
-          <div className="flex flex-wrap gap-2 flex-1">
-            {selected.map((opt, i) => (
-              <Badge
-                key={i}
-                variant="secondary"
-                className="cursor-pointer"
-                onClick={() => handleSelect(opt)}
-              >
-                {getOptionLabel(opt)} ×
-              </Badge>
-            ))}
+        <div
+          className={cn(
+            "flex items-center rounded-lg border border-input bg-background px-2 py-1 min-h-10",
+            error && "border-destructive"
+          )}
+        >
+          <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+            {selected.map((opt, i) => {
+              const chipLabel = getOptionLabel(opt);
+              return (
+                <Badge
+                  key={i}
+                  variant="secondary"
+                  className="cursor-pointer inline-flex items-center max-w-[140px] px-1.5 py-0 text-[10px] font-medium"
+                  title={chipLabel}
+                  onClick={() => handleSelect(opt)}
+                >
+                  <span className="truncate">{chipLabel}</span>
+                  <span className="ml-0.5 shrink-0">×</span>
+                </Badge>
+              );
+            })}
             <input
               ref={ref}
               type="text"
@@ -429,7 +483,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
               placeholder={selected.length === 0 ? placeholder : ""}
               disabled={disabled}
               autoComplete="off"
-              className="flex-1 min-w-[120px] border-0 bg-transparent outline-none text-sm"
+              className="flex-1 min-w-[80px] border-0 bg-transparent outline-none text-sm"
             />
           </div>
           {clearable && !disabled && selected.length > 0 && (
@@ -439,7 +493,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
                 e.stopPropagation();
                 onChange?.({ target: { value: null } }, []);
               }}
-              className="ml-1 text-muted-foreground hover:text-destructive"
+              className="ml-1 shrink-0 text-muted-foreground hover:text-destructive"
               aria-label="Clear selection"
               title="Clear selection"
             >
@@ -447,34 +501,16 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             </button>
           )}
         </div>
-        {open && (
-          <ul className="mt-1 max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md z-50">
-            {isLoading && (
-              <li className="px-3 py-2 flex items-center justify-center">
-                <span className="animate-spin size-4 border-2 border-primary border-t-transparent rounded-full" />
-              </li>
-            )}
-            {!isLoading && !asyncError &&
-              filterOptions.map((opt, i) => (
-                <li
-                  key={i}
-                  role="option"
-                  className={cn(
-                    "cursor-pointer px-3 py-2 text-sm transition-colors",
-                    (i === activeIndex) 
-                      ? "bg-primary text-primary-foreground" 
-                      : "hover:bg-primary hover:text-primary-foreground"
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleSelect(opt);
-                  }}
-                >
-                  {getOptionLabel(opt)}
-                </li>
-              ))}
-          </ul>
+        {error && helperText && (
+          <p className="mt-1 text-xs text-destructive">{helperText}</p>
         )}
+        {!error && helperText && (
+          <p className="mt-1 text-xs text-muted-foreground">{helperText}</p>
+        )}
+        {open &&
+          (usePortal && typeof document !== "undefined"
+            ? createPortal(renderOptionsList({ portal: true }), document.body)
+            : renderOptionsList({ portal: false }))}
       </div>
     );
   }

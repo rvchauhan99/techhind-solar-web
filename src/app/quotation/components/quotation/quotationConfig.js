@@ -123,6 +123,7 @@ export function getProjectDrivenResetPatch() {
         effective_cost: "",
         add_extra_materials: false,
         extra_materials: [],
+        bom_substitutes_by_product_id: {},
     };
 }
 
@@ -261,6 +262,7 @@ export function getInitialFormData(user, overrides = {}) {
         effective_cost: "",
         add_extra_materials: false,
         extra_materials: [],
+        bom_substitutes_by_product_id: {},
         ...overrides,
     };
 }

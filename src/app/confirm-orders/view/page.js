@@ -493,10 +493,19 @@ function ConfirmedOrderViewPageContent() {
                             <tbody>
                                 {orderData.bom_snapshot.map((line, idx) => {
                                     const p = line.product_snapshot || line;
+                                    const originalId = Number(line.original_product_id ?? line.product_id);
+                                    const isSubstituted =
+                                        Number.isFinite(originalId) &&
+                                        Number(line.product_id) !== originalId;
                                     return (
                                         <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
                                             <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
+                                            <td style={{ padding: "4px 6px" }}>
+                                                {p?.product_name ?? "-"}
+                                                {isSubstituted && (
+                                                    <span className="ml-1 text-[10px] font-medium text-amber-700">Subst.</span>
+                                                )}
+                                            </td>
                                             <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
                                             <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
                                             <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>

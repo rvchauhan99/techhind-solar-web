@@ -74,6 +74,8 @@ const emptyComponent = {
     std_rate: "",
     is_optional: "false",
     remarks: "",
+    substitute_product_ids: [],
+    substitute_products: [],
 };
 
 const emptyOperation = {
@@ -206,6 +208,35 @@ export default function ProductionBomForm({
             errs.scrap_percent = "Scrap % must be between 0 and 99.99";
         }
 
+        const primaryIds = new Set(
+            formData.components.map((line) => Number(line.component_product_id)).filter(Number.isFinite)
+        );
+        primaryIds.add(productId);
+        const substituteProducts = Array.isArray(currentComponent.substitute_products)
+            ? currentComponent.substitute_products
+            : [];
+        const substituteIds = [];
+        const seenSubs = new Set();
+        for (const product of substituteProducts) {
+            const subId = Number(product?.id);
+            if (!Number.isFinite(subId) || subId <= 0) continue;
+            if (subId === productId) {
+                errs.substitute_product_ids = "Substitute cannot be the same as the component";
+                break;
+            }
+            if (String(subId) === String(formData.fg_product_id)) {
+                errs.substitute_product_ids = "Finished good cannot be a substitute";
+                break;
+            }
+            if (primaryIds.has(subId)) {
+                errs.substitute_product_ids = "Substitute cannot be another primary component";
+                break;
+            }
+            if (seenSubs.has(subId)) continue;
+            seenSubs.add(subId);
+            substituteIds.push(subId);
+        }
+
         if (Object.keys(errs).length > 0) {
             setComponentErrors(errs);
             return;
@@ -226,6 +257,10 @@ export default function ProductionBomForm({
                     std_rate: toNumber(currentComponent.std_rate),
                     is_optional: currentComponent.is_optional === "true",
                     remarks: currentComponent.remarks || "",
+                    substitute_product_ids: substituteIds,
+                    substitute_products: substituteProducts.filter((p) =>
+                        substituteIds.includes(Number(p.id))
+                    ),
                 },
             ],
         }));
@@ -330,6 +365,9 @@ export default function ProductionBomForm({
                 std_rate: line.std_rate,
                 is_optional: line.is_optional,
                 remarks: line.remarks || null,
+                substitute_product_ids: Array.isArray(line.substitute_product_ids)
+                    ? line.substitute_product_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+                    : [],
             })),
             operations: formData.operations.map((line, index) => ({
                 sequence_no: index + 1,
@@ -501,7 +539,7 @@ export default function ProductionBomForm({
                         )}
 
                         <Paper sx={{ p: 0.75, mb: 0.75, overflow: "visible" }}>
-                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto] lg:items-end">
                                 <AutocompleteField
                                     label="Component *"
                                     placeholder="Type to search..."
@@ -523,18 +561,26 @@ export default function ProductionBomForm({
                                             : null
                                     }
                                     onChange={(e, newValue) => {
-                                        setCurrentComponent((prev) => ({
-                                            ...prev,
-                                            component_product_id: newValue?.id ?? "",
-                                            product_name: newValue?.product_name ?? "",
-                                            tracking_type: newValue?.tracking_type ?? "LOT",
-                                            serial_required: !!newValue?.serial_required,
-                                            measurement_unit_name: newValue?.measurement_unit_name ?? "",
-                                            std_rate:
-                                                newValue?.avg_purchase_price != null
-                                                    ? String(newValue.avg_purchase_price)
-                                                    : prev.std_rate,
-                                        }));
+                                        setCurrentComponent((prev) => {
+                                            const nextId = newValue?.id ?? "";
+                                            const filtered = (prev.substitute_products || []).filter(
+                                                (p) => Number(p.id) !== Number(nextId)
+                                            );
+                                            return {
+                                                ...prev,
+                                                component_product_id: nextId,
+                                                product_name: newValue?.product_name ?? "",
+                                                tracking_type: newValue?.tracking_type ?? "LOT",
+                                                serial_required: !!newValue?.serial_required,
+                                                measurement_unit_name: newValue?.measurement_unit_name ?? "",
+                                                std_rate:
+                                                    newValue?.avg_purchase_price != null
+                                                        ? String(newValue.avg_purchase_price)
+                                                        : prev.std_rate,
+                                                substitute_products: filtered,
+                                                substitute_product_ids: filtered.map((p) => Number(p.id)),
+                                            };
+                                        });
                                         if (componentErrors.component_product_id) {
                                             setComponentErrors((prev) => {
                                                 const next = { ...prev };
@@ -545,6 +591,48 @@ export default function ProductionBomForm({
                                     }}
                                     error={!!componentErrors.component_product_id}
                                     helperText={componentErrors.component_product_id}
+                                />
+                                <AutocompleteField
+                                    label="Substitutes"
+                                    placeholder="Select substitutes..."
+                                    multiple
+                                    options={[]}
+                                    usePortal
+                                    asyncLoadOptions={async (q) => {
+                                        const res = await productService.getProducts({
+                                            q: q || undefined,
+                                            limit: 20,
+                                            visibility: "active",
+                                        });
+                                        const data = res?.result?.data ?? res?.data ?? [];
+                                        const list = Array.isArray(data) ? data : [];
+                                        return list.filter(
+                                            (p) =>
+                                                String(p.id) !== String(currentComponent.component_product_id) &&
+                                                String(p.id) !== String(formData.fg_product_id)
+                                        );
+                                    }}
+                                    getOptionLabel={(p) => formatProductAutocompleteLabel(p) || String(p?.id ?? "")}
+                                    value={currentComponent.substitute_products || []}
+                                    onChange={(e, newValue) => {
+                                        const selected = Array.isArray(newValue) ? newValue : [];
+                                        setCurrentComponent((prev) => ({
+                                            ...prev,
+                                            substitute_products: selected,
+                                            substitute_product_ids: selected
+                                                .map((p) => Number(p.id))
+                                                .filter(Number.isFinite),
+                                        }));
+                                        if (componentErrors.substitute_product_ids) {
+                                            setComponentErrors((prev) => {
+                                                const next = { ...prev };
+                                                delete next.substitute_product_ids;
+                                                return next;
+                                            });
+                                        }
+                                    }}
+                                    error={!!componentErrors.substitute_product_ids}
+                                    helperText={componentErrors.substitute_product_ids || "Optional; one or more"}
                                 />
                                 <Input
                                     name="quantity_per"
@@ -611,6 +699,7 @@ export default function ProductionBomForm({
                                         <TableRow>
                                             <TableCell>#</TableCell>
                                             <TableCell>Component</TableCell>
+                                            <TableCell>Substitutes</TableCell>
                                             <TableCell align="right">Qty / Output</TableCell>
                                             <TableCell align="right">Scrap %</TableCell>
                                             <TableCell align="right">Effective Qty</TableCell>
@@ -623,6 +712,11 @@ export default function ProductionBomForm({
                                     <TableBody>
                                         {formData.components.map((line, index) => {
                                             const effective = effectiveQuantity(line);
+                                            const substituteLabel =
+                                                (line.substitute_products || [])
+                                                    .map((p) => p.product_name || formatProductAutocompleteLabel(p))
+                                                    .filter(Boolean)
+                                                    .join(", ") || "-";
                                             return (
                                                 <TableRow key={`${line.component_product_id}-${index}`}>
                                                     <TableCell>{index + 1}</TableCell>
@@ -634,6 +728,9 @@ export default function ProductionBomForm({
                                                         {line.is_optional && (
                                                             <Chip label="Optional" size="small" sx={{ ml: 0.75, height: 18 }} />
                                                         )}
+                                                    </TableCell>
+                                                    <TableCell sx={{ maxWidth: 180, fontSize: 11, color: "text.secondary" }}>
+                                                        {substituteLabel}
                                                     </TableCell>
                                                     <TableCell align="right">{toNumber(line.quantity_per)}</TableCell>
                                                     <TableCell align="right">{toNumber(line.scrap_percent)}</TableCell>
