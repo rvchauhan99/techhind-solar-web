@@ -4,6 +4,10 @@ import apiClient from "./apiClient"
 export const getStatus = () =>
   apiClient.get("/whatsapp-setup").then((r) => r.data?.data)
 
+/** Backend-first OAuth (same pattern as Meta Lead Ads) — returns Facebook dialog URL */
+export const initiateOAuth = () =>
+  apiClient.get("/whatsapp-setup/oauth/initiate").then((r) => r.data?.data?.url)
+
 export const connect = (payload) =>
   apiClient.post("/whatsapp-setup/connect", payload).then((r) => r.data)
 
@@ -29,3 +33,18 @@ export const getAgentKpis = () =>
 
 export const runNow = () =>
   apiClient.post("/whatsapp-agent/run-now").then((r) => r.data)
+
+const whatsappSetupService = {
+  getStatus,
+  initiateOAuth,
+  connect,
+  connectManual,
+  disconnect,
+  updateSettings,
+  getTemplates,
+  getAgentLogs,
+  getAgentKpis,
+  runNow,
+}
+
+export default whatsappSetupService
