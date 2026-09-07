@@ -59,7 +59,9 @@ function AddonGateBanner() {
     <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
       <p className="font-semibold">WhatsApp Agent add-on not enabled</p>
       <p className="mt-0.5 text-xs">
-        Contact techHind to activate the WhatsApp Payment Follow-up Agent for your account.
+        Enable tenant config key <code className="rounded bg-amber-100 px-1">whatsapp_agent.enabled</code>{" "}
+        = <code className="rounded bg-amber-100 px-1">true</code> in Config Master
+        (this is separate from the API env <code className="rounded bg-amber-100 px-1">WHATSAPP_AGENT_ENABLED</code>).
       </p>
     </div>
   )
@@ -113,14 +115,14 @@ function ConnectionCard({ config, connected, onConnect, onDisconnect, connecting
         </div>
       </div>
 
-      {/* Embedded Signup info */}
+      {/* Connect info */}
       {!connected && (
         <div className="mt-3 rounded-lg border border-dashed border-[#25D366]/30 bg-[#25D366]/5 p-3 text-xs text-[#128c5d]">
-          <p className="font-medium">How Embedded Signup works</p>
+          <p className="font-medium">How Connect works</p>
           <ol className="mt-1 space-y-0.5 list-decimal list-inside">
-            <li>Click "Connect WhatsApp" — a Meta popup opens</li>
-            <li>Log in to your Facebook account &amp; select your WhatsApp Business number</li>
-            <li>techHind securely stores your credentials to send follow-up messages</li>
+            <li>Click &quot;Connect WhatsApp&quot; — you are redirected to Meta</li>
+            <li>Log in to your Facebook account and select your WhatsApp Business number</li>
+            <li>Meta returns to the API, then back to this CRM — credentials are stored securely</li>
           </ol>
         </div>
       )}
@@ -508,48 +510,22 @@ export default function WhatsAppSetupPage() {
     fetchTemplates()
   }, [fetchStatus, fetchTemplates])
 
-  const handleConnect = () => {
-    const configId = process.env.NEXT_PUBLIC_WA_CONFIG_ID
-    if (!configId) {
-      toastError("NEXT_PUBLIC_WA_CONFIG_ID is not set. Contact your administrator.")
-      return
-    }
-
-    if (!window.FB) {
-      toastError("Facebook SDK not loaded. Please refresh the page and try again.")
-      return
-    }
-
+  const handleConnect = async () => {
     setConnecting(true)
-    window.FB.login(
-      async (response) => {
-        const code = response?.authResponse?.code
-        if (!code) {
-          setConnecting(false)
-          if (response?.status !== "connected") {
-            toastError("WhatsApp signup was cancelled or failed")
-          }
-          return
-        }
-
-        try {
-          await whatsappSetupService.connect({ code })
-          toastSuccess("WhatsApp connected successfully")
-          fetchStatus()
-          fetchTemplates()
-        } catch (err) {
-          toastError(err?.response?.data?.message || "Failed to connect WhatsApp")
-        } finally {
-          setConnecting(false)
-        }
-      },
-      {
-        config_id: configId,
-        response_type: "code",
-        override_default_response_type: true,
-        extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+    try {
+      const url = await whatsappSetupService.initiateOAuth()
+      if (!url) {
+        toastError("Failed to initiate WhatsApp login: URL not found")
+        setConnecting(false)
+        return
       }
-    )
+      // Backend-first OAuth (same as Meta Lead Ads): Facebook redirects to API,
+      // then API bounces to /whatsapp-setup/callback on this frontend origin.
+      window.location.href = url
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to initiate WhatsApp login")
+      setConnecting(false)
+    }
   }
 
   const handleDisconnectConfirm = async () => {
@@ -572,22 +548,6 @@ export default function WhatsAppSetupPage() {
 
   return (
     <ProtectedRoute>
-      {/* Facebook SDK (Embedded Signup) */}
-      <script
-        async
-        defer
-        crossOrigin="anonymous"
-        src="https://connect.facebook.net/en_US/sdk.js"
-        onLoad={() => {
-          window.FB?.init({
-            appId: process.env.NEXT_PUBLIC_WA_CONFIG_ID,
-            autoLogAppEvents: true,
-            xfbml: true,
-            version: "v19.0",
-          })
-        }}
-      />
-
       <div className="flex h-full flex-col overflow-y-auto">
         {/* Header */}
         <div className="mb-4 flex flex-wrap items-start justify-between gap-4 shrink-0">
