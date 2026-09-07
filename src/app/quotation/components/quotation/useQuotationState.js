@@ -6,6 +6,7 @@ import { getInitialFormData, getInitialTechnicalRemarks } from "./quotationConfi
 import { validateQuotation } from "./quotationValidation";
 import { validateE164Phone, validateEmail } from "@/utils/validators";
 import { toWholeRupeeOrEmpty, roundToPaise } from "./quotationCalculations";
+import { buildBomSubstitutesByProductId } from "./bomSubstituteUtils";
 
 const WHOLE_RUPEE_KEYS = new Set([
     "total_project_value",
@@ -96,6 +97,9 @@ export function useQuotationState({ user, defaultValues = {} }) {
         cleanedValues.extra_materials = extraRows;
         cleanedValues.add_extra_materials =
             defaultValues.add_extra_materials === true || extraRows.length > 0;
+        cleanedValues.bom_substitutes_by_product_id = buildBomSubstitutesByProductId(
+            defaultValues.bom_snapshot
+        );
         if (cleanedValues.add_extra_materials && extraRows.length > 0) {
             const sum = extraRows.reduce((s, r) => s + (Number(r.line_amount) || 0), 0);
             if (sum > 0) {

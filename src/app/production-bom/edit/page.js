@@ -68,6 +68,12 @@ function EditProductionBomContent() {
                     std_rate: Number(line.std_rate || 0),
                     is_optional: !!line.is_optional,
                     remarks: line.remarks || "",
+                    substitute_product_ids: Array.isArray(line.substitute_product_ids)
+                        ? line.substitute_product_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+                        : [],
+                    substitute_products: Array.isArray(line.substituteProducts)
+                        ? line.substituteProducts
+                        : [],
                 })),
                 operations: (result.operations || []).map((line) => ({
                     operation_name: line.operation_name,

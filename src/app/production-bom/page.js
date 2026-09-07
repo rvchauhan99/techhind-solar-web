@@ -415,6 +415,7 @@ export default function ProductionBomPage() {
                                 <thead className="bg-muted">
                                     <tr>
                                         <th className="px-2 py-1 text-left font-semibold">Product</th>
+                                        <th className="px-2 py-1 text-left font-semibold">Substitutes</th>
                                         <th className="px-2 py-1 text-right font-semibold">Qty/Out</th>
                                         <th className="px-2 py-1 text-right font-semibold">Scrap %</th>
                                         <th className="px-2 py-1 text-right font-semibold">Rate</th>
@@ -428,6 +429,16 @@ export default function ProductionBomPage() {
                                                 {line.is_optional && (
                                                     <span className="ml-1 text-muted-foreground">(optional)</span>
                                                 )}
+                                            </td>
+                                            <td className="px-2 py-1 text-muted-foreground">
+                                                {(line.substituteProducts || [])
+                                                    .map((p) => p.product_name)
+                                                    .filter(Boolean)
+                                                    .join(", ") ||
+                                                    (Array.isArray(line.substitute_product_ids) &&
+                                                    line.substitute_product_ids.length > 0
+                                                        ? line.substitute_product_ids.join(", ")
+                                                        : "-")}
                                             </td>
                                             <td className="px-2 py-1 text-right">{Number(line.quantity_per)}</td>
                                             <td className="px-2 py-1 text-right">{Number(line.scrap_percent)}</td>

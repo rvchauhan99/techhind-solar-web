@@ -38,6 +38,8 @@ export default function BillOfMaterialForm({
     product_id: "",
     quantity: "",
     description: "",
+    substitute_product_ids: [],
+    substitute_products: [],
   });
   const [currentDetailErrors, setCurrentDetailErrors] = useState({});
 
@@ -96,14 +98,27 @@ export default function BillOfMaterialForm({
       });
       const enrichedBomDetail = bomDetail.map((detail) => {
         const product = productsMap[detail.product_id];
+        const substituteIds = Array.isArray(detail.substitute_product_ids)
+          ? detail.substitute_product_ids.map(Number).filter((n) => Number.isFinite(n))
+          : [];
+        const substituteProducts =
+          Array.isArray(detail.substitute_products) && detail.substitute_products.length > 0
+            ? detail.substitute_products
+            : substituteIds.map((id) => productsMap[id]).filter(Boolean);
         if (product) {
           return {
             ...detail,
             product_type_id: product.product_type_id,
             product_name: product.product_name,
+            substitute_product_ids: substituteIds,
+            substitute_products: substituteProducts,
           };
         }
-        return detail;
+        return {
+          ...detail,
+          substitute_product_ids: substituteIds,
+          substitute_products: substituteProducts,
+        };
       });
       setFormData({
         bom_code: defaultValues.bom_code || "",
@@ -159,16 +174,25 @@ export default function BillOfMaterialForm({
   };
 
   const handleCurrentDetailChange = (field, value) => {
-    setCurrentDetail((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
+    setCurrentDetail((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "product_type_id") {
+        next.product_id = "";
+        next.substitute_product_ids = [];
+        next.substitute_products = [];
+      }
+      if (field === "product_id") {
+        const primaryId = Number(value);
+        const filtered = (prev.substitute_products || []).filter(
+          (p) => Number(p.id) !== primaryId
+        );
+        next.substitute_products = filtered;
+        next.substitute_product_ids = filtered.map((p) => Number(p.id));
+      }
+      return next;
+    });
 
     if (field === "product_type_id") {
-      setCurrentDetail((prev) => ({
-        ...prev,
-        product_id: "",
-      }));
       loadProductsForType(value);
     }
 
@@ -216,6 +240,36 @@ export default function BillOfMaterialForm({
       return;
     }
 
+    const primaryIds = new Set(
+      formData.bom_detail.map((d) => Number(d.product_id)).filter(Number.isFinite)
+    );
+    primaryIds.add(productId);
+
+    const substituteProducts = Array.isArray(currentDetail.substitute_products)
+      ? currentDetail.substitute_products
+      : [];
+    const substituteIds = [];
+    const seenSubs = new Set();
+    for (const product of substituteProducts) {
+      const subId = Number(product?.id);
+      if (!Number.isFinite(subId) || subId <= 0) continue;
+      if (subId === productId) {
+        setCurrentDetailErrors({
+          substitute_product_ids: "Substitute cannot be the same as the primary product",
+        });
+        return;
+      }
+      if (primaryIds.has(subId) && subId !== productId) {
+        setCurrentDetailErrors({
+          substitute_product_ids: "Substitute cannot be another primary product on this BOM",
+        });
+        return;
+      }
+      if (seenSubs.has(subId)) continue;
+      seenSubs.add(subId);
+      substituteIds.push(subId);
+    }
+
     const selectedProduct = (options.products[currentDetail.product_type_id] || []).find(
       (p) => String(p.id) === String(currentDetail.product_id)
     );
@@ -231,6 +285,10 @@ export default function BillOfMaterialForm({
           description: currentDetail.description || null,
           product_name: productName,
           product_type_id: Number(currentDetail.product_type_id),
+          substitute_product_ids: substituteIds,
+          substitute_products: substituteProducts.filter((p) =>
+            substituteIds.includes(Number(p.id))
+          ),
         },
       ],
     }));
@@ -248,6 +306,8 @@ export default function BillOfMaterialForm({
       product_id: "",
       quantity: "",
       description: "",
+      substitute_product_ids: [],
+      substitute_products: [],
     });
     setCurrentDetailErrors({});
   };
@@ -323,6 +383,9 @@ export default function BillOfMaterialForm({
         product_id: Number(detail.product_id),
         quantity: Number(detail.quantity),
         description: detail.description || null,
+        substitute_product_ids: Array.isArray(detail.substitute_product_ids)
+          ? detail.substitute_product_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+          : [],
       })),
     };
 
@@ -381,12 +444,20 @@ export default function BillOfMaterialForm({
         }
 
         const product = productMap[productId];
+        const substituteIds = Array.isArray(detail?.substitute_product_ids)
+          ? detail.substitute_product_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
         rowsToAppend.push({
           product_id: productId,
           quantity,
           description: detail?.description || null,
           product_name: product?.product_name || "",
           product_type_id: product?.product_type_id != null ? Number(product.product_type_id) : null,
+          substitute_product_ids: substituteIds.filter((id) => id !== productId),
+          substitute_products: substituteIds
+            .filter((id) => id !== productId)
+            .map((id) => productMap[id])
+            .filter(Boolean),
         });
         existingProductIds.add(productId);
       });
@@ -494,7 +565,7 @@ export default function BillOfMaterialForm({
         </FormGrid>
 
         <FormSection title="BOM Details">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2 mb-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 mb-2">
             <AutocompleteField
               name="product_type_id"
               label="Product Type"
@@ -536,6 +607,35 @@ export default function BillOfMaterialForm({
               value={currentDetail.description || ""}
               onChange={(e) => handleCurrentDetailChange("description", e.target.value)}
             />
+            <AutocompleteField
+              name="substitute_product_ids"
+              label="Substitutes"
+              multiple
+              options={(options.products[currentDetail.product_type_id] || []).filter(
+                (p) => String(p.id) !== String(currentDetail.product_id)
+              )}
+              getOptionLabel={(p) => formatProductAutocompleteLabel(p)}
+              value={currentDetail.substitute_products || []}
+              onChange={(e, newValue) => {
+                const selected = Array.isArray(newValue) ? newValue : [];
+                setCurrentDetail((prev) => ({
+                  ...prev,
+                  substitute_products: selected,
+                  substitute_product_ids: selected.map((p) => Number(p.id)).filter(Number.isFinite),
+                }));
+                if (currentDetailErrors.substitute_product_ids) {
+                  setCurrentDetailErrors((prev) => {
+                    const next = { ...prev };
+                    delete next.substitute_product_ids;
+                    return next;
+                  });
+                }
+              }}
+              placeholder="Select substitutes..."
+              disabled={!currentDetail.product_type_id}
+              error={!!currentDetailErrors.substitute_product_ids}
+              helperText={currentDetailErrors.substitute_product_ids || "Optional; pick one or more"}
+            />
             <div className="flex items-end">
               <Button type="button" variant="default" size="sm" onClick={handleAddBomDetail} className="w-full h-10">
                 <IconPlus className="size-4 mr-1.5" />
@@ -565,33 +665,53 @@ export default function BillOfMaterialForm({
                     <tr>
                       <th className="text-left font-medium p-2">Name</th>
                       <th className="text-left font-medium p-2 w-20">Qty</th>
+                      <th className="text-left font-medium p-2">Substitutes</th>
                       <th className="text-left font-medium p-2">Description</th>
                       <th className="text-right font-medium p-2 w-14">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {formData.bom_detail.map((detail, index) => (
-                      <tr key={index} className="border-b border-border last:border-0 hover:bg-muted/20">
-                        <td className="p-2 align-middle">
-                          {detail.product_name ||
-                            getProductName(detail.product_type_id, detail.product_id)}
-                        </td>
-                        <td className="p-2 align-middle">{detail.quantity}</td>
-                        <td className="p-2 align-middle">{detail.description || "-"}</td>
-                        <td className="p-2 text-right align-middle">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive hover:text-destructive"
-                            onClick={() => handleRemoveBomDetail(index)}
-                            aria-label="Remove row"
-                          >
-                            <IconTrash className="size-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                    {formData.bom_detail.map((detail, index) => {
+                      const substituteLabel =
+                        (detail.substitute_products || [])
+                          .map((p) => p.product_name || formatProductAutocompleteLabel(p))
+                          .filter(Boolean)
+                          .join(", ") ||
+                        (detail.substitute_product_ids || [])
+                          .map((id) => {
+                            const product = (options.allProducts || []).find(
+                              (p) => Number(p.id) === Number(id)
+                            );
+                            return product ? formatProductAutocompleteLabel(product) : `#${id}`;
+                          })
+                          .join(", ") ||
+                        "-";
+                      return (
+                        <tr key={index} className="border-b border-border last:border-0 hover:bg-muted/20">
+                          <td className="p-2 align-middle">
+                            {detail.product_name ||
+                              getProductName(detail.product_type_id, detail.product_id)}
+                          </td>
+                          <td className="p-2 align-middle">{detail.quantity}</td>
+                          <td className="p-2 align-middle text-xs text-muted-foreground max-w-[220px]">
+                            {substituteLabel}
+                          </td>
+                          <td className="p-2 align-middle">{detail.description || "-"}</td>
+                          <td className="p-2 text-right align-middle">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8 text-destructive hover:text-destructive"
+                              onClick={() => handleRemoveBomDetail(index)}
+                              aria-label="Remove row"
+                            >
+                              <IconTrash className="size-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

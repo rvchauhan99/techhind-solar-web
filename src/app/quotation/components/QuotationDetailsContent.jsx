@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { formatDate } from "@/utils/dataTableUtils";
 import { getBomLineProduct } from "@/utils/bomUtils";
 import { calculateTotals } from "./quotation/quotationCalculations";
+import PossibleSubstitutesHint from "./quotation/PossibleSubstitutesHint";
+import { normalizeSubstituteList } from "./quotation/bomSubstituteUtils";
 
 const formatCurrency = (v) =>
   v != null && !Number.isNaN(Number(v)) ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "-";
@@ -86,13 +88,17 @@ export default function QuotationDetailsContent({ quotation, loading }) {
         <tbody>
           {lines.map((line, idx) => {
             const p = getBomLineProduct(line) || {};
+            const substitutes = normalizeSubstituteList(line.substitute_products);
             return (
               <tr key={idx} className="border-t border-border">
-                <td className="px-2 py-1.5">{idx + 1}</td>
-                <td className="px-2 py-1.5">{p.product_name ?? "-"}</td>
-                <td className="px-2 py-1.5">{p.product_type_name ?? "-"}</td>
-                <td className="px-2 py-1.5 text-right">{line.quantity ?? "-"}</td>
-                <td className="px-2 py-1.5">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
+                <td className="px-2 py-1.5 align-top">{idx + 1}</td>
+                <td className="px-2 py-1.5 align-top">
+                  <div>{p.product_name ?? "-"}</div>
+                  <PossibleSubstitutesHint substitutes={substitutes} />
+                </td>
+                <td className="px-2 py-1.5 align-top">{p.product_type_name ?? "-"}</td>
+                <td className="px-2 py-1.5 text-right align-top">{line.quantity ?? "-"}</td>
+                <td className="px-2 py-1.5 align-top">{p.measurement_unit_name ?? p.unit ?? "-"}</td>
               </tr>
             );
           })}

@@ -75,6 +75,8 @@ export default function BillOfMaterialPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [sidebarDetail, setSidebarDetail] = useState(null);
+  const [loadingSidebar, setLoadingSidebar] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bomToDelete, setBomToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -169,14 +171,27 @@ export default function BillOfMaterialPage() {
     setServerError(null);
   };
 
-  const handleOpenSidebar = useCallback((row) => {
+  const handleOpenSidebar = useCallback(async (row) => {
     setSelectedRow(row);
     setSidebarOpen(true);
+    setSidebarDetail(null);
+    if (!row?.id) return;
+    setLoadingSidebar(true);
+    try {
+      const response = await billOfMaterialService.getBillOfMaterialById(row.id);
+      setSidebarDetail(response?.result || response || null);
+    } catch (error) {
+      console.error("Error loading BOM details:", error);
+      setSidebarDetail(null);
+    } finally {
+      setLoadingSidebar(false);
+    }
   }, []);
 
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
     setSelectedRow(null);
+    setSidebarDetail(null);
   }, []);
 
   const handleSubmit = async (payload) => {
@@ -323,6 +338,7 @@ export default function BillOfMaterialPage() {
   const sidebarContent = useMemo(() => {
     if (!selectedRow) return null;
     const r = selectedRow;
+    const details = Array.isArray(sidebarDetail?.bom_detail) ? sidebarDetail.bom_detail : [];
     return (
       <div className="pr-1 space-y-3">
         <p className="font-semibold">{r.code ?? "-"}</p>
@@ -332,9 +348,33 @@ export default function BillOfMaterialPage() {
         <p className="text-sm">{r.description ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Number of Products</p>
         <p className="text-sm">{r.number_of_products ?? "-"}</p>
+        <p className="text-xs font-semibold text-muted-foreground">Line items</p>
+        {loadingSidebar ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : details.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No line items</p>
+        ) : (
+          <div className="space-y-2">
+            {details.map((line, index) => {
+              const substitutes = Array.isArray(line.substitute_products)
+                ? line.substitute_products.map((p) => p.product_name).filter(Boolean)
+                : [];
+              return (
+                <div key={`${line.product_id}-${index}`} className="rounded border border-border p-2 text-sm">
+                  <p className="font-medium">
+                    #{index + 1} Product ID {line.product_id} · Qty {line.quantity}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Substitutes: {substitutes.length > 0 ? substitutes.join(", ") : "-"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
-  }, [selectedRow]);
+  }, [selectedRow, sidebarDetail, loadingSidebar]);
 
   return (
     <ProtectedRoute>
