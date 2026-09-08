@@ -27,6 +27,9 @@ export const AGENT = {
     runNow: "Run Now",
     running: "Running…",
     edit: "Edit",
+    testMode: "Test mode",
+    testPhone: "Test WhatsApp number",
+    testModeHint: "When on, every send goes to this number instead of customer mobiles. Cap is 10 per day.",
   },
 }
 
