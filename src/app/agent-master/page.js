@@ -38,6 +38,13 @@ const fmtDateTime = (d) => {
 
 const padHour = (h) => String(h ?? 0).padStart(2, "0") + ":00"
 
+const maskPhone = (phone) => {
+  const d = String(phone || "").replace(/\D/g, "")
+  if (!d) return ""
+  if (d.length < 6) return "••••"
+  return `${d.slice(0, 2)}••••${d.slice(-4)}`
+}
+
 export default function AgentMasterPage() {
   const { modulePermissions, currentModuleId } = useAuth()
   const currentPerm = modulePermissions?.[currentModuleId] || {
@@ -87,12 +94,21 @@ export default function AgentMasterPage() {
       quiet_hours_start: row.quiet_hours_start,
       quiet_hours_end: row.quiet_hours_end,
       max_messages_per_day: row.max_messages_per_day,
+      test_mode: Boolean(row.test_mode),
+      test_phone: row.test_phone || "",
     })
     setEditOpen(true)
   }
 
   const handleSave = async () => {
     if (!form) return
+    if (form.test_mode) {
+      const digits = String(form.test_phone || "").replace(/\D/g, "")
+      if (digits.length < 10 || digits.length > 15) {
+        toast.error("Test mode needs a 10–15 digit WhatsApp number with country code")
+        return
+      }
+    }
     setSaving(true)
     try {
       await agentMasterService.updateAgent(form.id, {
@@ -103,6 +119,8 @@ export default function AgentMasterPage() {
         quiet_hours_start: form.quiet_hours_start,
         quiet_hours_end: form.quiet_hours_end,
         max_messages_per_day: parseInt(form.max_messages_per_day, 10),
+        test_mode: Boolean(form.test_mode),
+        test_phone: form.test_phone,
       })
       toast.success("Agent saved")
       setEditOpen(false)
@@ -140,6 +158,11 @@ export default function AgentMasterPage() {
           <div className="min-w-0 py-0.5">
             <div className="text-xs font-semibold leading-tight">{row.name}</div>
             <div className="text-[11px] text-muted-foreground truncate">{row.agent_key}</div>
+            {row.test_mode && (
+              <span className="mt-0.5 inline-flex items-center rounded bg-amber-100 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                TEST {maskPhone(row.test_phone)}
+              </span>
+            )}
           </div>
         ),
       },
@@ -382,6 +405,41 @@ export default function AgentMasterPage() {
                     aria-label="Max messages per day"
                   />
                 </div>
+                <div className="col-span-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={Boolean(form.test_mode)}
+                    aria-label={AGENT.master.testMode}
+                    onClick={() => handleFormChange("test_mode", !form.test_mode)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent ${
+                      form.test_mode ? "bg-amber-500" : "bg-input"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg transition-transform ${
+                        form.test_mode ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                  <Label className="text-xs">{AGENT.master.testMode}</Label>
+                </div>
+                {form.test_mode && (
+                  <div className="flex flex-col gap-1 col-span-2">
+                    <Label className="text-xs">{AGENT.master.testPhone}</Label>
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      required
+                      placeholder="9198XXXXXXXX"
+                      value={form.test_phone}
+                      onChange={(e) => handleFormChange("test_phone", e.target.value)}
+                      className="h-8 text-sm"
+                      aria-label={AGENT.master.testPhone}
+                    />
+                    <p className="text-[11px] text-muted-foreground">{AGENT.master.testModeHint}</p>
+                  </div>
+                )}
               </div>
             )}
             <DialogFooter className="gap-2">
