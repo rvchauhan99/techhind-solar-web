@@ -28,8 +28,8 @@ export const getTemplates = () =>
 export const getAgentLogs = (params) =>
   apiClient.get("/whatsapp-agent/logs", { params }).then((r) => r.data)
 
-export const getAgentKpis = () =>
-  apiClient.get("/whatsapp-agent/logs/kpis").then((r) => r.data?.data)
+export const getAgentKpis = (params) =>
+  apiClient.get("/whatsapp-agent/logs/kpis", { params }).then((r) => r.data?.data)
 
 export const runNow = () =>
   apiClient.post("/whatsapp-agent/run-now").then((r) => r.data)

@@ -152,8 +152,8 @@ function MenuItemComponent({ item, level = 0, setSidebarOpen }) {
 }
 
 function getFirstRoute(item) {
-  if (item.route) return item.route;
-  if (item.submodules?.length) return getFirstRoute(item.submodules[0]);
+  if (item?.submodules?.length) return getFirstRoute(item.submodules[0]);
+  if (item?.route) return item.route;
   return "#";
 }
 
@@ -236,7 +236,7 @@ export default function Sidebar({
   }, [searchQuery]);
 
   const handleSearchSelect = (item) => {
-    const route = item.route || getFirstRoute(item);
+    const route = getFirstRoute(item);
     if (route && route !== "#") {
       router.push(route);
       setSearchQuery("");
@@ -378,6 +378,7 @@ export default function Sidebar({
                 <Link
                   key={item.id || `${item.name}-${index}`}
                   href={route}
+                  prefetch={false}
                   onClick={() => setSidebarOpen?.(false)}
                   title={item.name}
                   className={cn(
