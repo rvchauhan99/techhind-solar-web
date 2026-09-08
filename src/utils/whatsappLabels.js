@@ -54,8 +54,9 @@ export const WA_STATUS_COLORS = {
 
 // Template descriptions per bucket (shown on setup page)
 export const TEMPLATE_DESCRIPTIONS = {
-  "7d": "Soft reminder — sent 1–7 days after planned delivery. Friendly tone.",
-  "15d": "Urgent reminder — sent 8–15 days overdue. Includes days overdue count.",
-  "30d": "Escalation — sent 16–30 days overdue. Requests immediate attention.",
-  "30d_plus": "Final escalation — 30+ days overdue. Same template as 30d bucket.",
+  "7d": "Soft reminder — 1–7 days overdue. Utility template payment_reminder_soft.",
+  "15d": "Urgent reminder — 8–15 days overdue. Includes days overdue count.",
+  "30d": "Escalation — 16–60 days overdue. Same Meta name as 60d+.",
+  "60d_plus": "Final escalation — 60+ days overdue. Reuses payment_escalation.",
+  "30d_plus": "Legacy 30+ bucket — treated as 60d_plus.",
 }

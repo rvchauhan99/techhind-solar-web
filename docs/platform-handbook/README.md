@@ -11,6 +11,7 @@ Customer-facing platform documentation for the TechHind Solar Management System.
 | `02-platform-architecture.md` | High-level architecture for stakeholders |
 | `03-getting-started.md` | Login, navigation, search |
 | `modules/` | 14 module chapters (04–18) |
+| [WhatsApp Manager template guide](../WhatsApp-Agent-Tenant-Setup-Guide.md) | Meta Business: three Utility payment templates |
 | `workflows/` | End-to-end business workflows (including Production / Assembly) |
 | `assets/screenshots/` | Demo screenshots from `demo.techhind.in` |
 | `scripts/` | Screenshot capture and PDF build |

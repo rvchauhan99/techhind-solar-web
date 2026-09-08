@@ -22,6 +22,7 @@ import {
   IconAlertCircle,
   IconCheck,
   IconInfoCircle,
+  IconCopy,
 } from "@tabler/icons-react"
 import { toastSuccess, toastError } from "@/utils/toast"
 import { WA, BUCKET_LABELS, TEMPLATE_DESCRIPTIONS } from "@/utils/whatsappLabels"
@@ -270,12 +271,23 @@ function AgentSettingsCard({ config, onSaved }) {
   )
 }
 
-// ─── Templates Card ───────────────────────────────────────────────────────────
+const handleCopyTemplateField = async (label, value) => {
+  if (!value) {
+    toastError(`No ${label} to copy`)
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(value)
+    toastSuccess(`${label} copied`)
+  } catch {
+    toastError(`Could not copy ${label}`)
+  }
+}
 
 function TemplatesCard({ templates, loading }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
+    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">Message Templates</h2>
         <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
           <IconInfoCircle className="h-3 w-3" /> Register in Meta Business Manager first
@@ -291,38 +303,77 @@ function TemplatesCard({ templates, loading }) {
           {templates.map((tpl) => (
             <div
               key={tpl.id}
-              className="flex items-start justify-between rounded-lg border border-border bg-background px-3 py-2"
+              className="rounded-lg border border-border bg-background px-2.5 py-2"
             >
-              <div className="min-w-0">
-                <p className="text-xs font-medium">{tpl.whatsapp_key}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {tpl.agent_bucket ? TEMPLATE_DESCRIPTIONS[tpl.agent_bucket] || tpl.agent_bucket : "Manual use only"}
-                </p>
-              </div>
-              <div className="ml-3 shrink-0 flex items-center gap-2">
-                {tpl.agent_bucket && (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                    {BUCKET_LABELS[tpl.agent_bucket] || tpl.agent_bucket}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium font-mono">{tpl.template_key || tpl.whatsapp_key}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Meta name: {tpl.whatsapp_key}
+                    {tpl.agent_bucket ? ` · ${TEMPLATE_DESCRIPTIONS[tpl.agent_bucket] || tpl.agent_bucket}` : " · Manual use only"}
+                    {" · "}UTILITY · {tpl.language || "en"}
+                  </p>
+                </div>
+                <div className="ml-2 shrink-0 flex items-center gap-1.5">
+                  {tpl.agent_bucket && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {BUCKET_LABELS[tpl.agent_bucket] || tpl.agent_bucket}
+                    </span>
+                  )}
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      tpl.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {tpl.is_active ? "Active" : "Inactive"}
                   </span>
-                )}
-                <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                    tpl.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {tpl.is_active ? "Active" : "Inactive"}
-                </span>
+                </div>
               </div>
+              {tpl.default_header_value ? (
+                <div className="mt-1.5 flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[11px] leading-snug">
+                    <span className="font-medium text-muted-foreground">Header: </span>
+                    {tpl.default_header_value}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-1.5 text-[11px]"
+                    aria-label={`Copy header for ${tpl.whatsapp_key}`}
+                    onClick={() => handleCopyTemplateField("Header", tpl.default_header_value)}
+                  >
+                    <IconCopy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
+              {tpl.body_text ? (
+                <div className="mt-1 flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[11px] leading-snug text-muted-foreground">
+                    {tpl.body_text}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-1.5 text-[11px]"
+                    aria-label={`Copy body for ${tpl.whatsapp_key}`}
+                    onClick={() => handleCopyTemplateField("Body", tpl.body_text)}
+                  >
+                    <IconCopy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-3 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
+      <div className="mt-2 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
         <p className="font-medium">Meta Business Manager setup required</p>
         <p className="mt-0.5">
-          These templates must be registered in Meta Business Manager (Category: UTILITY, Language: en) before the
-          agent can send messages. Template names must match exactly.
+          Register each name as UTILITY, language en, TEXT header (no variables), body copied from this page.
+          Names must match exactly. Trailing words after the last placeholder are required — a period alone is rejected.
         </p>
       </div>
     </div>
