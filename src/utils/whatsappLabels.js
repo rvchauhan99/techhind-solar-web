@@ -37,6 +37,7 @@ export const AGENT = {
     subtitle: "Delivery history for CRM agents. Pick an agent to view its sends.",
     selectAgent: "Agent",
     empty: "No logs for this agent yet.",
+    error: "Error",
     runNow: "Run Now",
     running: "Running…",
   },
