@@ -31,6 +31,15 @@ export const AGENT = {
     testPhone: "Test WhatsApp number",
     testModeHint: "When on, every send goes to this number instead of customer mobiles. Cap is 10 per day.",
   },
+  logs: {
+    menu: "Agent Logs",
+    title: "Agent Logs",
+    subtitle: "Delivery history for CRM agents. Pick an agent to view its sends.",
+    selectAgent: "Agent",
+    empty: "No logs for this agent yet.",
+    runNow: "Run Now",
+    running: "Running…",
+  },
 }
 
 // Bucket labels
