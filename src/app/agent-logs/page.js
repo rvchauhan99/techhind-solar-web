@@ -83,6 +83,17 @@ function BucketBadge({ bucket }) {
   )
 }
 
+function ErrorCell({ status, notes }) {
+  if (status !== "failed" || !notes) {
+    return <span className="text-muted-foreground">—</span>
+  }
+  return (
+    <span className="block max-w-[14rem] truncate text-red-700" title={notes}>
+      {notes}
+    </span>
+  )
+}
+
 export default function AgentLogsPage() {
   const { modulePermissions, currentModuleId } = useAuth()
   const currentPerm = modulePermissions?.[currentModuleId] || {
@@ -292,18 +303,19 @@ export default function AgentLogsPage() {
                 <th className="px-3 py-2 text-right font-medium text-muted-foreground">Outstanding</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Bucket</th>
                 <th className="px-3 py-2 text-center font-medium text-muted-foreground">Status</th>
+                <th className="px-3 py-2 text-left font-medium text-muted-foreground">{AGENT.logs.error}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -328,6 +340,9 @@ export default function AgentLogsPage() {
                     </td>
                     <td className="px-3 py-2 text-center">
                       <StatusBadge status={log.wa_status} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <ErrorCell status={log.wa_status} notes={log.notes} />
                     </td>
                   </tr>
                 ))
