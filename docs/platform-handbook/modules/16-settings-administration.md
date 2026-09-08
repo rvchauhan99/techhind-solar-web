@@ -10,6 +10,7 @@ Configure your organization in the platform — company details, branches, wareh
 - Manage users and assign roles
 - Configure which modules each role can access
 - Maintain reference masters (DISCOM, payment modes, document types, etc.)
+- Register WhatsApp **Utility** templates in Meta Business Manager: [WhatsApp Manager template guide](../../WhatsApp-Agent-Tenant-Setup-Guide.md)
 
 ## How It Works
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import ProtectedRoute from "@/components/common/ProtectedRoute"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -22,6 +23,7 @@ import {
   IconAlertCircle,
   IconCheck,
   IconInfoCircle,
+  IconCopy,
 } from "@tabler/icons-react"
 import { toastSuccess, toastError } from "@/utils/toast"
 import { WA, BUCKET_LABELS, TEMPLATE_DESCRIPTIONS } from "@/utils/whatsappLabels"
@@ -156,126 +158,23 @@ function ConnectionCard({ config, connected, onConnect, onDisconnect, connecting
   )
 }
 
-// ─── Agent Settings ───────────────────────────────────────────────────────────
-
-function AgentSettingsCard({ config, onSaved }) {
-  const [agentEnabled, setAgentEnabled] = useState(config?.agent_enabled ?? false)
-  const [quietStart, setQuietStart] = useState(config?.quiet_hours_start ?? "21:00")
-  const [quietEnd, setQuietEnd] = useState(config?.quiet_hours_end ?? "09:00")
-  const [maxPerDay, setMaxPerDay] = useState(config?.max_messages_per_day ?? 50)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setAgentEnabled(config?.agent_enabled ?? false)
-    setQuietStart(config?.quiet_hours_start ?? "21:00")
-    setQuietEnd(config?.quiet_hours_end ?? "09:00")
-    setMaxPerDay(config?.max_messages_per_day ?? 50)
-  }, [config])
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await whatsappSetupService.updateSettings({
-        agent_enabled: agentEnabled,
-        quiet_hours_start: quietStart,
-        quiet_hours_end: quietEnd,
-        max_messages_per_day: Number(maxPerDay),
-      })
-      toastSuccess("Agent settings saved")
-      onSaved?.()
-    } catch (err) {
-      toastError(err?.response?.data?.message || "Failed to save settings")
-    } finally {
-      setSaving(false)
-    }
+const handleCopyTemplateField = async (label, value) => {
+  if (!value) {
+    toastError(`No ${label} to copy`)
+    return
   }
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold">Agent Settings</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Enable agent */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Enable Agent</Label>
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={agentEnabled}
-              aria-label="Enable WhatsApp payment follow-up agent"
-              onClick={() => setAgentEnabled((v) => !v)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                agentEnabled ? "bg-green-500" : "bg-input"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                  agentEnabled ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
-            <span className="text-xs text-muted-foreground cursor-pointer" onClick={() => setAgentEnabled((v) => !v)}>
-              {agentEnabled ? "Active" : "Inactive"}
-            </span>
-          </div>
-        </div>
-
-        {/* Quiet hours */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Quiet Hours Start</Label>
-          <Input
-            type="time"
-            value={quietStart}
-            onChange={(e) => setQuietStart(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Quiet hours start time"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Quiet Hours End</Label>
-          <Input
-            type="time"
-            value={quietEnd}
-            onChange={(e) => setQuietEnd(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Quiet hours end time"
-          />
-        </div>
-
-        {/* Max messages */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Max Messages / Day</Label>
-          <Input
-            type="number"
-            min={1}
-            max={500}
-            value={maxPerDay}
-            onChange={(e) => setMaxPerDay(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Maximum WhatsApp messages per day"
-          />
-        </div>
-      </div>
-
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Agent runs daily between 09:00–11:00. Messages outside quiet hours only. Scheduler checks every 60 seconds.
-      </p>
-
-      <div className="mt-3 flex justify-end">
-        <Button size="sm" disabled={saving} onClick={handleSave}>
-          {saving ? "Saving…" : "Save Settings"}
-        </Button>
-      </div>
-    </div>
-  )
+  try {
+    await navigator.clipboard.writeText(value)
+    toastSuccess(`${label} copied`)
+  } catch {
+    toastError(`Could not copy ${label}`)
+  }
 }
-
-// ─── Templates Card ───────────────────────────────────────────────────────────
 
 function TemplatesCard({ templates, loading }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
+    <div className="rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-semibold">Message Templates</h2>
         <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
           <IconInfoCircle className="h-3 w-3" /> Register in Meta Business Manager first
@@ -291,38 +190,77 @@ function TemplatesCard({ templates, loading }) {
           {templates.map((tpl) => (
             <div
               key={tpl.id}
-              className="flex items-start justify-between rounded-lg border border-border bg-background px-3 py-2"
+              className="rounded-lg border border-border bg-background px-2.5 py-2"
             >
-              <div className="min-w-0">
-                <p className="text-xs font-medium">{tpl.whatsapp_key}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {tpl.agent_bucket ? TEMPLATE_DESCRIPTIONS[tpl.agent_bucket] || tpl.agent_bucket : "Manual use only"}
-                </p>
-              </div>
-              <div className="ml-3 shrink-0 flex items-center gap-2">
-                {tpl.agent_bucket && (
-                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                    {BUCKET_LABELS[tpl.agent_bucket] || tpl.agent_bucket}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium font-mono">{tpl.template_key || tpl.whatsapp_key}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Meta name: {tpl.whatsapp_key}
+                    {tpl.agent_bucket ? ` · ${TEMPLATE_DESCRIPTIONS[tpl.agent_bucket] || tpl.agent_bucket}` : " · Manual use only"}
+                    {" · "}UTILITY · {tpl.language || "en"}
+                  </p>
+                </div>
+                <div className="ml-2 shrink-0 flex items-center gap-1.5">
+                  {tpl.agent_bucket && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {BUCKET_LABELS[tpl.agent_bucket] || tpl.agent_bucket}
+                    </span>
+                  )}
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      tpl.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                    }`}
+                  >
+                    {tpl.is_active ? "Active" : "Inactive"}
                   </span>
-                )}
-                <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                    tpl.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {tpl.is_active ? "Active" : "Inactive"}
-                </span>
+                </div>
               </div>
+              {tpl.default_header_value ? (
+                <div className="mt-1.5 flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[11px] leading-snug">
+                    <span className="font-medium text-muted-foreground">Header: </span>
+                    {tpl.default_header_value}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-1.5 text-[11px]"
+                    aria-label={`Copy header for ${tpl.whatsapp_key}`}
+                    onClick={() => handleCopyTemplateField("Header", tpl.default_header_value)}
+                  >
+                    <IconCopy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
+              {tpl.body_text ? (
+                <div className="mt-1 flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[11px] leading-snug text-muted-foreground">
+                    {tpl.body_text}
+                  </p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 shrink-0 px-1.5 text-[11px]"
+                    aria-label={`Copy body for ${tpl.whatsapp_key}`}
+                    onClick={() => handleCopyTemplateField("Body", tpl.body_text)}
+                  >
+                    <IconCopy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
       )}
 
-      <div className="mt-3 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800">
+      <div className="mt-2 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
         <p className="font-medium">Meta Business Manager setup required</p>
         <p className="mt-0.5">
-          These templates must be registered in Meta Business Manager (Category: UTILITY, Language: en) before the
-          agent can send messages. Template names must match exactly.
+          Register each name as UTILITY, language en, TEXT header (no variables), body copied from this page.
+          Names must match exactly. Trailing words after the last placeholder are required — a period alone is rejected.
         </p>
       </div>
     </div>
@@ -557,7 +495,7 @@ export default function WhatsAppSetupPage() {
               {WA.setup.title}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Connect your WhatsApp Business number and configure the payment follow-up agent.
+              Connect your WhatsApp Business number. Enable and schedule the payment agent on Agent Master.
             </p>
           </div>
         </div>
@@ -587,9 +525,15 @@ export default function WhatsAppSetupPage() {
             {/* Dev-only local connect form (hidden in production) */}
             <LocalConnectCard onConnected={() => { fetchStatus(); fetchTemplates() }} />
 
-            {/* Agent settings — only show when connected */}
+            {/* Channel only — agent runtime is on Agent Master */}
             {connected && addonEnabled && (
-              <AgentSettingsCard config={config} onSaved={fetchStatus} />
+              <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+                Agent enable, run window, quiet hours, and Run Now are on{" "}
+                <Link href="/agent-master" className="font-medium text-blue-700 underline">
+                  Agent Master
+                </Link>
+                .
+              </div>
             )}
 
             {/* Templates */}
