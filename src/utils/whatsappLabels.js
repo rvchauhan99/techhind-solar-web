@@ -18,6 +18,18 @@ export const WA = {
   },
 }
 
+export const AGENT = {
+  parent: "Agents",
+  master: {
+    menu: "Agent Master",
+    title: "Agent Master",
+    subtitle: "Enable, schedule, and run CRM agents. Channel connect stays on WhatsApp Setup.",
+    runNow: "Run Now",
+    running: "Running…",
+    edit: "Edit",
+  },
+}
+
 // Bucket labels
 export const BUCKET_LABELS = {
   "7d": "1–7 Days Overdue",

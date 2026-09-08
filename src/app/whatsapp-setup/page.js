@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import ProtectedRoute from "@/components/common/ProtectedRoute"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -153,120 +154,6 @@ function ConnectionCard({ config, connected, onConnect, onDisconnect, connecting
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
-  )
-}
-
-// ─── Agent Settings ───────────────────────────────────────────────────────────
-
-function AgentSettingsCard({ config, onSaved }) {
-  const [agentEnabled, setAgentEnabled] = useState(config?.agent_enabled ?? false)
-  const [quietStart, setQuietStart] = useState(config?.quiet_hours_start ?? "21:00")
-  const [quietEnd, setQuietEnd] = useState(config?.quiet_hours_end ?? "09:00")
-  const [maxPerDay, setMaxPerDay] = useState(config?.max_messages_per_day ?? 50)
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setAgentEnabled(config?.agent_enabled ?? false)
-    setQuietStart(config?.quiet_hours_start ?? "21:00")
-    setQuietEnd(config?.quiet_hours_end ?? "09:00")
-    setMaxPerDay(config?.max_messages_per_day ?? 50)
-  }, [config])
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      await whatsappSetupService.updateSettings({
-        agent_enabled: agentEnabled,
-        quiet_hours_start: quietStart,
-        quiet_hours_end: quietEnd,
-        max_messages_per_day: Number(maxPerDay),
-      })
-      toastSuccess("Agent settings saved")
-      onSaved?.()
-    } catch (err) {
-      toastError(err?.response?.data?.message || "Failed to save settings")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h2 className="mb-3 text-sm font-semibold">Agent Settings</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Enable agent */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Enable Agent</Label>
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={agentEnabled}
-              aria-label="Enable WhatsApp payment follow-up agent"
-              onClick={() => setAgentEnabled((v) => !v)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                agentEnabled ? "bg-green-500" : "bg-input"
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform ${
-                  agentEnabled ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
-            <span className="text-xs text-muted-foreground cursor-pointer" onClick={() => setAgentEnabled((v) => !v)}>
-              {agentEnabled ? "Active" : "Inactive"}
-            </span>
-          </div>
-        </div>
-
-        {/* Quiet hours */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Quiet Hours Start</Label>
-          <Input
-            type="time"
-            value={quietStart}
-            onChange={(e) => setQuietStart(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Quiet hours start time"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Quiet Hours End</Label>
-          <Input
-            type="time"
-            value={quietEnd}
-            onChange={(e) => setQuietEnd(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Quiet hours end time"
-          />
-        </div>
-
-        {/* Max messages */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs font-medium">Max Messages / Day</Label>
-          <Input
-            type="number"
-            min={1}
-            max={500}
-            value={maxPerDay}
-            onChange={(e) => setMaxPerDay(e.target.value)}
-            className="h-8 text-sm"
-            aria-label="Maximum WhatsApp messages per day"
-          />
-        </div>
-      </div>
-
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Agent runs daily between 09:00–11:00. Messages outside quiet hours only. Scheduler checks every 60 seconds.
-      </p>
-
-      <div className="mt-3 flex justify-end">
-        <Button size="sm" disabled={saving} onClick={handleSave}>
-          {saving ? "Saving…" : "Save Settings"}
-        </Button>
-      </div>
     </div>
   )
 }
@@ -608,7 +495,7 @@ export default function WhatsAppSetupPage() {
               {WA.setup.title}
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Connect your WhatsApp Business number and configure the payment follow-up agent.
+              Connect your WhatsApp Business number. Enable and schedule the payment agent on Agent Master.
             </p>
           </div>
         </div>
@@ -638,9 +525,15 @@ export default function WhatsAppSetupPage() {
             {/* Dev-only local connect form (hidden in production) */}
             <LocalConnectCard onConnected={() => { fetchStatus(); fetchTemplates() }} />
 
-            {/* Agent settings — only show when connected */}
+            {/* Channel only — agent runtime is on Agent Master */}
             {connected && addonEnabled && (
-              <AgentSettingsCard config={config} onSaved={fetchStatus} />
+              <div className="rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+                Agent enable, run window, quiet hours, and Run Now are on{" "}
+                <Link href="/agent-master" className="font-medium text-blue-700 underline">
+                  Agent Master
+                </Link>
+                .
+              </div>
             )}
 
             {/* Templates */}
