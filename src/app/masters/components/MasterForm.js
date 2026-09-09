@@ -444,11 +444,10 @@ export default function MasterForm({
       return null;
     }
 
-    // Product Type: name is locked on edit (create remains editable)
+    // Unique-key identity fields are locked on edit (create remains editable)
     const isEditingRecord = Boolean(defaultValues?.id);
-    const isProductTypeNameLocked =
-      modelName === "product_type.model" && isEditingRecord && fieldName === "name";
-    const fieldDisabled = viewMode || isProductTypeNameLocked;
+    const isUniqueKeyLocked = isEditingRecord && field.immutableOnEdit === true;
+    const fieldDisabled = viewMode || isUniqueKeyLocked;
 
     // Platform Config: user-ID allowlist — pick users by name/email, store ID JSON
     if (isUserIdAllowlistConfig && fieldName === "config_value") {
@@ -571,7 +570,7 @@ export default function MasterForm({
               getOptionLabel={getOptionLabel}
               value={fieldValue !== null && fieldValue !== undefined && fieldValue !== '' ? { id: fieldValue } : null}
               onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: newValue?.id ?? newValue?.value ?? '' } })}
-              disabled={viewMode}
+              disabled={fieldDisabled}
               required={isRequired && !viewMode}
               error={hasError}
               helperText={hasError ? errors[fieldName] : null}
@@ -589,7 +588,7 @@ export default function MasterForm({
             value={fieldValue}
             onChange={handleChange}
             required={isRequired && !viewMode}
-            disabled={viewMode}
+            disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
           />
@@ -605,7 +604,7 @@ export default function MasterForm({
             value={fieldValue ? (fieldValue instanceof Date ? fieldValue.toISOString().split('T')[0] : fieldValue.split('T')[0]) : ''}
             onChange={handleChange}
             required={isRequired && !viewMode}
-            disabled={viewMode}
+            disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
           />
@@ -622,7 +621,7 @@ export default function MasterForm({
             value={fieldValue}
             onChange={handleChange}
             required={isRequired && !viewMode}
-            disabled={viewMode}
+            disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
           />
@@ -726,7 +725,7 @@ export default function MasterForm({
               onChange={(e, newValue) =>
                 handleChange({ target: { name: fieldName, value: newValue?.value ?? "" } })
               }
-              disabled={viewMode}
+              disabled={fieldDisabled}
               required={isRequired && !viewMode}
               error={hasError}
               helperText={hasError ? errors[fieldName] : null}
@@ -768,7 +767,7 @@ export default function MasterForm({
               label={displayLabel}
               value={fieldValue || DEFAULT_COUNTRY}
               onChange={handleChange}
-              disabled={viewMode}
+              disabled={fieldDisabled}
               required={isRequired && !viewMode}
               error={hasError}
               helperText={hasError ? errors[fieldName] : ""}
@@ -783,7 +782,7 @@ export default function MasterForm({
             label={displayLabel}
             value={fieldValue}
             onChange={handleChange}
-            required={isRequired && !viewMode && !isProductTypeNameLocked}
+            required={isRequired && !viewMode && !isUniqueKeyLocked}
             disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
