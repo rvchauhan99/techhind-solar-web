@@ -24,6 +24,11 @@ export const uploadTemplateConfigImage = (id, fieldName, file) => {
     .then((r) => r.data);
 };
 
+export const getConfigImageUrl = (id, fieldName) =>
+  apiClient
+    .get(`/quotation/templates/${id}/config/image-url`, { params: { fieldName } })
+    .then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
 export default {
   listTemplates,
   getTemplateById,
@@ -31,4 +36,5 @@ export default {
   updateTemplate,
   updateTemplateConfig,
   uploadTemplateConfigImage,
+  getConfigImageUrl,
 };
