@@ -105,6 +105,8 @@ export default function InquiryFilterPanel({
     ];
 
     const getOptionLabel = (opt) => opt?.label ?? opt?.name ?? opt?.source_name ?? (opt?.id != null ? String(opt.id) : "");
+    // User master: show name for selected value; options may include Name (email) via label
+    const getUserOptionLabel = (opt) => opt?.name ?? opt?.email ?? opt?.label ?? (opt?.id != null ? String(opt.id) : "");
 
     const getAppliedFiltersSummary = () => {
         const labels = {
@@ -114,7 +116,7 @@ export default function InquiryFilterPanel({
             inquiry_source: "Source",
             reference_from: "Ref",
             branch_name: "Branch",
-            handled_by: "User",
+            handled_by: "Handled By",
             inquiry_by: "Inquiry By",
             channel_partner: "Partner",
             project_scheme: "Scheme",
@@ -234,10 +236,10 @@ export default function InquiryFilterPanel({
                         label="Handled By"
                         asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
-                        getOptionLabel={getOptionLabel}
-                        value={localValues.handled_by ? { name: localValues.handled_by } : null}
-                        onChange={(e, newValue) => handleChange("handled_by", newValue ? getOptionLabel(newValue) : "")}
-                        placeholder="Select User..."
+                        getOptionLabel={getUserOptionLabel}
+                        value={localValues.handled_by ? { id: localValues.handled_by } : null}
+                        onChange={(e, newValue) => handleChange("handled_by", newValue?.id ? String(newValue.id) : "")}
+                        placeholder="Search user by name or email..."
                     />
 
                     <AutocompleteField
@@ -246,10 +248,10 @@ export default function InquiryFilterPanel({
                         label="Inquiry By"
                         asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
-                        getOptionLabel={getOptionLabel}
-                        value={localValues.inquiry_by ? { name: localValues.inquiry_by } : null}
-                        onChange={(e, newValue) => handleChange("inquiry_by", newValue ? getOptionLabel(newValue) : "")}
-                        placeholder="Select User..."
+                        getOptionLabel={getUserOptionLabel}
+                        value={localValues.inquiry_by ? { id: localValues.inquiry_by } : null}
+                        onChange={(e, newValue) => handleChange("inquiry_by", newValue?.id ? String(newValue.id) : "")}
+                        placeholder="Search user by name or email..."
                     />
 
                     <AutocompleteField
@@ -258,10 +260,10 @@ export default function InquiryFilterPanel({
                         label="Channel Partner"
                         asyncLoadOptions={(q) => getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })}
                         referenceModel="user.model"
-                        getOptionLabel={getOptionLabel}
-                        value={localValues.channel_partner ? { name: localValues.channel_partner } : null}
-                        onChange={(e, newValue) => handleChange("channel_partner", newValue ? getOptionLabel(newValue) : "")}
-                        placeholder="Select User..."
+                        getOptionLabel={getUserOptionLabel}
+                        value={localValues.channel_partner ? { id: localValues.channel_partner } : null}
+                        onChange={(e, newValue) => handleChange("channel_partner", newValue?.id ? String(newValue.id) : "")}
+                        placeholder="Search user by name or email..."
                     />
 
                     <AutocompleteField

@@ -1062,8 +1062,10 @@ export default function InquiryAnalysisPage() {
                             radius={[3, 3, 0, 0]}
                             maxBarSize={30}
                             onClick={(d) => {
-                              const name = d?.payload?.name;
-                              if (name && name !== "Unassigned") router.push(buildInquiryHref({ handled_by: name }));
+                              const id = d?.payload?.handled_by;
+                              if (id != null && d?.payload?.name !== "Unassigned") {
+                                router.push(buildInquiryHref({ handled_by: String(id) }));
+                              }
                             }}
                             style={{ cursor: "pointer" }}
                           />
@@ -1088,7 +1090,9 @@ export default function InquiryAnalysisPage() {
                               key={a.handled_by ?? a.name}
                               className="border-t border-slate-50 hover:bg-slate-50 cursor-pointer"
                               onClick={() => {
-                                if (a.name && a.name !== "Unassigned") router.push(buildInquiryHref({ handled_by: a.name }));
+                                if (a.handled_by != null && a.name !== "Unassigned") {
+                                  router.push(buildInquiryHref({ handled_by: String(a.handled_by) }));
+                                }
                               }}
                             >
                               <td
