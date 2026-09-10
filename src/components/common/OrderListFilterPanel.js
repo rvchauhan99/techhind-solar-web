@@ -15,7 +15,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
-import mastersService, { getReferenceOptionsSearch, getReferenceOptionsForFilter } from "@/services/mastersService";
+import mastersService, { getReferenceOptionsForFilter } from "@/services/mastersService";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 
@@ -400,33 +400,33 @@ export default function OrderListFilterPanel({
             name="handled_by"
             label="Handled By"
             asyncLoadOptions={(q) =>
-              getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })
+              getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })
             }
             referenceModel="user.model"
-            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            getOptionLabel={(o) => o?.name ?? o?.email ?? o?.label ?? ""}
             value={localValues.handled_by ? { id: localValues.handled_by } : null}
             onChange={(e, v) => handleChange("handled_by", v?.id ? String(v.id) : "")}
-            placeholder="Search user…"
+            placeholder="Search user by name or email…"
           />
           <AutocompleteField
             usePortal={true}
             name="inquiry_by"
             label="Inquiry By"
             asyncLoadOptions={(q) =>
-              getReferenceOptionsSearch("user.model", { q, limit: 20, status_in: "active,inactive" })
+              getReferenceOptionsForFilter("user.model", { q, limit: 20, status_in: "active,inactive" })
             }
             referenceModel="user.model"
-            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            getOptionLabel={(o) => o?.name ?? o?.email ?? o?.label ?? ""}
             value={localValues.inquiry_by ? { id: localValues.inquiry_by } : null}
             onChange={(e, v) => handleChange("inquiry_by", v?.id ? String(v.id) : "")}
-            placeholder="Search user…"
+            placeholder="Search user by name or email…"
           />
           <AutocompleteField
             usePortal={true}
             name="channel_partner_id"
             label="Channel Partner"
             asyncLoadOptions={async (q) => {
-              const rows = await getReferenceOptionsSearch("user.model", {
+              const rows = await getReferenceOptionsForFilter("user.model", {
                 q,
                 limit: 20,
                 status_in: "active,inactive",
@@ -435,7 +435,7 @@ export default function OrderListFilterPanel({
               return [CHANNEL_PARTNER_NA_OPTION, ...options];
             }}
             referenceModel="user.model"
-            getOptionLabel={(o) => o?.name ?? o?.email ?? ""}
+            getOptionLabel={(o) => o?.name ?? o?.email ?? o?.label ?? ""}
             resolveOptionById={async (id) => {
               const resolvedId = String(id ?? "").trim();
               if (!resolvedId) return null;
