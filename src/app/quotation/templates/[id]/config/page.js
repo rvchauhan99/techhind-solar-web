@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Box, Typography, Card, CardContent, Grid } from "@mui/material";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import Container from "@/components/container";
 import quotationTemplateService from "@/services/quotationTemplateService";
@@ -81,6 +82,7 @@ export default function QuotationTemplateConfigPage() {
   const [template, setTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState({});
+  const [viewing, setViewing] = useState({});
   const fileInputRefs = useRef({});
 
   useEffect(() => {
@@ -182,6 +184,23 @@ export default function QuotationTemplateConfigPage() {
     }
   };
 
+  const handleViewImage = async (fieldKey) => {
+    if (!id || !getConfigValue(fieldKey)) return;
+    setViewing((p) => ({ ...p, [fieldKey]: true }));
+    try {
+      const url = await quotationTemplateService.getConfigImageUrl(id, fieldKey);
+      if (url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      } else {
+        toast.error("No attachment available");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.message || "Failed to open image");
+    } finally {
+      setViewing((p) => ({ ...p, [fieldKey]: false }));
+    }
+  };
+
   const getConfigValue = (fieldKey) => {
     const config = template?.config;
     if (!config) return null;
@@ -201,6 +220,7 @@ export default function QuotationTemplateConfigPage() {
   const renderImageCard = ({ key, label, help, accept = "image/*" }) => {
     const value = getConfigValue(key);
     const isUploading = uploading[key];
+    const isViewing = viewing[key];
     return (
       <Grid item xs={12} sm={6} key={key}>
         <Card variant="outlined" sx={{ p: 1.5 }}>
@@ -226,7 +246,7 @@ export default function QuotationTemplateConfigPage() {
               disabled={isUploading}
               onChange={(e) => handleFileChange(key, e)}
             />
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap">
               <ThemeButton
                 type="button"
                 variant="outline"
@@ -243,7 +263,22 @@ export default function QuotationTemplateConfigPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUploading}
+                  loading={isViewing}
+                  disabled={isUploading || isViewing}
+                  className="gap-1"
+                  onClick={() => handleViewImage(key)}
+                  aria-label={`View ${label}`}
+                >
+                  <VisibilityIcon sx={{ fontSize: 18 }} />
+                  View
+                </ThemeButton>
+              )}
+              {value && (
+                <ThemeButton
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploading || isViewing}
                   className="gap-1 text-red-600 border-red-300 hover:text-red-700 hover:border-red-400"
                   onClick={() => handleRemoveImage(key)}
                 >
