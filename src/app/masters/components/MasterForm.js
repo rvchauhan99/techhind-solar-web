@@ -32,6 +32,18 @@ const YES_NO_OPTIONS = [
   { value: false, label: "No" },
 ];
 
+const IDENTITY_KEY_HINT = "Identity key — not editable";
+
+const withIdentityLockHint = (fieldName, isUniqueKeyLocked, hasError, control) => {
+  if (!isUniqueKeyLocked || hasError) return control;
+  return (
+    <div key={fieldName} className="space-y-0.5">
+      {control}
+      <p className="text-xs text-muted-foreground">{IDENTITY_KEY_HINT}</p>
+    </div>
+  );
+};
+
 const MASTER_FIELD_LABEL_OVERRIDES = {
   allow_b2b_sales: "Allow B2B sales",
   allow_in_extra_materials: "Allow in extra materials",
@@ -322,8 +334,10 @@ export default function MasterForm({
     // Validate required fields
     const validationErrors = {};
     requiredFields.forEach((fieldName) => {
-      const value = formData[fieldName];
       const field = fields.find(f => f.name === fieldName);
+      // Locked identity keys are omitted from update payload; skip re-validation on edit
+      if (defaultValues?.id && field?.immutableOnEdit === true) return;
+      const value = formData[fieldName];
       // Special handling for file upload fields - check if file is selected
       if (field && field.isFileUpload) {
         if (!selectedFile && (!value || value === '')) {
@@ -412,6 +426,15 @@ export default function MasterForm({
         }
       }
     });
+
+    // ERP: omit immutable unique-key fields on update (create still sends them)
+    if (defaultValues?.id) {
+      fields.forEach((field) => {
+        if (field.immutableOnEdit === true) {
+          delete cleanedData[field.name];
+        }
+      });
+    }
     
     // Pass file separately if it exists
     onSubmit(cleanedData, selectedFile);
@@ -448,6 +471,11 @@ export default function MasterForm({
     const isEditingRecord = Boolean(defaultValues?.id);
     const isUniqueKeyLocked = isEditingRecord && field.immutableOnEdit === true;
     const fieldDisabled = viewMode || isUniqueKeyLocked;
+    const autocompleteHelper = hasError
+      ? errors[fieldName]
+      : isUniqueKeyLocked
+        ? IDENTITY_KEY_HINT
+        : null;
 
     // Platform Config: user-ID allowlist — pick users by name/email, store ID JSON
     if (isUserIdAllowlistConfig && fieldName === "config_value") {
@@ -514,10 +542,10 @@ export default function MasterForm({
           getOptionLabel={getOptionLabel}
           value={valueObjs}
           onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: (newValue || []).map((o) => o?.id ?? o?.value) } })}
-          disabled={viewMode}
-          required={isRequired && !viewMode}
+          disabled={fieldDisabled}
+          required={isRequired && !viewMode && !isUniqueKeyLocked}
           error={hasError}
-          helperText={hasError ? errors[fieldName] : null}
+          helperText={autocompleteHelper}
           placeholder="Type to search..."
         />
       );
@@ -535,22 +563,25 @@ export default function MasterForm({
               getOptionLabel={(o) => o?.label ?? ""}
               value={YES_NO_OPTIONS.find((o) => o.value === Boolean(fieldValue)) || YES_NO_OPTIONS[1]}
               onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: Boolean(newValue?.value) } })}
-              disabled={viewMode}
-              required={isRequired && !viewMode}
+              disabled={fieldDisabled}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
-              helperText={hasError ? errors[fieldName] : null}
+              helperText={autocompleteHelper}
               placeholder="Select..."
             />
           );
         }
-        return (
+        return withIdentityLockHint(
+          fieldName,
+          isUniqueKeyLocked,
+          hasError,
           <Checkbox
             key={fieldName}
             name={fieldName}
             label={displayLabel}
             checked={fieldValue === true || fieldValue === 'true' || fieldValue === 1}
             onChange={handleChange}
-            disabled={viewMode}
+            disabled={fieldDisabled}
           />
         );
 
@@ -571,15 +602,18 @@ export default function MasterForm({
               value={fieldValue !== null && fieldValue !== undefined && fieldValue !== '' ? { id: fieldValue } : null}
               onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: newValue?.id ?? newValue?.value ?? '' } })}
               disabled={fieldDisabled}
-              required={isRequired && !viewMode}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
-              helperText={hasError ? errors[fieldName] : null}
+              helperText={autocompleteHelper}
               placeholder="Type to search..."
             />
           );
         }
 
-        return (
+        return withIdentityLockHint(
+          fieldName,
+          isUniqueKeyLocked,
+          hasError,
           <Input
             key={fieldName}
             name={fieldName}
@@ -587,7 +621,7 @@ export default function MasterForm({
             type="number"
             value={fieldValue}
             onChange={handleChange}
-            required={isRequired && !viewMode}
+            required={isRequired && !viewMode && !isUniqueKeyLocked}
             disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
@@ -596,14 +630,17 @@ export default function MasterForm({
 
       case 'DATE':
       case 'DATEONLY':
-        return (
+        return withIdentityLockHint(
+          fieldName,
+          isUniqueKeyLocked,
+          hasError,
           <DateField
             key={fieldName}
             name={fieldName}
             label={displayLabel}
             value={fieldValue ? (fieldValue instanceof Date ? fieldValue.toISOString().split('T')[0] : fieldValue.split('T')[0]) : ''}
             onChange={handleChange}
-            required={isRequired && !viewMode}
+            required={isRequired && !viewMode && !isUniqueKeyLocked}
             disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
@@ -611,7 +648,10 @@ export default function MasterForm({
         );
 
       case 'TEXT':
-        return (
+        return withIdentityLockHint(
+          fieldName,
+          isUniqueKeyLocked,
+          hasError,
           <Input
             key={fieldName}
             name={fieldName}
@@ -620,7 +660,7 @@ export default function MasterForm({
             rows={4}
             value={fieldValue}
             onChange={handleChange}
-            required={isRequired && !viewMode}
+            required={isRequired && !viewMode && !isUniqueKeyLocked}
             disabled={fieldDisabled}
             error={hasError}
             helperText={hasError ? errors[fieldName] : ''}
@@ -633,13 +673,16 @@ export default function MasterForm({
         if (field.isFileUpload) {
           const canActOnExisting = Boolean(defaultValues?.id && modelName);
           const hasExistingFile = Boolean(fieldValue);
-          return (
+          return withIdentityLockHint(
+            fieldName,
+            isUniqueKeyLocked,
+            hasError,
             <div key={fieldName} className="space-y-1.5">
               <label className="block text-sm font-medium">
                 {displayLabel}
-                {isRequired && <span className="text-destructive ml-0.5">*</span>}
+                {isRequired && !isUniqueKeyLocked && <span className="text-destructive ml-0.5">*</span>}
               </label>
-              {!viewMode ? (
+              {!viewMode && !isUniqueKeyLocked ? (
                 <>
                   <input
                     accept="*/*"
@@ -703,10 +746,10 @@ export default function MasterForm({
               getOptionLabel={(o) => o?.label ?? o?.value ?? ''}
               value={statusOptions.find((o) => o.value === val) || { value: val, label: val === 'active' ? 'Active' : 'Inactive' }}
               onChange={(e, newValue) => handleChange({ target: { name: fieldName, value: newValue?.value ?? 'active' } })}
-              disabled={viewMode}
-              required={isRequired && !viewMode}
+              disabled={fieldDisabled}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
-              helperText={hasError ? errors[fieldName] : null}
+              helperText={autocompleteHelper}
               placeholder="Status"
             />
           );
@@ -726,9 +769,9 @@ export default function MasterForm({
                 handleChange({ target: { name: fieldName, value: newValue?.value ?? "" } })
               }
               disabled={fieldDisabled}
-              required={isRequired && !viewMode}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
-              helperText={hasError ? errors[fieldName] : null}
+              helperText={autocompleteHelper}
               placeholder="Select type..."
             />
           );
@@ -750,17 +793,20 @@ export default function MasterForm({
               onChange={(e, newValue) =>
                 handleChange({ target: { name: fieldName, value: newValue?.value ?? "" } })
               }
-              disabled={viewMode}
-              required={isRequired && !viewMode}
+              disabled={fieldDisabled}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
-              helperText={hasError ? errors[fieldName] : null}
+              helperText={autocompleteHelper}
               placeholder="Select type..."
             />
           );
         }
 
         if (fieldName === "country") {
-          return (
+          return withIdentityLockHint(
+            fieldName,
+            isUniqueKeyLocked,
+            hasError,
             <CountrySelect
               key={fieldName}
               name={fieldName}
@@ -768,14 +814,17 @@ export default function MasterForm({
               value={fieldValue || DEFAULT_COUNTRY}
               onChange={handleChange}
               disabled={fieldDisabled}
-              required={isRequired && !viewMode}
+              required={isRequired && !viewMode && !isUniqueKeyLocked}
               error={hasError}
               helperText={hasError ? errors[fieldName] : ""}
             />
           );
         }
         
-        return (
+        return withIdentityLockHint(
+          fieldName,
+          isUniqueKeyLocked,
+          hasError,
           <Input
             key={fieldName}
             name={fieldName}
