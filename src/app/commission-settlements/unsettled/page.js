@@ -229,13 +229,13 @@ export default function CommissionUnsettledPage() {
 
   const loadSummary = useCallback(async () => {
     try {
-      const res = await commissionSettlementService.getCommissionDashboardSummary();
+      const res = await commissionSettlementService.getCommissionDashboardSummary(filterParams);
       const r = res?.result ?? res;
       setSummary(r);
     } catch {
       setSummary(null);
     }
-  }, []);
+  }, [filterParams]);
 
   useEffect(() => {
     loadSummary();
