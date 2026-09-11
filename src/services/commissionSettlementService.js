@@ -42,8 +42,8 @@ export const downloadPayoutVoucher = (id) =>
     .get(`${base}/payout/${id}/voucher`, { responseType: "blob" })
     .then((r) => r.data);
 
-export const getCommissionDashboardSummary = () =>
-  apiClient.get(`${base}/ledger/dashboard-summary`).then((r) => r.data);
+export const getCommissionDashboardSummary = (params) =>
+  apiClient.get(`${base}/ledger/dashboard-summary`, { params }).then((r) => r.data);
 
 export const adjustCommissionLedgerEntry = (id, payload) =>
   apiClient.patch(`${base}/ledger/${id}/adjustment`, payload).then((r) => r.data);
