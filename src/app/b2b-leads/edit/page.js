@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import B2bLeadForm from "../components/B2bLeadForm";
 import b2bLeadService from "@/services/b2bLeadService";
+import { getApiErrorMessage } from "@/utils/toast";
 
 export default function EditB2bLeadPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function EditB2bLeadPage() {
       toast.success("B2B lead updated");
       router.push(`/b2b-leads/view?id=${id}`);
     } catch (err) {
-      const msg = err?.response?.data?.message || err.message || "Failed to update lead";
+      const msg = getApiErrorMessage(err, "Failed to update lead");
       setServerError(msg);
       toast.error(msg);
     } finally {

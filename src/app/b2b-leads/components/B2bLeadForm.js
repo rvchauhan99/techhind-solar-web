@@ -201,11 +201,28 @@ export default function B2bLeadForm({
     return Object.keys(next).length === 0;
   };
 
+  const normalizeDateOnlyValue = (value) => {
+    if (value == null || value === "") return null;
+    if (typeof value === "object") {
+      if (value?.target != null) return normalizeDateOnlyValue(value.target.value);
+      return null;
+    }
+    const str = String(value).trim();
+    if (!str || str.toLowerCase() === "invalid date") return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    return null;
+  };
+
+  const toNullableNumber = (value) => {
+    if (value === "" || value == null) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (readOnly) return;
     if (!validate()) return;
-    const india = isIndiaCountry(formData.country);
     onSubmit?.({
       ...formData,
       country: formData.country || DEFAULT_COUNTRY,
@@ -215,19 +232,14 @@ export default function B2bLeadForm({
       assigned_to: formData.assigned_to || null,
       state_id: formData.state_id || null,
       state: formData.state || formData.state_text || "",
-      number_of_branches:
-        formData.number_of_branches === "" || formData.number_of_branches == null
-          ? null
-          : Number(formData.number_of_branches),
-      expected_budget:
-        formData.expected_budget === "" || formData.expected_budget == null
-          ? null
-          : formData.expected_budget,
+      number_of_branches: toNullableNumber(formData.number_of_branches),
+      expected_budget: toNullableNumber(formData.expected_budget),
+      expected_purchase_date: normalizeDateOnlyValue(formData.expected_purchase_date),
       products: (formData.products || [])
         .filter((p) => p.product_id)
         .map((p) => ({
           product_id: p.product_id,
-          quantity: p.quantity === "" ? null : p.quantity,
+          quantity: toNullableNumber(p.quantity),
         })),
     });
   };
@@ -571,7 +583,12 @@ export default function B2bLeadForm({
               <DateField
                 label="Expected Purchase Date"
                 value={formData.expected_purchase_date}
-                onChange={(v) => setField("expected_purchase_date", v)}
+                onChange={(e) =>
+                  setField(
+                    "expected_purchase_date",
+                    typeof e === "string" ? e : e?.target?.value ?? ""
+                  )
+                }
                 disabled={readOnly}
               />
             </div>

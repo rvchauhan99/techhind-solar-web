@@ -43,7 +43,9 @@ export function getApiErrorMessage(error, fallback = "Something went wrong") {
     }
 
     if (data.message === "Validation error") {
-        return "Validation failed. Please check transfer details and serial numbers.";
+        return fallback && fallback !== "Something went wrong"
+            ? fallback
+            : "Validation failed. Please check the submitted values.";
     }
 
     return error?.message || fallback;
