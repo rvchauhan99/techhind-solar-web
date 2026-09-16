@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import B2bLeadForm from "../components/B2bLeadForm";
 import b2bLeadService from "@/services/b2bLeadService";
+import { getApiErrorMessage } from "@/utils/toast";
 
 export default function AddB2bLeadPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function AddB2bLeadPage() {
       toast.success("B2B lead created");
       router.push(`/b2b-leads/view?id=${lead.id}`);
     } catch (err) {
-      const msg = err?.response?.data?.message || err.message || "Failed to create lead";
+      const msg = getApiErrorMessage(err, "Failed to create lead");
       setServerError(msg);
       toast.error(msg);
     } finally {
