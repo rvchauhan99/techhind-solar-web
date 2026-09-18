@@ -214,13 +214,33 @@ export default function QuotationForm({
         }
     }, [patchForm]);
 
+    /** Scheme / order type / state drive the project list — always wipe selected project + details. */
+    const handleProjectFilterChange = useCallback(
+        (name, nextValue) => {
+            const value = nextValue ?? "";
+            const prev = formData[name];
+            handleChange({ target: { name, value } });
+            if (String(prev ?? "") === String(value)) return;
+            handleProjectPriceChange("");
+        },
+        [formData, handleChange, handleProjectPriceChange]
+    );
+
+    const handleAddressFieldChange = useCallback(
+        (e) => {
+            const { name } = e.target;
+            if (name === "state_id") {
+                handleProjectFilterChange("state_id", e.target.value);
+                return;
+            }
+            handleChange(e);
+        },
+        [handleChange, handleProjectFilterChange]
+    );
+
     useEffect(() => {
         if (!formData.project_scheme_id || !formData.state_id || !formData.order_type_id) {
             setOptions((prev) => ({ ...prev, projectPrices: [] }));
-            if (formData.project_price_id) {
-                patchForm({ project_price_id: "" });
-                handleProjectPriceChange("");
-            }
             return;
         }
         let cancelled = false;
@@ -228,22 +248,13 @@ export default function QuotationForm({
             if (cancelled) return;
             const projectPrices = r?.result ?? [];
             setOptions((prev) => ({ ...prev, projectPrices }));
-            // Only clear when the loaded list is non-empty and id is missing (avoid race clears).
-            if (
-                formData.project_price_id &&
-                projectPrices.length > 0 &&
-                !projectPrices.some((price) => price.id === formData.project_price_id)
-            ) {
-                patchForm({ project_price_id: "" });
-                handleProjectPriceChange("");
-            }
         }).catch(() => {
             if (!cancelled) setOptions((prev) => ({ ...prev, projectPrices: [] }));
         });
         return () => { cancelled = true; };
         // Omit project_price_id — selecting a project must not refetch/clear the list.
         // eslint-disable-next-line react-hooks/exhaustive-deps -- project_price_id intentionally excluded
-    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id, patchForm, handleProjectPriceChange]);
+    }, [formData.project_scheme_id, formData.state_id, formData.order_type_id]);
 
     const handlePricePerKwChange = useCallback((e) => {
         const value = e.target.value === undefined ? "" : e.target.value;
@@ -501,7 +512,7 @@ export default function QuotationForm({
                         >
                             <AddressFields
                                 values={formData}
-                                onChange={handleChange}
+                                onChange={handleAddressFieldChange}
                                 errors={errors}
                                 fieldNames={{
                                     country: "country",
@@ -563,7 +574,7 @@ export default function QuotationForm({
                             referenceModel="order_type.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.order_type_id ? { id: formData.order_type_id } : null}
-                            onChange={(e, newValue) => handleChange({ target: { name: "order_type_id", value: newValue?.id ?? "" } })}
+                            onChange={(e, newValue) => handleProjectFilterChange("order_type_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
                             error={!!errors.order_type_id}
                             helperText={errors.order_type_id}
@@ -578,7 +589,7 @@ export default function QuotationForm({
                             referenceModel="project_scheme.model"
                             getOptionLabel={getOptionLabel}
                             value={formData.project_scheme_id ? { id: formData.project_scheme_id } : null}
-                            onChange={(e, newValue) => handleChange({ target: { name: "project_scheme_id", value: newValue?.id ?? "" } })}
+                            onChange={(e, newValue) => handleProjectFilterChange("project_scheme_id", newValue?.id ?? "")}
                             placeholder="Type to search..."
                             error={!!errors.project_scheme_id}
                             helperText={errors.project_scheme_id}
@@ -594,7 +605,7 @@ export default function QuotationForm({
                                 const cap = p?.project_capacity != null ? String(p.project_capacity) : "";
                                 return name && cap ? `${name} - ${cap}` : (name || cap || "");
                             }}
-                            value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || (formData.project_price_id ? { id: formData.project_price_id } : null)}
+                            value={(options.projectPrices || []).find((p) => p.id === formData.project_price_id) || null}
                             onChange={(e, newValue) => {
                                 const nextId = newValue?.id ?? "";
                                 handleChange({ target: { name: "project_price_id", value: nextId } });
