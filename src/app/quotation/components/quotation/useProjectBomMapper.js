@@ -141,7 +141,7 @@ export function mapBomResponseToForm(response) {
             formPatch.panel_type = properties.panel?.type ?? "";
             formPatch.panel_warranty = properties?.additional?.warranty ?? properties.panel?.warranty ?? "";
             formPatch.panel_performance_warranty = properties?.additional?.performance_warranty ?? properties.panel?.performance_warranty ?? "";
-            project_capacity = (((product?.capacity ?? 0) * (element?.quantity ?? 0)) / 1000).toFixed(2);
+            project_capacity = (((product?.capacity ?? 0) * (element?.quantity ?? 0)) / 1000).toFixed(3);
             if (productWithMakeName) bomProductBySection.panel = productWithMakeName;
         } else if (properties?.inverter) {
             formPatch.inverter_product = product?.id ?? "";

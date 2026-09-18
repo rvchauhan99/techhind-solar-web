@@ -273,6 +273,8 @@ export default function ProjectPricePage() {
         filterKeyTo: "project_capacity_to",
         operatorKey: "project_capacity_op",
         defaultFilterOperator: "equals",
+        render: (row) =>
+          row.project_capacity != null ? Number(row.project_capacity).toFixed(3) : "-",
       },
       {
         field: "total_project_value",
@@ -401,7 +403,9 @@ export default function ProjectPricePage() {
         <p className="text-xs font-semibold text-muted-foreground">BOM</p>
         <p className="text-sm">{r.bill_of_material_name ?? "-"}</p>
         <p className="text-xs font-semibold text-muted-foreground">Capacity (kW)</p>
-        <p className="text-sm">{r.project_capacity ?? "-"}</p>
+        <p className="text-sm">
+          {r.project_capacity != null ? Number(r.project_capacity).toFixed(3) : "-"}
+        </p>
         <p className="text-xs font-semibold text-muted-foreground">Total Value</p>
         <p className="text-sm">
           {r.total_project_value != null
