@@ -16,6 +16,7 @@ import {
   IconMaximize,
   IconHome,
   IconBrandGooglePlay,
+  IconLifebuoy,
 } from "@tabler/icons-react";
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PLAY_STORE_APP_URL } from "@/lib/appStoreLinks";
+import { getSupportStatus } from "@/services/supportTicketsService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -201,9 +203,20 @@ export default function Sidebar({
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [supportEnabled, setSupportEnabled] = useState(false);
   const searchContainerRef = useRef(null);
   const modules = user?.modules || [];
   const showCollapsed = collapsed && isDesktop;
+
+  useEffect(() => {
+    if (!user) {
+      setSupportEnabled(false);
+      return;
+    }
+    getSupportStatus()
+      .then((st) => setSupportEnabled(Boolean(st?.enabled)))
+      .catch(() => setSupportEnabled(false));
+  }, [user]);
 
   const flatItems = useMemo(
     () => flattenMenuItems(modules),
@@ -320,6 +333,16 @@ export default function Sidebar({
                   <IconSettings className="h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
+                {supportEnabled && (
+                  <DropdownMenuItem
+                    onClick={() => router.push("/support-tickets")}
+                    className="flex cursor-pointer items-center gap-1.5"
+                    data-testid="nav-support-tickets"
+                  >
+                    <IconLifebuoy className="h-4 w-4" />
+                    <span>Support tickets</span>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() =>
                     window.open(PLAY_STORE_APP_URL, "_blank", "noopener,noreferrer")
@@ -471,6 +494,16 @@ export default function Sidebar({
                 <IconSettings className="h-4 w-4" />
                 <span>Profile</span>
               </DropdownMenuItem>
+              {supportEnabled && (
+                <DropdownMenuItem
+                  onClick={() => router.push("/support-tickets")}
+                  className="flex cursor-pointer items-center gap-1.5"
+                  data-testid="nav-support-tickets-expanded"
+                >
+                  <IconLifebuoy className="h-4 w-4" />
+                  <span>Support tickets</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() =>
                   window.open(PLAY_STORE_APP_URL, "_blank", "noopener,noreferrer")

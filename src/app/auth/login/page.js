@@ -75,7 +75,7 @@ export default function LoginPage() {
 
     try {
       const normalizedEmail = normalizeEmail(email);
-      const loginBody = { email: normalizedEmail, password };
+      const loginBody = { email: normalizedEmail, password, device_type: "web" };
       const effectiveTenantKey =
         getEffectiveTenantKey() || (tenantKey || "").trim();
       if (effectiveTenantKey) {
