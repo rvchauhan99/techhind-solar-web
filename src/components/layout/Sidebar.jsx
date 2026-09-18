@@ -15,6 +15,7 @@ import {
   IconBell,
   IconMaximize,
   IconHome,
+  IconBrandGooglePlay,
 } from "@tabler/icons-react";
 import {
   DropdownMenu,
@@ -22,6 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PLAY_STORE_APP_URL } from "@/lib/appStoreLinks";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -319,6 +321,15 @@ export default function Sidebar({
                   <span>Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
+                  onClick={() =>
+                    window.open(PLAY_STORE_APP_URL, "_blank", "noopener,noreferrer")
+                  }
+                  className="flex cursor-pointer items-center gap-1.5"
+                >
+                  <IconBrandGooglePlay className="h-4 w-4" />
+                  <span>Download App</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => setShowLogoutDialog(true)}
                   variant="destructive"
                 >
@@ -459,6 +470,15 @@ export default function Sidebar({
               >
                 <IconSettings className="h-4 w-4" />
                 <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() =>
+                  window.open(PLAY_STORE_APP_URL, "_blank", "noopener,noreferrer")
+                }
+                className="flex cursor-pointer items-center gap-1.5"
+              >
+                <IconBrandGooglePlay className="h-4 w-4" />
+                <span>Download App</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setShowLogoutDialog(true)}

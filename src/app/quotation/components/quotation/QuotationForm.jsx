@@ -669,7 +669,7 @@ export default function QuotationForm({
                 </Box>
                 <Grid container spacing={COMPACT_FORM_SPACING}>
                     <Grid item size={{ xs: 12, md: 3 }}>
-                        <Input fullWidth type="number" inputProps={{ step: "0.01" }} label="Project Capacity" name="project_capacity" value={formData.project_capacity} onChange={handleChange} required disabled error={!!errors.project_capacity} helperText={errors.project_capacity} sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
+                        <Input fullWidth type="number" inputProps={{ step: "0.001" }} label="Project Capacity" name="project_capacity" value={formData.project_capacity} onChange={handleChange} required disabled error={!!errors.project_capacity} helperText={errors.project_capacity} sx={{ "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } }} />
                     </Grid>
                     <Grid item size={{ xs: 12, md: 3 }}>
                         <Input fullWidth type="number" inputProps={{ step: "0.01" }} label="Price Per KW" name="price_per_kw" value={formData.price_per_kw} onChange={handlePricePerKwChange} disabled={projectPriceDisabled} required error={!!errors.price_per_kw} helperText={errors.price_per_kw} sx={projectPriceDisabled ? { "& .MuiOutlinedInput-root.Mui-disabled": { bgcolor: "grey.300" } } : undefined} />

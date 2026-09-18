@@ -1,6 +1,7 @@
 /**
  * Financial calculations for quotation / project price.
- * Total is whole rupees; rate is 2-decimal paise. Integer-safe to avoid float drift.
+ * Total is whole rupees; rate is 2-decimal paise; capacity is 3-decimal kW (millikW).
+ * Integer-safe to avoid float drift.
  * Algorithm must stay identical to API src/common/utils/projectPricing.js
  */
 
@@ -9,6 +10,9 @@ const toNum = (v) => (v === "" || v === null || v === undefined ? 0 : Number(v))
 export const roundToRupee = (n) => Math.round(Number(n) + Number.EPSILON);
 
 export const roundToPaise = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+
+/** Round project capacity to thousandths of a kW (e.g. 3.815). */
+export const roundToMilliKw = (n) => Math.round((Number(n) + Number.EPSILON) * 1000) / 1000;
 
 /**
  * Display/input helper: whole rupees or empty string (strips DECIMAL ".00" from API).
@@ -28,9 +32,9 @@ export function toWholeRupeeOrEmpty(value) {
  */
 export const totalFromRateAndCapacity = (rate, capacity) => {
     const ratePaise = Math.round(Number(rate) * 100);
-    const capHundredths = Math.round(Number(capacity) * 100);
-    if (!(ratePaise > 0) || !(capHundredths > 0)) return null;
-    return Math.round((ratePaise * capHundredths) / 10000);
+    const capMilli = Math.round(Number(capacity) * 1000);
+    if (!(ratePaise > 0) || !(capMilli > 0)) return null;
+    return Math.round((ratePaise * capMilli) / 100000);
 };
 
 /**
@@ -38,11 +42,11 @@ export const totalFromRateAndCapacity = (rate, capacity) => {
  * @returns {number|null}
  */
 export const rateFromTotalAndCapacity = (total, capacity) => {
-    const capHundredths = Math.round(Number(capacity) * 100);
-    if (!(capHundredths > 0)) return null;
+    const capMilli = Math.round(Number(capacity) * 1000);
+    if (!(capMilli > 0)) return null;
     const totalNum = Number(total);
     if (!Number.isFinite(totalNum) || !(totalNum > 0)) return null;
-    return Math.round((totalNum * 10000) / capHundredths) / 100;
+    return Math.round((totalNum * 100000) / capMilli) / 100;
 };
 
 /**
@@ -73,13 +77,13 @@ export function syncRateFromCapacityAndTotal({ project_capacity, total_project_v
  * Project capacity in kW from panel product wattage × quantity.
  * @param {unknown} panelCapacityWatts
  * @param {unknown} quantity
- * @returns {string} capacity fixed to 2 decimals, or "" if invalid
+ * @returns {string} capacity fixed to 3 decimals, or "" if invalid
  */
 export function computeProjectCapacityFromPanel(panelCapacityWatts, quantity) {
     const watts = Number(panelCapacityWatts);
     const qty = Number(quantity);
     if (!(watts > 0) || !(qty > 0) || Number.isNaN(watts) || Number.isNaN(qty)) return "";
-    return ((watts * qty) / 1000).toFixed(2);
+    return ((watts * qty) / 1000).toFixed(3);
 }
 
 /**
