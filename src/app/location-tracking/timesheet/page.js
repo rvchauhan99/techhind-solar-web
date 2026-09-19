@@ -53,14 +53,25 @@ function KpiChip({ label, value, tone }) {
 
 function FlagChips({ flags = [] }) {
   if (!flags.length) return <span className="text-muted-foreground">—</span>
+  const toneFor = (f) => {
+    if (f === "forced_out" || f === "device_changed") {
+      return "bg-rose-50 text-rose-800 border-rose-200"
+    }
+    if (f === "active") return "bg-green-50 text-green-800 border-green-200"
+    return "bg-amber-50 text-amber-800 border-amber-200"
+  }
   return (
     <div className="flex flex-wrap gap-0.5">
       {flags.map((f) => (
         <span
           key={f}
-          className="rounded bg-amber-50 text-amber-800 border border-amber-200 px-1 py-0 text-[9px] uppercase font-medium"
+          className={`rounded border px-1 py-0 text-[9px] uppercase font-medium ${toneFor(f)}`}
         >
-          {f.replace(/_/g, " ")}
+          {f === "forced_out"
+            ? "Forced out"
+            : f === "device_changed"
+              ? "Device changed"
+              : f.replace(/_/g, " ")}
         </span>
       ))}
     </div>
@@ -76,6 +87,9 @@ function TimesheetContent() {
   const [kpis, setKpis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [forceReason, setForceReason] = useState("")
+  const [forceBusy, setForceBusy] = useState(false)
+  const [confirmForce, setConfirmForce] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -135,6 +149,31 @@ function TimesheetContent() {
       toastSuccess("Timesheet CSV downloaded")
     } catch (err) {
       toastError(err?.response?.data?.message || err.message || "Export failed")
+    }
+  }
+
+  const handleForcePunchOut = async () => {
+    if (!selected?.on_duty_now || !selected?.user_id) return
+    if (!confirmForce) {
+      setConfirmForce(true)
+      return
+    }
+    setForceBusy(true)
+    try {
+      await locationTrackingService.forceStopDuty({
+        user_id: selected.user_id,
+        reason: forceReason.trim() || undefined,
+      })
+      toastSuccess("Force punch-out completed")
+      setConfirmForce(false)
+      setForceReason("")
+      await load()
+    } catch (err) {
+      toastError(
+        err?.response?.data?.message || err.message || "Force punch-out failed"
+      )
+    } finally {
+      setForceBusy(false)
     }
   }
 
@@ -240,7 +279,11 @@ function TimesheetContent() {
                         className={`border-b border-border/60 cursor-pointer hover:bg-muted/40 ${
                           active ? "bg-muted/50" : ""
                         }`}
-                        onClick={() => setSelected(row)}
+                        onClick={() => {
+                          setSelected(row)
+                          setConfirmForce(false)
+                          setForceReason("")
+                        }}
                       >
                         <td className="px-2 py-1 tabular-nums">{row.summary_date}</td>
                         <td className="px-2 py-1">
@@ -305,6 +348,9 @@ function TimesheetContent() {
                         <li key={s.id} className="flex justify-between gap-2 border-b border-border/50 py-0.5">
                           <span>
                             {fmtTime(s.started_at)} → {s.ended_at ? fmtTime(s.ended_at) : "open"}
+                            {s.end_source === "admin_force" ? (
+                              <span className="ml-1 text-[9px] uppercase text-rose-700">forced</span>
+                            ) : null}
                           </span>
                           <span className="tabular-nums">{fmtMinutes(s.duration_minutes)}</span>
                         </li>
@@ -312,6 +358,63 @@ function TimesheetContent() {
                     </ul>
                   )}
                 </div>
+                {(selected.device_id || selected.start_ip) && (
+                  <div className="text-[10px] text-muted-foreground space-y-0.5">
+                    {selected.device_id ? (
+                      <div className="truncate" title={selected.device_id}>
+                        Device: {selected.device_id}
+                      </div>
+                    ) : null}
+                    {selected.start_ip ? <div>Start IP: {selected.start_ip}</div> : null}
+                  </div>
+                )}
+                {selected.on_duty_now ? (
+                  <div className="space-y-1 border-t border-border pt-1.5">
+                    {confirmForce ? (
+                      <>
+                        <Input
+                          name="force_reason"
+                          label="Reason (optional)"
+                          value={forceReason}
+                          onChange={(e) => setForceReason(e.target.value)}
+                          placeholder="Phone lost / damaged"
+                          size="small"
+                        />
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="flex-1"
+                            disabled={forceBusy}
+                            onClick={handleForcePunchOut}
+                          >
+                            {forceBusy ? "Working…" : "Confirm force out"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={forceBusy}
+                            onClick={() => {
+                              setConfirmForce(false)
+                              setForceReason("")
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full border-rose-300 text-rose-800 hover:bg-rose-50"
+                        onClick={handleForcePunchOut}
+                      >
+                        Force punch out
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
                 <Button size="sm" variant="outline" asChild className="w-full">
                   <Link
                     href={`/location-tracking/reports?user_id=${selected.user_id}&date=${selected.summary_date}`}
