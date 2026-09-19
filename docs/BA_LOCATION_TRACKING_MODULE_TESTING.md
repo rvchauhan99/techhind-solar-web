@@ -9,10 +9,12 @@ Functional guide for configuring and testing Location Tracking end to end (web o
 Field staff can share their location while **on duty** during company **working hours**. The office can:
 
 - See who is **Live**, **Stale**, or has **No data** on a **Live Map**
+- Filter Live Map by **On duty / Off duty** (duty clock is separate from GPS “Live”)
 - Open a person’s current position in **Google Maps**
-- Review **day routes** and daily coverage on **Tracking Reports**
+- Review **duty attendance** on **Timesheet** (clock-in/out, hours vs planned, flags, CSV)
+- Review **day routes** and daily GPS coverage on **Tracking Reports** (including **today**, after a refresh)
 - Open a full day’s route (or last point) in **Google Maps**
-- Export daily summary data
+- Export daily summary and timesheet CSV
 
 Tracking only runs when **all** of these are true:
 
@@ -31,18 +33,21 @@ flowchart LR
   companyOn[Company tracking ON] --> userOn[User tracking ON]
   userOn --> consent[Mobile consent]
   consent --> startDuty[Start duty]
-  startDuty --> liveMap[Live Map pin]
-  liveMap --> reports[Reports day route]
+  startDuty --> liveMap[Live Map pin + on duty]
+  startDuty --> timesheet[Timesheet clock-in]
+  liveMap --> reports[Reports day route same day]
   reports --> googleMaps[View on Google Maps]
 ```
 
 ### Status meanings (Live Map)
 
-| Status | Meaning |
-|--------|---------|
+| Status / filter | Meaning |
+|-----------------|---------|
 | **Live** | Recent location received — person appears “online” on the map |
 | **Stale** | Person is tracked, but last location is older than expected (missed syncs or stopped moving updates) |
 | **No data** | Tracking is allowed for the user, but no location has been received yet (or never started duty / no consent) |
+| **On duty** | Server duty session is open (Start duty pressed; not yet Stop duty) |
+| **Off duty** | No open duty session — may still show LIVE if the last GPS ping is recent |
 
 ---
 
@@ -141,8 +146,8 @@ Mobile Duty screen is based on **user tracking enabled**, not on Live Map role p
 | # | Check | Ready? |
 |---|--------|--------|
 | 1 | Test web URL opens and you can log in (dedicated test — leave tenant key blank if asked) | ☐ |
-| 2 | Test mobile APK installed (same test environment) | ☐ |
-| 3 | Super Admin (or role with Settings + Live + Reports) available | ☐ |
+| 2 | Test mobile APK installed (same test environment). Optional side-by-side build: **Solar CRM QA** (`solarcrm_techhind.app.qa`) can sit next to the store app | ☐ |
+| 3 | Super Admin (or role with Settings + Live + Reports + **Timesheet**) available | ☐ |
 | 4 | At least one field user account available for mobile | ☐ |
 | 5 | Company Tracking Settings: **Enabled = ON**, working hours cover the test time | ☐ |
 | 6 | Field user: **Location tracking enabled = ON** | ☐ |
@@ -190,19 +195,22 @@ Mark Pass / Fail / Blocked for each.
 
 | ID | Scenario | Steps | Expected | Result |
 |----|----------|-------|----------|--------|
-| LT-07 | Super Admin menus | Log in as Super Admin | Sees Location Tracking → Live, Reports, Settings | |
+| LT-07 | Super Admin menus | Log in as Super Admin | Sees Location Tracking → Live, Timesheet, Reports, Settings | |
 | LT-08 | Role without Live | Role without Live Map permission | Live Map not available / blocked | |
 | LT-09 | Role with Reports only | Grant Reports only | Can open Reports; cannot open Settings (if not granted) | |
+| LT-09a | Role with Timesheet | Grant Timesheet module | Can open Timesheet; export if allowed | |
 
 ### Mobile duty
 
 | ID | Scenario | Steps | Expected | Result |
 |----|----------|-------|----------|--------|
 | LT-10 | Consent required first | New tracked user opens Duty | Consent text + **I agree and continue** before Start duty | |
-| LT-11 | Start duty | After consent → Start duty | Duty = Active | |
-| LT-12 | Stop duty | Stop duty | Duty = Stopped; location stops updating after a short time | |
+| LT-11 | Start duty | After consent → Start duty | Duty = Active; FG notification; server clock-in time shown | |
+| LT-12 | Stop duty | Stop duty | Duty = Stopped; Live **Off duty**; location stops updating after a short time | |
 | LT-13 | Sync queue | With Active duty → Sync queue now | Success message; queue depth drops toward 0 when online | |
 | LT-14 | Location permission denied | Deny location in phone settings | Start duty fails or cannot get useful locations; Live stays No data / Stale | |
+| LT-14a | My Timesheet | After Start duty → open My Timesheet | Today row shows Active / clock-in; after Stop duty shows clock-out | |
+| LT-14b | Logout while on duty | Start duty → log out of app | Duty session is closed on server (not left open forever) | |
 
 ### Live Map
 
@@ -211,11 +219,22 @@ Mark Pass / Fail / Blocked for each.
 | LT-15 | Map shows streets | Open Live Map | Map background (streets) visible — not a blank grey area only | |
 | LT-16 | Pin for active user | After Start duty + sync | Pin on map; list shows user with age / battery when available | |
 | LT-17 | Filters | Use Live / Stale / No data filters | List filters correctly; KPIs match | |
+| LT-17a | On duty / Off duty | Start duty → filter **On duty**; Stop duty → filter **Off duty** | On-duty list shows the user while session open; Off duty after stop (may still be LIVE) | |
 | LT-18 | Search | Search by name or email | Matching users only | |
 | LT-19 | Focus on map | Click user row | Map focuses that user; popup can open | |
 | LT-20 | Google from list | Click **Google** on a user with position | Google Maps opens at lat/long | |
 | LT-21 | Google from popup | Open marker popup → **View on Google Maps** | Google Maps opens | |
 | LT-22 | Refresh | Click Refresh | Poll time updates; data refreshes | |
+
+### Timesheet (web)
+
+| ID | Scenario | Steps | Expected | Result |
+|----|----------|-------|----------|--------|
+| LT-22a | Today attendance | Open Timesheet for today after Start duty | Row with clock-in; KPI **On duty now** ≥ 1 | |
+| LT-22b | Clock-out | After Stop duty → Refresh | Clock-out filled; On duty now decreases | |
+| LT-22c | Flags | Review Flags column | e.g. Active, Weak GPS, Not started, Late start — match situation | |
+| LT-22d | Export CSV | Click Export CSV | File downloads with duty columns (clock in/out, minutes, flags) | |
+| LT-22e | Open day route | Select a row that has GPS → open day route / Reports | Route available when pings exist | |
 
 ### Reports
 
@@ -239,7 +258,9 @@ Mark Pass / Fail / Blocked for each.
 
 ---
 
-## 8. Field meanings (Reports — quick reference)
+## 8. Field meanings (quick reference)
+
+### Tracking Reports
 
 | Column / KPI | Plain meaning |
 |--------------|---------------|
@@ -250,23 +271,38 @@ Mark Pass / Fail / Blocked for each.
 | **Max gap** | Longest quiet stretch between points |
 | **Mocked** | Count of locations the device flagged as fake/mock GPS |
 
+### Timesheet
+
+| Column / KPI | Plain meaning |
+|--------------|---------------|
+| **Clock In / Out** | First Start duty / last Stop duty that day (server time) |
+| **Duty minutes** | Total time on duty (all sessions that day) |
+| **Planned** | Expected work minutes from company working hours |
+| **Duty vs planned %** | Duty minutes as a share of planned |
+| **Sessions** | How many Start/Stop cycles that day |
+| **GPS % / Distance** | Same-day GPS coverage from Reports (when available) |
+| **Flags** | Shortcuts such as Active, Weak GPS, Not started, Left open, Late start |
+| **On duty now** (KPI) | How many people currently have an open duty session |
+
 ---
 
 ## 9. Same-day Reports vs Live Map (important)
 
-| Screen | Data source | Same-day behaviour |
-|--------|-------------|--------------------|
-| **Live Map** | Latest position (`user_location_current`) | Updates as soon as mobile syncs |
-| **Tracking Reports** | Daily summary rows | Built on open from raw GPS pings when a summary is missing (especially **today**). Refresh the page after a successful sync — do **not** wait until the next calendar day. |
-| **Timesheet** | Duty sessions | Independent of GPS summaries; shows clock-in/out even before Reports |
+| Screen | What it shows | Same-day behaviour |
+|--------|---------------|--------------------|
+| **Live Map** | Latest GPS position + on/off duty | Updates as soon as mobile syncs |
+| **Tracking Reports** | Daily GPS summary + day route | Built when you open the page if today’s summary is missing. Refresh after a successful sync — do **not** wait until tomorrow. |
+| **Timesheet** | Duty clock-in/out and hours | Independent of GPS summaries; shows attendance even before Reports has pings |
 
-If Live shows a pin but Reports said “No summary rows”, refresh Reports after the on-read rollup fix is deployed. Nightly rollup still runs for history cleanup; operators can also force a date rollup via IT (`npm run location-tracking:rollup -- --date=YYYY-MM-DD`).
+**Common confusion:** Live can show a pin while Reports still looks empty until you refresh Reports (same-day summary is created on open). Timesheet can show clock-in even with weak or zero GPS.
+
+If IT needs to rebuild an older day’s summary, ask them to run the location-tracking rollup for that date (IT step — not part of BA click-path).
 
 ---
 
 ## 10. Full pledge QA matrix (S1–S11)
 
-Use after configuration (section 4). Prefer a local QA harness that returns **30-second capture** on the mobile policy (`capture_interval_seconds`) and allows **1-minute sync** — production intervals stay in minutes.
+Use after configuration (section 4). For faster UAT, IT may enable a **QA harness** that returns **30-second capture** on the mobile policy and allows **1-minute sync**. Production stays in **minutes** only.
 
 | ID | Surface | Case | Expected |
 |----|---------|------|----------|
@@ -300,7 +336,8 @@ Use after configuration (section 4). Prefer a local QA harness that returns **30
 
 ## 12. Out of scope for BA (do not block UAT on these)
 
-- Server environment variables and deployments (already handled by IT)
+- Server environment variables and deployments (already handled by IT), including QA harness / force rollup commands
 - Map provider accounts or Google Maps billing keys (View on Google Maps opens the public Google Maps website; no key in the product)
-- Changing mobile build configuration
+- Changing mobile build configuration / package names (IT may supply **Solar CRM QA** APK for side-by-side install)
 - Permanent production capture unit change from minutes to seconds (QA harness only)
+- Payroll / overtime engines (Timesheet is attendance + GPS context, not payroll)
