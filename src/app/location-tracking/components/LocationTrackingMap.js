@@ -242,7 +242,7 @@ export default function LocationTrackingMap({
 
   return (
     <div
-      className={`relative w-full h-full min-h-[420px] overflow-hidden rounded border border-border bg-muted/20 ${className}`}
+      className={`relative z-0 isolate w-full h-full min-h-[420px] overflow-hidden rounded border border-border bg-muted/20 ${className}`}
     >
       {!hasData ? (
         <div className="absolute inset-0 z-[500] flex items-center justify-center pointer-events-none">
@@ -254,6 +254,7 @@ export default function LocationTrackingMap({
       <MapContainer
         center={center}
         zoom={12}
+        className="!z-0"
         style={{ height: "100%", width: "100%", minHeight: 420 }}
         scrollWheelZoom
       >
