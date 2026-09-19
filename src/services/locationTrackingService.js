@@ -59,6 +59,9 @@ export const exportTimesheetReport = (params = {}) =>
     })
     .then((r) => r.data)
 
+export const forceStopDuty = (payload) =>
+  apiClient.post("/location-tracking/duty/force-stop", payload).then(unwrap)
+
 export const getUserTrail = (userId, params = {}) =>
   apiClient
     .get(`/location-tracking/users/${userId}/trail`, { params })
@@ -74,6 +77,7 @@ const locationTrackingService = {
   getTimesheetDashboard,
   getTimesheetReport,
   exportTimesheetReport,
+  forceStopDuty,
   getUserTrail,
 }
 
