@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { DownloadAppLink } from "@/components/DownloadAppLink";
 
 export const metadata = {
   title: "Auth | Solar Management System",
@@ -41,15 +42,18 @@ export default function AuthLayout({ children }) {
               specifically for Indian solar companies.
             </p>
           </div>
-          <p className="text-sm text-white/80">
-            Powered by Techhind Pvt Ltd
-            <br />
-            All Rights Reserved © 2026
-          </p>
+          <div className="space-y-2">
+            <DownloadAppLink className="text-white/80 hover:text-white" />
+            <p className="text-sm text-white/80">
+              Powered by Techhind Pvt Ltd
+              <br />
+              All Rights Reserved © 2026
+            </p>
+          </div>
         </div>
 
         {/* Right: Login card over hero */}
-        <div className="flex min-h-dvh items-center justify-center p-4 md:p-6 lg:p-8">
+        <div className="flex min-h-dvh flex-col items-center justify-center gap-3 p-4 md:p-6 lg:p-8">
           <div
             className="w-full max-w-md rounded-2xl border border-white/10 bg-white/90 px-6 py-8 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 md:px-8 md:py-10"
             style={{
@@ -59,6 +63,7 @@ export default function AuthLayout({ children }) {
           >
             {children}
           </div>
+          <DownloadAppLink className="rounded-md bg-black/25 px-3 py-1.5 font-medium text-white backdrop-blur-sm hover:bg-black/40 lg:hidden" />
         </div>
       </div>
     </div>

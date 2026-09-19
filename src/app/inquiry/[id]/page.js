@@ -1250,7 +1250,7 @@ function InquiryDetailsContent() {
                                                 {
                                                     field: "project_capacity",
                                                     label: "Capacity",
-                                                    render: (row) => row.project_capacity ? `${Number(row.project_capacity).toFixed(2)} KW` : "-",
+                                                    render: (row) => row.project_capacity ? `${Number(row.project_capacity).toFixed(3)} KW` : "-",
                                                 },
                                                 {
                                                     field: "total_project_value",

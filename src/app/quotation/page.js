@@ -444,7 +444,7 @@ export default function QuotationList() {
         filterKeyTo: "project_capacity_to",
         operatorKey: "project_capacity_op",
         defaultFilterOperator: "equals",
-        render: (row) => (row.project_capacity != null ? Number(row.project_capacity).toFixed(2) : "-"),
+        render: (row) => (row.project_capacity != null ? Number(row.project_capacity).toFixed(3) : "-"),
       },
       {
         field: "total_project_value",
