@@ -173,10 +173,15 @@ function ReportsContent() {
   return (
     <ListingPageContainer
       title="Location Tracking Reports"
-      subtitle="Day-route explorer · select a row to show route of day"
+      subtitle="Day-route explorer · select a row to show route of day · attendance is on Timesheet"
       fullWidth
       exportButtonLabel="Export CSV"
       onExportClick={handleExport}
+      actions={
+        <Button size="sm" variant="outline" asChild>
+          <a href="/location-tracking/timesheet">Open timesheet</a>
+        </Button>
+      }
     >
       <div className="flex flex-wrap items-end gap-2 border-b border-border pb-1.5 mb-1.5">
         <div className="w-[150px]">

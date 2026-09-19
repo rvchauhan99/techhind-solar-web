@@ -52,19 +52,24 @@ flowchart LR
 
 | Menu name | Path | Use when |
 |-----------|------|----------|
-| Live Map | Location Tracking → **Live Map** | See people on the map right now; open Google Maps for a point |
-| Tracking Reports | Location Tracking → **Tracking Reports** | Day-by-day coverage, distance, and route of day |
-| Tracking Settings | Location Tracking → **Tracking Settings** | Company master switch, intervals, working hours |
+| Live Map | Location Tracking → **Live Map** | See people on the map right now; filter **On duty / Off duty**; open Google Maps for a point |
+| Timesheet | Location Tracking → **Timesheet** | Duty clock-in/out, hours vs planned, flags, CSV export |
+| Tracking Reports | Location Tracking → **Tracking Reports** | Day-by-day GPS coverage, distance, and route of day |
+| Tracking Settings | Location Tracking → **Tracking Settings** | Company master switch, intervals, working hours, duty gate |
 | User Master | Settings / User Master → edit user | Turn tracking on for a person; optional interval overrides |
-| Role Master | Role / module permissions | Decide which roles see Live / Reports / Settings |
+| Role Master | Role / module permissions | Decide which roles see Live / Timesheet / Reports / Settings |
 
 ### Mobile (field)
 
 | Screen | Use when |
 |--------|----------|
-| **Duty** / location tracking (shown when tracking is enabled for the logged-in user) | Accept consent, Start / Stop duty, Sync queue |
+| **Duty Gate** (after login / splash when pending) | Full-screen consent and/or **Start duty** during working hours |
+| **Duty Tracking** (hub card when tracking is enabled) | Accept consent, Start / Stop duty, Sync queue; shows server clock-in time |
+| **My Timesheet** (hub card) | Today + last 30 days duty hours, GPS coverage, session list |
 
-If tracking is **not** enabled for the account, the mobile screen shows that tracking is not enabled — no Start duty.
+If tracking is **not** enabled for the account, the mobile Duty screens are hidden / show not enabled.
+
+Hub badge **Duty off** (amber) appears on Duty Tracking when the user is consented, within working hours, and not clocked in.
 
 ---
 
@@ -79,6 +84,8 @@ Open **Location Tracking → Tracking Settings**.
 | Setting | What it means | Typical test value |
 |---------|---------------|--------------------|
 | **Enable location tracking for this tenant** | Master switch for the whole company | **ON** |
+| **Duty gate on mobile** | Splash/post-login consent + Start duty prompts | **ON** (default) |
+| **Auto-close stale open duty sessions (hours)** | Server closes forgotten open clock-ins | `16` |
 | **Default capture interval (min)** | How often the phone samples GPS | `5` (allowed range roughly 1–60) |
 | **Default sync interval (min)** | How often the phone uploads locations | `10` (must be **≥** capture; floor is usually 5) |
 | **Min accuracy (m)** | Ignore very inaccurate GPS fixes | `150` |
@@ -119,7 +126,8 @@ For other office roles (manager, ops):
 | Module / screen | Grant so they can… |
 |-----------------|--------------------|
 | **Live Map** | Open Live Location Map |
-| **Tracking Reports** | Open reports, day route, export |
+| **Timesheet** | Open duty attendance dashboard / export |
+| **Tracking Reports** | Open GPS reports, day route, export |
 | **Tracking Settings** | Change company tracking settings (usually admins only) |
 
 Users **without** Live Map permission should not see that menu (or should be blocked from the page).
@@ -149,17 +157,17 @@ Use once per environment after configuration (section 4).
 
 | Step | Who | Action | Expected |
 |------|-----|--------|----------|
-| 1 | Admin (web) | Tracking Settings → Enable ON → Save | Settings saved; no error |
+| 1 | Admin (web) | Tracking Settings → Enable ON → Duty gate ON → Save | Settings saved; no error |
 | 2 | Admin (web) | User Master → enable tracking for field user → Save | User saved |
-| 3 | Field (mobile) | Log in as that field user | Login success |
-| 4 | Field (mobile) | Open Duty / tracking screen | Screen loads (not “not enabled”) |
-| 5 | Field (mobile) | If asked: **I agree and continue** (consent) | Consent recorded; Start duty becomes available |
-| 6 | Field (mobile) | **Start duty** | Duty shows **Active**; notification / status indicates tracking |
-| 7 | Field (mobile) | Wait at least one sync interval (or tap **Sync queue now**) | No persistent error snackbar |
-| 8 | Admin (web) | Open **Live Map** → Refresh | Field user appears; status Live or Stale; pin on map |
-| 9 | Admin (web) | Click user row or pin → **Google** / **View on Google Maps** | Google Maps opens for that location |
-| 10 | Admin (web) | After some movement / time: **Tracking Reports** → choose date → click row | Day route draws on map; start/end markers if multiple points |
-| 11 | Admin (web) | **View route on Google Maps** (or **Open last point** if only one ping) | Google Maps opens |
+| 3 | Field (mobile) | Log in as that field user | Login success → **Duty Gate** if consent or Start duty pending |
+| 4 | Field (mobile) | Accept consent (if shown) then **Start duty** | Duty Active; FG notification; server session open |
+| 5 | Field (mobile) | Open **My Timesheet** | Today shows clock-in / Active / duty minutes |
+| 6 | Field (mobile) | Wait at least one sync interval (or tap **Sync queue now**) | No persistent error snackbar |
+| 7 | Admin (web) | Open **Live Map** → filter **On duty** → Refresh | Field user appears with **on duty** badge |
+| 8 | Admin (web) | Open **Timesheet** → today range | Row shows clock-in; KPI On duty now ≥ 1 |
+| 9 | Admin (web) | Click timesheet row → **Open day route** / Reports | Day route available when pings exist |
+| 10 | Field (mobile) | **Stop duty** | Session closed; Timesheet shows clock-out |
+| 11 | Admin (web) | Export Timesheet CSV | File downloads with duty columns |
 
 ---
 
@@ -213,12 +221,13 @@ Mark Pass / Fail / Blocked for each.
 
 | ID | Scenario | Steps | Expected | Result |
 |----|----------|-------|----------|--------|
-| LT-23 | Date range | Set From / To → load | Summary rows or empty message | |
+| LT-23 | Date range (incl. **today**) | Set From / To including today → load | Summary rows appear when pings exist (same-day rollup on open); or empty message if no GPS yet | |
 | LT-24 | Day route | Click a summary row | Route of day panel + map path (if points exist) | |
 | LT-25 | Google route | With trail loaded → **View route on Google Maps** | Google Maps directions / route opens | |
 | LT-26 | Single point | Only one ping that day → **Open last point** | Google Maps opens that point | |
 | LT-27 | Export | Export for the selected range | File downloads; opens in Excel/Sheets | |
 | LT-28 | Totals | With data in range | Coverage %, pings, distance, mocked count look sensible | |
+| LT-28a | Live vs Reports same day | Live pin present; open Reports for today | Reports shows ≥1 row after refresh (not “wait until tomorrow”) | |
 
 ### Negative / edge
 
@@ -243,7 +252,39 @@ Mark Pass / Fail / Blocked for each.
 
 ---
 
-## 9. Sign-off
+## 9. Same-day Reports vs Live Map (important)
+
+| Screen | Data source | Same-day behaviour |
+|--------|-------------|--------------------|
+| **Live Map** | Latest position (`user_location_current`) | Updates as soon as mobile syncs |
+| **Tracking Reports** | Daily summary rows | Built on open from raw GPS pings when a summary is missing (especially **today**). Refresh the page after a successful sync — do **not** wait until the next calendar day. |
+| **Timesheet** | Duty sessions | Independent of GPS summaries; shows clock-in/out even before Reports |
+
+If Live shows a pin but Reports said “No summary rows”, refresh Reports after the on-read rollup fix is deployed. Nightly rollup still runs for history cleanup; operators can also force a date rollup via IT (`npm run location-tracking:rollup -- --date=YYYY-MM-DD`).
+
+---
+
+## 10. Full pledge QA matrix (S1–S11)
+
+Use after configuration (section 4). Prefer a local QA harness that returns **30-second capture** on the mobile policy (`capture_interval_seconds`) and allows **1-minute sync** — production intervals stay in minutes.
+
+| ID | Surface | Case | Expected |
+|----|---------|------|----------|
+| S1 | Settings | Save intervals with sync ≥ capture (QA may allow sync floor 1); reopen; check profile / Duty screen shows fast capture when harness on | Saved; policy shows seconds when QA harness enabled |
+| S2 | Mobile | Login → Duty Gate if needed → Start duty | FG running; notification shows capture interval |
+| S3 | Mobile | Wait ≥2 sync windows or **Sync queue** | Queue drains; no stuck errors |
+| S4 | API / Live | Live list for that user | LIVE + **on duty** |
+| S5 | Data | Today’s raw pings | Count > 0 |
+| S6 | Web Reports | Same date = today | ≥1 summary row; coverage/pings non-zero; open day route |
+| S7 | Web Timesheet | Today range + CSV | Clock-in/out, duty minutes, flags; CSV downloads |
+| S8 | Web Live | On duty / Off duty filters; Google deep-link | Filters work; Google opens |
+| S9 | Mobile My Timesheet | Today | Matches server session |
+| S10 | Negative | Stop duty | Live **off duty**; Reports still keep day’s pings |
+| S11 | Rollup | Force rollup for yesterday | Reports show that day |
+
+---
+
+## 11. Sign-off
 
 | Item | Value |
 |------|--------|
@@ -251,13 +292,15 @@ Mark Pass / Fail / Blocked for each.
 | Tester | |
 | Date | |
 | Happy path (section 6) | Pass / Fail |
+| Full pledge S1–S11 (section 10) | Pass / Fail |
 | Critical fails (IDs) | |
 | Notes | |
 
 ---
 
-## 10. Out of scope for BA (do not block UAT on these)
+## 12. Out of scope for BA (do not block UAT on these)
 
 - Server environment variables and deployments (already handled by IT)
 - Map provider accounts or Google Maps billing keys (View on Google Maps opens the public Google Maps website; no key in the product)
 - Changing mobile build configuration
+- Permanent production capture unit change from minutes to seconds (QA harness only)
