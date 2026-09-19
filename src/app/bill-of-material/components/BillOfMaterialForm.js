@@ -533,6 +533,7 @@ export default function BillOfMaterialForm({
             placeholder="Search existing BOM..."
             disabled={loading || loadingOptions || copyingFromBOM}
             loading={copyingFromBOM}
+            usePortal
             helperText="Header fields stay manual; selected BOM detail rows are appended."
           />
           <Input
@@ -576,6 +577,7 @@ export default function BillOfMaterialForm({
               value={currentDetail.product_type_id ? { id: currentDetail.product_type_id } : null}
               onChange={(e, newValue) => handleCurrentDetailChange("product_type_id", newValue?.id ?? "")}
               placeholder="Type to search..."
+              usePortal
               error={!!currentDetailErrors.product_type_id}
               helperText={currentDetailErrors.product_type_id}
             />
@@ -589,6 +591,7 @@ export default function BillOfMaterialForm({
               onChange={(e, newValue) => handleCurrentDetailChange("product_id", newValue?.id ?? "")}
               placeholder="Type to search..."
               disabled={!currentDetail.product_type_id}
+              usePortal
               error={!!currentDetailErrors.product_id}
               helperText={currentDetailErrors.product_id}
             />
@@ -633,6 +636,7 @@ export default function BillOfMaterialForm({
               }}
               placeholder="Select substitutes..."
               disabled={!currentDetail.product_type_id}
+              usePortal
               error={!!currentDetailErrors.substitute_product_ids}
               helperText={currentDetailErrors.substitute_product_ids || "Optional; pick one or more"}
             />

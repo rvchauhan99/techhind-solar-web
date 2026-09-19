@@ -26,11 +26,13 @@ const PATH_WHITELIST = new Set([
   "/b2b-leads/analysis",
   "/access-denied",
   "/user-profile",
+  "/support-tickets",
 ]);
 
 function isPathAllowed(pathname, allowedRoutes) {
   const normalized = normalizePath(pathname);
   if (PATH_WHITELIST.has(normalized)) return true;
+  if (normalized.startsWith("/support-tickets/")) return true;
   return isPathAllowedByRoutes(pathname, allowedRoutes);
 }
 

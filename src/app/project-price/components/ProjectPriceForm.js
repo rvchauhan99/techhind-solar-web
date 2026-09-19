@@ -24,6 +24,7 @@ import {
   syncRateFromCapacityAndTotal,
   roundToRupee,
   roundToPaise,
+  roundToMilliKw,
   toWholeRupeeOrEmpty,
 } from "@/app/quotation/components/quotation/quotationCalculations";
 
@@ -243,7 +244,9 @@ export default function ProjectPriceForm({
         if (dd?.product?.product_type?.name?.toLowerCase() == 'panel') {
           let bomQty = (isNaN(dd.quantity) || !dd.quantity) ? 1 : parseFloat(dd.quantity)
           setFormData((prev) => {
-            const project_capacity = (parseFloat(dd?.product?.capacity ?? 0) * bomQty) / 1000;
+            const project_capacity = roundToMilliKw(
+              (parseFloat(dd?.product?.capacity ?? 0) * bomQty) / 1000
+            );
             const patch = { ...prev, project_capacity };
             const syncedTotal = syncTotalFromCapacityAndRate({
               project_capacity,
@@ -345,7 +348,7 @@ export default function ProjectPriceForm({
               error={!!errors.project_capacity}
               helperText={errors.project_capacity}
               required
-              inputProps={{ step: "0.01" }}
+              inputProps={{ step: "0.001" }}
             />
           </Grid>
         </Grid>
