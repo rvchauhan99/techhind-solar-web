@@ -37,6 +37,28 @@ export const exportDailyReport = (params = {}) =>
     })
     .then((r) => r.data)
 
+export const getTimesheetDashboard = (params = {}) =>
+  apiClient
+    .get("/location-tracking/reports/timesheet/dashboard", {
+      params: normalizeReportParams(params),
+    })
+    .then(unwrap)
+
+export const getTimesheetReport = (params = {}) =>
+  apiClient
+    .get("/location-tracking/reports/timesheet", {
+      params: normalizeReportParams(params),
+    })
+    .then(unwrap)
+
+export const exportTimesheetReport = (params = {}) =>
+  apiClient
+    .get("/location-tracking/reports/timesheet/export", {
+      params: normalizeReportParams(params),
+      responseType: "blob",
+    })
+    .then((r) => r.data)
+
 export const getUserTrail = (userId, params = {}) =>
   apiClient
     .get(`/location-tracking/users/${userId}/trail`, { params })
@@ -49,6 +71,9 @@ const locationTrackingService = {
   getLiveLocations,
   getDailyReport,
   exportDailyReport,
+  getTimesheetDashboard,
+  getTimesheetReport,
+  exportTimesheetReport,
   getUserTrail,
 }
 

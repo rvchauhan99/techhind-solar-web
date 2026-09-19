@@ -41,6 +41,8 @@ function SettingsContent() {
     min_accuracy_m: 150,
     grace_minutes: 15,
     retention_days: 365,
+    duty_gate_enabled: true,
+    stale_session_hours: 16,
   })
   const [bounds, setBounds] = useState({
     capture: { min: 1, max: 60 },
@@ -62,6 +64,8 @@ function SettingsContent() {
         min_accuracy_m: Number(data.min_accuracy_m) || 150,
         grace_minutes: Number(data.grace_minutes) || 15,
         retention_days: Number(data.retention_days) || 365,
+        duty_gate_enabled: data.duty_gate_enabled !== false,
+        stale_session_hours: Number(data.stale_session_hours) || 16,
       })
       if (data.bounds) setBounds(data.bounds)
       setTrackedUserCount(Number(data.tracked_user_count) || 0)
@@ -133,6 +137,8 @@ function SettingsContent() {
         min_accuracy_m: Number(form.min_accuracy_m),
         grace_minutes: Number(form.grace_minutes),
         retention_days: Number(form.retention_days),
+        duty_gate_enabled: !!form.duty_gate_enabled,
+        stale_session_hours: Number(form.stale_session_hours),
       })
       setForm((prev) => ({
         ...prev,
@@ -140,6 +146,8 @@ function SettingsContent() {
         capture_interval_minutes: data.capture_interval_minutes,
         sync_interval_minutes: data.sync_interval_minutes,
         retention_days: data.retention_days,
+        duty_gate_enabled: data.duty_gate_enabled !== false,
+        stale_session_hours: data.stale_session_hours,
         working_hours: data.working_hours || prev.working_hours,
       }))
       toastSuccess("Location tracking settings saved")
@@ -181,6 +189,21 @@ function SettingsContent() {
           <p className="text-xs text-muted-foreground mt-0.5">
             Master switch. Per-user flags in User Master are shown only when this is on.
           </p>
+          <div className="mt-2 pt-2 border-t border-border space-y-1.5">
+            <Checkbox
+              name="duty_gate_enabled"
+              label="Duty gate on mobile (consent + Start duty prompts)"
+              checked={!!form.duty_gate_enabled}
+              onChange={(e) => setField("duty_gate_enabled", e.target.checked)}
+            />
+            <Input
+              name="stale_session_hours"
+              label="Auto-close stale open duty sessions (hours)"
+              type="number"
+              value={form.stale_session_hours}
+              onChange={(e) => setField("stale_session_hours", e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="rounded border border-border bg-card p-2 grid gap-1.5 sm:grid-cols-2">

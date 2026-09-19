@@ -26,6 +26,8 @@ const STATUS_FILTERS = [
   { key: "live", label: "Live" },
   { key: "stale", label: "Stale" },
   { key: "no_data", label: "No data" },
+  { key: "on_duty", label: "On duty" },
+  { key: "off_duty", label: "Off duty" },
 ]
 
 function statusBadge(status) {
@@ -86,11 +88,13 @@ function LiveContent() {
   }, [load])
 
   const counts = useMemo(() => {
-    const c = { live: 0, stale: 0, no_data: 0, total: users.length }
+    const c = { live: 0, stale: 0, no_data: 0, on_duty: 0, off_duty: 0, total: users.length }
     users.forEach((u) => {
       const s = u.status || "no_data"
       if (c[s] != null) c[s] += 1
       else c.no_data += 1
+      if (u.on_duty) c.on_duty += 1
+      else c.off_duty += 1
     })
     return c
   }, [users])
@@ -99,7 +103,16 @@ function LiveContent() {
     const q = search.trim().toLowerCase()
     return users.filter((u) => {
       const status = u.status || "no_data"
-      if (statusFilter !== "all" && status !== statusFilter) return false
+      if (statusFilter === "on_duty" && !u.on_duty) return false
+      else if (statusFilter === "off_duty" && u.on_duty) return false
+      else if (
+        statusFilter !== "all" &&
+        statusFilter !== "on_duty" &&
+        statusFilter !== "off_duty" &&
+        status !== statusFilter
+      ) {
+        return false
+      }
       if (!q) return true
       const hay = `${u.name || ""} ${u.email || ""} ${u.role_name || ""}`.toLowerCase()
       return hay.includes(q)
@@ -136,8 +149,8 @@ function LiveContent() {
         <div className="flex flex-col min-h-0 rounded border border-border bg-card">
           <div className="grid grid-cols-3 gap-1 p-1.5 border-b border-border">
             <KpiChip label="Live" value={counts.live} tone="live" />
-            <KpiChip label="Stale" value={counts.stale} tone="stale" />
-            <KpiChip label="No data" value={counts.no_data} tone="muted" />
+            <KpiChip label="On duty" value={counts.on_duty} tone="live" />
+            <KpiChip label="Off duty" value={counts.off_duty} tone="stale" />
           </div>
 
           <div className="p-1.5 border-b border-border space-y-1.5">
@@ -217,7 +230,16 @@ function LiveContent() {
                             {u.role_name || "—"} · sync {u.sync_interval_minutes}m
                           </div>
                         </td>
-                        <td className="px-2 py-1">{statusBadge(u.status)}</td>
+                        <td className="px-2 py-1">
+                          <div className="flex flex-col gap-0.5">
+                            {statusBadge(u.status)}
+                            {u.on_duty ? (
+                              <span className="inline-flex rounded px-1.5 py-0.5 text-[9px] font-medium uppercase bg-blue-100 text-blue-800 w-fit">
+                                on duty
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="px-2 py-1 tabular-nums">
                           {u.age_minutes == null ? "—" : `${u.age_minutes}m`}
                         </td>
