@@ -3,19 +3,18 @@
 import { useState, useEffect } from "react";
 import {
   Box,
-  Button,
   FormControl,
   FormControlLabel,
   FormHelperText,
   Alert,
   Typography,
-  InputLabel,
-  Select,
-  MenuItem,
   Radio,
   RadioGroup,
   Grid,
   CircularProgress,
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
 } from "@mui/material";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
@@ -37,6 +36,11 @@ import {
   loadInquiryById,
   loadInquiryOptions,
 } from "@/app/site-visit/utils/inquiryOptions";
+import {
+  MediaAttachmentField,
+  MediaAttachmentMultiField,
+} from "@/components/common/MediaAttachmentField";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 const OPEN_VISIT_WARNING_MESSAGE =
   "This inquiry already has a pending site visit. Please complete, reschedule, or cancel the existing visit before scheduling a new one.";
@@ -270,14 +274,7 @@ export default function SiteVisitForm({
     }
   };
 
-  const handleFileChange = (e, fieldName, multiple = false) => {
-    if (multiple) {
-      const fileList = Array.from(e.target.files);
-      setFiles((prev) => ({ ...prev, [fieldName]: fileList }));
-    } else {
-      const file = e.target.files[0];
-      setFiles((prev) => ({ ...prev, [fieldName]: file }));
-    }
+  const clearFileFieldError = (fieldName) => {
     if (errors[fieldName]) {
       setErrors((prev) => {
         const newErrors = { ...prev };
@@ -285,6 +282,16 @@ export default function SiteVisitForm({
         return newErrors;
       });
     }
+  };
+
+  const handleSingleFileChange = (fieldName, file) => {
+    setFiles((prev) => ({ ...prev, [fieldName]: file }));
+    clearFileFieldError(fieldName);
+  };
+
+  const handleOtherFilesChange = (fileList) => {
+    setFiles((prev) => ({ ...prev, other_images_videos: fileList }));
+    clearFileFieldError("other_images_videos");
   };
 
   const handleLocateMe = async () => {
@@ -918,192 +925,100 @@ export default function SiteVisitForm({
 
             {/* Visit Photo - Required */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth required error={!!errors.visit_photo}>
-                <InputLabel shrink>Visit Photo</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "visit_photo")}
-                    style={{ display: "none" }}
-                    id="visit_photo"
-                  />
-                  <label htmlFor="visit_photo">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      fullWidth
-                      sx={{
-                        borderColor: errors.visit_photo ? 'error.main' : undefined,
-                        color: errors.visit_photo ? 'error.main' : undefined,
-                        '&:hover': {
-                          borderColor: errors.visit_photo ? 'error.main' : undefined,
-                        }
-                      }}
-                    >
-                      {files.visit_photo ? files.visit_photo.name : "Choose file"}
-                    </Button>
-                  </label>
-                  {errors.visit_photo && (
-                    <FormHelperText error sx={{ mt: 0.5, ml: 0 }}>
-                      {errors.visit_photo}
-                    </FormHelperText>
-                  )}
-                </Box>
-              </FormControl>
+              <MediaAttachmentField
+                fieldName="visit_photo"
+                label="Visit Photo"
+                required
+                value={files.visit_photo}
+                error={errors.visit_photo || null}
+                onChange={(file) => handleSingleFileChange("visit_photo", file)}
+              />
             </Grid>
 
             {/* Upload Other Images/Video */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Upload Other Images/Video</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*,video/*"
-                    multiple
-                    onChange={(e) => handleFileChange(e, "other_images_videos", true)}
-                    style={{ display: "none" }}
-                    id="other_images_videos"
-                  />
-                  <label htmlFor="other_images_videos">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.other_images_videos.length > 0
-                        ? `${files.other_images_videos.length} file(s) selected`
-                        : "Choose files"}
-                    </Button>
-                  </label>
-                  <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
-                    Select Multiple Images
+            <Grid size={{ xs: 12, md: 8 }}>
+              <MediaAttachmentMultiField
+                fieldName="other_images_videos"
+                label="Other Images/Videos"
+                value={files.other_images_videos}
+                error={errors.other_images_videos || null}
+                onChange={handleOtherFilesChange}
+              />
+            </Grid>
+
+            {/* Optional site media */}
+            <Grid size={12}>
+              <Accordion
+                disableGutters
+                elevation={0}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  "&:before": { display: "none" },
+                }}
+              >
+                <AccordionSummary
+                  expandIcon={<ExpandMoreIcon />}
+                  sx={{ minHeight: 36, px: 1, "& .MuiAccordionSummary-content": { my: 0.5 } }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                    Optional site media
                   </Typography>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* Left Corner Site Image */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Left Corner Site Image</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "left_corner_site_image")}
-                    style={{ display: "none" }}
-                    id="left_corner_site_image"
-                  />
-                  <label htmlFor="left_corner_site_image">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.left_corner_site_image ? files.left_corner_site_image.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* Right Corner Site Image */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Right Corner Site Image</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "right_corner_site_image")}
-                    style={{ display: "none" }}
-                    id="right_corner_site_image"
-                  />
-                  <label htmlFor="right_corner_site_image">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.right_corner_site_image ? files.right_corner_site_image.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* Left Top Corner Site Image */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Left Top Corner Site Image</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "left_top_corner_site_image")}
-                    style={{ display: "none" }}
-                    id="left_top_corner_site_image"
-                  />
-                  <label htmlFor="left_top_corner_site_image">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.left_top_corner_site_image ? files.left_top_corner_site_image.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* Right Top Corner Site Image */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Right Top Corner Site Image</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "right_top_corner_site_image")}
-                    style={{ display: "none" }}
-                    id="right_top_corner_site_image"
-                  />
-                  <label htmlFor="right_top_corner_site_image">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.right_top_corner_site_image ? files.right_top_corner_site_image.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* Drawing Image */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>Add Drawing Image</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "drawing_image")}
-                    style={{ display: "none" }}
-                    id="drawing_image"
-                  />
-                  <label htmlFor="drawing_image">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.drawing_image ? files.drawing_image.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
-            </Grid>
-
-            {/* House/Building Outside Photo */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth>
-                <InputLabel shrink>House/Building Outside Photo</InputLabel>
-                <Box sx={{ mt: 2 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, "house_building_outside_photo")}
-                    style={{ display: "none" }}
-                    id="house_building_outside_photo"
-                  />
-                  <label htmlFor="house_building_outside_photo">
-                    <Button variant="outlined" component="span" fullWidth>
-                      {files.house_building_outside_photo ? files.house_building_outside_photo.name : "Choose file"}
-                    </Button>
-                  </label>
-                </Box>
-              </FormControl>
+                </AccordionSummary>
+                <AccordionDetails sx={{ px: 1, pt: 0, pb: 1 }}>
+                  <Grid container spacing={1}>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="left_corner_site_image"
+                        label="Left Corner Site Image"
+                        value={files.left_corner_site_image}
+                        onChange={(file) => handleSingleFileChange("left_corner_site_image", file)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="right_corner_site_image"
+                        label="Right Corner Site Image"
+                        value={files.right_corner_site_image}
+                        onChange={(file) => handleSingleFileChange("right_corner_site_image", file)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="left_top_corner_site_image"
+                        label="Left Top Corner Site Image"
+                        value={files.left_top_corner_site_image}
+                        onChange={(file) => handleSingleFileChange("left_top_corner_site_image", file)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="right_top_corner_site_image"
+                        label="Right Top Corner Site Image"
+                        value={files.right_top_corner_site_image}
+                        onChange={(file) => handleSingleFileChange("right_top_corner_site_image", file)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="drawing_image"
+                        label="Drawing Image"
+                        value={files.drawing_image}
+                        onChange={(file) => handleSingleFileChange("drawing_image", file)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                      <MediaAttachmentField
+                        fieldName="house_building_outside_photo"
+                        label="House/Building Outside Photo"
+                        value={files.house_building_outside_photo}
+                        onChange={(file) => handleSingleFileChange("house_building_outside_photo", file)}
+                      />
+                    </Grid>
+                  </Grid>
+                </AccordionDetails>
+              </Accordion>
             </Grid>
 
             {/* Do not send message — hidden until message integration is ready */}
