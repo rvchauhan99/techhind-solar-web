@@ -30,6 +30,7 @@ import SiteVisitForm from "@/app/site-visit/components/SiteVisitForm";
 import DocumentUploadForm from "../inquiry/components/DocumentUploadForm";
 import MarkDeadModal from "../inquiry/components/MarkDeadModal";
 import followupService from "@/services/followupService";
+import { formatSiteVisitUploadError } from '@/lib/siteVisitMedia';
 import siteVisitService from "@/services/siteVisitService";
 import inquiryService from "@/services/inquiryService";
 import inquiryDocumentsService from "@/services/inquiryDocumentsService";
@@ -560,7 +561,7 @@ export default function KanbanBoard({ search, inquiries, onRefresh }) {
         await onRefresh();
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || "Failed to save site visit";
+      const errorMessage = formatSiteVisitUploadError(err);
       setSiteVisitServerError(errorMessage);
     } finally {
       setSiteVisitLoading(false);
