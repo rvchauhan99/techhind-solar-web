@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import Input from "@/components/common/Input"
 import DateField from "@/components/common/DateField"
 import Select, { MenuItem } from "@/components/common/Select"
-import MultiSelect from "@/components/common/MultiSelect"
+import AutocompleteField from "@/components/common/AutocompleteField"
+import { getReferenceOptionsForFilter } from "@/services/mastersService"
 
 const EMPTY_VALUES = {
   from: "",
@@ -28,7 +29,6 @@ export default function TrackingLogsFilterPanel({
   open = true,
   mode = "pings",
   values = {},
-  userOptions = [],
   onApply,
   onClear,
 }) {
@@ -41,14 +41,6 @@ export default function TrackingLogsFilterPanel({
   useEffect(() => {
     setLocalValues({ ...EMPTY_VALUES, ...values })
   }, [valuesKey])
-
-  const selectedUserValues = useMemo(() => {
-    if (!localValues.user_ids) return []
-    return String(localValues.user_ids)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-  }, [localValues.user_ids])
 
   if (!open) return null
 
@@ -66,9 +58,12 @@ export default function TrackingLogsFilterPanel({
   }
 
   const isPings = mode !== "duty"
+  const selectedUserId = localValues.user_ids
+    ? String(localValues.user_ids).split(",")[0].trim()
+    : ""
 
   return (
-    <div className="mb-2 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+    <div className="mb-2 shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-visible">
       <div className="px-2.5 py-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2 bg-slate-50/30">
         <DateField
           name="from"
@@ -83,14 +78,24 @@ export default function TrackingLogsFilterPanel({
           onChange={(e) => handleChange("to", e.target.value)}
         />
         <div className="sm:col-span-2 lg:col-span-2">
-          <MultiSelect
+          <AutocompleteField
+            usePortal={true}
+            name="user_ids"
             label="Users"
-            options={userOptions}
-            value={selectedUserValues}
-            onChange={(e) =>
-              handleChange("user_ids", (e?.target?.value || []).join(","))
+            asyncLoadOptions={(q) =>
+              getReferenceOptionsForFilter("user.model", {
+                q,
+                limit: 20,
+                status_in: "active,inactive",
+              })
             }
-            placeholder="All users"
+            referenceModel="user.model"
+            getOptionLabel={(o) => o?.name ?? o?.email ?? o?.label ?? ""}
+            value={selectedUserId ? { id: selectedUserId } : null}
+            onChange={(e, v) =>
+              handleChange("user_ids", v?.id ? String(v.id) : "")
+            }
+            placeholder="Search user by name or email…"
           />
         </div>
 

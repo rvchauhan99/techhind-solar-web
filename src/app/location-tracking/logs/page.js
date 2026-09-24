@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { useListingQueryState } from "@/hooks/useListingQueryState"
 import { toastError, toastSuccess } from "@/utils/toast"
 import locationTrackingService from "@/services/locationTrackingService"
+import { getReferenceOptionById } from "@/services/mastersService"
 import { openGoogleMapsPoint } from "../utils/googleMapsLinks"
 
 const FILTER_KEYS = [
@@ -355,7 +356,6 @@ function LogsContent() {
   const [userOptions, setUserOptions] = useState([])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
-  const [tableKey, setTableKey] = useState(0)
   const [selectedIds, setSelectedIds] = useState([])
   const [activePreset, setActivePreset] = useState(
     () =>
@@ -369,20 +369,60 @@ function LogsContent() {
       try {
         const data = await locationTrackingService.getLiveLocations()
         if (cancelled) return
-        setUserOptions(
-          (Array.isArray(data?.users) ? data.users : []).map((u) => ({
+        setUserOptions((prev) => {
+          const fromLive = (Array.isArray(data?.users) ? data.users : []).map((u) => ({
             value: String(u.user_id),
             label: u.name || u.email || String(u.user_id),
           }))
-        )
+          const byId = new Map(prev.map((u) => [u.value, u]))
+          fromLive.forEach((u) => byId.set(u.value, u))
+          return Array.from(byId.values())
+        })
       } catch {
-        // optional filter source
+        // optional chip label source
       }
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Resolve selected user ids to names for filter chips (AutocompleteField search may pick any user)
+  useEffect(() => {
+    const ids = String(filters.user_ids || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (!ids.length) return
+    let cancelled = false
+    ;(async () => {
+      const rows = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return await getReferenceOptionById("user.model", id)
+          } catch {
+            return null
+          }
+        })
+      )
+      if (cancelled) return
+      setUserOptions((prev) => {
+        const byId = new Map(prev.map((u) => [u.value, u]))
+        rows.forEach((row, i) => {
+          if (!row) return
+          const id = ids[i]
+          byId.set(id, {
+            value: id,
+            label: row.name || row.email || row.label || id,
+          })
+        })
+        return Array.from(byId.values())
+      })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [filters.user_ids])
 
   useEffect(() => {
     setActivePreset(matchDatePreset(from, to))
@@ -399,9 +439,8 @@ function LogsContent() {
     [filters, mode]
   )
 
-  const bumpTable = () => {
+  const clearSelection = () => {
     setSelectedIds([])
-    setTableKey((k) => k + 1)
   }
 
   const handleModeChange = (nextMode) => {
@@ -419,14 +458,14 @@ function LogsContent() {
       },
       true
     )
-    bumpTable()
+    clearSelection()
   }
 
   const handlePreset = (preset) => {
     const dates = preset.fn()
     setFilters({ ...filters, mode, from: dates.from, to: dates.to }, true)
     setActivePreset(preset.label)
-    bumpTable()
+    clearSelection()
   }
 
   const handlePingQuickTab = (value) => {
@@ -440,7 +479,7 @@ function LogsContent() {
     if (value === "outside_hours") next.is_within_working_hours = "false"
     if (value === "within_hours") next.is_within_working_hours = "true"
     setFilters(next, true)
-    bumpTable()
+    clearSelection()
   }
 
   const handleDutyQuickTab = (value) => {
@@ -452,7 +491,7 @@ function LogsContent() {
       },
       true
     )
-    bumpTable()
+    clearSelection()
   }
 
   const handleAdvancedApply = (next) => {
@@ -475,7 +514,7 @@ function LogsContent() {
     )
     setActivePreset(matchDatePreset(next.from, next.to))
     setFilterPanelOpen(false)
-    bumpTable()
+    clearSelection()
   }
 
   const clearFilters = () => {
@@ -496,7 +535,7 @@ function LogsContent() {
     setFilters(next, true)
     setActivePreset(DEFAULT_DATE_PRESET)
     setFilterPanelOpen(false)
-    bumpTable()
+    clearSelection()
   }
 
   const panelValues = useMemo(
@@ -530,8 +569,73 @@ function LogsContent() {
       setActivePreset(DEFAULT_DATE_PRESET)
     }
     setFilters(next, true)
-    bumpTable()
+    clearSelection()
   }
+
+  // Drive PaginatedTable reload when URL filters settle (no remount / tableKey)
+  const filterParams = useMemo(() => {
+    const params = {
+      from,
+      to,
+      user_ids: filters.user_ids || undefined,
+      mode,
+    }
+    if (mode === "pings") {
+      if (filters.is_mocked) params.is_mocked = filters.is_mocked
+      if (filters.is_within_working_hours) {
+        params.is_within_working_hours = filters.is_within_working_hours
+      }
+      if (filters.source) params.source = filters.source
+      if (filters.min_accuracy_m) params.min_accuracy_m = filters.min_accuracy_m
+      if (filters.max_accuracy_m) params.max_accuracy_m = filters.max_accuracy_m
+    } else {
+      if (filters.event_type && filters.event_type !== "all") {
+        params.event_type = filters.event_type
+      }
+      if (filters.device_id) params.device_id = filters.device_id
+    }
+    return params
+  }, [from, to, filters, mode])
+
+  // Stable fetcher: PaginatedTable merges filterParams into `p` — do not close over filters
+  const fetcher = useCallback(async (p = {}) => {
+    const requestMode = p.mode === "duty" ? "duty" : "pings"
+    const params = {
+      from: p.from,
+      to: p.to,
+      q: p.q,
+      page: p.page,
+      limit: p.limit,
+      sort_by: p.sortBy || (requestMode === "pings" ? "recorded_at" : "event_at"),
+      sort_dir: p.sortOrder || "desc",
+      user_ids: p.user_ids || undefined,
+    }
+    if (requestMode === "pings") {
+      if (p.is_mocked) params.is_mocked = p.is_mocked
+      if (p.is_within_working_hours) {
+        params.is_within_working_hours = p.is_within_working_hours
+      }
+      if (p.source) params.source = p.source
+      if (p.min_accuracy_m) params.min_accuracy_m = p.min_accuracy_m
+      if (p.max_accuracy_m) params.max_accuracy_m = p.max_accuracy_m
+    } else {
+      if (p.event_type && p.event_type !== "all") params.event_type = p.event_type
+      if (p.device_id) params.device_id = p.device_id
+    }
+    const result =
+      requestMode === "duty"
+        ? await locationTrackingService.getDutyEventLogs(params)
+        : await locationTrackingService.getPingLogs(params)
+    return {
+      data: Array.isArray(result?.rows) ? result.rows : [],
+      meta: {
+        total: result?.meta?.total || 0,
+        page: result?.meta?.page || params.page || 1,
+        pages: result?.meta?.totalPages || 0,
+        limit: result?.meta?.limit || params.limit || 50,
+      },
+    }
+  }, [])
 
   const buildApiParams = useCallback(
     (p = {}) => {
@@ -562,26 +666,6 @@ function LogsContent() {
       return params
     },
     [from, to, q, page, limit, sortBy, sortOrder, filters, mode]
-  )
-
-  const fetcher = useCallback(
-    async (p) => {
-      const params = buildApiParams(p)
-      const result =
-        mode === "duty"
-          ? await locationTrackingService.getDutyEventLogs(params)
-          : await locationTrackingService.getPingLogs(params)
-      return {
-        data: Array.isArray(result?.rows) ? result.rows : [],
-        meta: {
-          total: result?.meta?.total || 0,
-          page: result?.meta?.page || params.page || 1,
-          pages: result?.meta?.totalPages || 0,
-          limit: result?.meta?.limit || params.limit || 50,
-        },
-      }
-    },
-    [buildApiParams, mode, tableKey]
   )
 
   const handleExport = async () => {
@@ -1065,16 +1149,15 @@ function LogsContent() {
           open
           mode={mode}
           values={panelValues}
-          userOptions={userOptions}
           onApply={handleAdvancedApply}
           onClear={clearFilters}
         />
       ) : null}
 
       <PaginatedTable
-        key={`${mode}-${tableKey}`}
         columns={mode === "pings" ? pingColumns : dutyColumns}
         fetcher={fetcher}
+        filterParams={filterParams}
         page={page}
         limit={limit}
         q={q}
