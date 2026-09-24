@@ -120,6 +120,14 @@ function SettingsContent() {
     if (!next.capture_interval_minutes && !next.sync_interval_minutes && sync < capture) {
       next.sync_interval_minutes = "Sync must be ≥ capture interval"
     }
+    const incompleteDays = WEEKDAYS.filter(({ key }) => {
+      const day = form.working_hours?.[key]
+      if (!day) return false
+      return !String(day.start || "").trim() || !String(day.end || "").trim()
+    })
+    if (incompleteDays.length) {
+      next.working_hours = `Set start and end for: ${incompleteDays.map((d) => d.label).join(", ")}`
+    }
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -261,6 +269,9 @@ function SettingsContent() {
 
         <div className="rounded border border-border bg-card p-2">
           <p className="text-sm font-medium text-[#1b365d] mb-1">Working hours</p>
+          {errors.working_hours ? (
+            <p className="text-xs text-destructive mb-1">{errors.working_hours}</p>
+          ) : null}
           <div className="grid gap-1">
             {WEEKDAYS.map(({ key, label }) => {
               const day = form.working_hours?.[key]

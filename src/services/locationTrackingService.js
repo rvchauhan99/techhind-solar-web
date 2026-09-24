@@ -9,6 +9,13 @@ const normalizeReportParams = (params = {}) => {
     next.user_ids = next.user_ids.filter((id) => id != null && id !== "").join(",")
   }
   if (next.user_ids === "") delete next.user_ids
+  if (Array.isArray(next.ids)) {
+    next.ids = next.ids.filter((id) => id != null && id !== "").join(",")
+  }
+  if (next.ids === "") delete next.ids
+  Object.keys(next).forEach((key) => {
+    if (next[key] === "" || next[key] == null) delete next[key]
+  })
   return next
 }
 
@@ -67,6 +74,39 @@ export const getUserTrail = (userId, params = {}) =>
     .get(`/location-tracking/users/${userId}/trail`, { params })
     .then(unwrap)
 
+export const getPingLogs = (params = {}) =>
+  apiClient
+    .get("/location-tracking/logs/pings", { params: normalizeReportParams(params) })
+    .then(unwrap)
+
+export const exportPingLogs = (params = {}) =>
+  apiClient
+    .get("/location-tracking/logs/pings/export", {
+      params: normalizeReportParams(params),
+      responseType: "blob",
+    })
+    .then((r) => r.data)
+
+export const getPingMapPoints = (params = {}) =>
+  apiClient
+    .get("/location-tracking/logs/pings/map-points", {
+      params: normalizeReportParams(params),
+    })
+    .then(unwrap)
+
+export const getDutyEventLogs = (params = {}) =>
+  apiClient
+    .get("/location-tracking/logs/duty-events", { params: normalizeReportParams(params) })
+    .then(unwrap)
+
+export const exportDutyEventLogs = (params = {}) =>
+  apiClient
+    .get("/location-tracking/logs/duty-events/export", {
+      params: normalizeReportParams(params),
+      responseType: "blob",
+    })
+    .then((r) => r.data)
+
 const locationTrackingService = {
   getTenantDefaults,
   getSettings,
@@ -79,6 +119,11 @@ const locationTrackingService = {
   exportTimesheetReport,
   forceStopDuty,
   getUserTrail,
+  getPingLogs,
+  exportPingLogs,
+  getPingMapPoints,
+  getDutyEventLogs,
+  exportDutyEventLogs,
 }
 
 export default locationTrackingService
