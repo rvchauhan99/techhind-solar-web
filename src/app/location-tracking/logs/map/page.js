@@ -29,10 +29,10 @@ function MapContent() {
   const to = searchParams.get("to") || ""
   const userIds = searchParams.get("user_ids") || ""
   const userId = searchParams.get("user_id") || ""
+  const sessionId = searchParams.get("session_id") || ""
   const date = searchParams.get("date") || ""
   const ids = searchParams.get("ids") || ""
   const isMocked = searchParams.get("is_mocked") || ""
-  const withinHours = searchParams.get("is_within_working_hours") || ""
   const source = searchParams.get("source") || ""
   const minAcc = searchParams.get("min_accuracy_m") || ""
   const maxAcc = searchParams.get("max_accuracy_m") || ""
@@ -48,17 +48,36 @@ function MapContent() {
     if (to) qs.set("to", to)
     if (userIds) qs.set("user_ids", userIds)
     if (isMocked) qs.set("is_mocked", isMocked)
-    if (withinHours) qs.set("is_within_working_hours", withinHours)
     if (source) qs.set("source", source)
     if (minAcc) qs.set("min_accuracy_m", minAcc)
     if (maxAcc) qs.set("max_accuracy_m", maxAcc)
     return `/location-tracking/logs?${qs.toString()}`
-  }, [from, to, userIds, isMocked, withinHours, source, minAcc, maxAcc])
+  }, [from, to, userIds, isMocked, source, minAcc, maxAcc])
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       // Prefer single-user day trail when user_id + date provided (dense day route)
+      if (userId && sessionId) {
+        const timeline = await locationTrackingService.getDutyTimeline(userId, {
+          session_id: sessionId,
+        })
+        const pts = (timeline?.sessions || []).flatMap((session) => session.points || [])
+        setPoints(
+          pts.map((p, i) => ({
+            ...p,
+            id: p.id || i,
+            user_id: Number(userId),
+          }))
+        )
+        setMeta({
+          truncated: pts.length >= 2000,
+          total: pts.length,
+          userName: null,
+        })
+        return
+      }
+
       if (userId && date && !ids) {
         const trail = await locationTrackingService.getUserTrail(userId, { date })
         const pts = Array.isArray(trail?.points) ? trail.points : []
@@ -85,7 +104,6 @@ function MapContent() {
         user_ids: userId || userIds || undefined,
         ids: ids || undefined,
         is_mocked: isMocked || undefined,
-        is_within_working_hours: withinHours || undefined,
         source: source || undefined,
         min_accuracy_m: minAcc || undefined,
         max_accuracy_m: maxAcc || undefined,
@@ -107,13 +125,13 @@ function MapContent() {
     }
   }, [
     userId,
+    sessionId,
     date,
     ids,
     from,
     to,
     userIds,
     isMocked,
-    withinHours,
     source,
     minAcc,
     maxAcc,
@@ -201,7 +219,7 @@ function MapContent() {
           <LocationTrackingMap trail={points} />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-            No points for this filter set (check date range / retention).
+            No points for this filter set. GPS pings older than the previous month are not kept.
           </div>
         )}
       </div>

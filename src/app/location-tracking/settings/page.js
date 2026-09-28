@@ -9,26 +9,6 @@ import { Button } from "@/components/ui/button"
 import { toastError, toastSuccess } from "@/utils/toast"
 import locationTrackingService from "@/services/locationTrackingService"
 
-const WEEKDAYS = [
-  { key: "mon", label: "Mon" },
-  { key: "tue", label: "Tue" },
-  { key: "wed", label: "Wed" },
-  { key: "thu", label: "Thu" },
-  { key: "fri", label: "Fri" },
-  { key: "sat", label: "Sat" },
-  { key: "sun", label: "Sun" },
-]
-
-const DEFAULT_HOURS = {
-  sun: null,
-  mon: { start: "09:30", end: "18:30" },
-  tue: { start: "09:30", end: "18:30" },
-  wed: { start: "09:30", end: "18:30" },
-  thu: { start: "09:30", end: "18:30" },
-  fri: { start: "09:30", end: "18:30" },
-  sat: { start: "09:30", end: "18:30" },
-}
-
 function SettingsContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -37,10 +17,7 @@ function SettingsContent() {
     capture_interval_minutes: 5,
     sync_interval_minutes: 10,
     timezone: "Asia/Kolkata",
-    working_hours: DEFAULT_HOURS,
     min_accuracy_m: 150,
-    grace_minutes: 15,
-    retention_days: 365,
     duty_gate_enabled: true,
     stale_session_hours: 16,
   })
@@ -60,10 +37,7 @@ function SettingsContent() {
         capture_interval_minutes: Number(data.capture_interval_minutes) || 5,
         sync_interval_minutes: Number(data.sync_interval_minutes) || 10,
         timezone: data.timezone || "Asia/Kolkata",
-        working_hours: data.working_hours || DEFAULT_HOURS,
         min_accuracy_m: Number(data.min_accuracy_m) || 150,
-        grace_minutes: Number(data.grace_minutes) || 15,
-        retention_days: Number(data.retention_days) || 365,
         duty_gate_enabled: data.duty_gate_enabled !== false,
         stale_session_hours: Number(data.stale_session_hours) || 16,
       })
@@ -89,24 +63,6 @@ function SettingsContent() {
     })
   }
 
-  const setDayHours = (day, field, value) => {
-    setForm((prev) => {
-      const current = prev.working_hours?.[day]
-      const nextDay =
-        field === "enabled"
-          ? value
-            ? current || { start: "09:30", end: "18:30" }
-            : null
-          : current
-            ? { ...current, [field]: value }
-            : { start: "09:30", end: "18:30", [field]: value }
-      return {
-        ...prev,
-        working_hours: { ...prev.working_hours, [day]: nextDay },
-      }
-    })
-  }
-
   const validate = () => {
     const next = {}
     const capture = Number(form.capture_interval_minutes)
@@ -119,14 +75,6 @@ function SettingsContent() {
     }
     if (!next.capture_interval_minutes && !next.sync_interval_minutes && sync < capture) {
       next.sync_interval_minutes = "Sync must be ≥ capture interval"
-    }
-    const incompleteDays = WEEKDAYS.filter(({ key }) => {
-      const day = form.working_hours?.[key]
-      if (!day) return false
-      return !String(day.start || "").trim() || !String(day.end || "").trim()
-    })
-    if (incompleteDays.length) {
-      next.working_hours = `Set start and end for: ${incompleteDays.map((d) => d.label).join(", ")}`
     }
     setErrors(next)
     return Object.keys(next).length === 0
@@ -141,10 +89,7 @@ function SettingsContent() {
         capture_interval_minutes: Number(form.capture_interval_minutes),
         sync_interval_minutes: Number(form.sync_interval_minutes),
         timezone: form.timezone,
-        working_hours: form.working_hours,
         min_accuracy_m: Number(form.min_accuracy_m),
-        grace_minutes: Number(form.grace_minutes),
-        retention_days: Number(form.retention_days),
         duty_gate_enabled: !!form.duty_gate_enabled,
         stale_session_hours: Number(form.stale_session_hours),
       })
@@ -153,10 +98,8 @@ function SettingsContent() {
         enabled: !!data.enabled,
         capture_interval_minutes: data.capture_interval_minutes,
         sync_interval_minutes: data.sync_interval_minutes,
-        retention_days: data.retention_days,
         duty_gate_enabled: data.duty_gate_enabled !== false,
         stale_session_hours: data.stale_session_hours,
-        working_hours: data.working_hours || prev.working_hours,
       }))
       toastSuccess("Location tracking settings saved")
     } catch (err) {
@@ -246,65 +189,11 @@ function SettingsContent() {
             onChange={(e) => setField("min_accuracy_m", e.target.value)}
           />
           <Input
-            name="grace_minutes"
-            label="Working-hours grace (min)"
-            type="number"
-            value={form.grace_minutes}
-            onChange={(e) => setField("grace_minutes", e.target.value)}
-          />
-          <Input
-            name="retention_days"
-            label="Raw ping retention (days)"
-            type="number"
-            value={form.retention_days}
-            onChange={(e) => setField("retention_days", e.target.value)}
-          />
-          <Input
             name="timezone"
             label="Timezone"
             value={form.timezone}
             onChange={(e) => setField("timezone", e.target.value)}
           />
-        </div>
-
-        <div className="rounded border border-border bg-card p-2">
-          <p className="text-sm font-medium text-[#1b365d] mb-1">Working hours</p>
-          {errors.working_hours ? (
-            <p className="text-xs text-destructive mb-1">{errors.working_hours}</p>
-          ) : null}
-          <div className="grid gap-1">
-            {WEEKDAYS.map(({ key, label }) => {
-              const day = form.working_hours?.[key]
-              const enabled = !!day
-              return (
-                <div key={key} className="grid grid-cols-[40px_1fr_1fr_auto] gap-1.5 items-end">
-                  <span className="text-xs font-medium pb-2">{label}</span>
-                  <Input
-                    name={`${key}_start`}
-                    label="Start"
-                    type="time"
-                    value={day?.start || ""}
-                    disabled={!enabled}
-                    onChange={(e) => setDayHours(key, "start", e.target.value)}
-                  />
-                  <Input
-                    name={`${key}_end`}
-                    label="End"
-                    type="time"
-                    value={day?.end || ""}
-                    disabled={!enabled}
-                    onChange={(e) => setDayHours(key, "end", e.target.value)}
-                  />
-                  <Checkbox
-                    name={`${key}_enabled`}
-                    label="On"
-                    checked={enabled}
-                    onChange={(e) => setDayHours(key, "enabled", e.target.checked)}
-                  />
-                </div>
-              )
-            })}
-          </div>
         </div>
       </div>
     </ListingPageContainer>

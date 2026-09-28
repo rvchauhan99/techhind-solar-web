@@ -170,8 +170,7 @@ function TrailLayer({ trail }) {
       ) : null}
       {midSampled.map((p, i) => {
         const mocked = !!p.is_mocked
-        const outside = p.is_within_working_hours === false
-        const fill = mocked ? "#7c3aed" : outside ? "#ea580c" : "#1b365d"
+        const fill = mocked ? "#7c3aed" : "#1b365d"
         return (
           <CircleMarker
             key={`ping-${i}-${p.recorded_at}`}
@@ -190,7 +189,6 @@ function TrailLayer({ trail }) {
                 {p.accuracy_m != null ? <p>Accuracy: {p.accuracy_m}m</p> : null}
                 {p.battery_pct != null ? <p>Battery: {p.battery_pct}%</p> : null}
                 {mocked ? <p className="text-violet-700">Mocked</p> : null}
-                {outside ? <p className="text-orange-700">Outside hours</p> : null}
               </div>
             </Popup>
           </CircleMarker>
