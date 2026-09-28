@@ -185,7 +185,7 @@ function TimesheetContent() {
   return (
     <ListingPageContainer
       title="Timesheet"
-      subtitle="Duty clock-in/out vs planned hours · GPS coverage"
+      subtitle="Duty clock-in to clock-out · GPS coverage"
       fullWidth
       actions={
         <div className="flex items-center gap-1.5">
@@ -253,8 +253,6 @@ function TimesheetContent() {
                   <th className="px-2 py-1 font-medium">In</th>
                   <th className="px-2 py-1 font-medium">Out</th>
                   <th className="px-2 py-1 font-medium">Duty</th>
-                  <th className="px-2 py-1 font-medium">Planned</th>
-                  <th className="px-2 py-1 font-medium">Var%</th>
                   <th className="px-2 py-1 font-medium">GPS%</th>
                   <th className="px-2 py-1 font-medium">Sess</th>
                   <th className="px-2 py-1 font-medium">Flags</th>
@@ -263,7 +261,7 @@ function TimesheetContent() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-2 py-6 text-muted-foreground text-center">
+                    <td colSpan={8} className="px-2 py-6 text-muted-foreground text-center">
                       {loading ? "Loading…" : "No timesheet rows for this range"}
                     </td>
                   </tr>
@@ -301,10 +299,6 @@ function TimesheetContent() {
                         <td className="px-2 py-1 tabular-nums">
                           {fmtMinutes(row.duty_duration_minutes)}
                         </td>
-                        <td className="px-2 py-1 tabular-nums">
-                          {fmtMinutes(row.planned_work_minutes)}
-                        </td>
-                        <td className="px-2 py-1 tabular-nums">{row.duty_vs_planned_pct}</td>
                         <td className="px-2 py-1 tabular-nums">{row.coverage_pct}</td>
                         <td className="px-2 py-1 tabular-nums">{row.duty_session_count}</td>
                         <td className="px-2 py-1">
@@ -334,7 +328,6 @@ function TimesheetContent() {
                     <b>{selected.on_duty_now ? "Active" : fmtTime(selected.clock_out)}</b>
                   </div>
                   <div>Duty: <b>{fmtMinutes(selected.duty_duration_minutes)}</b></div>
-                  <div>Planned: <b>{fmtMinutes(selected.planned_work_minutes)}</b></div>
                   <div>GPS: <b>{selected.coverage_pct}%</b></div>
                   <div>Distance: <b>{selected.distance_km} km</b></div>
                 </div>
@@ -346,12 +339,15 @@ function TimesheetContent() {
                     <ul className="space-y-0.5 text-xs">
                       {selected.sessions.map((s) => (
                         <li key={s.id} className="flex justify-between gap-2 border-b border-border/50 py-0.5">
-                          <span>
+                          <Link
+                            href={`/location-tracking/logs/map?user_id=${selected.user_id}&session_id=${s.id}&date=${selected.summary_date}`}
+                            className="text-[#1b365d] underline-offset-2 hover:underline"
+                          >
                             {fmtTime(s.started_at)} → {s.ended_at ? fmtTime(s.ended_at) : "open"}
                             {s.end_source === "admin_force" ? (
                               <span className="ml-1 text-[9px] uppercase text-rose-700">forced</span>
                             ) : null}
-                          </span>
+                          </Link>
                           <span className="tabular-nums">{fmtMinutes(s.duration_minutes)}</span>
                         </li>
                       ))}

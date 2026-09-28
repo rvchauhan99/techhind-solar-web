@@ -74,6 +74,11 @@ export const getUserTrail = (userId, params = {}) =>
     .get(`/location-tracking/users/${userId}/trail`, { params })
     .then(unwrap)
 
+export const getDutyTimeline = (userId, params = {}) =>
+  apiClient
+    .get(`/location-tracking/users/${userId}/timeline`, { params })
+    .then(unwrap)
+
 export const getPingLogs = (params = {}) =>
   apiClient
     .get("/location-tracking/logs/pings", { params: normalizeReportParams(params) })
@@ -119,6 +124,7 @@ const locationTrackingService = {
   exportTimesheetReport,
   forceStopDuty,
   getUserTrail,
+  getDutyTimeline,
   getPingLogs,
   exportPingLogs,
   getPingMapPoints,

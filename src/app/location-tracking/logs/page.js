@@ -28,7 +28,6 @@ const FILTER_KEYS = [
   "to",
   "user_ids",
   "is_mocked",
-  "is_within_working_hours",
   "source",
   "min_accuracy_m",
   "max_accuracy_m",
@@ -115,18 +114,6 @@ const PING_QUICK_TABS = [
     label: "Mocked",
     cls: "text-amber-700 border-amber-200 hover:border-amber-400",
     activeCls: "bg-amber-50 border-amber-400 text-amber-800",
-  },
-  {
-    value: "outside_hours",
-    label: "Outside hours",
-    cls: "text-rose-600 border-rose-200 hover:border-rose-400",
-    activeCls: "bg-rose-50 border-rose-400 text-rose-700",
-  },
-  {
-    value: "within_hours",
-    label: "Within hours",
-    cls: "text-emerald-600 border-emerald-200 hover:border-emerald-400",
-    activeCls: "bg-emerald-50 border-emerald-400 text-emerald-700",
   },
 ]
 
@@ -218,8 +205,6 @@ function downloadBlob(blob, filename) {
 
 function resolvePingQuickTab(filters) {
   if (filters.is_mocked === "true") return "mocked"
-  if (filters.is_within_working_hours === "false") return "outside_hours"
-  if (filters.is_within_working_hours === "true") return "within_hours"
   return "all"
 }
 
@@ -244,7 +229,6 @@ function getFilterChipLabel(key) {
     to: "To",
     user_ids: "Users",
     is_mocked: "Mocked",
-    is_within_working_hours: "Working hours",
     source: "Source",
     min_accuracy_m: "Min acc",
     max_accuracy_m: "Max acc",
@@ -269,9 +253,6 @@ function formatChipValue(key, value, userOptions) {
       : names.join(", ")
   }
   if (key === "is_mocked") return value === "true" ? "Yes" : "No"
-  if (key === "is_within_working_hours") {
-    return value === "true" ? "Within" : "Outside"
-  }
   if (key === "event_type") {
     if (value === "duty_session") return "Sessions"
     if (value === "device_event") return "Device events"
@@ -297,7 +278,6 @@ function getChips(filters, mode, userOptions) {
         mode === "duty" &&
         [
           "is_mocked",
-          "is_within_working_hours",
           "source",
           "min_accuracy_m",
           "max_accuracy_m",
@@ -321,7 +301,6 @@ function countAdvancedFilters(filters, mode) {
     if (filters.source) n += 1
     if (filters.min_accuracy_m || filters.max_accuracy_m) n += 1
     if (filters.is_mocked) n += 1
-    if (filters.is_within_working_hours) n += 1
   } else {
     if (filters.event_type && filters.event_type !== "all") n += 1
     if (filters.device_id) n += 1
@@ -449,7 +428,6 @@ function LogsContent() {
         ...filters,
         mode: nextMode === "duty" ? "duty" : "pings",
         is_mocked: "",
-        is_within_working_hours: "",
         source: "",
         min_accuracy_m: "",
         max_accuracy_m: "",
@@ -473,11 +451,8 @@ function LogsContent() {
       ...filters,
       mode: "pings",
       is_mocked: "",
-      is_within_working_hours: "",
     }
     if (value === "mocked") next.is_mocked = "true"
-    if (value === "outside_hours") next.is_within_working_hours = "false"
-    if (value === "within_hours") next.is_within_working_hours = "true"
     setFilters(next, true)
     clearSelection()
   }
@@ -503,7 +478,6 @@ function LogsContent() {
         to: next.to || todayIso(),
         user_ids: next.user_ids || "",
         is_mocked: next.is_mocked || "",
-        is_within_working_hours: next.is_within_working_hours || "",
         source: next.source || "",
         min_accuracy_m: next.min_accuracy_m || "",
         max_accuracy_m: next.max_accuracy_m || "",
@@ -525,7 +499,6 @@ function LogsContent() {
       to: dates.to,
       user_ids: "",
       is_mocked: "",
-      is_within_working_hours: "",
       source: "",
       min_accuracy_m: "",
       max_accuracy_m: "",
@@ -544,7 +517,6 @@ function LogsContent() {
       to,
       user_ids: filters.user_ids || "",
       is_mocked: filters.is_mocked || "",
-      is_within_working_hours: filters.is_within_working_hours || "",
       source: filters.source || "",
       min_accuracy_m: filters.min_accuracy_m || "",
       max_accuracy_m: filters.max_accuracy_m || "",
@@ -582,9 +554,6 @@ function LogsContent() {
     }
     if (mode === "pings") {
       if (filters.is_mocked) params.is_mocked = filters.is_mocked
-      if (filters.is_within_working_hours) {
-        params.is_within_working_hours = filters.is_within_working_hours
-      }
       if (filters.source) params.source = filters.source
       if (filters.min_accuracy_m) params.min_accuracy_m = filters.min_accuracy_m
       if (filters.max_accuracy_m) params.max_accuracy_m = filters.max_accuracy_m
@@ -612,9 +581,6 @@ function LogsContent() {
     }
     if (requestMode === "pings") {
       if (p.is_mocked) params.is_mocked = p.is_mocked
-      if (p.is_within_working_hours) {
-        params.is_within_working_hours = p.is_within_working_hours
-      }
       if (p.source) params.source = p.source
       if (p.min_accuracy_m) params.min_accuracy_m = p.min_accuracy_m
       if (p.max_accuracy_m) params.max_accuracy_m = p.max_accuracy_m
@@ -651,9 +617,6 @@ function LogsContent() {
       }
       if (mode === "pings") {
         if (filters.is_mocked) params.is_mocked = filters.is_mocked
-        if (filters.is_within_working_hours) {
-          params.is_within_working_hours = filters.is_within_working_hours
-        }
         if (filters.source) params.source = filters.source
         if (filters.min_accuracy_m) params.min_accuracy_m = filters.min_accuracy_m
         if (filters.max_accuracy_m) params.max_accuracy_m = filters.max_accuracy_m
@@ -696,9 +659,6 @@ function LogsContent() {
     qs.set("to", to)
     if (filters.user_ids) qs.set("user_ids", filters.user_ids)
     if (filters.is_mocked) qs.set("is_mocked", filters.is_mocked)
-    if (filters.is_within_working_hours) {
-      qs.set("is_within_working_hours", filters.is_within_working_hours)
-    }
     if (filters.source) qs.set("source", filters.source)
     if (filters.min_accuracy_m) qs.set("min_accuracy_m", filters.min_accuracy_m)
     if (filters.max_accuracy_m) qs.set("max_accuracy_m", filters.max_accuracy_m)
@@ -826,14 +786,6 @@ function LogsContent() {
         label: "Mock",
         sortable: false,
         render: (row) => <BoolChip value={row.is_mocked} yesLabel="Mock" noLabel="OK" />,
-      },
-      {
-        field: "is_within_working_hours",
-        label: "Hours",
-        sortable: false,
-        render: (row) => (
-          <BoolChip value={row.is_within_working_hours} yesLabel="In" noLabel="Out" />
-        ),
       },
       {
         field: "source",

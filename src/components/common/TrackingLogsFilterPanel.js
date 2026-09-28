@@ -13,7 +13,6 @@ const EMPTY_VALUES = {
   to: "",
   user_ids: "",
   is_mocked: "",
-  is_within_working_hours: "",
   source: "",
   min_accuracy_m: "",
   max_accuracy_m: "",
@@ -111,18 +110,6 @@ export default function TrackingLogsFilterPanel({
               <MenuItem value="true">Mocked only</MenuItem>
               <MenuItem value="false">Not mocked</MenuItem>
             </Select>
-            <Select
-              name="is_within_working_hours"
-              label="Working hours"
-              value={localValues.is_within_working_hours || ""}
-              onChange={(e) =>
-                handleChange("is_within_working_hours", e.target.value)
-              }
-            >
-              <MenuItem value="">Any</MenuItem>
-              <MenuItem value="true">Within hours</MenuItem>
-              <MenuItem value="false">Outside hours</MenuItem>
-            </Select>
             <Input
               name="source"
               label="Source"
@@ -170,7 +157,7 @@ export default function TrackingLogsFilterPanel({
         )}
 
         <p className="col-span-1 sm:col-span-2 lg:col-span-6 text-[10px] text-muted-foreground">
-          Max 31-day range. Raw pings older than retention may be empty.
+          Max 31-day range. Raw GPS pings older than the previous month are not kept.
         </p>
 
         <div className="col-span-1 sm:col-span-2 lg:col-span-6 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
