@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import {
   IconBuildingBank,
   IconDownload,
@@ -73,8 +74,7 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 50 });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [settlementDetail, setSettlementDetail] = useState(null);
@@ -82,7 +82,12 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
 
   const beneficiaryId = filters?.beneficiary_user_id;
 
+  const filtersInitRef = useRef(true);
   useEffect(() => {
+    if (filtersInitRef.current) {
+      filtersInitRef.current = false;
+      return;
+    }
     setPage(1);
   }, [refreshKey, filters]);
 

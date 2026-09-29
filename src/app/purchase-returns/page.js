@@ -76,6 +76,7 @@ export default function PurchaseReturnsPage() {
     setQ,
     setFilter,
     setSort,
+    listReturnTo,
   } = listingState;
 
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -266,7 +267,7 @@ export default function PurchaseReturnsPage() {
                 variant="ghost"
                 className="size-8"
                 onClick={() =>
-                  router.push(`/purchase-returns/edit?id=${row.id}`)
+                  router.push(`/purchase-returns/edit?id=${row.id}&returnTo=${listReturnTo}`)
                 }
                 title="Edit"
                 aria-label="Edit"
@@ -546,7 +547,7 @@ export default function PurchaseReturnsPage() {
         addButtonLabel={currentPerm.can_create ? "Create Purchase Return" : undefined}
         onAddClick={
           currentPerm.can_create
-            ? () => router.push("/purchase-returns/add")
+            ? () => router.push(`/purchase-returns/add?returnTo=${listReturnTo}`)
             : undefined
         }
         exportButtonLabel="Export"

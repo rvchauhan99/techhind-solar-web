@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import {
   IconCurrencyRupee,
   IconDownload,
@@ -78,8 +79,7 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
   const [dashboard, setDashboard] = useState(null);
   const [dashLoading, setDashLoading] = useState(true);
   const [tab, setTab] = useState("lines");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 20 });
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -97,7 +97,12 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
     [filters, orderFilter]
   );
 
+  const filtersInitRef = useRef(true);
   useEffect(() => {
+    if (filtersInitRef.current) {
+      filtersInitRef.current = false;
+      return;
+    }
     setPage(1);
     setOrderFilter(null);
     setTableKey((k) => k + 1);

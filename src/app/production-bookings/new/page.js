@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -13,6 +14,7 @@ import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionBookingContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/production-bookings");
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [serverError, setServerError] = useState(null);
@@ -26,7 +28,7 @@ function NewProductionBookingContent() {
             toast.success(
                 `Booking ${created?.booking_no || ""} posted. Components issued, finished good received, inventory updated.`
             );
-            setTimeout(() => router.push("/production-bookings"), 800);
+            setTimeout(() => goToList(), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, "Failed to create production booking");
             setServerError(message);
@@ -49,7 +51,7 @@ function NewProductionBookingContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/production-bookings")}
+                onCancel={() => goToList()}
             />
         </AddEditPageShell>
     );

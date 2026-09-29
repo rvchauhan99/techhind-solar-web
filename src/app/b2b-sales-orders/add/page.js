@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -12,6 +13,7 @@ import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 function AddB2bSalesOrderContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-sales-orders");
   const searchParams = useSearchParams();
   const soLabels = useB2bSalesOrderLabels();
   const quoteId = searchParams.get("fromQuote");
@@ -33,7 +35,7 @@ function AddB2bSalesOrderContent() {
         await b2bSalesOrderService.createB2bSalesOrder(payload);
         toast.success(soLabels.createdToast);
       }
-      setTimeout(() => router.push("/b2b-sales-orders"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to create order";
       setServerError(msg);

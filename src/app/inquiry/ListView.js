@@ -139,7 +139,7 @@ export default function ListView({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort , listReturnTo} = listingState;
 
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [menuInquiryId, setMenuInquiryId] = useState(null);
@@ -193,7 +193,7 @@ export default function ListView({
   };
 
   const handleEdit = () => {
-    router.push(`/inquiry/edit?id=${menuInquiryId}`);
+    router.push(`/inquiry/edit?id=${menuInquiryId}&returnTo=${listReturnTo}`);
     handleMenuClose();
   };
 
@@ -209,7 +209,7 @@ export default function ListView({
   const handleConvertToOrder = async () => {
     if (!menuInquiryId) return;
     try {
-      router.push(`/order/add?inquiryId=${menuInquiryId}`);
+      router.push(`/order/add?inquiryId=${menuInquiryId}&returnTo=${listReturnTo}`);
     } catch (err) {
       setServerError("Failed to navigate to order page");
     }

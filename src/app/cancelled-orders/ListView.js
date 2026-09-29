@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { Paper, Typography, Box, Grid, Chip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -24,6 +24,7 @@ import {
   IconTopologyRing3,
 } from "@tabler/icons-react";
 import { formatRupeesInteger } from "@/utils/orderFormatters";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 
 const STAGES = [
   { key: "estimate_generated", label: "Estimate Generated" },
@@ -48,11 +49,22 @@ const STAGE_LABEL_BY_KEY = STAGES.reduce((acc, stage) => {
 
 export default function ListView({ filters }) {
   const router = useRouter();
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 25 });
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
   const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+
+  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
+  const filtersInitRef = useRef(true);
+  useEffect(() => {
+    if (filtersInitRef.current) {
+      filtersInitRef.current = false;
+      return;
+    }
+    setPage(1);
+  }, [filtersKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleListingMetaChange = useCallback((meta) => {
     const total = meta?.total ?? 0;
@@ -399,6 +411,10 @@ export default function ListView({ filters }) {
         defaultSortOrder="DESC"
         height={calculateHeight()}
         onMetaChange={handleListingMetaChange}
+        page={page}
+        setPage={setPage}
+        limit={limit}
+        setLimit={setLimit}
       />
       <OrderDetailsDrawer
         open={detailsOpen}

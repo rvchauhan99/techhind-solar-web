@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -11,6 +12,7 @@ import moduleService from "@/services/moduleMasterService";
 
 export default function RoleModuleAddPage() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/role-module");
   const [roles, setRoles] = useState([]);
   const [modules, setModules] = useState([]);
   const [serverError, setServerError] = useState(null);
@@ -36,7 +38,7 @@ export default function RoleModuleAddPage() {
   const handleSubmit = async (data) => {
     try {
       await roleModuleService.createRoleModule(data);
-      router.push("/role-module");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to create link";

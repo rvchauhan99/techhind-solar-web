@@ -127,6 +127,7 @@ export default function ListView() {
     setFilters,
     setSort,
     clearFilters,
+    listReturnTo,
   } = listingState;
 
   const [menuAnchor, setMenuAnchor] = useState(null);

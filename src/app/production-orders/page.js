@@ -84,6 +84,7 @@ export default function ProductionOrdersPage() {
         setFilter,
         setSort,
         clearFilters,
+        listReturnTo,
     } = useListingQueryState({ defaultLimit: 20, filterKeys: PRODUCTION_ORDER_FILTER_KEYS });
 
     const [tableKey, setTableKey] = useState(0);
@@ -270,7 +271,7 @@ export default function ProductionOrdersPage() {
                                     size="icon"
                                     variant="ghost"
                                     className="size-8"
-                                    onClick={() => router.push(`/production-orders/edit?id=${row.id}`)}
+                                    onClick={() => router.push(`/production-orders/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                                     title="Edit"
                                     aria-label="Edit"
                                 >
@@ -294,7 +295,7 @@ export default function ProductionOrdersPage() {
                                     size="icon"
                                     variant="success"
                                     onClick={() =>
-                                        router.push(`/production-bookings/new?production_order_id=${row.id}`)
+                                        router.push(`/production-bookings/new?production_order_id=${row.id}&returnTo=${listReturnTo}`)
                                     }
                                     title="Book production"
                                     aria-label="Book production"
@@ -355,7 +356,7 @@ export default function ProductionOrdersPage() {
             <ListingPageContainer
                 title={AP.orders.title}
                 addButtonLabel={currentPerm.can_create ? `Create ${AP.orders.singular}` : undefined}
-                onAddClick={currentPerm.can_create ? () => router.push("/production-orders/new") : undefined}
+                onAddClick={currentPerm.can_create ? () => router.push(`/production-orders/new?returnTo=${listReturnTo}`) : undefined}
                 exportButtonLabel="Export"
                 onExportClick={handleExport}
                 exportDisabled={exporting}

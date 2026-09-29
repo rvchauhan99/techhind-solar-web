@@ -134,7 +134,7 @@ export default function B2bSalesOrdersPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter } = listingState;
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter , listReturnTo} = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -204,11 +204,11 @@ export default function B2bSalesOrdersPage() {
   }, [sidebarOpen, selectedRecord?.id]);
 
   const handleEdit = useCallback(
-    (id) => router.push(`/b2b-sales-orders/edit?id=${id}`),
-    [router]
+    (id) => router.push(`/b2b-sales-orders/edit?id=${id}&returnTo=${listReturnTo}`),
+    [router, listReturnTo]
   );
 
-  const handleAdd = useCallback(() => router.push("/b2b-sales-orders/add"), [router]);
+  const handleAdd = useCallback(() => router.push(`/b2b-sales-orders/add?returnTo=${listReturnTo}`), [router, listReturnTo]);
 
   const handleConfirmOrderClick = useCallback((row) => {
     setOrderToConfirm(row);

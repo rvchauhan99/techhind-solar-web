@@ -82,7 +82,7 @@ export default function B2bShipmentReturnsPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort } = listingState;
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter, setSort , listReturnTo} = listingState;
 
   const [tableKey, setTableKey] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -238,7 +238,7 @@ export default function B2bShipmentReturnsPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/b2b-shipment-returns/edit?id=${row.id}`)}
+                onClick={() => router.push(`/b2b-shipment-returns/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
               >
                 <IconPencil className="size-4" />
@@ -383,7 +383,7 @@ export default function B2bShipmentReturnsPage() {
 
         {r.status === "DRAFT" && currentPerm.can_update && (
           <div className="flex flex-col gap-2 pt-1">
-            <Button size="sm" variant="outline" onClick={() => router.push(`/b2b-shipment-returns/edit?id=${r.id}`)}>
+            <Button size="sm" variant="outline" onClick={() => router.push(`/b2b-shipment-returns/edit?id=${r.id}&returnTo=${listReturnTo}`)}>
               Edit Draft
             </Button>
             <Button
@@ -406,7 +406,7 @@ export default function B2bShipmentReturnsPage() {
       <ListingPageContainer
         title="B2B Shipment Returns"
         addButtonLabel={currentPerm.can_create ? "New Return" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/b2b-shipment-returns/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/b2b-shipment-returns/add?returnTo=${listReturnTo}`) : undefined}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
           <PaginatedTable

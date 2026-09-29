@@ -19,6 +19,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import PaginationControls from "@/components/common/PaginationControls";
 import ChallanDetailsDrawer from "@/components/common/ChallanDetailsDrawer";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import DeliveryChallanFilterPanel from "@/components/common/DeliveryChallanFilterPanel";
@@ -31,6 +32,25 @@ import { toastSuccess, toastError } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
+
+const CHALLAN_FILTER_KEYS = [
+    "q",
+    "delivery_status",
+    "challan_no",
+    "challan_date_from",
+    "challan_date_to",
+    "order_number",
+    "customer_name",
+    "customer_mobile",
+    "is_reversed",
+    "handled_by",
+    "warehouse_name",
+    "transporter",
+    "created_by",
+    "created_at_from",
+    "created_at_to",
+];
 
 export default function DeliveryChallanListPage() {
     const router = useRouter();
@@ -38,14 +58,34 @@ export default function DeliveryChallanListPage() {
     const canReverseChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_REVERSE);
     const canPartialReturnChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_PARTIAL_RETURN);
 
-    const [filters, setFilters] = useState({});
+    const listingState = useListingQueryState({
+        defaultLimit: 20,
+        filterKeys: CHALLAN_FILTER_KEYS,
+    });
+    const {
+        page,
+        limit,
+        q,
+        sortBy,
+        sortOrder,
+        filters,
+        setPage,
+        setLimit,
+        setQ,
+        setFilters,
+        setSort,
+        clearFilters,
+        listReturnTo,
+    } = listingState;
+
     const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [selectedChallanId, setSelectedChallanId] = useState(null);
     const [selectedOrderStageKey, setSelectedOrderStageKey] = useState(null);
     const [selectedOrderInstallationCompleted, setSelectedOrderInstallationCompleted] = useState(false);
     const [selectedIsReversed, setSelectedIsReversed] = useState(false);
-    const [reloadTrigger, setReloadTrigger] = useState(0);
+    const [tableKey, setTableKey] = useState(0);
+    const [totalCount, setTotalCount] = useState(0);
     const [reversing, setReversing] = useState(false);
     const [reverseDialogOpen, setReverseDialogOpen] = useState(false);
     const [reverseReasonId, setReverseReasonId] = useState("");
@@ -253,17 +293,14 @@ export default function DeliveryChallanListPage() {
     const effectiveFilterParams = useMemo(
         () =>
             Object.fromEntries(
-                Object.entries(filters || {}).filter(
+                Object.entries({ ...filters, q: q || filters.q || "" }).filter(
                     ([, v]) => v != null && String(v).trim() !== ""
                 )
             ),
-        [filters]
+        [filters, q]
     );
 
-    const filtersKey = useMemo(
-        () => JSON.stringify(effectiveFilterParams || {}),
-        [effectiveFilterParams]
-    );
+    const bumpTable = () => setTableKey((prev) => prev + 1);
 
     const openDetailsForRow = async (row) => {
         setSidebarOpen(true);
@@ -364,7 +401,7 @@ export default function DeliveryChallanListPage() {
         try {
             await challanService.deleteChallan(challanId);
             toastSuccess("Challan deleted successfully");
-            setReloadTrigger((prev) => prev + 1);
+            bumpTable();
 
             if (selectedChallanId === challanId) {
                 handleCloseSidebar();
@@ -391,7 +428,7 @@ export default function DeliveryChallanListPage() {
                 remarks: reverseRemarks,
             });
             toastSuccess("Challan reversed successfully");
-            setReloadTrigger((prev) => prev + 1);
+            bumpTable();
             setReverseDialogOpen(false);
             handleCloseSidebar();
         } catch (err) {
@@ -404,43 +441,57 @@ export default function DeliveryChallanListPage() {
 
     const navigateToPartialReturn = (challanId) => {
         if (!challanId) return;
-        const returnTo = encodeURIComponent("/delivery-challans");
-        router.push(`/delivery-challans/return?challan_id=${challanId}&returnTo=${returnTo}`);
+        router.push(`/delivery-challans/return?challan_id=${challanId}&returnTo=${listReturnTo}`);
     };
 
     return (
         <ListingPageContainer
             title="Delivery Challans"
             addButtonLabel="New Delivery Challan"
-            onAddClick={() => router.push("/delivery-challans/new")}
+            onAddClick={() => router.push(`/delivery-challans/new?returnTo=${listReturnTo}`)}
         >
 
             <div className="flex flex-col flex-1 min-h-0 gap-2">
                 <DeliveryChallanFilterPanel
                     open={filterPanelOpen}
                     onToggle={setFilterPanelOpen}
-                    values={filters}
+                    values={{ ...filters, q }}
                     onApply={(next) => setFilters(next)}
                     onClear={() => {
-                        setFilters({});
+                        clearFilters({ keepQuickSearch: false });
                         setFilterPanelOpen(false);
                     }}
                     defaultOpen={false}
                 />
 
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0 flex flex-col gap-2">
                     <PaginatedTable
-                        key={`${reloadTrigger}-${filtersKey}`}
+                        key={tableKey}
                         columns={columns}
                         fetcher={fetchChallans}
-                        initialPage={1}
-                        initialLimit={20}
-                        initialSortBy="id"
-                        initialSortOrder="desc"
                         height="100%"
                         showSearch={false}
+                        showPagination={false}
                         filterParams={effectiveFilterParams}
                         onRowClick={openDetailsForRow}
+                        onTotalChange={setTotalCount}
+                        page={page}
+                        limit={limit}
+                        q={q}
+                        sortBy={sortBy || "id"}
+                        sortOrder={sortOrder || "desc"}
+                        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+                        onRowsPerPageChange={setLimit}
+                        onQChange={setQ}
+                        onSortChange={setSort}
+                    />
+                    <PaginationControls
+                        page={page - 1}
+                        rowsPerPage={limit}
+                        totalCount={totalCount}
+                        onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+                        onRowsPerPageChange={setLimit}
+                        rowsPerPageOptions={[20, 50, 100, 200]}
                     />
                 </div>
             </div>

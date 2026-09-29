@@ -107,7 +107,7 @@ export default function QuotationList() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort , listReturnTo} = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [exporting, setExporting] = useState(false);
@@ -160,7 +160,7 @@ export default function QuotationList() {
     }
   }, [filters]);
 
-  const handleEdit = (id) => router.push(`/quotation/edit?id=${id}`);
+  const handleEdit = (id) => router.push(`/quotation/edit?id=${id}&returnTo=${listReturnTo}`);
 
   const handleDeleteClick = (id) => {
     setQuotationToDelete(id);
@@ -670,7 +670,7 @@ export default function QuotationList() {
               <Button
                 type="button"
                 size="sm"
-                onClick={() => router.push("/quotation/add")}
+                onClick={() => router.push(`/quotation/add?returnTo=${listReturnTo}`)}
                 className="h-7 text-xs gap-1 px-2"
               >
                 <IconPlus className="size-4" />

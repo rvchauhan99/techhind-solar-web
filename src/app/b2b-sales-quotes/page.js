@@ -93,7 +93,7 @@ export default function B2bSalesQuotesPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter } = listingState;
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter , listReturnTo} = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -168,11 +168,11 @@ export default function B2bSalesQuotesPage() {
   }, [sidebarOpen, selectedRecord?.id]);
 
   const handleEdit = useCallback(
-    (id) => router.push(`/b2b-sales-quotes/edit?id=${id}`),
+    (id) => router.push(`/b2b-sales-quotes/edit?id=${id}&returnTo=${listReturnTo}`),
     [router]
   );
 
-  const handleAdd = useCallback(() => router.push("/b2b-sales-quotes/add"), [router]);
+  const handleAdd = useCallback(() => router.push(`/b2b-sales-quotes/add?returnTo=${listReturnTo}`), [router]);
 
   const handleApprove = useCallback(
     async (id) => {
@@ -252,7 +252,7 @@ export default function B2bSalesQuotesPage() {
         setSelectedRecord((r) => (r?.id === convertQuoteId ? { ...r, status: "CONVERTED", converted_to_so: true } : r));
       }
       toast.success(orderId ? `Order created. Order #${created?.order_no ?? orderId}` : "Order created from quote");
-      if (orderId) router.push(`/b2b-sales-orders/edit?id=${orderId}`);
+      if (orderId) router.push(`/b2b-sales-orders/edit?id=${orderId}&returnTo=${listReturnTo}`);
     } catch (err) {
       setConvertError(err.response?.data?.message || "Failed to create order from quote");
       toast.error(err.response?.data?.message || "Failed to create order from quote");

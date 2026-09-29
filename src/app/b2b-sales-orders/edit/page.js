@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -12,6 +13,7 @@ import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 function EditB2bSalesOrderContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-sales-orders");
   const searchParams = useSearchParams();
   const soLabels = useB2bSalesOrderLabels();
   const id = searchParams.get("id");
@@ -23,7 +25,7 @@ function EditB2bSalesOrderContent() {
 
   useEffect(() => {
     if (!id) {
-      router.push("/b2b-sales-orders");
+      goToList();
       return;
     }
     b2bSalesOrderService
@@ -34,7 +36,7 @@ function EditB2bSalesOrderContent() {
       })
       .catch(() => {
         toast.error("Failed to load order");
-        router.push("/b2b-sales-orders");
+        goToList();
       })
       .finally(() => setLoadingRecord(false));
   }, [id, router]);
@@ -45,7 +47,7 @@ function EditB2bSalesOrderContent() {
     try {
       await b2bSalesOrderService.updateB2bSalesOrder(id, payload);
       toast.success(soLabels.updatedToast);
-      setTimeout(() => router.push("/b2b-sales-orders"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to update order";
       setServerError(msg);
@@ -62,7 +64,7 @@ function EditB2bSalesOrderContent() {
       await b2bSalesOrderService.confirmB2bSalesOrder(id);
       toast.success("Order confirmed");
       setDefaultValues((p) => (p ? { ...p, status: "CONFIRMED" } : null));
-      setTimeout(() => router.push("/b2b-sales-orders"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to confirm order";
       setServerError(msg);
@@ -89,7 +91,7 @@ function EditB2bSalesOrderContent() {
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-sales-orders")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>

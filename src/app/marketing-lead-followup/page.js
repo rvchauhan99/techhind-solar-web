@@ -33,6 +33,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import { formatDate } from "@/utils/dataTableUtils";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 
 // ── Extra filter keys not present in LeadListFilterPanel ──────────────────
 const EXTRA_FILTER_KEYS = [
@@ -146,41 +147,61 @@ function buildApiFilters(filters = {}) {
 export default function MarketingLeadFollowupPage() {
   const router = useRouter();
 
-  // ── Filter / pagination state ───────────────────────────────────────
-  const [filters, setFilters] = useState(() => ({
-    ...EMPTY_PAGE_FILTERS,
-    reminder_view: "today",
-  }));
-  const [activePreset, setActivePreset] = useState("Today");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  // ── Filter / pagination state (URL-synced) ───────────────────────────
+  const listingState = useListingQueryState({
+    defaultLimit: 20,
+    filterKeys: ALL_FILTER_KEYS.filter((k) => k !== "q"),
+  });
+  const {
+    page,
+    limit,
+    q,
+    filters,
+    setPage,
+    setLimit,
+    setQ,
+    setFilters,
+    setFilter,
+  } = listingState;
+
+  // Default reminder_view=today when URL has no reminder_view yet
+  const activeFilters = useMemo(() => {
+    const merged = { ...EMPTY_PAGE_FILTERS, ...filters, q: q || filters.q || "" };
+    if (!merged.reminder_view && !merged.next_follow_up_from && !merged.next_follow_up_to) {
+      // Only apply default when user hasn't set other date filters; if page freshly loaded with empty filters
+      if (!Object.values(filters).some((v) => v != null && String(v).trim() !== "") && !q) {
+        return { ...merged, reminder_view: "today" };
+      }
+    }
+    return merged;
+  }, [filters, q]);
+
+  const [activePreset, setActivePreset] = useState(() =>
+    !filters.reminder_view || filters.reminder_view === "today" ? "Today" : null
+  );
 
   const handlePreset = useCallback((preset) => {
     const vals = preset.fn();
-    setFilters((prev) => ({ ...prev, ...vals }));
+    setFilters({ ...filters, ...vals, q });
     setActivePreset(preset.label);
-    setPage(1);
-  }, []);
+  }, [filters, q, setFilters]);
 
   const handleFilterApply = useCallback((panelValues) => {
-    // panelValues come from LeadListFilterPanel — merge with our extra keys
-    setFilters((prev) => ({ ...prev, ...panelValues }));
-    setActivePreset(null); // clear preset label when manually filtering
-    setPage(1);
-  }, []);
+    setFilters({ ...filters, ...panelValues, q: panelValues.q ?? q });
+    if (panelValues.q != null) setQ(panelValues.q);
+    setActivePreset(null);
+  }, [filters, q, setFilters, setQ]);
 
   const handleFilterClear = useCallback(() => {
     setFilters({ ...EMPTY_PAGE_FILTERS, reminder_view: "today" });
+    setQ("");
     setActivePreset("Today");
-    setPage(1);
-  }, []);
+  }, [setFilters, setQ]);
 
-  // Extra fields local state (managed here, injected into panel as controlled fields)
   const handleExtraChange = useCallback((key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
+    setFilter(key, value);
     setActivePreset(null);
-    setPage(1);
-  }, []);
+  }, [setFilter]);
 
   // ── Table / modal state ───────────────────────────────────────────────
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -322,7 +343,7 @@ export default function MarketingLeadFollowupPage() {
   }, [handleCloseAddDialog]);
 
   // ── Fetcher ───────────────────────────────────────────────────────────
-  const apiFilters = useMemo(() => buildApiFilters(filters), [filters]);
+  const apiFilters = useMemo(() => buildApiFilters(activeFilters), [activeFilters]);
 
   const fetcher = useMemo(
     () => async (params) => {
@@ -621,7 +642,7 @@ export default function MarketingLeadFollowupPage() {
 
           {/* Filter panel — same as marketing-leads, with extra followup fields */}
           <LeadListFilterPanel
-            values={filters}
+            values={activeFilters}
             onApply={handleFilterApply}
             onClear={handleFilterClear}
             defaultOpen={false}
@@ -645,20 +666,14 @@ export default function MarketingLeadFollowupPage() {
             page={page}
             limit={limit}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={(v) => {
-              setLimit(v);
-              setPage(1);
-            }}
+            onRowsPerPageChange={setLimit}
           />
           <PaginationControls
             page={page - 1}
             rowsPerPage={limit}
             totalCount={totalCount}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={(v) => {
-              setLimit(v);
-              setPage(1);
-            }}
+            onRowsPerPageChange={setLimit}
             rowsPerPageOptions={[20, 50, 100, 200]}
           />
         </div>

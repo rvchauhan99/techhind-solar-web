@@ -81,7 +81,7 @@ export default function FollowupPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setFilter, setSort , listReturnTo} = listingState;
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);

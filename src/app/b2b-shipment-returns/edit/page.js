@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -11,6 +12,7 @@ import b2bShipmentReturnService from "@/services/b2bShipmentReturnService";
 
 function EditB2bShipmentReturnContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-shipment-returns");
   const searchParams = useSearchParams();
   const returnId = parseInt(searchParams.get("id"), 10);
   const [loading, setLoading] = useState(false);
@@ -66,7 +68,7 @@ function EditB2bShipmentReturnContent() {
     try {
       await b2bShipmentReturnService.updateB2bShipmentReturn(returnId, payload);
       toast.success("Return updated");
-      setTimeout(() => router.push("/b2b-shipment-returns"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err?.response?.data?.message || err?.message || "Failed to update return";
       setServerError(msg);
@@ -94,7 +96,7 @@ function EditB2bShipmentReturnContent() {
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
         onSubmit={handleSubmit}
-        onCancel={() => router.push("/b2b-shipment-returns")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

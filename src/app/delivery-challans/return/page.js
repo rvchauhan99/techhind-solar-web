@@ -8,27 +8,19 @@ import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import challanService from "@/services/challanService";
 import DeliveryChallanReturnForm from "../components/DeliveryChallanReturnForm";
+import { resolveReturnTo } from "@/utils/listNavigation";
 
 function DeliveryChallanReturnContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const challanId = searchParams.get("challan_id");
-    const returnToRaw = searchParams.get("returnTo");
+    const returnPath = resolveReturnTo(searchParams, "/delivery-challans");
 
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
     const [serverError, setServerError] = useState(null);
     const [challan, setChallan] = useState(null);
 
-    const getSafeReturnPath = (value) => {
-        if (!value) return "/delivery-challans";
-        const decoded = decodeURIComponent(value);
-        if (!decoded.startsWith("/")) return "/delivery-challans";
-        if (decoded.startsWith("//")) return "/delivery-challans";
-        if (decoded.includes("://")) return "/delivery-challans";
-        return decoded;
-    };
-    const returnPath = getSafeReturnPath(returnToRaw);
     const challanIdNum = Number(challanId);
     const hasValidChallanId = Number.isInteger(challanIdNum) && challanIdNum > 0;
 

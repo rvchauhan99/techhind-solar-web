@@ -83,7 +83,7 @@ export default function PurchaseOrderPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -414,7 +414,7 @@ export default function PurchaseOrderPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/purchase-orders/edit?id=${row.id}`)}
+                onClick={() => router.push(`/purchase-orders/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -970,7 +970,7 @@ export default function PurchaseOrderPage() {
       <ListingPageContainer
         title="Purchase Orders"
         addButtonLabel={currentPerm.can_create ? "Create PO" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/purchase-orders/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/purchase-orders/add?returnTo=${listReturnTo}`) : undefined}
         secondaryButtonLabel="PO Lines"
         onSecondaryClick={() => router.push("/purchase-orders/lines")}
         exportButtonLabel="Export"

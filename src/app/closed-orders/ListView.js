@@ -90,7 +90,7 @@ export default function ListView() {
     defaultLimit: 25,
     filterKeys: ORDER_LIST_FILTER_KEYS,
   });
-  const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } = listingState;
+  const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters , listReturnTo} = listingState;
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);

@@ -81,6 +81,7 @@ export default function ProductionBookingsPage() {
         setFilters,
         setSort,
         clearFilters,
+    listReturnTo,
     } = useListingQueryState({ defaultLimit: 20, filterKeys: PRODUCTION_BOOKING_FILTER_KEYS });
 
     const [tableKey, setTableKey] = useState(0);
@@ -482,7 +483,7 @@ export default function ProductionBookingsPage() {
             <ListingPageContainer
                 title={AP.history.title}
                 addButtonLabel={currentPerm.can_create ? AP.book.menu : undefined}
-                onAddClick={currentPerm.can_create ? () => router.push("/production-bookings/new") : undefined}
+                onAddClick={currentPerm.can_create ? () => router.push(`/production-bookings/new?returnTo=${listReturnTo}`) : undefined}
                 exportButtonLabel="Export"
                 onExportClick={handleExport}
                 exportDisabled={exporting}

@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import stockAdjustmentService from "@/services/stockAdjustmentService";
 
 function NewStockAdjustmentContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/stock-adjustments");
     const [loading, setLoading] = useState(false);
     const [serverError, setServerError] = useState(null);
 
@@ -22,7 +24,7 @@ function NewStockAdjustmentContent() {
             await stockAdjustmentService.createStockAdjustment(payload);
             toast.success("Stock adjustment created successfully");
             setTimeout(() => {
-                router.push("/stock-adjustments");
+                goToList();
             }, 1000);
         } catch (err) {
             const errorMessage =

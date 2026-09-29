@@ -9,6 +9,8 @@ import OrderListFilterPanel, {
   DATE_FILTER_FIELD_OPTIONS,
 } from "@/components/common/OrderListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
+import PaginationControls from "@/components/common/PaginationControls";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import paymentOutstandingService from "@/services/paymentOutstandingService";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +143,8 @@ function countActive(f) {
 }
 
 export default function PaymentOutstandingPage() {
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 25 });
+  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState(getInitialFilters());
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(DEFAULT_DATE_PRESET_LABEL);
@@ -156,6 +160,7 @@ export default function PaymentOutstandingPage() {
   const chips = getChips(filters);
 
   const handleApplyFilters = (next) => {
+    setPage(1);
     setFilters((prev) => {
       // Single date axis: Filtered By + Date From/To only (no dedicated Delivery Date From/To)
       const merged = {
@@ -173,6 +178,7 @@ export default function PaymentOutstandingPage() {
     setFilterPanelOpen(false);
   };
   const handleClearFilters = () => {
+    setPage(1);
     setFilters(getInitialFilters());
     setActivePreset(DEFAULT_DATE_PRESET_LABEL);
     setActivePaymentTypeTab("");
@@ -180,16 +186,19 @@ export default function PaymentOutstandingPage() {
 
   const handlePreset = (preset) => {
     const dates = preset.fn();
+    setPage(1);
     setFilters((prev) => ({ ...prev, ...dates }));
     setActivePreset(preset.label);
   };
 
   const handleStatusTab = (value) => {
+    setPage(1);
     setFilters((prev) => ({ ...prev, status: value || "" }));
   };
 
   const handlePaymentTypeTab = (value) => {
     setActivePaymentTypeTab(value);
+    setPage(1);
     setFilters((prev) => ({ ...prev, payment_type: value || "" }));
   };
 
@@ -562,11 +571,23 @@ export default function PaymentOutstandingPage() {
               columns={columns}
               fetcher={fetcher}
               filterParams={filters}
-              initialPage={1}
-              initialLimit={25}
               showSearch={false}
+              showPagination={false}
               height={tableHeight}
               moduleKey="/order"
+              page={page}
+              limit={limit}
+              onPageChange={(z) => setPage(z + 1)}
+              onRowsPerPageChange={setLimit}
+              onTotalChange={setTotalCount}
+            />
+            <PaginationControls
+              page={page - 1}
+              rowsPerPage={limit}
+              totalCount={totalCount}
+              onPageChange={(z) => setPage(z + 1)}
+              onRowsPerPageChange={setLimit}
+              rowsPerPageOptions={[25, 50, 100, 200]}
             />
           </TabsContent>
 

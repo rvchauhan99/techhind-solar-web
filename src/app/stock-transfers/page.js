@@ -70,7 +70,7 @@ export default function StockTransferPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -236,7 +236,7 @@ export default function StockTransferPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/stock-transfers/edit?id=${row.id}`)}
+                onClick={() => router.push(`/stock-transfers/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -441,7 +441,7 @@ export default function StockTransferPage() {
       <ListingPageContainer
         title="Stock Transfers"
         addButtonLabel={currentPerm.can_create ? "Create Transfer" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/stock-transfers/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/stock-transfers/add?returnTo=${listReturnTo}`) : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

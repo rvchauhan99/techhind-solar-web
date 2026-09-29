@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import b2bSalesQuoteService from "@/services/b2bSalesQuoteService";
 
 function AddB2bSalesQuoteContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-sales-quotes");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
 
@@ -20,7 +22,7 @@ function AddB2bSalesQuoteContent() {
     try {
       await b2bSalesQuoteService.createB2bSalesQuote(payload);
       toast.success("B2B Sales Quote created");
-      setTimeout(() => router.push("/b2b-sales-quotes"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to create quote";
       setServerError(msg);
@@ -39,7 +41,7 @@ function AddB2bSalesQuoteContent() {
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-sales-quotes")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>
