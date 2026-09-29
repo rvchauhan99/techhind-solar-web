@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import {
     Box,
     Typography,
@@ -90,6 +91,7 @@ function TabPanel({ children, value, index }) {
 
 function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/order");
     const [formData, setFormData] = useState({
         discom_id: "",
         division_id: "",
@@ -176,7 +178,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
 
             setSuccess(true);
             toastSuccess("Registration details saved successfully");
-            router.push('/order');
+            goToList();
         } catch (err) {
             console.error("Failed to save registration details:", err);
             const msg = err?.response?.data?.message || err?.message || "Failed to save registration details";
@@ -1352,7 +1354,7 @@ function OrderViewPageContent() {
             });
             toastSuccess("Order cancelled successfully");
             setCancelDialogOpen(false);
-            router.push("/order");
+            goToList();
         } catch (err) {
             console.error("Failed to cancel order:", err);
             const msg = err?.response?.data?.message || err?.message || "Failed to cancel order";

@@ -133,7 +133,7 @@ export default function SiteVisitPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort , listReturnTo} = listingState;
 
   const [listView, setListView] = useState(LIST_VIEW_PENDING);
   const [showAddModal, setShowAddModal] = useState(false);

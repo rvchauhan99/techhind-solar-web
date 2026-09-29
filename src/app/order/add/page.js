@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useState, useEffect, useMemo, Suspense } from "react";
 import { toast } from "sonner";
 import { toastSuccess, toastError } from "@/utils/toast";
@@ -50,6 +51,7 @@ export default function AddOrder() {
 
 function AddOrderContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/order");
     const searchParams = useSearchParams();
     const inquiryId = searchParams.get("inquiryId");
     const { user } = useAuth();
@@ -236,7 +238,7 @@ function AddOrderContent() {
                 }
             }
 
-            router.push("/order"); // Redirect to order list
+            goToList(); // Redirect to order list
         } catch (err) {
             console.error("❌ Failed to create order", err);
             const errorMessage = err.response?.data?.message || err.message || "Failed to create order";
@@ -407,7 +409,7 @@ function AddOrderContent() {
                         defaultValues={defaultValues}
                         quotationData={quotationData}
                         onSubmit={handleSubmit}
-                        onCancel={() => router.push("/order")}
+                        onCancel={() => goToList()}
                         loading={loading}
                         serverError={serverError}
                         onClearServerError={() => setServerError(null)}

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import purchaseReturnService from "@/services/purchaseReturnService";
 
 function EditPurchaseReturnContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/purchase-returns");
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(true);
@@ -50,7 +52,7 @@ function EditPurchaseReturnContent() {
       await purchaseReturnService.updatePurchaseReturn(id, payload);
       toast.success("Purchase Return updated successfully");
       setTimeout(() => {
-        router.push("/purchase-returns");
+        goToList();
       }, 1000);
     } catch (err) {
       const errorMessage =
@@ -107,7 +109,7 @@ function EditPurchaseReturnContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/purchase-returns")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

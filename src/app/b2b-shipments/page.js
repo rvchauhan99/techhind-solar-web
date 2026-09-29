@@ -87,7 +87,7 @@ export default function B2bShipmentsPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter } = listingState;
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter , listReturnTo} = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -148,7 +148,7 @@ export default function B2bShipmentsPage() {
     setSelectedRecord(null);
   }, []);
 
-  const handleAdd = useCallback(() => router.push("/b2b-shipments/add"), [router]);
+  const handleAdd = useCallback(() => router.push(`/b2b-shipments/add?returnTo=${listReturnTo}`), [router]);
 
   const goToInvoice = useCallback((inv) => {
     const invoiceNo = inv?.invoice_no;
@@ -322,7 +322,7 @@ export default function B2bShipmentsPage() {
                   </DropdownMenuItem>
                 )}
                 {!row.is_reversed && currentPerm.can_create && (
-                  <DropdownMenuItem onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${row.id}`)}>
+                  <DropdownMenuItem onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${row.id}&returnTo=${listReturnTo}`)}>
                     <IconArrowBackUp className="size-4 mr-2" />
                     Create Return
                   </DropdownMenuItem>
@@ -375,7 +375,7 @@ export default function B2bShipmentsPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${r.id}`)}
+            onClick={() => router.push(`/b2b-shipment-returns/add?shipment_id=${r.id}&returnTo=${listReturnTo}`)}
           >
             <IconArrowBackUp className="size-4 mr-1" />
             Return

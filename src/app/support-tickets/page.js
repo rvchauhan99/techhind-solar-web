@@ -3,7 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
+import AddEditPageShell from "@/components/common/AddEditPageShell";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { toastError, toastSuccess } from "@/utils/toast";
 import {
   createSupportTicket,
@@ -11,6 +15,12 @@ import {
   getSupportStatus,
   listSupportTickets,
 } from "@/services/supportTicketsService";
+import {
+  SupportFileChipList,
+  SupportFileDropzone,
+  SupportPriorityBadge,
+  SupportStatusBadge,
+} from "@/components/support/SupportAttachmentViewer";
 
 function SupportTicketsContent() {
   const router = useRouter();
@@ -62,6 +72,15 @@ function SupportTicketsContent() {
   const maxFiles = limits.max_attachments_per_message || 5;
   const maxBytes = limits.max_attachment_bytes || 5 * 1024 * 1024;
 
+  const handleQueueFiles = (incoming) => {
+    if (!incoming?.length) return;
+    setFiles((prev) => [...prev, ...incoming].slice(0, maxFiles));
+  };
+
+  const handleRemoveQueued = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!subject.trim() || !body.trim()) {
@@ -105,158 +124,170 @@ function SupportTicketsContent() {
 
   if (enabled === false) {
     return (
-      <div className="p-4" data-testid="support-disabled">
-        <h1 className="text-lg font-semibold text-slate-900">Support tickets</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Support tickets are not enabled for this environment yet.
-        </p>
-      </div>
+      <AddEditPageShell title="Support tickets" listHref="/support-tickets" listLabel="Tickets">
+        <div className="p-3" data-testid="support-disabled">
+          <p className="text-sm text-slate-600">
+            Support tickets are not enabled for this environment yet.
+          </p>
+        </div>
+      </AddEditPageShell>
     );
   }
 
   return (
-    <div className="space-y-2 p-3" data-testid="support-tickets-page">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-slate-900">Support tickets</h1>
-        <Button
-          size="sm"
-          data-testid="support-new-btn"
-          onClick={() => setShowCreate((v) => !v)}
-        >
-          {showCreate ? "Cancel" : "New ticket"}
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5" data-testid="support-filters">
-        <select
-          className="h-7 rounded border px-2 text-xs"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          data-testid="support-status-filter"
-        >
-          <option value="all">All status</option>
-          <option value="open">Open</option>
-          <option value="pending">Pending</option>
-          <option value="resolved">Resolved</option>
-          <option value="closed">Closed</option>
-        </select>
-        <select
-          className="h-7 rounded border px-2 text-xs"
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          data-testid="support-priority-filter"
-        >
-          <option value="all">All priority</option>
-          <option value="low">Low</option>
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-        </select>
-      </div>
-
-      {showCreate && (
-        <form
-          onSubmit={handleCreate}
-          className="rounded-md border border-slate-200 bg-white p-3 space-y-2"
-          data-testid="support-create-form"
-        >
-          <input
-            className="w-full rounded border px-2 py-1.5 text-sm"
-            placeholder="Subject"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            data-testid="support-subject"
-          />
-          <textarea
-            className="w-full rounded border px-2 py-1.5 text-sm min-h-[72px]"
-            placeholder="Describe your issue…"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            data-testid="support-body"
-          />
-          <div className="flex flex-wrap items-center gap-2">
+    <AddEditPageShell title="Support tickets" listHref="/support-tickets" listLabel="Tickets" className="gap-2">
+      <div className="space-y-2" data-testid="support-tickets-page">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5" data-testid="support-filters">
             <select
-              className="rounded border px-2 py-1 text-sm"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              data-testid="support-priority"
-              aria-label="Priority"
+              className="h-7 rounded border border-slate-200 px-2 text-xs"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              data-testid="support-status-filter"
             >
+              <option value="all">All status</option>
+              <option value="open">Open</option>
+              <option value="pending">Pending</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+            <select
+              className="h-7 rounded border border-slate-200 px-2 text-xs"
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              data-testid="support-priority-filter"
+            >
+              <option value="all">All priority</option>
               <option value="low">Low</option>
               <option value="normal">Normal</option>
               <option value="high">High</option>
             </select>
-            <select
-              className="rounded border px-2 py-1 text-sm capitalize"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              data-testid="support-category"
-              aria-label="Category"
-            >
-              <option value="billing">Billing</option>
-              <option value="technical">Technical</option>
-              <option value="onboarding">Onboarding</option>
-              <option value="account">Account</option>
-              <option value="other">Other</option>
-            </select>
-            <label className="text-xs text-slate-600 cursor-pointer">
-              Attach (max {maxFiles} × {(maxBytes / (1024 * 1024)).toFixed(0)}MB)
-              <input
-                type="file"
-                multiple
-                className="ml-2 text-xs"
-                onChange={(e) =>
-                  setFiles(Array.from(e.target.files || []).slice(0, maxFiles))
-                }
-              />
-            </label>
-            <Button type="submit" size="sm" disabled={busy} data-testid="support-create-submit">
-              Submit
-            </Button>
           </div>
-        </form>
-      )}
+          <Button size="sm" data-testid="support-new-btn" onClick={() => setShowCreate((v) => !v)}>
+            {showCreate ? "Cancel" : "New ticket"}
+          </Button>
+        </div>
 
-      <div className="rounded-md border border-slate-200 bg-white overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600">
-              <th className="px-2 py-1.5 text-left">Number</th>
-              <th className="px-2 py-1.5 text-left">Subject</th>
-              <th className="px-2 py-1.5 text-left">Status</th>
-              <th className="px-2 py-1.5 text-left">Priority</th>
-              <th className="px-2 py-1.5 text-left">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((t) => {
-              const isOpen = ["open", "pending"].includes(t.status);
-              return (
-                <tr
-                  key={t.id}
-                  className={`border-t border-slate-100 hover:bg-slate-50 cursor-pointer ${
-                    isOpen ? "bg-blue-50/30" : ""
-                  }`}
-                  onClick={() => router.push(`/support-tickets/${t.id}`)}
-                  data-testid={`support-row-${t.id}`}
-                >
-                  <td className="px-2 py-1.5 font-mono text-xs text-blue-700">{t.number}</td>
-                  <td className={`px-2 py-1.5 ${isOpen ? "font-semibold" : "font-medium"}`}>{t.subject}</td>
-                  <td className="px-2 py-1.5 capitalize text-xs">{t.status}</td>
-                  <td className="px-2 py-1.5 capitalize text-xs">{t.priority}</td>
-                  <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">
-                    {t.updated_at ? new Date(t.updated_at).toLocaleString() : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!loading && !rows.length && (
-          <div className="px-3 py-6 text-sm text-slate-500">No tickets yet</div>
+        {showCreate && (
+          <Card className="border-slate-200 shadow-none">
+            <CardHeader className="p-3 pb-1">
+              <CardTitle className="text-sm font-semibold">New support ticket</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-1">
+              <form onSubmit={handleCreate} className="space-y-2" data-testid="support-create-form">
+                <Input
+                  className="h-8 text-sm"
+                  placeholder="Subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  data-testid="support-subject"
+                />
+                <Textarea
+                  className="min-h-[72px] text-sm"
+                  placeholder="Describe your issue…"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  data-testid="support-body"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="h-7 rounded border border-slate-200 px-2 text-xs"
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    data-testid="support-priority"
+                    aria-label="Priority"
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                  <select
+                    className="h-7 rounded border border-slate-200 px-2 text-xs capitalize"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    data-testid="support-category"
+                    aria-label="Category"
+                  >
+                    <option value="billing">Billing</option>
+                    <option value="technical">Technical</option>
+                    <option value="onboarding">Onboarding</option>
+                    <option value="account">Account</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <SupportFileDropzone
+                  onFiles={handleQueueFiles}
+                  disabled={busy}
+                  maxFiles={maxFiles}
+                  already={files.length}
+                  maxBytes={maxBytes}
+                  hint={`Attach (max ${maxFiles} × ${(maxBytes / (1024 * 1024)).toFixed(0)}MB)`}
+                  inputTestId="support-create-files"
+                  dropzoneTestId="support-create-dropzone"
+                />
+                <SupportFileChipList files={files} onRemove={handleRemoveQueued} disabled={busy} />
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" disabled={busy} data-testid="support-create-submit">
+                    Submit
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
-        {loading && <div className="px-3 py-6 text-sm text-slate-500">Loading…</div>}
+
+        <Card className="overflow-hidden border-slate-200 shadow-none">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600">
+                    <th className="px-2 py-1.5 text-left">Number</th>
+                    <th className="px-2 py-1.5 text-left">Subject</th>
+                    <th className="px-2 py-1.5 text-left">Status</th>
+                    <th className="px-2 py-1.5 text-left">Priority</th>
+                    <th className="px-2 py-1.5 text-left">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((t) => {
+                    const isOpen = ["open", "pending"].includes(t.status);
+                    return (
+                      <tr
+                        key={t.id}
+                        className={`cursor-pointer border-t border-slate-100 hover:bg-slate-50 ${
+                          isOpen ? "bg-blue-50/30" : ""
+                        }`}
+                        onClick={() => router.push(`/support-tickets/${t.id}`)}
+                        data-testid={`support-row-${t.id}`}
+                      >
+                        <td className="px-2 py-1.5 font-mono text-xs text-[#00823b]">{t.number}</td>
+                        <td className={`px-2 py-1.5 ${isOpen ? "font-semibold" : "font-medium"}`}>
+                          {t.subject}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <SupportStatusBadge value={t.status} />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <SupportPriorityBadge value={t.priority} />
+                        </td>
+                        <td className="px-2 py-1.5 font-mono text-[11px] text-slate-500">
+                          {t.updated_at ? new Date(t.updated_at).toLocaleString() : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {!loading && !rows.length && (
+              <div className="px-3 py-6 text-sm text-slate-500">No tickets yet</div>
+            )}
+            {loading && <div className="px-3 py-6 text-sm text-slate-500">Loading…</div>}
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AddEditPageShell>
   );
 }
 

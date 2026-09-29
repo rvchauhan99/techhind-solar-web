@@ -58,7 +58,7 @@ export default function POInwardPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [selectedPOInward, setSelectedPOInward] = useState(null);
@@ -317,7 +317,7 @@ export default function POInwardPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/po-inwards/edit?id=${row.id}`)}
+                onClick={() => router.push(`/po-inwards/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -329,7 +329,7 @@ export default function POInwardPage() {
               <Button
                 size="icon"
                 variant="success"
-                onClick={() => router.push(`/po-inwards/approve?id=${row.id}`)}
+                onClick={() => router.push(`/po-inwards/approve?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Approve"
                 aria-label="Approve"
               >
@@ -564,7 +564,7 @@ export default function POInwardPage() {
       <ListingPageContainer
         title="PO Inwards (Goods Receipt)"
         addButtonLabel={currentPerm.can_create ? "Create Receipt" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/po-inwards/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/po-inwards/add?returnTo=${listReturnTo}`) : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

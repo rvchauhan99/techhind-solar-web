@@ -122,7 +122,7 @@ export default function ListView() {
         defaultLimit: 25,
         filterKeys: ORDER_LIST_FILTER_KEYS,
     });
-    const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters } = listingState;
+    const { page, limit, q, filters, setPage, setLimit, setQ, setFilters, clearFilters, listReturnTo } = listingState;
     const [filterPanelOpen, setFilterPanelOpen] = useState(false);
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [menuOrderId, setMenuOrderId] = useState(null);
@@ -217,7 +217,7 @@ export default function ListView() {
     }, [reassigning]);
 
     const handleEdit = () => {
-        router.push(`/order/edit?id=${menuOrderId}&returnTo=${encodeURIComponent("/confirm-orders")}`);
+        router.push(`/order/edit?id=${menuOrderId}&returnTo=${listReturnTo}`);
         handleMenuClose();
     };
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -10,6 +11,7 @@ import quotationService from "@/services/quotationService";
 
 function AddQuotationContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/quotation");
   const searchParams = useSearchParams();
 
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ function AddQuotationContent() {
         res?.message ||
         "Quotation created successfully";
       toast.success(message);
-      router.push("/quotation");
+      goToList();
     } catch (err) {
       setServerError(
         err.response?.data?.message ||
@@ -82,7 +84,7 @@ function AddQuotationContent() {
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/quotation")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>

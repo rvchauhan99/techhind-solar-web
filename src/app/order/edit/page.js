@@ -9,6 +9,7 @@ import OrderForm from "../components/OrderForm";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import orderService from "@/services/orderService";
 import { toastSuccess, toastError } from "@/utils/toast";
+import { resolveReturnTo } from "@/utils/listNavigation";
 
 export default function EditOrderPage() {
     return (
@@ -24,17 +25,7 @@ function EditOrderPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
-    const returnToRaw = searchParams.get("returnTo");
-
-    const getSafeReturnPath = (value) => {
-        if (!value) return "/order";
-        const decoded = decodeURIComponent(value);
-        if (!decoded.startsWith("/")) return "/order";
-        if (decoded.startsWith("//")) return "/order";
-        if (decoded.includes("://")) return "/order";
-        return decoded;
-    };
-    const returnPath = getSafeReturnPath(returnToRaw);
+    const returnPath = resolveReturnTo(searchParams, "/order");
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);

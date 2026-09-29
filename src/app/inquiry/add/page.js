@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import InquiryForm from "../components/InquiryForm";
@@ -11,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function InquiryAddPage() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/inquiry");
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
 
@@ -23,7 +25,7 @@ export default function InquiryAddPage() {
         res?.message ||
         "Inquiry created successfully";
       toast.success(message);
-      router.push("/inquiry");
+      goToList();
     } catch (err) {
       console.error("Failed to create inquiry", err);
       const message =

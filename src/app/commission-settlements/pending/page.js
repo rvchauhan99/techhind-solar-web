@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -59,8 +60,7 @@ export default function CommissionPendingPage() {
 
   const canApproveReject = currentPerm.can_create || currentPerm.can_update;
 
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 20 });
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [reviewId, setReviewId] = useState(null);

@@ -47,6 +47,7 @@ import {
     getOrderReceivedAmount,
 } from "@/utils/orderPaymentSummary";
 import { formatRupeesInteger } from "@/utils/orderFormatters";
+import { getSafeReturnPathAllowlist } from "@/utils/listNavigation";
 
 const TAB_PENDING = "pending";
 const TAB_HISTORY = "history";
@@ -55,8 +56,7 @@ const TAB_HISTORY = "history";
 const ALLOWED_MANAGER_APPROVAL_RETURN_TO = "/fabrication-installation";
 
 function sanitizeManagerApprovalReturnTo(raw) {
-    const s = raw != null ? String(raw).trim() : "";
-    return s === ALLOWED_MANAGER_APPROVAL_RETURN_TO ? s : null;
+    return getSafeReturnPathAllowlist(raw, ALLOWED_MANAGER_APPROVAL_RETURN_TO);
 }
 
 const STAGES = [

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState, Suspense } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -22,6 +23,7 @@ function LoadingState() {
 
 function RoleModuleEditContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/role-module");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -63,7 +65,7 @@ function RoleModuleEditContent() {
   const handleSubmit = async (data) => {
     try {
       await roleModuleService.updateRoleModule(id, data);
-      router.push("/role-module");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to update link";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState, Suspense } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -20,6 +21,7 @@ function LoadingState() {
 
 function RoleEditContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/role-master");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -41,7 +43,7 @@ function RoleEditContent() {
   const handleSubmit = async (data) => {
     try {
       await roleService.updateRoleMaster(id, data);
-      router.push("/role-master");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to update role";

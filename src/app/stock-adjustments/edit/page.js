@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import stockAdjustmentService from "@/services/stockAdjustmentService";
 
 function EditStockAdjustmentContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/stock-adjustments");
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [loadingRecord, setLoadingRecord] = useState(true);
@@ -84,7 +86,7 @@ function EditStockAdjustmentContent() {
             await stockAdjustmentService.updateStockAdjustment(id, payload);
             toast.success("Stock adjustment updated successfully");
             setTimeout(() => {
-                router.push("/stock-adjustments");
+                goToList();
             }, 1000);
         } catch (err) {
             const errorMessage =
@@ -126,7 +128,7 @@ function EditStockAdjustmentContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/stock-adjustments")}
+                onCancel={() => goToList()}
                 isEdit
             />
         </AddEditPageShell>

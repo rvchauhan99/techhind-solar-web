@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -12,6 +13,7 @@ import { getApiErrorMessage } from "@/utils/toast";
 
 function EditStockTransferContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/stock-transfers");
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(true);
@@ -74,7 +76,7 @@ function EditStockTransferContent() {
       await stockTransferService.updateStockTransfer(id, payload);
       toast.success("Stock transfer updated successfully");
       setTimeout(() => {
-        router.push("/stock-transfers");
+        goToList();
       }, 1000);
     } catch (err) {
       const errorMessage = getApiErrorMessage(err, "Failed to update stock transfer");
@@ -113,7 +115,7 @@ function EditStockTransferContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/stock-transfers")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

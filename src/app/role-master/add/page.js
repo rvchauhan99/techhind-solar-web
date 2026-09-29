@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useState } from "react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -9,12 +10,13 @@ import roleService from "@/services/roleMasterService";
 
 export default function RoleAddPage() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/role-master");
   const [serverError, setServerError] = useState(null);
 
   const handleSubmit = async (data) => {
     try {
       await roleService.createRoleMaster(data);
-      router.push("/role-master");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to create role";

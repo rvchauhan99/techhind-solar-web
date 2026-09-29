@@ -74,7 +74,7 @@ export default function ProductionBomPage() {
         can_delete: false,
     };
 
-    const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+    const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
         useListingQueryState({ defaultLimit: 20, filterKeys: COLUMN_FILTER_KEYS });
 
     const [tableKey, setTableKey] = useState(0);
@@ -279,7 +279,7 @@ export default function ProductionBomPage() {
                                 size="icon"
                                 variant="ghost"
                                 className="size-8"
-                                onClick={() => router.push(`/production-bom/edit?id=${row.id}`)}
+                                onClick={() => router.push(`/production-bom/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                                 title="Edit"
                                 aria-label="Edit"
                             >
@@ -526,7 +526,7 @@ export default function ProductionBomPage() {
             <ListingPageContainer
                 title={AP.bom.title}
                 addButtonLabel={currentPerm.can_create ? "Create BOM" : undefined}
-                onAddClick={currentPerm.can_create ? () => router.push("/production-bom/new") : undefined}
+                onAddClick={currentPerm.can_create ? () => router.push(`/production-bom/new?returnTo=${listReturnTo}`) : undefined}
                 exportButtonLabel="Export"
                 onExportClick={handleExport}
                 exportDisabled={exporting}
