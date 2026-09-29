@@ -69,6 +69,20 @@ const fmtQtyWithUom = (qty, unit) => {
     return unit ? `${qty} ${unit}` : String(qty);
 };
 
+const getItemPendingQty = (item) => {
+    if (!item) return 0;
+    if (item.remaining_qty != null && item.remaining_qty !== "") {
+        return Math.max(0, parseInt(item.remaining_qty, 10) || 0);
+    }
+    const ordered = parseInt(item.ordered_quantity, 10) || 0;
+    const alreadyReceived = parseInt(item.already_received_quantity, 10) || 0;
+    const cancelled = parseInt(item.cancelled_quantity ?? item.cancelled_qty, 10) || 0;
+    return Math.max(0, ordered - alreadyReceived - cancelled);
+};
+
+const getItemCancelledQty = (item) =>
+    parseInt(item?.cancelled_quantity ?? item?.cancelled_qty, 10) || 0;
+
 // ---------------------------------------------------------------------------
 // SerialEntryDialog — ISOLATED component so parent form NEVER re-renders
 // during scanning. All serial state lives here.
@@ -86,7 +100,7 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
     const productName = item?.product_name || "Item";
     const orderedQty = parseInt(item?.ordered_quantity, 10) || 0;
     const alreadyReceived = parseInt(item?.already_received_quantity, 10) || 0;
-    const pending = Math.max(0, orderedQty - alreadyReceived);
+    const pending = getItemPendingQty(item);
 
     const [slots, setSlots] = useState([]);
     const [error, setError] = useState("");
@@ -595,6 +609,11 @@ export default function POInwardForm({
                     const shouldBeSerial = productTrackingType === "SERIAL" || productSerialRequired === true;
                     const trackingType = shouldBeSerial ? "SERIAL" : productTrackingType;
                     const alreadyReceived = item.received_quantity ?? item.received_qty ?? 0;
+                    const cancelledQty = item.cancelled_quantity ?? item.cancelled_qty ?? 0;
+                    const remainingQty =
+                        item.remaining_qty != null
+                            ? item.remaining_qty
+                            : Math.max(0, (item.quantity ?? 0) - alreadyReceived - cancelledQty);
                     const existing = existingItems?.find((e) => e.purchase_order_item_id === item.id);
                     const rateFc = Number(item.rate) || 0;
                     const rateInrPo =
@@ -613,6 +632,8 @@ export default function POInwardForm({
                         serial_required: shouldBeSerial,
                         ordered_quantity: item.quantity,
                         already_received_quantity: alreadyReceived,
+                        cancelled_quantity: cancelledQty,
+                        remaining_qty: remainingQty,
                         received_quantity: existing != null ? (existing.received_quantity ?? 0) : 0,
                         accepted_quantity: existing != null ? (existing.accepted_quantity ?? 0) : 0,
                         rejected_quantity: existing != null ? (existing.rejected_quantity ?? 0) : 0,
@@ -686,10 +707,7 @@ export default function POInwardForm({
         const item = formData.items[index];
         if (!item) return;
         const received = parseInt(item.received_quantity) || 0;
-        const pendingQty = Math.max(
-            0,
-            (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0)
-        );
+        const pendingQty = getItemPendingQty(item);
         if (received > pendingQty) {
             setErrors((prev) => ({
                 ...prev,
@@ -751,9 +769,7 @@ export default function POInwardForm({
             formData.items.forEach((item, index) => {
                 const receivedQty = parseInt(item.received_quantity) || 0;
                 const rejectedQty = parseInt(item.rejected_quantity) || 0;
-                const orderedQty = parseInt(item.ordered_quantity) || 0;
-                const alreadyReceivedQty = parseInt(item.already_received_quantity) || 0;
-                const pendingQty = Math.max(0, orderedQty - alreadyReceivedQty);
+                const pendingQty = getItemPendingQty(item);
                 const acceptedQty = item.accepted_quantity || 0;
                 const productName = item.product_name || `Item ${index + 1}`;
 
@@ -863,7 +879,7 @@ export default function POInwardForm({
     const totals = formData.items.reduce(
         (acc, item) => {
             acc.ordered += parseInt(item.ordered_quantity) || 0;
-            acc.pending += Math.max(0, (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0));
+            acc.pending += getItemPendingQty(item);
             acc.received += parseInt(item.received_quantity) || 0;
             acc.accepted += parseInt(item.accepted_quantity) || 0;
             return acc;
@@ -1103,14 +1119,14 @@ export default function POInwardForm({
                                                     <Collapse in={!isCardCollapsed} timeout="auto" unmountOnExit>
                                                         <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
                                                             {(() => {
-                                                                const pendingQty = Math.max(0,
-                                                                    (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0)
-                                                                );
+                                                                const pendingQty = getItemPendingQty(item);
+                                                                const cancelledQty = getItemCancelledQty(item);
                                                                 return (
                                                                     <Box sx={{ display: "flex", gap: 3, mb: 1.5, flexWrap: "wrap" }}>
                                                                         {[
                                                                             { label: "Ordered", val: item.ordered_quantity },
                                                                             { label: "Pending", val: pendingQty },
+                                                                            ...(cancelledQty > 0 ? [{ label: "Cancelled", val: cancelledQty }] : []),
                                                                             { label: "Accepted", val: acceptedQty, color: acceptedQty > 0 ? "success.main" : undefined },
                                                                         ].map(({ label, val, color }) => (
                                                                             <Box key={label}>
@@ -1132,7 +1148,8 @@ export default function POInwardForm({
                                                                 value={item.received_quantity}
                                                                 onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
                                                                 onBlur={() => handleReceivedQtyBlur(index)}
-                                                                inputProps={{ min: 0 }}
+                                                                disabled={getItemPendingQty(item) <= 0 && (parseInt(item.received_quantity, 10) || 0) <= 0}
+                                                                inputProps={{ min: 0, max: getItemPendingQty(item) }}
                                                                 error={!!errors[`item_${index}_received`]}
                                                                 helperText={errors[`item_${index}_received`]}
                                                                 sx={{ mb: 1 }}
@@ -1200,6 +1217,7 @@ export default function POInwardForm({
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Product</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>UOM</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Ordered</TableCell>
+                                                        <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Can</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Pending</TableCell>
                                                         <TableCell sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75, minWidth: 100 }}>Received</TableCell>
                                                         <TableCell align="right" sx={{ fontWeight: 700, fontSize: "0.75rem", py: 0.75 }}>Accepted</TableCell>
@@ -1218,9 +1236,9 @@ export default function POInwardForm({
                                                         const serialCount = (item.serials || []).length;
                                                         const acceptedQty = item.accepted_quantity || 0;
                                                         const serialComplete = isSerial && acceptedQty > 0 && serialCount === acceptedQty;
-                                                        const pendingQty = Math.max(0,
-                                                            (parseInt(item.ordered_quantity) || 0) - (parseInt(item.already_received_quantity) || 0)
-                                                        );
+                                                        const pendingQty = getItemPendingQty(item);
+                                                        const cancelledQty = getItemCancelledQty(item);
+                                                        const lineClosed = pendingQty <= 0 && (parseInt(item.received_quantity, 10) || 0) <= 0;
 
                                                         return (
                                                             <TableRow
@@ -1241,6 +1259,7 @@ export default function POInwardForm({
                                                                 </TableCell>
                                                                 <TableCell sx={{ fontSize: "0.78rem", py: 0.5 }}>{item.measurement_unit || "—"}</TableCell>
                                                                 <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{fmtQtyWithUom(item.ordered_quantity, item.measurement_unit)}</TableCell>
+                                                                <TableCell align="right" sx={{ fontSize: "0.82rem", py: 0.5 }}>{fmtQtyWithUom(cancelledQty, item.measurement_unit)}</TableCell>
                                                                 <TableCell align="right" sx={{ fontSize: "0.82rem", fontWeight: 600, py: 0.5 }}>{fmtQtyWithUom(pendingQty, item.measurement_unit)}</TableCell>
                                                                 <TableCell sx={{ py: 0.5 }}>
                                                                     <Input
@@ -1250,6 +1269,7 @@ export default function POInwardForm({
                                                                         value={item.received_quantity}
                                                                         onChange={(e) => handleItemChange(index, "received_quantity", e.target.value)}
                                                                         onBlur={() => handleReceivedQtyBlur(index)}
+                                                                        disabled={lineClosed}
                                                                         inputProps={{ min: 0, max: pendingQty }}
                                                                         error={!!errors[`item_${index}_received`]}
                                                                         helperText={errors[`item_${index}_received`]}

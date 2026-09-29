@@ -91,6 +91,9 @@ export const deletePurchaseOrder = (id) =>
 export const approvePurchaseOrder = (id) =>
   apiClient.post(`/purchase-orders/${id}/approve`).then((r) => r.data);
 
+export const cancelPurchaseOrder = (id, payload = {}) =>
+  apiClient.post(`/purchase-orders/${id}/cancel`, payload).then((r) => r.data);
+
 export default {
   getPurchaseOrders,
   getPurchaseOrderLines,
@@ -102,6 +105,7 @@ export default {
   updatePurchaseOrder,
   deletePurchaseOrder,
   approvePurchaseOrder,
+  cancelPurchaseOrder,
   deleteAttachment,
   getAttachmentUrl,
 };
