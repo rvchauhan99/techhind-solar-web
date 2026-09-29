@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Paper, Typography, Box, Grid, Chip } from "@mui/material";
 import IconButton from "@mui/material/IconButton";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -56,15 +56,8 @@ export default function ListView({ filters }) {
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
   const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
 
-  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
-  const filtersInitRef = useRef(true);
-  useEffect(() => {
-    if (filtersInitRef.current) {
-      filtersInitRef.current = false;
-      return;
-    }
-    setPage(1);
-  }, [filtersKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Filter changes: keep URL page unless parent remounts; do not auto setPage(1) here
+  // (that wiped ?page= on mount races). Parent Apply/Reset should navigate with page cleared if needed.
 
   const handleListingMetaChange = useCallback((meta) => {
     const total = meta?.total ?? 0;

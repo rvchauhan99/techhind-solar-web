@@ -97,16 +97,20 @@ export default function SettledCommissionHistoryView({ filters, refreshKey, onVi
     [filters, orderFilter]
   );
 
-  const filtersInitRef = useRef(true);
+  const filtersKey = useMemo(() => JSON.stringify(filters ?? {}), [filters]);
+  const pageResetKeyRef = useRef(null);
   useEffect(() => {
-    if (filtersInitRef.current) {
-      filtersInitRef.current = false;
+    const key = `${refreshKey}:${filtersKey}`;
+    // Skip initial mount + React Strict Mode double-invoke (same key).
+    if (pageResetKeyRef.current === null || pageResetKeyRef.current === key) {
+      pageResetKeyRef.current = key;
       return;
     }
+    pageResetKeyRef.current = key;
     setPage(1);
     setOrderFilter(null);
     setTableKey((k) => k + 1);
-  }, [refreshKey, filters]);
+  }, [refreshKey, filtersKey]);
 
   useEffect(() => {
     let cancelled = false;

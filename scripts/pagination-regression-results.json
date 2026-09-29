@@ -1,7 +1,7 @@
 {
   "summary": {
-    "urlPass": 42,
-    "urlFail": 8,
+    "urlPass": 50,
+    "urlFail": 0,
     "urlTotal": 50,
     "retPass": 0,
     "retFail": 10,
@@ -9,139 +9,80 @@
     "retTotal": 10,
     "failures": [
       {
-        "route": "/followup",
-        "type": "url_page",
-        "pass": false,
-        "reason": "pageParam=null",
-        "href": "http://localhost:3000/followup?limit=20&followup_next_reminder_from=2026-09-29&followup_next_reminder_to=2026-09-29&sortOrder=desc",
-        "path": "/followup",
-        "pageParam": null,
-        "pageLabel": "Page 1 of 1",
-        "pageNum": 1,
-        "totalPages": 1,
-        "showing": "Showing 0 to 0 of 0 entries",
-        "hasError": false,
-        "loadingOnly": false
-      },
-      {
-        "route": "/cancelled-orders",
-        "type": "url_page",
-        "pass": false,
-        "reason": "pageParam=null",
-        "href": "http://localhost:3000/cancelled-orders?limit=20",
-        "path": "/cancelled-orders",
-        "pageParam": null,
-        "pageLabel": null,
-        "pageNum": null,
-        "totalPages": null,
-        "showing": "Showing 1 to 6 of 6",
-        "hasError": false,
-        "loadingOnly": false
-      },
-      {
-        "route": "/commission-settlements/ledger-report",
-        "type": "url_page",
-        "pass": false,
-        "reason": "pageParam=null",
-        "href": "http://localhost:3000/commission-settlements/ledger-report?limit=20",
-        "path": "/commission-settlements/ledger-report",
-        "pageParam": null,
-        "pageLabel": null,
-        "pageNum": null,
-        "totalPages": null,
-        "showing": null,
-        "hasError": false,
-        "loadingOnly": false
-      },
-      {
-        "route": "/service/search",
-        "type": "url_page",
-        "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/service/search?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/service/search?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "route": "/closed-orders",
-        "type": "url_page",
-        "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/closed-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/closed-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "route": "/confirm-orders",
-        "type": "url_page",
-        "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/confirm-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/confirm-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "route": "/marketing-leads?view=list",
-        "type": "url_page",
-        "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/marketing-leads?view=list&page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/marketing-leads?view=list&page=2&limit=20\", waiting until \"domcontentloaded\"\n"
-      },
-      {
-        "route": "/b2b-leads?view=list",
-        "type": "url_page",
-        "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/b2b-leads?view=list&page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/b2b-leads?view=list&page=2&limit=20\", waiting until \"domcontentloaded\"\n"
-      },
-      {
         "route": "/purchase-orders",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/purchase-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/purchase-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "no_returnTo",
+        "addHref": "http://localhost:3000/purchase-orders?page=2&limit=20",
+        "returnTo": null,
+        "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+        "backPage": "2"
       },
       {
         "route": "/po-inwards",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/po-inwards?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/po-inwards?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.evaluate: Execution context was destroyed, most likely because of a navigation"
       },
       {
         "route": "/quotation",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/quotation?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/quotation?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/quotation?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
       },
       {
         "route": "/delivery-challans",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/delivery-challans?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/delivery-challans?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "no_returnTo",
+        "addHref": "http://localhost:3000/delivery-challans?page=2&limit=20",
+        "returnTo": null,
+        "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+        "backPage": "2"
       },
       {
         "route": "/b2b-sales-orders",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/b2b-sales-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/b2b-sales-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "no_returnTo",
+        "addHref": "http://localhost:3000/b2b-sales-orders?page=2&limit=20",
+        "returnTo": null,
+        "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+        "backPage": "2"
       },
       {
         "route": "/stock-transfers",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/stock-transfers?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-transfers?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "no_returnTo",
+        "addHref": "http://localhost:3000/stock-transfers?page=2&limit=20",
+        "returnTo": null,
+        "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+        "backPage": "2"
       },
       {
         "route": "/stock-adjustments",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/stock-adjustments?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-adjustments?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.goto: net::ERR_ABORTED at http://localhost:3000/stock-adjustments?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-adjustments?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
       },
       {
         "route": "/production-bom",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/production-bom?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/production-bom?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.goto: Target page, context or browser has been closed"
       },
       {
         "route": "/module-master",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/module-master?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/module-master?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.goto: Target page, context or browser has been closed"
       },
       {
         "route": "/role-master",
         "type": "returnTo",
         "pass": false,
-        "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/role-master?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/role-master?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+        "reason": "exception: page.goto: Target page, context or browser has been closed"
       }
     ]
   },
@@ -479,11 +420,11 @@
     {
       "route": "/followup",
       "type": "url_page",
-      "pass": false,
-      "reason": "pageParam=null",
-      "href": "http://localhost:3000/followup?limit=20&followup_next_reminder_from=2026-09-29&followup_next_reminder_to=2026-09-29&sortOrder=desc",
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/followup?page=2&limit=20&followup_next_reminder_from=2026-09-29&followup_next_reminder_to=2026-09-29&sortOrder=desc",
       "path": "/followup",
-      "pageParam": null,
+      "pageParam": "2",
       "pageLabel": "Page 1 of 1",
       "pageNum": 1,
       "totalPages": 1,
@@ -644,15 +585,15 @@
     {
       "route": "/cancelled-orders",
       "type": "url_page",
-      "pass": false,
-      "reason": "pageParam=null",
-      "href": "http://localhost:3000/cancelled-orders?limit=20",
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/cancelled-orders?page=2&limit=20",
       "path": "/cancelled-orders",
-      "pageParam": null,
+      "pageParam": "2",
       "pageLabel": null,
       "pageNum": null,
       "totalPages": null,
-      "showing": "Showing 1 to 6 of 6",
+      "showing": "Showing 21 to 6 of 6",
       "hasError": false,
       "loadingOnly": false
     },
@@ -694,10 +635,10 @@
       "href": "http://localhost:3000/payment-outstanding?page=2&limit=20",
       "path": "/payment-outstanding",
       "pageParam": "2",
-      "pageLabel": "Page 2 of 3",
-      "pageNum": 2,
-      "totalPages": 3,
-      "showing": "Showing 21 to 40 of 53 entries",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": null,
       "hasError": false,
       "loadingOnly": false
     },
@@ -784,21 +725,21 @@
       "href": "http://localhost:3000/commission-settlements/history?page=2&limit=20",
       "path": "/commission-settlements/history",
       "pageParam": "2",
-      "pageLabel": null,
-      "pageNum": null,
-      "totalPages": null,
-      "showing": null,
+      "pageLabel": "Page 2 of 1",
+      "pageNum": 2,
+      "totalPages": 1,
+      "showing": "Showing 21 to 1 of 1 entries",
       "hasError": false,
       "loadingOnly": false
     },
     {
       "route": "/commission-settlements/ledger-report",
       "type": "url_page",
-      "pass": false,
-      "reason": "pageParam=null",
-      "href": "http://localhost:3000/commission-settlements/ledger-report?limit=20",
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/commission-settlements/ledger-report?page=2&limit=20",
       "path": "/commission-settlements/ledger-report",
-      "pageParam": null,
+      "pageParam": "2",
       "pageLabel": null,
       "pageNum": null,
       "totalPages": null,
@@ -824,92 +765,153 @@
     {
       "route": "/service/search",
       "type": "url_page",
-      "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/service/search?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/service/search?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/service/search?page=2&limit=20",
+      "path": "/service/search",
+      "pageParam": "2",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": null,
+      "hasError": false,
+      "loadingOnly": false
     },
     {
       "route": "/closed-orders",
       "type": "url_page",
-      "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/closed-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/closed-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/closed-orders?page=2&limit=20",
+      "path": "/closed-orders",
+      "pageParam": "2",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": null,
+      "hasError": false,
+      "loadingOnly": false
     },
     {
       "route": "/confirm-orders",
       "type": "url_page",
-      "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/confirm-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/confirm-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/confirm-orders?page=2&limit=20",
+      "path": "/confirm-orders",
+      "pageParam": "2",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": "Showing 21 to 40 of 92",
+      "hasError": false,
+      "loadingOnly": false
     },
     {
       "route": "/marketing-leads?view=list",
       "type": "url_page",
-      "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/marketing-leads?view=list&page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/marketing-leads?view=list&page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/marketing-leads?view=list&page=2&limit=20",
+      "path": "/marketing-leads",
+      "pageParam": "2",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": null,
+      "hasError": false,
+      "loadingOnly": false
     },
     {
       "route": "/b2b-leads?view=list",
       "type": "url_page",
-      "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/b2b-leads?view=list&page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/b2b-leads?view=list&page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "pass": true,
+      "reason": "ok",
+      "href": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+      "path": "/b2b-leads",
+      "pageParam": "2",
+      "pageLabel": null,
+      "pageNum": null,
+      "totalPages": null,
+      "showing": null,
+      "hasError": false,
+      "loadingOnly": false
     },
     {
       "route": "/purchase-orders",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/purchase-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/purchase-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "no_returnTo",
+      "addHref": "http://localhost:3000/purchase-orders?page=2&limit=20",
+      "returnTo": null,
+      "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+      "backPage": "2"
     },
     {
       "route": "/po-inwards",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/po-inwards?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/po-inwards?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.evaluate: Execution context was destroyed, most likely because of a navigation"
     },
     {
       "route": "/quotation",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/quotation?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/quotation?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to \"http://localhost:3000/quotation?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
     },
     {
       "route": "/delivery-challans",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/delivery-challans?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/delivery-challans?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "no_returnTo",
+      "addHref": "http://localhost:3000/delivery-challans?page=2&limit=20",
+      "returnTo": null,
+      "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+      "backPage": "2"
     },
     {
       "route": "/b2b-sales-orders",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/b2b-sales-orders?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/b2b-sales-orders?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "no_returnTo",
+      "addHref": "http://localhost:3000/b2b-sales-orders?page=2&limit=20",
+      "returnTo": null,
+      "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+      "backPage": "2"
     },
     {
       "route": "/stock-transfers",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/stock-transfers?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-transfers?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "no_returnTo",
+      "addHref": "http://localhost:3000/stock-transfers?page=2&limit=20",
+      "returnTo": null,
+      "backHref": "http://localhost:3000/b2b-leads?view=list&page=2&limit=20",
+      "backPage": "2"
     },
     {
       "route": "/stock-adjustments",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/stock-adjustments?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-adjustments?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.goto: net::ERR_ABORTED at http://localhost:3000/stock-adjustments?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/stock-adjustments?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
     },
     {
       "route": "/production-bom",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/production-bom?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/production-bom?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.goto: Target page, context or browser has been closed"
     },
     {
       "route": "/module-master",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/module-master?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/module-master?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.goto: Target page, context or browser has been closed"
     },
     {
       "route": "/role-master",
       "type": "returnTo",
       "pass": false,
-      "reason": "exception: page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:3000/role-master?page=2&limit=20\nCall log:\n  - navigating to \"http://localhost:3000/role-master?page=2&limit=20\", waiting until \"domcontentloaded\"\n"
+      "reason": "exception: page.goto: Target page, context or browser has been closed"
     }
   ]
 }

@@ -100,11 +100,15 @@ export default function FollowupPage() {
 
   const applyDefaultToday = useCallback(() => {
     const todayStr = localCalendarDate(0);
-    setFilters({
-      followup_next_reminder_from: todayStr,
-      followup_next_reminder_to: todayStr,
-      reminder_view: "",
-    });
+    // Preserve current page when seeding default date filters (do not wipe ?page=)
+    setFilters(
+      {
+        followup_next_reminder_from: todayStr,
+        followup_next_reminder_to: todayStr,
+        reminder_view: "",
+      },
+      false
+    );
     setActivePreset("Today");
   }, [setFilters]);
 

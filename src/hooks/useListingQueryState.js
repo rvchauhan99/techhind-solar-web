@@ -73,10 +73,12 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
 
   const setLimit = useCallback(
     (l) => {
+      const nextLimit = Number(l);
+      if (nextLimit === limit) return;
       const next = buildSearchParams({ limit: String(l), page: undefined });
       router.replace(`${pathname}?${next.toString()}`);
     },
-    [pathname, router, buildSearchParams]
+    [pathname, router, buildSearchParams, limit]
   );
 
   const setQ = useCallback(

@@ -82,14 +82,18 @@ export default function CommissionLedgerReportView({ filters, refreshKey }) {
 
   const beneficiaryId = filters?.beneficiary_user_id;
 
-  const filtersInitRef = useRef(true);
+  // Reset page only on explicit refresh/apply (refreshKey).
+  // Guard against React Strict Mode double-invoke wiping ?page= on first paint.
+  const pageResetKeyRef = useRef(null);
   useEffect(() => {
-    if (filtersInitRef.current) {
-      filtersInitRef.current = false;
+    const key = String(refreshKey);
+    if (pageResetKeyRef.current === null || pageResetKeyRef.current === key) {
+      pageResetKeyRef.current = key;
       return;
     }
+    pageResetKeyRef.current = key;
     setPage(1);
-  }, [refreshKey, filters]);
+  }, [refreshKey]);
 
   const loadReport = useCallback(async () => {
     if (!beneficiaryId) {

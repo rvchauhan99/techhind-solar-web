@@ -199,11 +199,14 @@ export default function ListView() {
       return;
     }
     defaultDatesAppliedRef.current = true;
-    setFilters({
-      ...filters,
-      created_from: DEFAULT_FILTER_LAST_30_DAYS.created_from,
-      created_to: DEFAULT_FILTER_LAST_30_DAYS.created_to,
-    });
+    setFilters(
+      {
+        ...filters,
+        created_from: DEFAULT_FILTER_LAST_30_DAYS.created_from,
+        created_to: DEFAULT_FILTER_LAST_30_DAYS.created_to,
+      },
+      false
+    );
   }, [filters, setFilters]);
 
   const fetchLeads = useCallback(async (params) => {

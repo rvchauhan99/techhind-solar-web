@@ -153,7 +153,7 @@ export default function CommissionLedgerReportPage() {
       };
       setFilters(defaults);
       setAppliedFilters(defaults);
-      setRefreshKey((k) => k + 1);
+      // Do not bump refreshKey on initial my_team seed — that resets list page to 1.
     }
     myTeamDefaultAppliedRef.current = true;
   }, [permModule?.id, modulePermissions, user]);
