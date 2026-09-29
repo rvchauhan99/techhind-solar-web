@@ -48,6 +48,7 @@ import B2bSalesOrderDetailsContent from "@/app/b2b-sales-orders/components/B2bSa
 import B2bCancelOrderDialog from "@/app/b2b-sales-orders/components/B2bCancelOrderDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { getB2bOrderCancelEligibility } from "@/utils/b2bOrderCancelEligibility";
 import { toastError } from "@/utils/toast";
@@ -185,6 +186,7 @@ function FulfillmentBar({ value }) {
 
 export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
   const router = useRouter();
+  const soLabels = useB2bSalesOrderLabels();
   const { modulePermissions, currentModuleId } = useAuth();
   const currentPerm = modulePermissions?.[currentModuleId] || {
     can_create: false,
@@ -229,13 +231,13 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
         };
       } catch (err) {
         setSummary(null);
-        setErrorRef.current(err?.response?.data?.message || "Failed to load B2B sales order lines report");
+        setErrorRef.current(err?.response?.data?.message || soLabels.linesReportLoadError);
         return { data: [], meta: { total: 0 } };
       } finally {
         setLoading(false);
       }
     },
-    [filters, refreshKey, localRefreshKey]
+    [filters, refreshKey, localRefreshKey, soLabels.linesReportLoadError]
   );
 
   const handleExport = async (format) => {
@@ -619,7 +621,7 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
       <Card className="rounded-xl border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="px-2 py-1.5 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <h2 className="text-xs font-semibold text-slate-700 leading-tight">Sales Order Lines</h2>
+            <h2 className="text-xs font-semibold text-slate-700 leading-tight">{soLabels.linesReportHeader}</h2>
             <p className="text-[10px] text-slate-400">Detailed line-level order, shipment, and pending value view</p>
           </div>
           <div className="flex items-center gap-1">

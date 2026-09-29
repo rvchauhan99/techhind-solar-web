@@ -28,6 +28,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { SERIAL_MASTER_CODE_OPTIONS, isKnownSerialMasterCode } from "@/constants/serialMasterCodes";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 // ─── Configuration Maps ──────────────────────────────────────────────────────
 
@@ -160,6 +161,16 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
     },
     ref
 ) {
+    const soLabels = useB2bSalesOrderLabels();
+    const serialCodeOptions = useMemo(
+        () =>
+            SERIAL_MASTER_CODE_OPTIONS.map((opt) =>
+                opt.value === "B2BSALESORDER"
+                    ? { ...opt, label: soLabels.serialMasterLabel }
+                    : opt
+            ),
+        [soLabels.serialMasterLabel]
+    );
     const [formData, setFormData] = useState(() => ({
         code: "",
         is_active: true,
@@ -619,7 +630,7 @@ const SerialMasterForm = forwardRef(function SerialMasterForm(
                                 error={Boolean(serialCodeError)}
                                 helperText={serialCodeError}
                             >
-                                {SERIAL_MASTER_CODE_OPTIONS.map((opt) => (
+                                {serialCodeOptions.map((opt) => (
                                     <MenuItem key={opt.value} value={opt.value}>
                                         {opt.label}
                                     </MenuItem>

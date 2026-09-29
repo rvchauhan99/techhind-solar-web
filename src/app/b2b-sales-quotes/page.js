@@ -34,6 +34,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import b2bSalesQuoteService from "@/services/b2bSalesQuoteService";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import companyService from "@/services/companyService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import Select, { MenuItem } from "@/components/common/Select";
 import Input from "@/components/common/Input";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -79,6 +80,7 @@ const STATUS_OPTIONS = [
 
 export default function B2bSalesQuotesPage() {
   const { modulePermissions, currentModuleId } = useAuth();
+  const soLabels = useB2bSalesOrderLabels();
   const currentPerm = modulePermissions?.[currentModuleId] || {
     can_create: false,
     can_read: false,
@@ -796,7 +798,7 @@ export default function B2bSalesQuotesPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Create order from quote?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will create a new sales order from this quote with the selected warehouse and remarks. The quote will be marked as converted.
+                {soLabels.convertDialogBody}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

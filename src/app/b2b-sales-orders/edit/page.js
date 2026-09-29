@@ -8,10 +8,12 @@ import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import B2bSalesOrderForm from "../components/B2bSalesOrderForm";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 function EditB2bSalesOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const soLabels = useB2bSalesOrderLabels();
   const id = searchParams.get("id");
 
   const [loading, setLoading] = useState(false);
@@ -42,7 +44,7 @@ function EditB2bSalesOrderContent() {
     setServerError(null);
     try {
       await b2bSalesOrderService.updateB2bSalesOrder(id, payload);
-      toast.success("B2B Sales Order updated");
+      toast.success(soLabels.updatedToast);
       setTimeout(() => router.push("/b2b-sales-orders"), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to update order";
@@ -80,7 +82,7 @@ function EditB2bSalesOrderContent() {
 
   return (
     <ProtectedRoute>
-      <AddEditPageShell title="Edit B2B Sales Order" listHref="/b2b-sales-orders" listLabel="B2B Sales Orders">
+      <AddEditPageShell title={soLabels.editTitle} listHref="/b2b-sales-orders" listLabel={soLabels.listTitle}>
         <B2bSalesOrderForm
           defaultValues={defaultValues}
           onSubmit={handleSubmit}
