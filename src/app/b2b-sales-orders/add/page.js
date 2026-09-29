@@ -8,10 +8,12 @@ import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import B2bSalesOrderForm from "../components/B2bSalesOrderForm";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 function AddB2bSalesOrderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const soLabels = useB2bSalesOrderLabels();
   const quoteId = searchParams.get("fromQuote");
   const salesPlanId = searchParams.get("sales_plan_id");
   const orderType = searchParams.get("order_type");
@@ -26,10 +28,10 @@ function AddB2bSalesOrderContent() {
     try {
       if (quoteId) {
         await b2bSalesOrderService.createB2bSalesOrderFromQuote(quoteId, payload);
-        toast.success("B2B Sales Order created from quote");
+        toast.success(soLabels.createdFromQuoteToast);
       } else {
         await b2bSalesOrderService.createB2bSalesOrder(payload);
-        toast.success("B2B Sales Order created");
+        toast.success(soLabels.createdToast);
       }
       setTimeout(() => router.push("/b2b-sales-orders"), 800);
     } catch (err) {
@@ -54,11 +56,11 @@ function AddB2bSalesOrderContent() {
           quoteId
             ? "Create Order from Quote"
             : isScheduled
-              ? "Add Scheduled Sales Order"
-              : "Add B2B Sales Order"
+              ? soLabels.addScheduledTitle
+              : soLabels.addTitle
         }
         listHref="/b2b-sales-orders"
-        listLabel="B2B Sales Orders"
+        listLabel={soLabels.listTitle}
       >
         <B2bSalesOrderForm
           defaultValues={defaultValues}

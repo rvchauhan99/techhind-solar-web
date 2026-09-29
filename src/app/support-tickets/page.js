@@ -21,6 +21,7 @@ function SupportTicketsContent() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState("normal");
+  const [category, setCategory] = useState("other");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [files, setFiles] = useState([]);
@@ -83,12 +84,15 @@ function SupportTicketsContent() {
         subject: subject.trim(),
         body: body.trim(),
         priority,
+        category,
         files,
       });
       toastSuccess("Ticket created");
       setShowCreate(false);
       setSubject("");
       setBody("");
+      setPriority("normal");
+      setCategory("other");
       setFiles([]);
       if (created?.id) router.push(`/support-tickets/${created.id}`);
       else load();
@@ -174,10 +178,25 @@ function SupportTicketsContent() {
               className="rounded border px-2 py-1 text-sm"
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
+              data-testid="support-priority"
+              aria-label="Priority"
             >
               <option value="low">Low</option>
               <option value="normal">Normal</option>
               <option value="high">High</option>
+            </select>
+            <select
+              className="rounded border px-2 py-1 text-sm capitalize"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              data-testid="support-category"
+              aria-label="Category"
+            >
+              <option value="billing">Billing</option>
+              <option value="technical">Technical</option>
+              <option value="onboarding">Onboarding</option>
+              <option value="account">Account</option>
+              <option value="other">Other</option>
             </select>
             <label className="text-xs text-slate-600 cursor-pointer">
               Attach (max {maxFiles} × {(maxBytes / (1024 * 1024)).toFixed(0)}MB)

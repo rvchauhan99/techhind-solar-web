@@ -49,6 +49,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { getB2bOrderCancelEligibility } from "@/utils/b2bOrderCancelEligibility";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
@@ -119,6 +120,7 @@ const renderOrderTypeBadge = (orderType) =>
 
 export default function B2bSalesOrdersPage() {
   const { modulePermissions, currentModuleId } = useAuth();
+  const soLabels = useB2bSalesOrderLabels();
   const currentPerm = modulePermissions?.[currentModuleId] || {
     can_create: false,
     can_read: false,
@@ -799,7 +801,7 @@ export default function B2bSalesOrdersPage() {
   return (
     <ProtectedRoute>
       <ListingPageContainer
-        title="B2B Sales Orders"
+        title={soLabels.listTitle}
         addButtonLabel={currentPerm.can_create ? "Create Order" : undefined}
         onAddClick={currentPerm.can_create ? handleAdd : undefined}
       >

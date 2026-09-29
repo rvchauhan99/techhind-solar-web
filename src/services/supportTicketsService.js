@@ -28,11 +28,12 @@ export function supportFileDownloadUrl(fileId) {
   return `${base}/support-tickets/files/${encodeURIComponent(fileId)}`;
 }
 
-export async function createSupportTicket({ subject, body, priority, files = [] }) {
+export async function createSupportTicket({ subject, body, priority, category, files = [] }) {
   const fd = new FormData();
   fd.append("subject", subject);
   fd.append("body", body);
   if (priority) fd.append("priority", priority);
+  if (category) fd.append("category", category);
   (files || []).forEach((f) => fd.append("files", f));
   const res = await apiClient.post("/support-tickets", fd, {
     headers: { "Content-Type": "multipart/form-data" },

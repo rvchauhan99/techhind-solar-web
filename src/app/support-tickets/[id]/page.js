@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import {
   getSupportTicket,
   replySupportTicket,
 } from "@/services/supportTicketsService";
+
+const POLL_MS = 20000;
 
 function SupportTicketDetailContent() {
   const { id } = useParams();
@@ -23,28 +25,45 @@ function SupportTicketDetailContent() {
     max_attachment_bytes: 5 * 1024 * 1024,
     max_attachments_per_message: 5,
   });
+  const loadInFlight = useRef(false);
 
-  const load = async () => {
-    try {
-      const res = await getSupportTicket(id);
-      setData(res);
-    } catch (e) {
-      toastError(e?.response?.data?.message || e?.message || "Failed to load ticket");
-    }
-  };
+  const load = useCallback(
+    async ({ silent } = {}) => {
+      if (loadInFlight.current) return;
+      loadInFlight.current = true;
+      try {
+        const res = await getSupportTicket(id);
+        setData(res);
+      } catch (e) {
+        if (!silent) {
+          toastError(e?.response?.data?.message || e?.message || "Failed to load ticket");
+        }
+      } finally {
+        loadInFlight.current = false;
+      }
+    },
+    [id]
+  );
 
   useEffect(() => {
     load();
     getSupportLimits()
       .then((lim) => lim && setLimits(lim))
       .catch(() => {});
-  }, [id]);
+  }, [load]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      load({ silent: true });
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [load]);
 
   const ticket = data?.ticket;
   const messages = data?.messages || [];
   const maxFiles = limits.max_attachments_per_message || 5;
   const maxBytes = limits.max_attachment_bytes || 5 * 1024 * 1024;
-  const closed = ["resolved", "closed"].includes(ticket?.status);
+  const isTerminal = ["resolved", "closed"].includes(ticket?.status);
 
   const handleDownload = async (fileId, name) => {
     try {
@@ -77,13 +96,14 @@ function SupportTicketDetailContent() {
         return;
       }
     }
+    const wasTerminal = isTerminal;
     setBusy(true);
     try {
       await replySupportTicket(id, { body: body.trim(), files });
-      toastSuccess("Reply sent");
+      toastSuccess(wasTerminal ? "Reply sent — ticket reopened" : "Reply sent");
       setBody("");
       setFiles([]);
-      load();
+      await load();
     } catch (err) {
       toastError(err?.response?.data?.message || err?.message || "Reply failed");
     } finally {
@@ -114,12 +134,14 @@ function SupportTicketDetailContent() {
               {ticket.category ? ` · ${ticket.category}` : ""}
             </div>
             <p className="mt-1 text-[11px] text-slate-500" data-testid="support-managed-hint">
-              Status is managed by TechHind Support. You can reply while the ticket is open.
+              {isTerminal
+                ? "This ticket is resolved/closed. Reply to reopen it with TechHind Support."
+                : "Status is managed by TechHind Support. You can reply while the ticket is open."}
             </p>
           </div>
           <span
             className={`inline-flex h-6 items-center rounded px-2 text-[11px] font-semibold capitalize border ${
-              closed
+              isTerminal
                 ? "bg-slate-50 text-slate-600 border-slate-200"
                 : "bg-emerald-50 text-emerald-700 border-emerald-200"
             }`}
@@ -159,36 +181,38 @@ function SupportTicketDetailContent() {
         ))}
       </div>
 
-      {!closed && (
-        <form onSubmit={handleReply} className="rounded-md border border-slate-200 bg-white p-3 space-y-2">
-          <textarea
-            className="w-full rounded border px-2 py-1.5 text-sm min-h-[72px]"
-            placeholder="Add a reply…"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            data-testid="support-reply-body"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-xs text-slate-600 cursor-pointer">
-              Attach (max {maxFiles} × {(maxBytes / (1024 * 1024)).toFixed(0)}MB)
-              <input
-                type="file"
-                multiple
-                className="ml-2 text-xs"
-                onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, maxFiles))}
-              />
-            </label>
-            <Button type="submit" size="sm" disabled={busy || !body.trim()} data-testid="support-reply-submit">
-              Send reply
-            </Button>
-          </div>
-        </form>
-      )}
-      {closed && (
-        <p className="text-xs text-slate-500" data-testid="support-closed-note">
-          This ticket is {ticket.status}. Contact TechHind Support if you need it reopened.
-        </p>
-      )}
+      <form
+        onSubmit={handleReply}
+        className="rounded-md border border-slate-200 bg-white p-3 space-y-2"
+        data-testid="support-reply-form"
+      >
+        {isTerminal && (
+          <p className="text-xs text-amber-700" data-testid="support-reopen-note">
+            Sending a reply will reopen this ticket.
+          </p>
+        )}
+        <textarea
+          className="w-full rounded border px-2 py-1.5 text-sm min-h-[72px]"
+          placeholder={isTerminal ? "Reply to reopen…" : "Add a reply…"}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          data-testid="support-reply-body"
+        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="text-xs text-slate-600 cursor-pointer">
+            Attach (max {maxFiles} × {(maxBytes / (1024 * 1024)).toFixed(0)}MB)
+            <input
+              type="file"
+              multiple
+              className="ml-2 text-xs"
+              onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, maxFiles))}
+            />
+          </label>
+          <Button type="submit" size="sm" disabled={busy || !body.trim()} data-testid="support-reply-submit">
+            {isTerminal ? "Reply & reopen" : "Send reply"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

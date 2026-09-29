@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import Input from "@/components/common/Input";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -38,6 +39,7 @@ import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 
 export default function CompanyProfilePage() {
+    const soLabels = useB2bSalesOrderLabels();
     const [company, setCompany] = useState(null);
     const [bankAccounts, setBankAccounts] = useState([]);
     const [branches, setBranches] = useState([]);
@@ -2810,7 +2812,7 @@ export default function CompanyProfilePage() {
                                         </Select>
                                         <div className="md:col-span-2 lg:col-span-3 space-y-2 pt-2 mt-1 border-t border-border/70">
                                             <p className="text-xs font-semibold text-muted-foreground">
-                                                B2B sales order PDF contact (optional)
+                                                {soLabels.companyProfileSection}
                                             </p>
                                             <div className="grid gap-2 sm:grid-cols-3">
                                                 <Input
