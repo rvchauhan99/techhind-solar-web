@@ -55,7 +55,7 @@ export default function B2bInvoicesPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter } = listingState;
+  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter , listReturnTo} = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);

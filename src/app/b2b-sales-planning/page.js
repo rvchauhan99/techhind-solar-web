@@ -34,6 +34,7 @@ import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
 import b2bSalesPlanningService from "@/services/b2bSalesPlanningService";
 import { useB2bSalesOrderSidebar } from "./components/useB2bSalesOrderSidebar";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 const STATUS_BADGE = {
   DUE_TODAY: "accent",
@@ -71,6 +72,7 @@ export function renderPlanStatusBadge(status) {
 export default function B2bSalesPlanningPage() {
   const router = useRouter();
   const { openOrderSidebar, sidebar } = useB2bSalesOrderSidebar();
+  const soLabels = useB2bSalesOrderLabels();
   const { modulePermissions, currentModuleId } = useAuth();
   const currentPerm = modulePermissions?.[currentModuleId] || {
     can_create: false,
@@ -355,7 +357,7 @@ export default function B2bSalesPlanningPage() {
               {breakTarget?.client?.client_name
                 ? ` (${breakTarget.client.client_name})`
                 : ""}
-              . No auto next plan will be generated. Linked sales orders are not
+              . No auto next plan will be generated. {soLabels.planningHelpSuffix}{" "}
               cancelled. You can create a new plan for this client afterward.
             </AlertDialogDescription>
           </AlertDialogHeader>

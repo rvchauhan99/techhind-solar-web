@@ -3,15 +3,19 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
 import B2bSalesOrderForm from "../components/B2bSalesOrderForm";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 function EditB2bSalesOrderContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-sales-orders");
   const searchParams = useSearchParams();
+  const soLabels = useB2bSalesOrderLabels();
   const id = searchParams.get("id");
 
   const [loading, setLoading] = useState(false);
@@ -21,7 +25,7 @@ function EditB2bSalesOrderContent() {
 
   useEffect(() => {
     if (!id) {
-      router.push("/b2b-sales-orders");
+      goToList();
       return;
     }
     b2bSalesOrderService
@@ -32,7 +36,7 @@ function EditB2bSalesOrderContent() {
       })
       .catch(() => {
         toast.error("Failed to load order");
-        router.push("/b2b-sales-orders");
+        goToList();
       })
       .finally(() => setLoadingRecord(false));
   }, [id, router]);
@@ -42,8 +46,8 @@ function EditB2bSalesOrderContent() {
     setServerError(null);
     try {
       await b2bSalesOrderService.updateB2bSalesOrder(id, payload);
-      toast.success("B2B Sales Order updated");
-      setTimeout(() => router.push("/b2b-sales-orders"), 800);
+      toast.success(soLabels.updatedToast);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to update order";
       setServerError(msg);
@@ -60,7 +64,7 @@ function EditB2bSalesOrderContent() {
       await b2bSalesOrderService.confirmB2bSalesOrder(id);
       toast.success("Order confirmed");
       setDefaultValues((p) => (p ? { ...p, status: "CONFIRMED" } : null));
-      setTimeout(() => router.push("/b2b-sales-orders"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to confirm order";
       setServerError(msg);
@@ -80,14 +84,14 @@ function EditB2bSalesOrderContent() {
 
   return (
     <ProtectedRoute>
-      <AddEditPageShell title="Edit B2B Sales Order" listHref="/b2b-sales-orders" listLabel="B2B Sales Orders">
+      <AddEditPageShell title={soLabels.editTitle} listHref="/b2b-sales-orders" listLabel={soLabels.listTitle}>
         <B2bSalesOrderForm
           defaultValues={defaultValues}
           onSubmit={handleSubmit}
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-sales-orders")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>

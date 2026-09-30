@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import b2bSalesQuoteService from "@/services/b2bSalesQuoteService";
 
 function EditB2bSalesQuoteContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-sales-quotes");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -21,7 +23,7 @@ function EditB2bSalesQuoteContent() {
 
   useEffect(() => {
     if (!id) {
-      router.push("/b2b-sales-quotes");
+      goToList();
       return;
     }
     b2bSalesQuoteService
@@ -32,7 +34,7 @@ function EditB2bSalesQuoteContent() {
       })
       .catch(() => {
         toast.error("Failed to load quote");
-        router.push("/b2b-sales-quotes");
+        goToList();
       })
       .finally(() => setLoadingRecord(false));
   }, [id, router]);
@@ -43,7 +45,7 @@ function EditB2bSalesQuoteContent() {
     try {
       await b2bSalesQuoteService.updateB2bSalesQuote(id, payload);
       toast.success("B2B Sales Quote updated");
-      setTimeout(() => router.push("/b2b-sales-quotes"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to update quote";
       setServerError(msg);
@@ -70,7 +72,7 @@ function EditB2bSalesQuoteContent() {
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-sales-quotes")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>

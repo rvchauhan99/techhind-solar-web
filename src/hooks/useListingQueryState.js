@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { buildListReturnTo } from "@/utils/listNavigation";
 
 /**
  * Parse a string as integer; return defaultVal if invalid or missing.
@@ -20,7 +21,7 @@ function parseIntSafe(str, defaultVal) {
  * @param {number} [options.defaultLimit=10]
  * @param {string[]} [options.filterKeys=[]] - e.g. ['status', 'date_from', 'date_to', 'supplier_id']
  * Default sort order is "desc" (newest / highest id first) so listing pages show last records first.
- * @returns {Object} { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setSort }
+ * @returns {Object} { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setSort, listReturnTo }
  */
 export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}) {
   const searchParams = useSearchParams();
@@ -40,6 +41,12 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
     });
     return f;
   }, [filterKeys.join(","), searchParams]);
+
+  /** Encoded path+query for ?returnTo= so forms can restore this listing state. */
+  const listReturnTo = useMemo(
+    () => buildListReturnTo(pathname, searchParams),
+    [pathname, searchParams]
+  );
 
   const buildSearchParams = useCallback(
     (updates) => {
@@ -66,10 +73,12 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
 
   const setLimit = useCallback(
     (l) => {
+      const nextLimit = Number(l);
+      if (nextLimit === limit) return;
       const next = buildSearchParams({ limit: String(l), page: undefined });
       router.replace(`${pathname}?${next.toString()}`);
     },
-    [pathname, router, buildSearchParams]
+    [pathname, router, buildSearchParams, limit]
   );
 
   const setQ = useCallback(
@@ -148,6 +157,8 @@ export function useListingQueryState({ defaultLimit = 10, filterKeys = [] } = {}
     setFilter,
     setSort,
     clearFilters,
+    listReturnTo,
+    pathname,
   };
 }
 

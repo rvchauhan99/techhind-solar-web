@@ -34,6 +34,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import { formatDate } from "@/utils/dataTableUtils";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import {
   B2B_STATUS_OPTIONS,
   B2B_PRIORITY_OPTIONS,
@@ -138,14 +139,35 @@ function buildApiFilters(filters = {}) {
 export default function B2bLeadFollowupPage() {
   const router = useRouter();
 
-  // ── Filter / pagination state ───────────────────────────────────────
-  const [filters, setFilters] = useState(() => ({
-    ...EMPTY_PAGE_FILTERS,
-    reminder_view: "today",
-  }));
-  const [activePreset, setActivePreset] = useState("Today");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  // ── Filter / pagination state (URL-synced) ───────────────────────────
+  const listingState = useListingQueryState({
+    defaultLimit: 20,
+    filterKeys: ALL_FILTER_KEYS.filter((k) => k !== "q"),
+  });
+  const {
+    page,
+    limit,
+    q,
+    filters,
+    setPage,
+    setLimit,
+    setQ,
+    setFilters,
+  } = listingState;
+
+  const activeFilters = useMemo(() => {
+    const merged = { ...EMPTY_PAGE_FILTERS, ...filters, q: q || filters.q || "" };
+    if (!merged.reminder_view && !merged.next_follow_up_from && !merged.next_follow_up_to) {
+      if (!Object.values(filters).some((v) => v != null && String(v).trim() !== "") && !q) {
+        return { ...merged, reminder_view: "today" };
+      }
+    }
+    return merged;
+  }, [filters, q]);
+
+  const [activePreset, setActivePreset] = useState(() =>
+    !filters.reminder_view || filters.reminder_view === "today" ? "Today" : null
+  );
   const [extraDraft, setExtraDraft] = useState({
     company_name: "",
     city: "",
@@ -172,24 +194,25 @@ export default function B2bLeadFollowupPage() {
 
   const handlePreset = useCallback((preset) => {
     const vals = preset.fn();
-    setFilters((prev) => ({ ...prev, ...vals }));
+    setFilters({ ...filters, ...vals, q });
     setActivePreset(preset.label);
-    setPage(1);
-  }, []);
+  }, [filters, q, setFilters]);
 
   const handleFilterApply = useCallback((panelValues) => {
-    setFilters((prev) => ({
-      ...prev,
+    const next = {
+      ...filters,
       ...panelValues,
       company_name: extraDraft.company_name || "",
       city: extraDraft.city || "",
       followup_outcome: extraDraft.followup_outcome || "",
       last_called_from: extraDraft.last_called_from || "",
       last_called_to: extraDraft.last_called_to || "",
-    }));
+      q: panelValues.q ?? q,
+    };
+    setFilters(next);
+    if (panelValues.q != null) setQ(panelValues.q);
     setActivePreset(null);
-    setPage(1);
-  }, [extraDraft]);
+  }, [extraDraft, filters, q, setFilters, setQ]);
 
   const handleFilterClear = useCallback(() => {
     setExtraDraft({
@@ -200,9 +223,9 @@ export default function B2bLeadFollowupPage() {
       last_called_to: "",
     });
     setFilters({ ...EMPTY_PAGE_FILTERS, reminder_view: "today" });
+    setQ("");
     setActivePreset("Today");
-    setPage(1);
-  }, []);
+  }, [setFilters, setQ]);
 
   const handleExtraChange = useCallback((key, value) => {
     setExtraDraft((prev) => ({ ...prev, [key]: value }));
@@ -320,7 +343,7 @@ export default function B2bLeadFollowupPage() {
   }, [handleCloseAddDialog]);
 
   // ── Fetcher ───────────────────────────────────────────────────────────
-  const apiFilters = useMemo(() => buildApiFilters(filters), [filters]);
+  const apiFilters = useMemo(() => buildApiFilters(activeFilters), [activeFilters]);
 
   const fetcher = useMemo(
     () => async (params) => {
@@ -636,7 +659,7 @@ export default function B2bLeadFollowupPage() {
 
           {/* Filter panel */}
           <LeadListFilterPanel
-            values={filters}
+            values={activeFilters}
             onApply={handleFilterApply}
             onClear={handleFilterClear}
             defaultOpen={false}
@@ -660,20 +683,14 @@ export default function B2bLeadFollowupPage() {
             page={page}
             limit={limit}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={(v) => {
-              setLimit(v);
-              setPage(1);
-            }}
+            onRowsPerPageChange={setLimit}
           />
           <PaginationControls
             page={page - 1}
             rowsPerPage={limit}
             totalCount={totalCount}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
-            onRowsPerPageChange={(v) => {
-              setLimit(v);
-              setPage(1);
-            }}
+            onRowsPerPageChange={setLimit}
             rowsPerPageOptions={[20, 50, 100, 200]}
           />
         </div>

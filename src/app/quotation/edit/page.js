@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -21,6 +22,7 @@ export default function EditQuotation() {
 
 function EditQuotationContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/quotation");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -64,7 +66,7 @@ function EditQuotationContent() {
         res?.message ||
         "Quotation updated successfully";
       toast.success(message);
-      router.push("/quotation");
+      goToList();
     } catch (err) {
       const errorMessage =
         err.response?.data?.message ||
@@ -97,7 +99,7 @@ function EditQuotationContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/quotation")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

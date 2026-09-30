@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
@@ -103,8 +104,7 @@ export default function CommissionSettlementReportPage() {
     if (permModule?.id) fetchPermissionForModule(permModule.id);
   }, [permModule?.id, fetchPermissionForModule]);
 
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 20 });
   const [totalCount, setTotalCount] = useState(0);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState(INITIAL_FILTERS);

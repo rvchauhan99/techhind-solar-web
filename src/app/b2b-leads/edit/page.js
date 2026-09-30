@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -11,6 +12,7 @@ import { getApiErrorMessage } from "@/utils/toast";
 
 export default function EditB2bLeadPage() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-leads");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const [lead, setLead] = useState(null);
@@ -33,7 +35,7 @@ export default function EditB2bLeadPage() {
         setLead(data);
       } catch (err) {
         toast.error(err?.response?.data?.message || "Failed to load lead");
-        router.push("/b2b-leads");
+        goToList();
       } finally {
         setFetching(false);
       }

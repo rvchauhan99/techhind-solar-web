@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import ProtectedRoute from "@/components/common/ProtectedRoute"
 import ListingPageContainer from "@/components/common/ListingPageContainer"
 import { Button } from "@/components/ui/button"
@@ -214,8 +215,7 @@ export default function AgentLogsPage() {
   const [agentKey, setAgentKey] = useState(DEFAULT_AGENT_KEY)
   const [logs, setLogs] = useState([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(25)
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 25 })
   const [loading, setLoading] = useState(true)
   const [kpis, setKpis] = useState(null)
   const [kpisLoading, setKpisLoading] = useState(true)

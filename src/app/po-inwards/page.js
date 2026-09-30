@@ -58,7 +58,7 @@ export default function POInwardPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [selectedPOInward, setSelectedPOInward] = useState(null);
@@ -317,7 +317,7 @@ export default function POInwardPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/po-inwards/edit?id=${row.id}`)}
+                onClick={() => router.push(`/po-inwards/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -329,7 +329,7 @@ export default function POInwardPage() {
               <Button
                 size="icon"
                 variant="success"
-                onClick={() => router.push(`/po-inwards/approve?id=${row.id}`)}
+                onClick={() => router.push(`/po-inwards/approve?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Approve"
                 aria-label="Approve"
               >
@@ -402,6 +402,12 @@ export default function POInwardPage() {
           </div>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
             <span className="text-muted-foreground">PO Number</span><span>{txt(p.purchaseOrder?.po_number)}</span>
+            {p.purchaseOrder?.cancellation_type ? (
+              <>
+                <span className="text-muted-foreground">PO Cancel</span>
+                <span>{txt(p.purchaseOrder.cancellation_type)}</span>
+              </>
+            ) : null}
             <span className="text-muted-foreground">Supplier</span><span>{txt(p.supplier?.supplier_name)}</span>
             <span className="text-muted-foreground">Warehouse</span><span>{txt(p.warehouse?.name)}</span>
             <span className="text-muted-foreground">Received At</span><span>{dt(p.received_at)}</span>
@@ -457,6 +463,8 @@ export default function POInwardPage() {
                   <tr>
                     <th className="px-2 py-1 text-left font-semibold">Product</th>
                     <th className="px-2 py-1 text-left font-semibold">UOM</th>
+                    <th className="px-2 py-1 text-right font-semibold">Ordered</th>
+                    <th className="px-2 py-1 text-right font-semibold">PO Can</th>
                     <th className="px-2 py-1 text-right font-semibold">Accepted</th>
                     <th className="px-2 py-1 text-right font-semibold">{isImport ? "PO INR" : "Rate"}</th>
                     {isImport ? <th className="px-2 py-1 text-right font-semibold">Allocated</th> : null}
@@ -470,6 +478,8 @@ export default function POInwardPage() {
                     <tr key={item.id || index} className="border-t border-border">
                       <td className="px-2 py-1.5">{txt(item.product?.product_name)}</td>
                       <td className="px-2 py-1.5">{txt(item.product?.measurementUnit?.unit || "—")}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.ordered_quantity)}</td>
+                      <td className="px-2 py-1.5 text-right">{qty(item.purchaseOrderItem?.cancelled_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{qty(item.accepted_quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{formatCurrency((item.rate_inr_po ?? item.rate) || 0)}</td>
                       {isImport ? (
@@ -554,7 +564,7 @@ export default function POInwardPage() {
       <ListingPageContainer
         title="PO Inwards (Goods Receipt)"
         addButtonLabel={currentPerm.can_create ? "Create Receipt" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/po-inwards/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/po-inwards/add?returnTo=${listReturnTo}`) : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

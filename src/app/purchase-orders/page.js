@@ -33,7 +33,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { DIALOG_FORM_SMALL } from "@/utils/formConstants";
 import PaginationControls from "@/components/common/PaginationControls";
-import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload, IconPrinter } from "@tabler/icons-react";
+import { IconTrash, IconCircleCheck, IconEye, IconPencil, IconDownload, IconPrinter, IconX } from "@tabler/icons-react";
+import PurchaseOrderCancelDialog from "./components/PurchaseOrderCancelDialog";
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
@@ -82,15 +83,18 @@ export default function PurchaseOrderPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [poToDelete, setPoToDelete] = useState(null);
   const [poToApprove, setPoToApprove] = useState(null);
+  const [poToCancel, setPoToCancel] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPO, setSelectedPO] = useState(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -179,6 +183,24 @@ export default function PurchaseOrderPage() {
     setSelectedPO(null);
     setAttachmentLoadingIndex(null);
     setInwardAttachmentLoadingKey(null);
+  }, []);
+
+  const handleOpenCancel = useCallback(async (rowOrId, e) => {
+    if (e) e.stopPropagation();
+    const id = typeof rowOrId === "object" ? rowOrId.id : rowOrId;
+    try {
+      const response = await purchaseOrderService.getPurchaseOrderById(id);
+      const result = response.result || response;
+      if (!result?.can_cancel) {
+        toast.error(result?.cancel_message || "This purchase order cannot be cancelled");
+        return;
+      }
+      setPoToCancel(result);
+      setShowCancelDialog(true);
+    } catch (error) {
+      console.error("Cancel load error:", error);
+      toast.error(error?.response?.data?.message || "Failed to load purchase order");
+    }
   }, []);
 
   const handleOpenAttachment = useCallback(async (poId, attachmentIndex) => {
@@ -392,7 +414,7 @@ export default function PurchaseOrderPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/purchase-orders/edit?id=${row.id}`)}
+                onClick={() => router.push(`/purchase-orders/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -431,11 +453,23 @@ export default function PurchaseOrderPage() {
                 <IconCircleCheck className="size-4" />
               </Button>
             )}
+            {(row.status === "APPROVED" || row.status === "PARTIAL_RECEIVED") && (
+              <Button
+                size="icon"
+                variant="ghost"
+                className="size-8 text-destructive hover:text-destructive"
+                onClick={(e) => handleOpenCancel(row, e)}
+                title="Cancel remaining"
+                aria-label="Cancel remaining"
+              >
+                <IconX className="size-4" />
+              </Button>
+            )}
           </div>
         ),
       },
     ],
-    [router, handleOpenSidebar, handlePrintPO, printingId]
+    [router, handleOpenSidebar, handlePrintPO, handleOpenCancel, printingId]
   );
 
   const fetcher = useMemo(
@@ -530,6 +564,28 @@ export default function PurchaseOrderPage() {
     }
   };
 
+  const handleCancelConfirm = async (payload) => {
+    if (!poToCancel) return;
+    setCancelling(true);
+    try {
+      await purchaseOrderService.cancelPurchaseOrder(poToCancel.id, payload);
+      setTableKey((prev) => prev + 1);
+      setShowCancelDialog(false);
+      const cancelledId = poToCancel.id;
+      setPoToCancel(null);
+      toast.success(`Purchase Order "${poToCancel.po_number}" remaining quantity cancelled`);
+      if (sidebarOpen && selectedPO?.id === cancelledId) {
+        const response = await purchaseOrderService.getPurchaseOrderById(cancelledId);
+        setSelectedPO(response.result || response);
+      }
+    } catch (error) {
+      console.error("Cancel error:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to cancel purchase order");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const sidebarContent = useMemo(() => {
     if (loadingRecord) {
       return (
@@ -541,7 +597,14 @@ export default function PurchaseOrderPage() {
     if (!selectedPO) return null;
 
     const po = selectedPO;
-    const statusVariant = po.status === "APPROVED" ? "default" : po.status === "DRAFT" ? "secondary" : "outline";
+    const statusVariant =
+      po.status === "APPROVED"
+        ? "default"
+        : po.status === "DRAFT"
+          ? "secondary"
+          : po.status === "CANCELLED"
+            ? "destructive"
+            : "outline";
     const text = (value) => {
       if (value === null || value === undefined || value === "") return "-";
       return String(value);
@@ -603,17 +666,30 @@ export default function PurchaseOrderPage() {
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-2">
             <p className="font-semibold text-base">{text(po.po_number)}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="shrink-0"
-              disabled={printingId === po.id}
-              onClick={() => handlePrintPO(po.id)}
-            >
-              <IconPrinter className="size-4 mr-1" />
-              {printingId === po.id ? "Generating..." : "Print"}
-            </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              {po.can_cancel && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive"
+                  onClick={() => handleOpenCancel(po.id)}
+                >
+                  <IconX className="size-4 mr-1" />
+                  Cancel remaining
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={printingId === po.id}
+                onClick={() => handlePrintPO(po.id)}
+              >
+                <IconPrinter className="size-4 mr-1" />
+                {printingId === po.id ? "Generating..." : "Print"}
+              </Button>
+            </div>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
             <Badge variant={statusVariant} className="rounded-full px-2.5 py-0.5 text-xs font-semibold">
@@ -720,6 +796,7 @@ export default function PurchaseOrderPage() {
                     <th className="px-2 py-1 text-right font-semibold">Ord</th>
                     <th className="px-2 py-1 text-right font-semibold">Rec</th>
                     <th className="px-2 py-1 text-right font-semibold">Ret</th>
+                    <th className="px-2 py-1 text-right font-semibold">Can</th>
                     <th className="px-2 py-1 text-right font-semibold">Rem</th>
                     <th className="px-2 py-1 text-right font-semibold">GST%</th>
                     <th className="px-2 py-1 text-right font-semibold">Amount</th>
@@ -739,6 +816,7 @@ export default function PurchaseOrderPage() {
                       <td className="px-2 py-1.5 text-right">{text(item.order_qty ?? item.quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.received_qty ?? item.received_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.returned_qty ?? item.returned_quantity ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.cancelled_qty ?? item.cancelled_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.remaining_qty ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.gst_percent)}</td>
                       <td className="px-2 py-1.5 text-right">
@@ -843,18 +921,56 @@ export default function PurchaseOrderPage() {
             <span className="text-muted-foreground">Approved By</span><span>{text(po.approvedBy?.name || po.approved_by)}</span>
             <span className="text-muted-foreground">Approved At</span><span>{dateTime(po.approved_at)}</span>
             <span className="text-muted-foreground">Updated At</span><span>{dateTime(po.updated_at)}</span>
+            {po.cancelled_at ? (
+              <>
+                <span className="text-muted-foreground">Cancelled By</span>
+                <span>{text(po.cancelled_by_name || po.cancelledBy?.name || po.cancelled_by)}</span>
+                <span className="text-muted-foreground">Cancelled At</span><span>{dateTime(po.cancelled_at)}</span>
+                <span className="text-muted-foreground">Cancel Reason</span>
+                <span>{text(po.cancellation_reason_name || po.cancellation_reason)}</span>
+                <span className="text-muted-foreground">Cancel Type</span>
+                <span>{text(po.cancellation_type)}</span>
+                {po.cancellation_remarks ? (
+                  <>
+                    <span className="text-muted-foreground">Cancel Remarks</span>
+                    <span>{text(po.cancellation_remarks)}</span>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </div>
         </div>
+
+        {Array.isArray(po.activities) && po.activities.length > 0 && (
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Activity</p>
+            <ul className="space-y-1.5">
+              {po.activities.map((event) => (
+                <li key={event.id} className="text-xs border-b border-border last:border-0 pb-1.5 last:pb-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{text(event.title)}</span>
+                    <span className="text-muted-foreground shrink-0">{dateTime(event.created_at)}</span>
+                  </div>
+                  {event.description ? <p className="text-muted-foreground">{text(event.description)}</p> : null}
+                  <p className="text-muted-foreground">
+                    {text(event.createdBy?.name || event.created_by)}
+                    {event.meta?.total_cancelled_qty != null ? ` · Qty ${event.meta.total_cancelled_qty}` : ""}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
-  }, [loadingRecord, selectedPO, attachmentLoadingIndex, inwardAttachmentLoadingKey, handleOpenAttachment, handleOpenInwardAttachment, handlePrintPO, printingId]);
+  }, [loadingRecord, selectedPO, attachmentLoadingIndex, inwardAttachmentLoadingKey, handleOpenAttachment, handleOpenInwardAttachment, handlePrintPO, handleOpenCancel, printingId]);
 
   return (
     <ProtectedRoute>
       <ListingPageContainer
         title="Purchase Orders"
         addButtonLabel={currentPerm.can_create ? "Create PO" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/purchase-orders/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/purchase-orders/add?returnTo=${listReturnTo}`) : undefined}
         secondaryButtonLabel="PO Lines"
         onSecondaryClick={() => router.push("/purchase-orders/lines")}
         exportButtonLabel="Export"
@@ -958,6 +1074,18 @@ export default function PurchaseOrderPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PurchaseOrderCancelDialog
+        open={showCancelDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCancelDialog(false);
+            setPoToCancel(null);
+          }
+        }}
+        order={poToCancel}
+        onConfirm={handleCancelConfirm}
+        loading={cancelling}
+      />
     </ProtectedRoute>
   );
 }

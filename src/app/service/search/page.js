@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useRouter } from "next/navigation";
 import { IconSearch, IconBuildingFactory2, IconPlus } from "@tabler/icons-react";
 import { toast } from "sonner";
@@ -16,8 +17,7 @@ export default function ServiceSearchPage() {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [submittedQ, setSubmittedQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(50);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 50 });
 
   const fetchProjects = useCallback(async (params = {}) => {
     const pageFromTable = params.page || page;

@@ -49,6 +49,7 @@ import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
 import b2bSalesPlanningService from "@/services/b2bSalesPlanningService";
 import { useAuth } from "@/hooks/useAuth";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import { renderPlanStatusBadge } from "../page";
 import { useB2bSalesOrderSidebar } from "../components/useB2bSalesOrderSidebar";
 
@@ -77,6 +78,7 @@ export default function B2bSalesPlanDetailPage() {
   const router = useRouter();
   const id = Number(params?.id);
   const { openOrderSidebar, sidebar } = useB2bSalesOrderSidebar();
+  const soLabels = useB2bSalesOrderLabels();
   const { modulePermissions, currentModuleId } = useAuth();
   const canUpdate = !!modulePermissions?.[currentModuleId]?.can_update;
 
@@ -298,7 +300,7 @@ export default function B2bSalesPlanDetailPage() {
                 }
               >
                 <IconPlus className="size-4 mr-1.5" />
-                {PIPELINE_STATUSES.has(plan.status) ? "Add Scheduled SO" : "Create Scheduled SO"}
+                {PIPELINE_STATUSES.has(plan.status) ? soLabels.addScheduledShort : soLabels.createScheduledShort}
               </Button>
             )}
           </div>
@@ -443,7 +445,7 @@ export default function B2bSalesPlanDetailPage() {
             <div className="lg:col-span-2 flex flex-col gap-6">
               
               {/* 4. Enhanced Tabbed Table */}
-              <FormSection title={<span className="flex items-center gap-1.5"><IconShoppingCart className="size-4 text-[#1b365d]"/> Related Sales Orders</span>}>
+              <FormSection title={<span className="flex items-center gap-1.5"><IconShoppingCart className="size-4 text-[#1b365d]"/> {soLabels.relatedSection}</span>}>
                 <div className="flex gap-2 mb-3 bg-slate-100 p-1 rounded-lg w-fit mt-2">
                   {[
                     { key: "plan", label: "This Plan", count: planOrders.length },
@@ -491,7 +493,7 @@ export default function B2bSalesPlanDetailPage() {
                               <div className="bg-slate-100 p-3 rounded-full">
                                 <IconShoppingCart className="size-6 text-slate-400" />
                               </div>
-                              <p>No {soTab === "plan" ? "plan-linked" : soTab} sales orders found</p>
+                              <p>{soLabels.relatedEmpty(soTab === "plan" ? "plan-linked" : soTab)}</p>
                             </div>
                           </td>
                         </tr>

@@ -7,6 +7,8 @@ import DateField from "@/components/common/DateField";
 import productService from "@/services/productService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import companyService from "@/services/companyService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
+import { useMemo } from "react";
 
 const SERIAL_STATUSES = [
   { value: "AVAILABLE", label: "Available" },
@@ -15,13 +17,16 @@ const SERIAL_STATUSES = [
   { value: "BLOCKED", label: "Blocked" },
 ];
 
-const ISSUED_AGAINST_OPTIONS = [
-  { value: "", label: "All" },
-  { value: "customer_order", label: "Customer Order" },
-  { value: "b2b_sales_order", label: "Sales Order" },
-];
-
 export default function ReportFilters({ filters, onFiltersChange, onApply, onReset }) {
+  const soLabels = useB2bSalesOrderLabels();
+  const issuedAgainstOptions = useMemo(
+    () => [
+      { value: "", label: "All" },
+      { value: "customer_order", label: "Customer Order" },
+      { value: "b2b_sales_order", label: soLabels.sourceType },
+    ],
+    [soLabels.sourceType]
+  );
   const fc = (name, value) => {
     const next = { ...filters, [name]: value };
     onFiltersChange?.(next);
@@ -167,11 +172,11 @@ export default function ReportFilters({ filters, onFiltersChange, onApply, onRes
         usePortal
         name="issued_against"
         label="Issued Against"
-        options={ISSUED_AGAINST_OPTIONS}
+        options={issuedAgainstOptions}
         getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
         value={
-          ISSUED_AGAINST_OPTIONS.find((o) => o.value === (filters.issued_against ?? "")) ??
-          ISSUED_AGAINST_OPTIONS[0]
+          issuedAgainstOptions.find((o) => o.value === (filters.issued_against ?? "")) ??
+          issuedAgainstOptions[0]
         }
         onChange={(e, v) => fc("issued_against", v?.value ? v.value : "")}
         placeholder="All"

@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -13,6 +14,7 @@ import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionBomContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/production-bom");
     const [loading, setLoading] = useState(false);
     const [serverError, setServerError] = useState(null);
 
@@ -22,7 +24,7 @@ function NewProductionBomContent() {
         try {
             await productionBomService.createProductionBom(payload);
             toast.success(`${AP.bom.singular} created as DRAFT. Activate it to use in work orders.`);
-            setTimeout(() => router.push("/production-bom"), 800);
+            setTimeout(() => goToList(), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, "Failed to create production BOM");
             setServerError(message);
@@ -44,7 +46,7 @@ function NewProductionBomContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/production-bom")}
+                onCancel={() => goToList()}
             />
         </AddEditPageShell>
     );

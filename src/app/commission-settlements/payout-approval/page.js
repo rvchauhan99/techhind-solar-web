@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -154,8 +155,7 @@ export default function CommissionPayoutApprovalPage() {
   const canApproveReject = currentPerm.can_create || currentPerm.can_update;
 
   const [viewMode, setViewMode] = useState(VIEW_PENDING);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 20 });
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [reviewId, setReviewId] = useState(null);

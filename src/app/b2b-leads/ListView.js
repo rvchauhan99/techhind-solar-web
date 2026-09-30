@@ -133,6 +133,7 @@ export default function ListView({ sharedFilters = null }) {
     setFilters,
     setSort,
     clearFilters,
+    listReturnTo,
   } = listingState;
 
   const sharedAppliedRef = useRef(false);
@@ -189,7 +190,7 @@ export default function ListView({ sharedFilters = null }) {
   }, [menuLead, router]);
 
   const handleEdit = useCallback(() => {
-    if (menuLead?.id) router.push(`/b2b-leads/edit?id=${menuLead.id}`);
+    if (menuLead?.id) router.push(`/b2b-leads/edit?id=${menuLead.id}&returnTo=${listReturnTo}`);
     handleMenuClose();
   }, [menuLead, router, handleMenuClose]);
 

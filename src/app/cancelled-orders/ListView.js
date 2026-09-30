@@ -24,6 +24,7 @@ import {
   IconTopologyRing3,
 } from "@tabler/icons-react";
 import { formatRupeesInteger } from "@/utils/orderFormatters";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 
 const STAGES = [
   { key: "estimate_generated", label: "Estimate Generated" },
@@ -48,11 +49,15 @@ const STAGE_LABEL_BY_KEY = STAGES.reduce((acc, stage) => {
 
 export default function ListView({ filters }) {
   const router = useRouter();
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 25 });
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
   const [listMeta, setListMeta] = useState({ total: 0, summary: null, received: false });
+
+  // Filter changes: keep URL page unless parent remounts; do not auto setPage(1) here
+  // (that wiped ?page= on mount races). Parent Apply/Reset should navigate with page cleared if needed.
 
   const handleListingMetaChange = useCallback((meta) => {
     const total = meta?.total ?? 0;
@@ -399,6 +404,10 @@ export default function ListView({ filters }) {
         defaultSortOrder="DESC"
         height={calculateHeight()}
         onMetaChange={handleListingMetaChange}
+        page={page}
+        setPage={setPage}
+        limit={limit}
+        setLimit={setLimit}
       />
       <OrderDetailsDrawer
         open={detailsOpen}

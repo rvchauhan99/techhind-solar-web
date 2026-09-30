@@ -36,9 +36,19 @@ const STATUS_OPTIONS = [
   { value: "Under Discussion", label: "Under Discussion" },
 ];
 
+/** Local calendar date (YYYY-MM-DD). Avoids UTC, which is the previous day before 05:30 IST. */
+function localCalendarDate(offsetDays = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /** Default: today's follow-ups (next_reminder = today) */
 function getDefaultTodayFilter() {
-  const d = new Date().toISOString().slice(0, 10);
+  const d = localCalendarDate(0);
   return { ...EMPTY_VALUES, followup_next_reminder_from: d, followup_next_reminder_to: d };
 }
 
@@ -328,4 +338,4 @@ export default function FollowupListFilterPanel({
   );
 }
 
-export { FILTER_KEYS, EMPTY_VALUES, getDefaultTodayFilter };
+export { FILTER_KEYS, EMPTY_VALUES, getDefaultTodayFilter, localCalendarDate };

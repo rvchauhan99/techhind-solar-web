@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -13,6 +14,7 @@ import { AP } from "@/utils/assemblyProductionLabels";
 
 function NewProductionOrderContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/production-orders");
     const [loading, setLoading] = useState(false);
     const [serverError, setServerError] = useState(null);
 
@@ -25,7 +27,7 @@ function NewProductionOrderContent() {
             toast.success(
                 `${AP.orders.singular} ${created?.order_no || ""} created as DRAFT. Approve it to start booking.`
             );
-            setTimeout(() => router.push("/production-orders"), 800);
+            setTimeout(() => goToList(), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, `Failed to create ${AP.orders.singular.toLowerCase()}`);
             setServerError(message);
@@ -47,7 +49,7 @@ function NewProductionOrderContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/production-orders")}
+                onCancel={() => goToList()}
             />
         </AddEditPageShell>
     );

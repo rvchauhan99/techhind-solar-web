@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -21,6 +22,7 @@ function LoadingState() {
 
 function ModuleEditContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/module-master");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -61,7 +63,7 @@ function ModuleEditContent() {
     try {
       await moduleService.updateModuleMaster(id, data);
       toast.success("Module updated");
-      router.push("/module-master");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message ||

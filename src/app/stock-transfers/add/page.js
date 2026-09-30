@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -12,6 +13,7 @@ import { getApiErrorMessage } from "@/utils/toast";
 
 function AddStockTransferContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/stock-transfers");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
 
@@ -23,7 +25,7 @@ function AddStockTransferContent() {
       await stockTransferService.createStockTransfer(payload);
       toast.success("Stock transfer created successfully");
       setTimeout(() => {
-        router.push("/stock-transfers");
+        goToList();
       }, 1000);
     } catch (err) {
       const errorMessage = getApiErrorMessage(err, "Failed to create stock transfer");
@@ -42,7 +44,7 @@ function AddStockTransferContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/stock-transfers")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

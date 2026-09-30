@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import poInwardService from "@/services/poInwardService";
 
 function AddPOInwardContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/po-inwards");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
 
@@ -22,7 +24,7 @@ function AddPOInwardContent() {
       await poInwardService.createPOInward(payload);
       toast.success("PO Inward (Goods Receipt) created successfully");
       setTimeout(() => {
-        router.push("/po-inwards");
+        goToList();
       }, 1000);
     } catch (err) {
       const errorMessage =
@@ -44,7 +46,7 @@ function AddPOInwardContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/po-inwards")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

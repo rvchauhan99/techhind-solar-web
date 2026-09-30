@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import purchaseOrderService from "@/services/purchaseOrderService";
 
 function AddPurchaseOrderContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/purchase-orders");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
 
@@ -22,7 +24,7 @@ function AddPurchaseOrderContent() {
       await purchaseOrderService.createPurchaseOrder(payload, files);
       toast.success("Purchase Order created successfully");
       setTimeout(() => {
-        router.push("/purchase-orders");
+        goToList();
       }, 1000);
     } catch (err) {
       const errorMessage =
@@ -44,7 +46,7 @@ function AddPurchaseOrderContent() {
         loading={loading}
         serverError={serverError}
         onClearServerError={() => setServerError(null)}
-        onCancel={() => router.push("/purchase-orders")}
+        onCancel={() => goToList()}
       />
     </AddEditPageShell>
   );

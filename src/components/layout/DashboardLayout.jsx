@@ -238,7 +238,7 @@ export default function DashboardLayout({ children }) {
       {/* Sidebar: off-canvas on mobile; persistent on lg+ */}
       {!focusFullscreen && (
         <div
-          className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out lg:translate-x-0 ${sidebarShellWidthClass} ${
+          className={`fixed inset-y-0 left-0 z-[1100] transform transition-all duration-300 ease-in-out lg:translate-x-0 ${sidebarShellWidthClass} ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
           } ${isFloatingHover ? "shadow-xl border-r border-border" : ""} ${
             isMobile && sidebarOpen ? "shadow-xl" : ""
@@ -262,7 +262,7 @@ export default function DashboardLayout({ children }) {
       {/* Mobile drawer backdrop */}
       {!focusFullscreen && sidebarOpen && (
         <div
-          className="bg-background/80 fixed inset-0 z-40 backdrop-blur-sm lg:hidden"
+          className="bg-background/80 fixed inset-0 z-[1050] backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
           onKeyDown={(e) => e.key === "Escape" && setSidebarOpen(false)}
           role="button"

@@ -38,6 +38,7 @@ import stockService from "@/services/stockService";
 import b2bSalesPlanningService from "@/services/b2bSalesPlanningService";
 import { formatProductAutocompleteLabel } from "@/utils/productAutocompleteLabel";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 import { B2B_SALES_ORDER_PDF_CLAUSE } from "@/constants/termsAndConditions";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toastError } from "@/utils/toast";
@@ -398,6 +399,7 @@ export default function B2bSalesOrderForm({
   orderType = null,
 }) {
   const searchParams = useSearchParams();
+  const soLabels = useB2bSalesOrderLabels();
   const today = new Date().toISOString().split("T")[0];
   // Prefer props, then defaultValues, then URL query (belt-and-suspenders for HMR/missed props)
   const querySalesPlanId = searchParams?.get("sales_plan_id");
@@ -1209,8 +1211,8 @@ export default function B2bSalesOrderForm({
           )}
           {fromPlanningDeepLink && (
             <Alert severity="info" sx={{ mb: 1 }}>
-              Scheduled Sales Order linked to plan #{linkedSalesPlanId}. Confirming adds this order to
-              the plan Pipeline (multiple confirmed orders allowed). The next follow-up plan is
+              {soLabels.scheduledLinkedAlert(linkedSalesPlanId)} the plan Pipeline
+              (multiple confirmed orders allowed). The next follow-up plan is
               created after every confirmed order on the plan has at least one shipment (partial or
               full). Draft/unconfirmed orders are skipped.
             </Alert>
