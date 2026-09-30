@@ -26,6 +26,7 @@ import B2bSalesOrderLinesFilters, {
 } from "./components/B2bSalesOrderLinesFilters";
 import B2bSalesOrderLinesReport from "./components/B2bSalesOrderLinesReport";
 import Select, { MenuItem } from "@/components/common/Select";
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 const getLast3MonthsDateRange = () => {
   const n = new Date();
@@ -190,6 +191,7 @@ const countActive = (filters) =>
   Object.entries(filters || {}).filter(([key, v]) => isActiveFilterValue(key, v)).length;
 
 export default function B2bSalesOrderLinesReportPage() {
+  const soLabels = useB2bSalesOrderLabels();
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -326,7 +328,7 @@ export default function B2bSalesOrderLinesReportPage() {
               </div>
               <div>
                 <h1 className="text-sm font-bold tracking-tight text-slate-900 leading-tight">
-                  B2B Sales Order Lines Report
+                  {soLabels.linesReportTitle}
                 </h1>
                 <p className="text-[10px] text-slate-500">
                   Line level order value · shipment progress · pending insights

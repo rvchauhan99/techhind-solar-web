@@ -57,7 +57,7 @@ export default function RoleModuleListPage() {
   };
 
   const listingState = useListingQueryState({ defaultLimit: 20, filterKeys: COLUMN_FILTER_KEYS });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort , listReturnTo} = listingState;
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [linkToDelete, setLinkToDelete] = useState(null);
@@ -287,7 +287,7 @@ export default function RoleModuleListPage() {
       <ListingPageContainer
         title="Role - Module Links"
         addButtonLabel={currentPerm.can_create ? "Add Role-Module Links" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/role-module/add") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/role-module/add?returnTo=${listReturnTo}`) : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

@@ -40,7 +40,7 @@ const STATUS_OPTIONS = [
 export default function ServiceTicketsPage() {
   const router = useRouter();
   const listingState = useListingQueryState({ defaultLimit: 20, filterKeys: ["status"] });
-  const { page, limit, q, filters, setPage, setLimit, setQ, setFilter, clearFilters } = listingState;
+  const { page, limit, q, filters, setPage, setLimit, setQ, setFilter, clearFilters , listReturnTo} = listingState;
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);

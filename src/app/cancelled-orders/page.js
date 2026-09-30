@@ -5,8 +5,11 @@ import { IconFilter, IconCalendar, IconCircleX } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import OrderListFilterPanel from "@/components/common/OrderListFilterPanel";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import ListView from "./ListView";
+import { Suspense } from "react";
+import Loader from "@/components/common/Loader";
 
 const DATE_PRESETS = [
   { label: "Today", fn: () => { const d = new Date().toISOString().split("T")[0]; return { order_date_from: d, order_date_to: d }; } },
@@ -42,6 +45,19 @@ function countActive(filters) {
 }
 
 export default function CancelledOrdersPage() {
+  return (
+    <ProtectedRoute>
+      <Suspense fallback={<Loader />}>
+        <CancelledOrdersPageContent />
+      </Suspense>
+    </ProtectedRoute>
+  );
+}
+
+function CancelledOrdersPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState(INITIAL_FILTERS);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -49,15 +65,24 @@ export default function CancelledOrdersPage() {
 
   const activeCount = countActive(appliedFilters);
 
+  const resetListPage = useCallback(() => {
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    next.delete("page");
+    const qs = next.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`);
+  }, [router, pathname, searchParams]);
+
   const apply = (overrideFilters) => {
     const f = overrideFilters ?? filters;
     setAppliedFilters(f);
+    resetListPage();
   };
 
   const handleReset = () => {
     setFilters(INITIAL_FILTERS);
     setAppliedFilters(INITIAL_FILTERS);
     setActivePreset(null);
+    resetListPage();
   };
 
   const handlePreset = (preset) => {
@@ -71,7 +96,6 @@ export default function CancelledOrdersPage() {
   const fc = (key, val) => setFilters((p) => ({ ...p, [key]: val }));
 
   return (
-    <ProtectedRoute>
       <div className="min-h-full bg-slate-50 text-slate-900 font-sans">
         <div className="mx-auto max-w-[1440px] px-3 py-2 pb-4 space-y-1.5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -119,7 +143,7 @@ export default function CancelledOrdersPage() {
             values={filters}
             onApply={(v) => {
               setFilters(v);
-              setAppliedFilters(v);
+              apply(v);
               setFilterPanelOpen(false);
             }}
             onClear={() => {
@@ -133,7 +157,6 @@ export default function CancelledOrdersPage() {
           <ListView filters={appliedFilters} />
         </div>
       </div>
-    </ProtectedRoute>
   );
 }
 

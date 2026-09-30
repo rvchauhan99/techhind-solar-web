@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import PaginatedTable from "@/components/common/PaginatedTable";
@@ -136,8 +137,7 @@ export default function CommissionUnsettledPage() {
     can_delete: false,
   };
 
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
+  const { page, limit, setPage, setLimit } = useListingQueryState({ defaultLimit: 20 });
   const [totalCount, setTotalCount] = useState(0);
   const [tableKey, setTableKey] = useState(0);
   const [selected, setSelected] = useState(() => new Set());

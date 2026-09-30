@@ -69,7 +69,7 @@ export default function StockAdjustmentPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } =
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } =
     listingState;
 
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -242,7 +242,7 @@ export default function StockAdjustmentPage() {
                 size="icon"
                 variant="ghost"
                 className="size-8"
-                onClick={() => router.push(`/stock-adjustments/edit?id=${row.id}`)}
+                onClick={() => router.push(`/stock-adjustments/edit?id=${row.id}&returnTo=${listReturnTo}`)}
                 title="Edit"
                 aria-label="Edit"
               >
@@ -416,7 +416,7 @@ export default function StockAdjustmentPage() {
       <ListingPageContainer
         title="Stock Adjustments"
         addButtonLabel={currentPerm.can_create ? "Create Adjustment" : undefined}
-        onAddClick={currentPerm.can_create ? () => router.push("/stock-adjustments/new") : undefined}
+        onAddClick={currentPerm.can_create ? () => router.push(`/stock-adjustments/new?returnTo=${listReturnTo}`) : undefined}
         exportButtonLabel="Export"
         onExportClick={handleExport}
         exportDisabled={exporting}

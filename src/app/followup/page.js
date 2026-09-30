@@ -18,6 +18,7 @@ import DetailsSidebar from "@/components/common/DetailsSidebar";
 import FollowupListFilterPanel, {
   EMPTY_VALUES as FOLLOWUP_FILTER_EMPTY_VALUES,
   getDefaultTodayFilter,
+  localCalendarDate,
 } from "@/components/common/FollowupListFilterPanel";
 import followupService from "@/services/followupService";
 import FollowupForm from "./components/FollowupForm";
@@ -53,9 +54,9 @@ const COLUMN_FILTER_KEYS = [
 ];
 
 const DATE_PRESETS = [
-  { label: "Today", value: "today", fn: () => { const d = new Date().toISOString().slice(0, 10); return { followup_next_reminder_from: d, followup_next_reminder_to: d, reminder_view: "" }; } },
+  { label: "Today", value: "today", fn: () => { const d = localCalendarDate(0); return { followup_next_reminder_from: d, followup_next_reminder_to: d, reminder_view: "" }; } },
   { label: "Overdue", value: "overdue", fn: () => ({ reminder_view: "overdue", followup_next_reminder_from: "", followup_next_reminder_to: "" }) },
-  { label: "Tomorrow", value: "tomorrow", fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); const s = d.toISOString().slice(0, 10); return { followup_next_reminder_from: s, followup_next_reminder_to: s, reminder_view: "" }; } },
+  { label: "Tomorrow", value: "tomorrow", fn: () => { const s = localCalendarDate(1); return { followup_next_reminder_from: s, followup_next_reminder_to: s, reminder_view: "" }; } },
   { label: "Custom", value: "custom", fn: () => ({ reminder_view: "custom", followup_next_reminder_from: "", followup_next_reminder_to: "" }) },
 ];
 
@@ -80,7 +81,7 @@ export default function FollowupPage() {
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilters, setFilter, setSort , listReturnTo} = listingState;
 
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
@@ -89,23 +90,25 @@ export default function FollowupPage() {
   const effectiveActivePreset = useMemo(() => {
     if (activePreset) return activePreset;
     if (filters.reminder_view === "overdue") return "Overdue";
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localCalendarDate(0);
     if (filters.followup_next_reminder_from === todayStr && filters.followup_next_reminder_to === todayStr) return "Today";
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+    const tomorrowStr = localCalendarDate(1);
     if (filters.followup_next_reminder_from === tomorrowStr && filters.followup_next_reminder_to === tomorrowStr) return "Tomorrow";
     if (filters.reminder_view === "custom" || filters.followup_next_reminder_from || filters.followup_next_reminder_to) return "Custom";
     return "Today";
   }, [activePreset, filters]);
 
   const applyDefaultToday = useCallback(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    setFilters({
-      followup_next_reminder_from: todayStr,
-      followup_next_reminder_to: todayStr,
-      reminder_view: "",
-    });
+    const todayStr = localCalendarDate(0);
+    // Preserve current page when seeding default date filters (do not wipe ?page=)
+    setFilters(
+      {
+        followup_next_reminder_from: todayStr,
+        followup_next_reminder_to: todayStr,
+        reminder_view: "",
+      },
+      false
+    );
     setActivePreset("Today");
   }, [setFilters]);
 
@@ -144,7 +147,7 @@ export default function FollowupPage() {
   );
 
   const handleClearFilters = useCallback(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localCalendarDate(0);
     const allEmpty = Object.fromEntries(COLUMN_FILTER_KEYS.map((k) => [k, ""]));
     setFilters({
       ...allEmpty,

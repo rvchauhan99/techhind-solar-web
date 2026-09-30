@@ -105,7 +105,7 @@ export default function ListView({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
   });
-  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort } = listingState;
+  const { page, limit, q, sortBy, sortOrder, filters, setPage, setLimit, setQ, setFilter, setSort, listReturnTo } = listingState;
 
   const [totalCount, setTotalCount] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -385,7 +385,7 @@ export default function ListView({
                   <IconUpload className="size-4 mr-2" />
                   Upload Documents
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => router.push(`/order/edit?id=${row.id}&returnTo=${encodeURIComponent("/order")}`)}>
+                <DropdownMenuItem onClick={() => router.push(`/order/edit?id=${row.id}&returnTo=${listReturnTo}`)}>
                   <IconEdit className="size-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
@@ -401,7 +401,7 @@ export default function ListView({
         ),
       },
     ],
-    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant, canAmendOrder]
+    [handleOpenSidebar, handleOpenQuotationDrawer, router, getStatusVariant, canAmendOrder, listReturnTo]
   );
 
   const tableHeight = "calc(100vh - 150px)";

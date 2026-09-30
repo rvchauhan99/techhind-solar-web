@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -11,6 +12,7 @@ import b2bShipmentService from "@/services/b2bShipmentService";
 
 function AddB2bShipmentContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/b2b-shipments");
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
 
@@ -20,7 +22,7 @@ function AddB2bShipmentContent() {
     try {
       await b2bShipmentService.createB2bShipment(payload);
       toast.success("B2B Shipment created");
-      setTimeout(() => router.push("/b2b-shipments"), 800);
+      setTimeout(() => goToList(), 800);
     } catch (err) {
       const msg = err.response?.data?.message || err.message || "Failed to create shipment";
       setServerError(msg);
@@ -38,7 +40,7 @@ function AddB2bShipmentContent() {
           loading={loading}
           serverError={serverError}
           onClearServerError={() => setServerError(null)}
-          onCancel={() => router.push("/b2b-shipments")}
+          onCancel={() => goToList()}
         />
       </AddEditPageShell>
     </ProtectedRoute>

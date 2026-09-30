@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import InquiryForm from "../components/InquiryForm";
@@ -21,6 +22,7 @@ export default function InquiryEditPage() {
 
 function InquiryEditContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/inquiry");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -60,7 +62,7 @@ function InquiryEditContent() {
         res?.message ||
         "Inquiry updated successfully";
       toast.success(message);
-      router.push("/inquiry");
+      goToList();
     } catch (e) {
       console.error("Failed to update inquiry", e);
       const message =

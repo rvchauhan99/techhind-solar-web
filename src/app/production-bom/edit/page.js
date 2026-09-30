@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -13,6 +14,7 @@ import { AP } from "@/utils/assemblyProductionLabels";
 
 function EditProductionBomContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/production-bom");
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [loadingRecord, setLoadingRecord] = useState(true);
@@ -97,7 +99,7 @@ function EditProductionBomContent() {
         try {
             await productionBomService.updateProductionBom(searchParams.get("id"), payload);
             toast.success(`${AP.bom.singular} updated successfully`);
-            setTimeout(() => router.push("/production-bom"), 800);
+            setTimeout(() => goToList(), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, "Failed to update production BOM");
             setServerError(message);
@@ -140,7 +142,7 @@ function EditProductionBomContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/production-bom")}
+                onCancel={() => goToList()}
                 isEdit
             />
         </AddEditPageShell>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -16,6 +17,7 @@ import {
 
 function ApprovePOInwardContent() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/po-inwards");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -183,7 +185,7 @@ function ApprovePOInwardContent() {
         await poInwardService.approvePOInward(id, {}, []);
         toast.success("PO Inward approved. Stock and inventory ledger updated.");
       }
-      router.push("/po-inwards");
+      goToList();
     } catch (error) {
       console.error("Approve inward:", error);
       toast.error(
@@ -277,7 +279,7 @@ function ApprovePOInwardContent() {
         onPendingFilesChange={setPendingFiles}
         onOpenAttachment={handleOpenAttachment}
         onRemoveExistingAttachment={handleRemoveExisting}
-        onCancel={() => router.push("/po-inwards")}
+        onCancel={() => goToList()}
         onSave={handleSave}
         onApprove={handleApprove}
         attachmentLoadingIndex={attachmentLoadingIndex}
@@ -291,7 +293,7 @@ function ButtonBack({ router }) {
     <button
       type="button"
       className="text-sm underline text-muted-foreground"
-      onClick={() => router.push("/po-inwards")}
+      onClick={() => goToList()}
     >
       Back to list
     </button>

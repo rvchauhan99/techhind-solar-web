@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import Loader from "@/components/common/Loader";
@@ -13,6 +14,7 @@ import { AP } from "@/utils/assemblyProductionLabels";
 
 function EditProductionOrderContent() {
     const router = useRouter();
+  const { goToList } = useListReturnNavigation("/production-orders");
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [loadingRecord, setLoadingRecord] = useState(true);
@@ -70,7 +72,7 @@ function EditProductionOrderContent() {
         try {
             await productionOrderService.updateProductionOrder(searchParams.get("id"), payload);
             toast.success(`${AP.orders.singular} updated successfully`);
-            setTimeout(() => router.push("/production-orders"), 800);
+            setTimeout(() => goToList(), 800);
         } catch (err) {
             const message = getApiErrorMessage(err, `Failed to update ${AP.orders.singular.toLowerCase()}`);
             setServerError(message);
@@ -121,7 +123,7 @@ function EditProductionOrderContent() {
                 loading={loading}
                 serverError={serverError}
                 onClearServerError={() => setServerError(null)}
-                onCancel={() => router.push("/production-orders")}
+                onCancel={() => goToList()}
                 isEdit
             />
         </AddEditPageShell>

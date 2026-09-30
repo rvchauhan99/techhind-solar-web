@@ -8,6 +8,7 @@ import userService from "@/services/userMasterService";
 import roleService from "@/services/roleMasterService";
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 
 function LoadingState() {
   return (
@@ -26,6 +27,7 @@ function EditUserContent() {
   const [serverError, setServerError] = useState(null);
   const [defaultValues, setDefaultValues] = useState(null);
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/user-master");
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -70,7 +72,7 @@ function EditUserContent() {
     setLoading(true);
     try {
       await userService.updateUserMaster(id, payload);
-      router.push("/user-master");
+      goToList();
     } catch (err) {
       setServerError(err.response?.data?.message || err.message);
     } finally {

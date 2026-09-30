@@ -7,6 +7,7 @@ import userService from "@/services/userMasterService";
 import roleService from "@/services/roleMasterService";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 
 export default function AddUserPage() {
   const [roles, setRoles] = useState([]);
@@ -14,6 +15,7 @@ export default function AddUserPage() {
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/user-master");
 
   useEffect(() => {
     roleService
@@ -38,7 +40,7 @@ export default function AddUserPage() {
     setLoading(true);
     try {
       await userService.createUserMaster(payload);
-      router.push("/user-master");
+      goToList();
     } catch (err) {
       setServerError(err.response?.data?.message || err.message);
     } finally {

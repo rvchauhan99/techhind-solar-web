@@ -191,6 +191,7 @@ export default function PurchaseOrderLinesPage() {
       { field: "quantity", label: "Qty", sortable: true },
       { field: "received_quantity", label: "Recv", sortable: true },
       { field: "returned_quantity", label: "Ret", sortable: true },
+      { field: "cancelled_quantity", label: "Can", sortable: false },
       { field: "open_quantity", label: "Open", sortable: false },
       { field: "gst_percent", label: "GST%", sortable: true },
       {

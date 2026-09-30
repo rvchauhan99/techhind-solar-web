@@ -1,17 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { IconPackage, IconCheck, IconClock, IconTruck, IconLock, IconDownload } from "@tabler/icons-react";
 import { Card, CardContent } from "@/components/ui/card";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import serializedInventoryService from "@/services/serializedInventoryService";
 import { toastError } from "@/utils/toast";
 import SerialLedgerDialog from "./SerialLedgerDialog";
-
-const ISSUED_AGAINST_LABELS = {
-  customer_order: "Customer Order",
-  b2b_sales_order: "Sales Order",
-};
+import { useB2bSalesOrderLabels } from "@/hooks/useB2bSalesOrderLabels";
 
 const STATUS_BADGE = {
   AVAILABLE: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -75,6 +71,14 @@ function KpiCard({ icon: Icon, iconColor, label, value, loading }) {
 }
 
 export default function SerializedInventoryReport({ filters, onRefresh }) {
+  const soLabels = useB2bSalesOrderLabels();
+  const issuedAgainstLabels = useMemo(
+    () => ({
+      customer_order: "Customer Order",
+      b2b_sales_order: soLabels.sourceType,
+    }),
+    [soLabels.sourceType]
+  );
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -235,7 +239,7 @@ export default function SerializedInventoryReport({ filters, onRefresh }) {
       label: "Issued Against",
       render: (row) => (
         <span className="text-[10px] text-slate-500">
-          {row.issued_against ? ISSUED_AGAINST_LABELS[row.issued_against] ?? row.issued_against : "—"}
+          {row.issued_against ? issuedAgainstLabels[row.issued_against] ?? row.issued_against : "—"}
         </span>
       ),
     },

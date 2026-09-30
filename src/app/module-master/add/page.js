@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useListReturnNavigation } from "@/hooks/useListReturnNavigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -12,6 +13,7 @@ const EMPTY_DEFAULTS = Object.freeze({});
 
 export default function ModuleAddPage() {
   const router = useRouter();
+  const { goToList } = useListReturnNavigation("/module-master");
   const [parentOptions, setParentOptions] = useState([]);
   const [serverError, setServerError] = useState(null);
 
@@ -37,7 +39,7 @@ export default function ModuleAddPage() {
     try {
       await moduleService.createModuleMaster(data);
       toast.success("Module created");
-      router.push("/module-master");
+      goToList();
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
