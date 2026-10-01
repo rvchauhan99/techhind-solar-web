@@ -12,10 +12,32 @@ import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
+import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { toastError, toastSuccess } from "@/utils/toast";
 import moment from "moment";
 import { cn } from "@/lib/utils";
 import { IconUserPlus, IconUsersGroup } from "@tabler/icons-react";
+
+const LEAD_LIST_FILTER_KEYS = [
+  "customer_name",
+  "mobile_number",
+  "branch_id",
+  "inquiry_source_id",
+  "status",
+  "priority",
+  "campaign_name",
+  "campaign_id",
+  "created_from",
+  "created_to",
+  "next_follow_up_from",
+  "next_follow_up_to",
+  "not_status",
+  "assigned_to",
+  "product_interest",
+  "lead_segment",
+  "lead_number",
+  "q",
+];
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -36,12 +58,24 @@ const getStatusBadgeVariant = (status) => {
 };
 
 export default function MarketingLeadsAssignPage() {
-  const [filters, setFilters] = useState({});
+  const {
+    page,
+    limit,
+    filters,
+    setPage,
+    setLimit,
+    setFilters,
+    clearFilters,
+  } = useListingQueryState({
+    defaultLimit: 25,
+    filterKeys: LEAD_LIST_FILTER_KEYS,
+  });
+
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectAllPage, setSelectAllPage] = useState(false);
   const [assignTo, setAssignTo] = useState("");
   const [lastPageRows, setLastPageRows] = useState([]);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   const selectAllPageRef = useRef(selectAllPage);
 
@@ -71,11 +105,17 @@ export default function MarketingLeadsAssignPage() {
     [filters, buildApiFilters]
   );
 
+  const filterParams = useMemo(
+    () => ({ ...apiFilters, _reload: reloadNonce }),
+    [apiFilters, reloadNonce]
+  );
+
   const fetcher = useCallback(async (params) => {
+    const { _reload, ...rest } = params || {};
     const res = await marketingLeadsService.getMarketingLeads({
-      ...params,
+      ...rest,
       ...apiFilters,
-      not_status: "converted"
+      not_status: "converted",
     });
     const payload = res?.result || res?.data || res;
     const data = payload?.data || [];
@@ -87,7 +127,12 @@ export default function MarketingLeadsAssignPage() {
       setSelectedIds((prev) => Array.from(new Set([...prev, ...idsOnPage])));
     }
     return payload;
-  }, [apiFilters]); // Re-fetch on filter change
+  }, [apiFilters]);
+
+  const clearSelection = () => {
+    setSelectedIds([]);
+    setSelectAllPage(false);
+  };
 
   const handleToggleRow = (id) => {
     setSelectedIds((prev) =>
@@ -121,10 +166,8 @@ export default function MarketingLeadsAssignPage() {
         assigned_to: Number(assignTo),
       });
       toastSuccess("Leads assigned successfully");
-      // Reset selections
-      setSelectedIds([]);
-      setSelectAllPage(false);
-      setRefreshKey((k) => k + 1);
+      clearSelection();
+      setReloadNonce((n) => n + 1);
     } catch (err) {
       const msg =
         err?.response?.data?.message || err?.message || "Failed to assign leads";
@@ -230,13 +273,11 @@ export default function MarketingLeadsAssignPage() {
             values={filters}
             onApply={(v) => {
               setFilters(v);
-              setSelectedIds([]);
-              setSelectAllPage(false);
+              clearSelection();
             }}
             onClear={() => {
-              setFilters({});
-              setSelectedIds([]);
-              setSelectAllPage(false);
+              clearFilters();
+              clearSelection();
             }}
             defaultOpen={false}
           />
@@ -304,10 +345,13 @@ export default function MarketingLeadsAssignPage() {
 
           <div className="flex-1 min-h-[400px] border border-border shadow-sm rounded-md overflow-hidden flex flex-col bg-card relative z-0">
             <PaginatedTable
-              key={`${refreshKey}-${JSON.stringify(apiFilters)}`}
               columns={columns}
               fetcher={fetcher}
-              filterParams={apiFilters}
+              filterParams={filterParams}
+              page={page}
+              limit={limit}
+              onPageChange={(zeroBased) => setPage(zeroBased + 1)}
+              onRowsPerPageChange={setLimit}
               height="100%"
               showSearch={false}
             />
