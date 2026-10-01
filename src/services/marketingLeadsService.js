@@ -21,6 +21,9 @@ export const addFollowUp = (id, payload) =>
 export const listFollowUps = (id, params = {}) =>
   apiClient.get(`/marketing-leads/${id}/follow-ups`, { params }).then((r) => r.data);
 
+export const listAssignmentActivities = (id) =>
+  apiClient.get(`/marketing-leads/${id}/assignment-activities`).then((r) => r.data);
+
 export const convertToInquiry = (id, payload = {}) =>
   apiClient.post(`/marketing-leads/${id}/convert-to-inquiry`, payload).then((r) => r.data);
 
@@ -78,6 +81,7 @@ export default {
   deleteMarketingLead,
   addFollowUp,
   listFollowUps,
+  listAssignmentActivities,
   convertToInquiry,
   uploadMarketingLeads,
   previewMarketingLeadsUpload,
