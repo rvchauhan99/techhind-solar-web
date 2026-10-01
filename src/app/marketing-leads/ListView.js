@@ -12,7 +12,7 @@ import LeadListFilterPanel, {
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import marketingLeadsService from "@/services/marketingLeadsService";
 import { cn } from "@/lib/utils";
-import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText } from "@mui/material";
+import { Box, IconButton, Menu, MenuItem, ListItemIcon, ListItemText, Tooltip } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -280,6 +280,24 @@ export default function ListView() {
             <IconPhone className="size-3.5" /> {row.mobile_number}
           </span>
         ),
+      },
+      {
+        field: "address",
+        label: "Address",
+        render: (row) => {
+          const text = String(row.address || "").trim();
+          if (!text) return "-";
+          const isLong = text.length > 48;
+          const preview = (
+            <span className="block max-w-[220px] truncate text-[0.75rem]">{text}</span>
+          );
+          if (!isLong) return preview;
+          return (
+            <Tooltip title={text} placement="top">
+              {preview}
+            </Tooltip>
+          );
+        },
       },
       {
         field: "branch_name",
