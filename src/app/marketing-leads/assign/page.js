@@ -194,7 +194,17 @@ export default function MarketingLeadsAssignPage() {
     {
       field: "lead_number",
       label: "Lead No",
-      render: (row) => <span className="text-muted-foreground font-mono text-xs">{row.lead_number || `ML-${row.id}`}</span>,
+      render: (row) => (
+        <a
+          href={`/marketing-leads/view?id=${row.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary font-mono text-xs hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {row.lead_number || `ML-${row.id}`}
+        </a>
+      ),
     },
     {
       field: "customer_name",

@@ -207,6 +207,23 @@ export default function PurchaseOrderLinesPage() {
         render: (r) => formatLineMoney(r.amount, r),
       },
       {
+        field: "final_qty",
+        label: "Final Qty",
+        sortable: false,
+      },
+      {
+        field: "final_taxable",
+        label: "Final Taxable",
+        sortable: false,
+        render: (r) => formatLineMoney(r.final_taxable, r),
+      },
+      {
+        field: "final_amount",
+        label: "Final Line",
+        sortable: false,
+        render: (r) => formatLineMoney(r.final_amount, r),
+      },
+      {
         field: "createdBy",
         label: "Created by",
         sortable: false,
