@@ -371,14 +371,35 @@ export default function PurchaseOrderPage() {
         operatorKey: "grand_total_op",
         defaultFilterOperator: "equals",
         render: (row) => {
-          if (row.is_import && row.currency_code && row.currency_code !== "INR") {
-            const fc = Number(row.final_amount_fc ?? row.grand_total_fc);
-            const inr = Number(row.final_amount ?? row.grand_total) || 0;
-            if (Number.isFinite(fc)) {
-              return `${row.currency_code} ${fc.toFixed(2)} (${formatCurrency(inr)})`;
+          const isImport = !!(row.is_import && row.currency_code && row.currency_code !== "INR");
+          const formatTotal = (fc, inr) => {
+            if (isImport) {
+              const fcVal = Number(fc);
+              const inrVal = Number(inr) || 0;
+              if (Number.isFinite(fcVal)) {
+                return `${row.currency_code} ${fcVal.toFixed(2)} (${formatCurrency(inrVal)})`;
+              }
             }
-          }
-          return formatCurrency(row.final_amount ?? row.grand_total);
+            return formatCurrency(inr ?? fc);
+          };
+          const orderedFc = Number(row.final_amount_fc ?? row.grand_total_fc);
+          const orderedInr = Number(row.final_amount ?? row.grand_total) || 0;
+          const cancelledQty = Number(row.cancelled_qty) || 0;
+          const payableInr = cancelledQty > 0 ? Number(row.final_payable_amount) || 0 : orderedInr;
+          const payableFc = cancelledQty > 0 ? Number(row.final_payable_amount_fc) : orderedFc;
+          const payableLabel = formatTotal(payableFc, payableInr);
+          const orderedLabel = formatTotal(orderedFc, orderedInr);
+          const amountsDiffer =
+            cancelledQty > 0 &&
+            (Math.abs(payableInr - orderedInr) >= 0.005 ||
+              (isImport && Math.abs((Number(payableFc) || 0) - (Number(orderedFc) || 0)) >= 0.005));
+          if (!amountsDiffer) return payableLabel;
+          return (
+            <span className="inline-flex flex-col items-end leading-tight">
+              <span>{payableLabel}</span>
+              <span className="text-[10px] font-normal text-muted-foreground">Ordered {orderedLabel}</span>
+            </span>
+          );
         },
       },
       {
@@ -669,12 +690,22 @@ export default function PurchaseOrderPage() {
       return `${fcSign}${currencyCode} ${Math.abs(fcVal).toFixed(2)} (${inrSign}${formatCurrency(Math.abs(inrVal))})`;
     };
     const hasCancellation = Number(po.cancelled_qty) > 0;
-    const finalGstValue =
+    const num = (value) => {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const gstText = (cgst, sgst, igst) =>
       gstType === "IMPORT"
         ? formatCurrency(0)
         : gstType === "IGST"
-          ? formatCurrency(po.final_igst_amount || 0)
-          : `${formatCurrency(po.final_cgst_amount || 0)} / ${formatCurrency(po.final_sgst_amount || 0)}`;
+          ? formatCurrency(igst)
+          : `${formatCurrency(cgst)} / ${formatCurrency(sgst)}`;
+    const orderedQty = num(po.total_quantity);
+    const payableQty = num(po.final_quantity);
+    const orderedRoundOffFc = num(po.final_amount_fc) - num(po.grand_total_fc);
+    const payableRoundOffFc = num(po.final_round_off_amount_fc);
+    const orderedRoundOff = num(po.round_off_amount);
+    const payableRoundOff = num(po.final_round_off_amount);
 
     return (
       <div className="pr-1 space-y-4">
@@ -767,56 +798,116 @@ export default function PurchaseOrderPage() {
           </div>
         </div>
 
-        <div className="rounded-md border border-border p-3 space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">Financials</p>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-            <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
-            {isImportPo ? (
-              <>
-                <span className="text-muted-foreground">Currency</span><span>{currencyCode}</span>
-                <span className="text-muted-foreground">Exchange Rate</span><span>{text(po.exchange_rate)}</span>
-              </>
-            ) : null}
-            <span className="text-muted-foreground">Taxable Amount</span>
-            <span>{formatAmount(po.taxable_amount_fc, po.taxable_amount)}</span>
-            <span className="text-muted-foreground">{applicableGstLabel}</span><span>{applicableGstValue}</span>
-            {!isImportPo && (
-              <>
-                <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
-              </>
-            )}
-            <span className="text-muted-foreground">Grand Total</span>
-            <span>{formatAmount(po.grand_total_fc, po.grand_total)}</span>
-            <span className="text-muted-foreground">Round Off</span><span className="font-semibold">{formatSignedCurrency(po.round_off_amount)}</span>
-            <span className="text-muted-foreground">Final Amount</span>
-            <span className="font-semibold">{formatAmount(po.final_amount_fc, po.final_amount ?? po.grand_total)}</span>
-          </div>
-          <p className="text-xs text-muted-foreground">Amount in words</p>
-          <p className="text-sm">{text(po.amount_in_words)}</p>
-        </div>
-
         {hasCancellation ? (
           <div className="rounded-md border border-border p-3 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">Final after cancellation</p>
+            <p className="text-xs font-semibold text-muted-foreground">Payment summary</p>
+            {isImportPo ? (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
+                <span className="text-muted-foreground">Currency</span><span>{currencyCode}</span>
+                <span className="text-muted-foreground">Exchange Rate</span><span>{text(po.exchange_rate)}</span>
+              </div>
+            ) : null}
+            <div className="overflow-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="py-1 pr-2 text-left font-semibold" />
+                    <th className="py-1 px-2 text-right font-semibold">Ordered</th>
+                    <th className="py-1 px-2 text-right font-semibold">Cancelled</th>
+                    <th className="py-1 pl-2 text-right font-semibold">Payable</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="py-1 pr-2 text-muted-foreground">Quantity</td>
+                    <td className="py-1 px-2 text-right">{text(orderedQty)}</td>
+                    <td className="py-1 px-2 text-right text-destructive">{text(orderedQty - payableQty)}</td>
+                    <td className="py-1 pl-2 text-right">{text(payableQty)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-2 text-muted-foreground">Taxable amount</td>
+                    <td className="py-1 px-2 text-right">{formatAmount(po.taxable_amount_fc, po.taxable_amount)}</td>
+                    <td className="py-1 px-2 text-right text-destructive">
+                      {formatAmount(num(po.taxable_amount_fc) - num(po.final_taxable_amount_fc), num(po.taxable_amount) - num(po.final_taxable_amount))}
+                    </td>
+                    <td className="py-1 pl-2 text-right">{formatAmount(po.final_taxable_amount_fc, po.final_taxable_amount)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-1 pr-2 text-muted-foreground">{applicableGstLabel}</td>
+                    <td className="py-1 px-2 text-right">{applicableGstValue}</td>
+                    <td className="py-1 px-2 text-right text-destructive">
+                      {gstText(cgstTotal - num(po.final_cgst_amount), sgstTotal - num(po.final_sgst_amount), igstTotal - num(po.final_igst_amount))}
+                    </td>
+                    <td className="py-1 pl-2 text-right">{gstText(num(po.final_cgst_amount), num(po.final_sgst_amount), num(po.final_igst_amount))}</td>
+                  </tr>
+                  {!isImportPo && (
+                    <tr>
+                      <td className="py-1 pr-2 text-muted-foreground">Total GST</td>
+                      <td className="py-1 px-2 text-right">{formatCurrency(totalGst)}</td>
+                      <td className="py-1 px-2 text-right text-destructive">{formatCurrency(totalGst - num(po.final_gst_amount))}</td>
+                      <td className="py-1 pl-2 text-right">{formatCurrency(num(po.final_gst_amount))}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="py-1 pr-2 text-muted-foreground">Round off</td>
+                    <td className="py-1 px-2 text-right">
+                      {isImportPo ? formatSignedAmount(orderedRoundOffFc, orderedRoundOff) : formatSignedCurrency(orderedRoundOff)}
+                    </td>
+                    <td className="py-1 px-2 text-right text-destructive">
+                      {isImportPo
+                        ? formatSignedAmount(orderedRoundOffFc - payableRoundOffFc, orderedRoundOff - payableRoundOff)
+                        : formatSignedCurrency(orderedRoundOff - payableRoundOff)}
+                    </td>
+                    <td className="py-1 pl-2 text-right">
+                      {isImportPo ? formatSignedAmount(payableRoundOffFc, payableRoundOff) : formatSignedCurrency(payableRoundOff)}
+                    </td>
+                  </tr>
+                  <tr className="font-semibold">
+                    <td className="py-1 pr-2">Amount payable</td>
+                    <td className="py-1 px-2 text-right">{formatAmount(po.final_amount_fc, po.final_amount ?? po.grand_total)}</td>
+                    <td className="py-1 px-2 text-right text-destructive">
+                      {formatAmount(
+                        num(po.final_amount_fc) - num(po.final_payable_amount_fc),
+                        num(po.final_amount ?? po.grand_total) - num(po.final_payable_amount)
+                      )}
+                    </td>
+                    <td className="py-1 pl-2 text-right">{formatAmount(po.final_payable_amount_fc, po.final_payable_amount)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted-foreground">Amount in words</p>
+            <p className="text-sm">{text(po.amount_in_words)}</p>
+          </div>
+        ) : (
+          <div className="rounded-md border border-border p-3 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">Financials</p>
             <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-              <span className="text-muted-foreground">Final Quantity</span><span>{text(po.final_quantity)}</span>
-              <span className="text-muted-foreground">Final Taxable</span>
-              <span>{formatAmount(po.final_taxable_amount_fc, po.final_taxable_amount)}</span>
-              <span className="text-muted-foreground">{applicableGstLabel}</span><span>{finalGstValue}</span>
+              <span className="text-muted-foreground">Total Quantity</span><span>{text(po.total_quantity)}</span>
+              {isImportPo ? (
+                <>
+                  <span className="text-muted-foreground">Currency</span><span>{currencyCode}</span>
+                  <span className="text-muted-foreground">Exchange Rate</span><span>{text(po.exchange_rate)}</span>
+                </>
+              ) : null}
+              <span className="text-muted-foreground">Taxable Amount</span>
+              <span>{formatAmount(po.taxable_amount_fc, po.taxable_amount)}</span>
+              <span className="text-muted-foreground">{applicableGstLabel}</span><span>{applicableGstValue}</span>
               {!isImportPo && (
                 <>
-                  <span className="text-muted-foreground">Final GST</span><span>{formatCurrency(po.final_gst_amount || 0)}</span>
+                  <span className="text-muted-foreground">Total GST</span><span>{formatCurrency(po.total_gst_amount || 0)}</span>
                 </>
               )}
-              <span className="text-muted-foreground">Final Grand Total</span>
-              <span>{formatAmount(po.final_grand_total_fc, po.final_grand_total)}</span>
-              <span className="text-muted-foreground">Final Round Off</span>
-              <span className="font-semibold">{formatSignedAmount(po.final_round_off_amount_fc, po.final_round_off_amount)}</span>
+              <span className="text-muted-foreground">Grand Total</span>
+              <span>{formatAmount(po.grand_total_fc, po.grand_total)}</span>
+              <span className="text-muted-foreground">Round Off</span><span className="font-semibold">{formatSignedCurrency(po.round_off_amount)}</span>
               <span className="text-muted-foreground">Final Amount</span>
-              <span className="font-semibold">{formatAmount(po.final_payable_amount_fc, po.final_payable_amount)}</span>
+              <span className="font-semibold">{formatAmount(po.final_amount_fc, po.final_amount ?? po.grand_total)}</span>
             </div>
+            <p className="text-xs text-muted-foreground">Amount in words</p>
+            <p className="text-sm">{text(po.amount_in_words)}</p>
           </div>
-        ) : null}
+        )}
 
         {po.items && po.items.length > 0 && (
           <div className="rounded-md border border-border overflow-hidden">
@@ -834,12 +925,12 @@ export default function PurchaseOrderPage() {
                     <th className="px-2 py-1 text-right font-semibold">Ord</th>
                     <th className="px-2 py-1 text-right font-semibold">Rec</th>
                     <th className="px-2 py-1 text-right font-semibold">Ret</th>
-                    <th className="px-2 py-1 text-right font-semibold">Can</th>
+                    <th className="px-2 py-1 text-right font-semibold">Cancelled</th>
                     <th className="px-2 py-1 text-right font-semibold">Rem</th>
-                    <th className="px-2 py-1 text-right font-semibold">Final</th>
+                    <th className="px-2 py-1 text-right font-semibold">Balance</th>
                     <th className="px-2 py-1 text-right font-semibold">GST%</th>
                     <th className="px-2 py-1 text-right font-semibold">Amount</th>
-                    <th className="px-2 py-1 text-right font-semibold">Final Amt</th>
+                    <th className="px-2 py-1 text-right font-semibold">Net amount</th>
                   </tr>
                 </thead>
                 <tbody>
