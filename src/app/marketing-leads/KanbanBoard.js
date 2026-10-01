@@ -11,6 +11,7 @@ import {
   ListItemText,
   Paper,
   Stack,
+  Tooltip,
   Typography,
   Grid,
   CircularProgress,
@@ -462,6 +463,25 @@ export default function KanbanBoard({ leads = [], onRefresh }) {
                                     <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
                                       {lead.customer_name || "-"}
                                     </Typography>
+
+                                    {String(lead.address || "").trim() ? (
+                                      <Tooltip
+                                        title={String(lead.address).trim()}
+                                        disableHoverListener={
+                                          String(lead.address).trim().length <= 48
+                                        }
+                                        placement="top"
+                                      >
+                                        <Typography
+                                          variant="caption"
+                                          color="text.secondary"
+                                          noWrap
+                                          sx={{ display: "block", mb: 0.5, maxWidth: "100%" }}
+                                        >
+                                          {lead.address}
+                                        </Typography>
+                                      </Tooltip>
+                                    ) : null}
 
                                     <Stack spacing={0.25}>
                                       {lead.mobile_number && (
