@@ -41,8 +41,16 @@ import BarcodeScanner from "@/components/common/BarcodeScanner";
 import mastersService from "@/services/mastersService";
 import poInwardService from "@/services/poInwardService";
 import companyService from "@/services/companyService";
-import { toastError } from "@/utils/toast";
-import { splitSerialInput, fillSerialSlots, findCaseInsensitiveDuplicateIndex } from "@/utils/serialInput";
+import { toastError, toastWarning } from "@/utils/toast";
+import {
+    splitSerialInput,
+    fillSerialSlots,
+    findCaseInsensitiveDuplicateIndex,
+    compactSerials,
+    growSlotsForOverflow,
+    getSerialLineStatus,
+} from "@/utils/serialInput";
+import { SerialStatusChip, SerialPartialSaveStrip, SerialMismatchFixLink } from "@/components/common/SerialQtyStatus";
 import Input from "@/components/common/Input";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -94,13 +102,14 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
     onDone,
     onClose,
     onValidateSerials,
+    onGrowQty,
     poInwardId = null,
 }) {
     const acceptedQty = item ? (parseInt(item.accepted_quantity) || 0) : 0;
     const productName = item?.product_name || "Item";
-    const orderedQty = parseInt(item?.ordered_quantity, 10) || 0;
-    const alreadyReceived = parseInt(item?.already_received_quantity, 10) || 0;
     const pending = getItemPendingQty(item);
+    const targetQty = Math.max(acceptedQty, 0);
+    const cap = pending;
 
     const [slots, setSlots] = useState([]);
     const [error, setError] = useState("");
@@ -110,23 +119,40 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
     const [scannerOpen, setScannerOpen] = useState(false);
     const [scanTargetIndex, setScanTargetIndex] = useState(null);
     const [processing, setProcessing] = useState(false);
+    const [baselineSerials, setBaselineSerials] = useState([]);
     const gunRef = useRef(null);
     const inputRefs = useRef([]);
 
-    // Init / reset when dialog opens or acceptedQty changes
-    useEffect(() => {
-        if (!open) return;
-        const existing = (initialSerials || []).map((s) =>
+    const syncSlotLength = useCallback((existing, qty) => {
+        const filled = (existing || []).map((s) =>
             (typeof s === "string" ? s : s?.serial_number ?? "").trim()
         );
-        const padded = Array.from({ length: acceptedQty }, (_, i) => existing[i] ?? "");
+        const len = Math.max(qty || 0, filled.filter(Boolean).length, filled.length);
+        return Array.from({ length: Math.max(len, qty || 0) }, (_, i) => filled[i] ?? "");
+    }, []);
+
+    useEffect(() => {
+        if (!open) return;
+        const padded = syncSlotLength(initialSerials, acceptedQty);
         setSlots(padded);
+        setBaselineSerials(compactSerials(padded));
         setError("");
         setSlotErrors({});
         setGunValue("");
         inputRefs.current = [];
         setTimeout(() => gunRef.current?.focus(), 150);
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        setSlots((prev) => {
+            if (prev.length >= acceptedQty) return prev;
+            return [
+                ...prev,
+                ...Array.from({ length: acceptedQty - prev.length }, () => ""),
+            ];
+        });
     }, [open, acceptedQty]);
 
     const handleValueChange = useCallback((index, value) => {
@@ -143,6 +169,24 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
         });
     }, []);
 
+    const applyOverflowGrowth = useCallback((currentSlots, overflow) => {
+        if (!overflow?.length) return { nextSlots: currentSlots, grownBy: 0 };
+        const { nextSlots, remaining, grownBy } = growSlotsForOverflow({
+            slots: currentSlots,
+            overflow,
+            cap,
+            caseInsensitive: true,
+        });
+        if (grownBy > 0 && onGrowQty) {
+            onGrowQty(nextSlots.length);
+        }
+        if (remaining.length) {
+            toastWarning(`Cannot exceed pending qty (${cap}). ${remaining.length} serial(s) not added.`);
+            setError(`Cannot exceed pending qty (${cap}).`);
+        }
+        return { nextSlots, grownBy };
+    }, [cap, onGrowQty]);
+
     const handleBulkOrSingle = useCallback((index, value) => {
         const tokens = splitSerialInput(value);
         if (tokens.length <= 1) {
@@ -150,10 +194,6 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
             return;
         }
         setSlotErrors({});
-        if (tokens.length > pending) {
-            setError(`Too many serials (${tokens.length}). Cannot exceed pending quantity (${pending}).`);
-            return;
-        }
         setSlots((prev) => {
             const existingLower = new Set(prev.map((v) => (v || "").trim().toLowerCase()).filter(Boolean));
             const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
@@ -171,12 +211,11 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                 setError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
             }
             if (overflow.length) {
-                setError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
-                return prev;
+                return applyOverflowGrowth(nextSlots, overflow).nextSlots;
             }
             return nextSlots;
         });
-    }, [pending]);
+    }, [handleValueChange, applyOverflowGrowth]);
 
     const handleKeyDown = useCallback((index, e) => {
         if (e.key === "Enter" || e.key === "Tab") {
@@ -190,8 +229,6 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
             }
             if (index < slots.length - 1) {
                 inputRefs.current[index + 1]?.focus();
-            } else {
-                handleDone();
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -203,7 +240,7 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
             const trimmed = (gunValue || "").trim();
             if (!trimmed) return;
             const firstEmpty = slots.findIndex((v) => !(v || "").trim());
-            const idx = firstEmpty !== -1 ? firstEmpty : 0;
+            const idx = firstEmpty !== -1 ? firstEmpty : Math.max(0, slots.length - 1);
             handleBulkOrSingle(idx, trimmed);
             setGunValue("");
             gunRef.current?.focus();
@@ -215,7 +252,6 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
         if (!tokens.length) return;
 
         setProcessing(true);
-        // Small timeout so the UI can paint the loader before the heavy slot-fill
         setTimeout(() => {
             try {
                 if (tokens.length === 1) {
@@ -229,20 +265,22 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                             return prev;
                         }
                         const firstEmpty = prev.findIndex((v) => !(v || "").trim());
-                        const idx = firstEmpty !== -1 ? firstEmpty : (scanTargetIndex ?? 0);
-                        const next = [...prev];
-                        next[idx] = trimmed;
-                        // Advance scanTargetIndex
-                        const nextEmpty = next.findIndex((v, i) => i > idx && !(v || "").trim());
-                        setScanTargetIndex(nextEmpty !== -1 ? nextEmpty : null);
-                        if (nextEmpty === -1) setScannerOpen(false);
-                        return next;
+                        if (firstEmpty !== -1) {
+                            const next = [...prev];
+                            next[firstEmpty] = trimmed;
+                            const nextEmpty = next.findIndex((v, i) => i > firstEmpty && !(v || "").trim());
+                            setScanTargetIndex(nextEmpty !== -1 ? nextEmpty : null);
+                            if (nextEmpty === -1) setScannerOpen(false);
+                            return next;
+                        }
+                        const grown = applyOverflowGrowth(prev, [trimmed]);
+                        if (grown.grownBy > 0) {
+                            setScanTargetIndex(null);
+                            setScannerOpen(false);
+                        }
+                        return grown.nextSlots;
                     });
                 } else {
-                    if (tokens.length > pending) {
-                        toastError(`Too many serials (${tokens.length}). Max pending: ${pending}.`);
-                        return;
-                    }
                     setSlots((prev) => {
                         const existingLower = new Set(prev.map((v) => (v || "").trim().toLowerCase()).filter(Boolean));
                         const uniqueNew = tokens.filter((t) => !existingLower.has(t.trim().toLowerCase()));
@@ -257,35 +295,28 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                             incoming: uniqueNew,
                             caseInsensitive: true,
                         });
-                        if (overflow.length) {
-                            toastError(`${overflow.length} serial(s) exceed quantity limit.`);
-                        }
+                        const grown = overflow.length
+                            ? applyOverflowGrowth(nextSlots, overflow)
+                            : { nextSlots, grownBy: 0 };
                         setScannerOpen(false);
-                        return nextSlots;
+                        return grown.nextSlots;
                     });
                 }
             } finally {
                 setProcessing(false);
             }
         }, 120);
-    }, [pending, scanTargetIndex]);
+    }, [applyOverflowGrowth]);
 
-    const handleDone = async () => {
-        const trimmed = slots.map((s) => String(s || "").trim());
-        const emptyIdx = trimmed.findIndex((s) => !s);
-        if (emptyIdx !== -1) {
-            setError("Please fill all serial numbers.");
-            inputRefs.current[emptyIdx]?.focus();
-            return;
-        }
-        const unique = new Set(trimmed.map((s) => s.toLowerCase()));
-        if (unique.size !== trimmed.length) {
+    const finishSave = async (serials, { syncQty = false } = {}) => {
+        const unique = new Set(serials.map((s) => s.toLowerCase()));
+        if (unique.size !== serials.length) {
             setError("Duplicate serial numbers are not allowed.");
             return;
         }
 
-        if (!onValidateSerials || !item?.product_id) {
-            onDone(trimmed);
+        if (!onValidateSerials || !item?.product_id || serials.length === 0) {
+            onDone(serials, { syncQty });
             return;
         }
 
@@ -295,30 +326,62 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
         try {
             const result = await onValidateSerials({
                 product_id: item.product_id,
-                serial_numbers: trimmed,
+                serial_numbers: serials,
                 po_inward_id: poInwardId ?? undefined,
             });
             if (result?.valid === true) {
-                onDone(trimmed);
+                onDone(serials, { syncQty });
                 return;
             }
             if (result?.invalid_serials?.length) {
                 const invalidSet = new Set(result.invalid_serials.map((x) => (x.serial_number || "").trim()));
                 const message = result.invalid_serials[0]?.message || "Duplicate serial number for this product type.";
                 const nextSlotErrors = {};
-                trimmed.forEach((sn, idx) => {
-                    if (invalidSet.has(sn)) nextSlotErrors[idx] = message;
+                slots.forEach((sn, idx) => {
+                    const t = String(sn || "").trim();
+                    if (t && invalidSet.has(t)) nextSlotErrors[idx] = message;
                 });
                 setSlotErrors(nextSlotErrors);
                 setError("Some serials are already used for this product type.");
                 return;
             }
-            onDone(trimmed);
+            onDone(serials, { syncQty });
         } catch (err) {
             setError(err?.response?.data?.message || "Validation failed. Please try again.");
         } finally {
             setValidating(false);
         }
+    };
+
+    const handleDone = async () => {
+        const trimmed = compactSerials(slots);
+        if (trimmed.length === 0 && targetQty > 0) {
+            setError("Scan at least one serial, or set received qty to 0.");
+            return;
+        }
+        return finishSave(trimmed, { syncQty: false });
+    };
+
+    const handlePartialSetQty = () => {
+        const trimmed = compactSerials(slots);
+        if (!trimmed.length) return;
+        finishSave(trimmed, { syncQty: true });
+    };
+
+    const handlePartialKeepQty = () => {
+        const trimmed = compactSerials(slots);
+        finishSave(trimmed, { syncQty: false });
+    };
+
+    const handleRequestClose = () => {
+        const current = compactSerials(slots);
+        const baseline = new Set(baselineSerials.map((s) => s.toLowerCase()));
+        const added = current.filter((s) => !baseline.has(s.toLowerCase()));
+        if (added.length > 0) {
+            const ok = window.confirm(`Discard ${added.length} new scan(s)? Unsaved serials will be lost.`);
+            if (!ok) return;
+        }
+        onClose();
     };
 
     const openScanner = () => {
@@ -328,13 +391,16 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
     };
 
     const filledCount = slots.filter((v) => (v || "").trim()).length;
-    const isComplete = filledCount === acceptedQty && acceptedQty > 0;
+    const displayQty = Math.max(targetQty, filledCount);
+    const isComplete = filledCount === targetQty && targetQty > 0;
+    const isPartial = filledCount > 0 && filledCount < targetQty;
+    const status = getSerialLineStatus(filledCount, targetQty);
 
     return (
         <>
             <Dialog
                 open={open}
-                onClose={onClose}
+                onClose={handleRequestClose}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: 2 } }}
@@ -347,27 +413,20 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                                 Serial Number Entry
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                                {productName}
+                                {productName} · Scan up to {cap}; save anytime
                             </Typography>
                         </Box>
-                        <Chip
-                            label={`${filledCount} / ${acceptedQty}`}
-                            size="small"
-                            color={isComplete ? "success" : "default"}
-                            icon={isComplete ? <CheckCircleIcon /> : undefined}
-                        />
+                        <SerialStatusChip count={filledCount} qty={targetQty} />
                     </Box>
-                    {/* Progress bar */}
                     <LinearProgress
                         variant="determinate"
-                        value={acceptedQty > 0 ? (filledCount / acceptedQty) * 100 : 0}
+                        value={displayQty > 0 ? Math.min(100, (filledCount / displayQty) * 100) : 0}
                         sx={{ mt: 1.5, borderRadius: 1, height: 4 }}
-                        color={isComplete ? "success" : "primary"}
+                        color={status === "complete" ? "success" : status === "over" ? "error" : "primary"}
                     />
                 </DialogTitle>
 
                 <DialogContent sx={{ pt: 1, pb: 1 }}>
-                    {/* Processing overlay */}
                     {processing && (
                         <Box sx={{
                             display: "flex", alignItems: "center", gap: 1.5,
@@ -381,10 +440,9 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                         </Box>
                     )}
 
-                    {/* Gun scan input */}
                     <Box sx={{ mb: 1.5, p: 1.5, bgcolor: "action.hover", borderRadius: 1.5, border: 1, borderColor: "divider" }}>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 0.75, display: "block", fontWeight: 600 }}>
-                            🔫 SCANNER GUN INPUT
+                            SCANNER GUN INPUT
                         </Typography>
                         <TextField
                             inputRef={gunRef}
@@ -400,7 +458,6 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                         />
                     </Box>
 
-                    {/* Camera scan button */}
                     <Button
                         type="button"
                         variant="outline"
@@ -422,14 +479,13 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                         </Alert>
                     )}
 
-                    {/* Serial input grid */}
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.25, mb: 1 }}>
                         {slots.map((value, idx) => (
                             <TextField
                                 key={idx}
                                 size="small"
                                 sx={{ minWidth: 180, flex: "1 1 180px" }}
-                                label={`Serial ${idx + 1} of ${acceptedQty}`}
+                                label={`Serial ${idx + 1}${targetQty ? ` of ${Math.max(targetQty, slots.length)}` : ""}`}
                                 value={value}
                                 onChange={(e) => handleBulkOrSingle(idx, e.target.value)}
                                 onKeyDown={(e) => handleKeyDown(idx, e)}
@@ -454,25 +510,38 @@ const SerialEntryDialog = memo(function SerialEntryDialog({
                     </Box>
                 </DialogContent>
 
-                <DialogActions sx={{ px: 2, pb: 2, gap: 1 }}>
-                    <Button type="button" variant="outline" size="sm" onClick={onClose} className="flex-1" disabled={validating}>
-                        Cancel
-                    </Button>
-                    <Button
-                        type="button"
-                        size="sm"
-                        onClick={handleDone}
-                        disabled={processing || validating}
-                        className={`flex-1 ${isComplete ? "bg-green-600 hover:bg-green-700" : ""}`}
-                    >
-                        {validating ? (
-                            <><CircularProgress size={16} sx={{ mr: 0.5 }} />Validating…</>
-                        ) : isComplete ? (
-                            <><CheckCircleIcon sx={{ fontSize: 16, mr: 0.5 }} />Save Serials</>
-                        ) : (
-                            "Save Serials"
+                <DialogActions sx={{ px: 2, pb: 2, gap: 1, flexWrap: "wrap", flexDirection: "column", alignItems: "stretch" }}>
+                    {isPartial && (
+                        <SerialPartialSaveStrip
+                            filledCount={filledCount}
+                            targetQty={targetQty}
+                            disabled={processing || validating}
+                            onSetQty={handlePartialSetQty}
+                            onKeepQty={handlePartialKeepQty}
+                        />
+                    )}
+                    <Box sx={{ display: "flex", gap: 1, width: "100%" }}>
+                        <Button type="button" variant="outline" size="sm" onClick={handleRequestClose} className="flex-1" disabled={validating}>
+                            Cancel
+                        </Button>
+                        {!isPartial && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                onClick={handleDone}
+                                disabled={processing || validating || filledCount === 0}
+                                className={`flex-1 ${isComplete ? "bg-green-600 hover:bg-green-700" : ""}`}
+                            >
+                                {validating ? (
+                                    <><CircularProgress size={16} sx={{ mr: 0.5 }} />Validating…</>
+                                ) : isComplete ? (
+                                    <><CheckCircleIcon sx={{ fontSize: 16, mr: 0.5 }} />Save Serials</>
+                                ) : (
+                                    "Save Serials"
+                                )}
+                            </Button>
                         )}
-                    </Button>
+                    </Box>
                 </DialogActions>
             </Dialog>
 
@@ -692,15 +761,34 @@ export default function POInwardForm({
         if (field === "received_quantity") {
             const received = parseInt(value) || 0;
             // Accepted = received (no rejected qty input)
+            // Do NOT trim serials when qty is lowered — keep scans and flag mismatch.
             newItems[index].accepted_quantity = received;
             newItems[index].rejected_quantity = 0;
-            if (isSerialItem(newItems[index])) {
-                const acc = newItems[index].accepted_quantity;
-                if (newItems[index].serials?.length > acc) newItems[index].serials = newItems[index].serials.slice(0, acc);
-            }
         }
         setFormData((prev) => ({ ...prev, items: newItems }));
     };
+
+    const handleSyncQtyToSerials = useCallback((index) => {
+        setFormData((prev) => {
+            const newItems = [...prev.items];
+            const item = newItems[index];
+            if (!item) return prev;
+            const serialCount = (item.serials || []).length;
+            newItems[index] = {
+                ...item,
+                received_quantity: serialCount,
+                accepted_quantity: serialCount,
+                rejected_quantity: 0,
+            };
+            return { ...prev, items: newItems };
+        });
+        setErrors((prev) => {
+            const n = { ...prev };
+            delete n[`item_${index}_serials`];
+            delete n[`item_${index}_received`];
+            return n;
+        });
+    }, []);
 
     // Fires on Tab/blur from received qty field
     const handleReceivedQtyBlur = useCallback((index) => {
@@ -724,25 +812,55 @@ export default function POInwardForm({
         }
     }, [formData.items]);
 
-    // Called when SerialEntryDialog calls onDone(serials)
-    const handleSerialDialogDone = useCallback((serials) => {
+    // Called when SerialEntryDialog calls onDone(serials, { syncQty })
+    const handleSerialDialogDone = useCallback((serials, { syncQty = false } = {}) => {
         if (serialDialogIndex == null) return;
+        const idx = serialDialogIndex;
         setFormData((prev) => {
             const newItems = [...prev.items];
-            newItems[serialDialogIndex].serials = serials;
+            const item = { ...newItems[idx], serials };
+            if (syncQty) {
+                const n = serials.length;
+                item.received_quantity = n;
+                item.accepted_quantity = n;
+                item.rejected_quantity = 0;
+            }
+            newItems[idx] = item;
             return { ...prev, items: newItems };
         });
-        if (errors[`item_${serialDialogIndex}_serials`]) {
-            setErrors((prev) => { const n = { ...prev }; delete n[`item_${serialDialogIndex}_serials`]; return n; });
-        }
+        setErrors((prev) => {
+            const n = { ...prev };
+            delete n[`item_${idx}_serials`];
+            if (syncQty) delete n[`item_${idx}_received`];
+            return n;
+        });
         setSerialDialogIndex(null);
-    }, [serialDialogIndex, errors]);
+    }, [serialDialogIndex]);
+
+    const handleSerialGrowQty = useCallback((newQty) => {
+        if (serialDialogIndex == null) return;
+        const cap = getItemPendingQty(formData.items[serialDialogIndex]);
+        const qty = Math.min(Math.max(0, Number(newQty) || 0), cap);
+        setFormData((prev) => {
+            const newItems = [...prev.items];
+            const item = newItems[serialDialogIndex];
+            if (!item) return prev;
+            newItems[serialDialogIndex] = {
+                ...item,
+                received_quantity: qty,
+                accepted_quantity: qty,
+                rejected_quantity: 0,
+            };
+            return { ...prev, items: newItems };
+        });
+    }, [serialDialogIndex, formData.items]);
 
     const openSerialDialog = (index) => {
         const item = formData.items[index];
         if (!item || !isSerialItem(item)) return;
         const acceptedQty = Math.max(0, parseInt(item.accepted_quantity) || 0);
-        if (acceptedQty === 0) return;
+        const serialCount = (item.serials || []).length;
+        if (acceptedQty === 0 && serialCount === 0) return;
         setSerialDialogIndex(index);
     };
 
@@ -784,10 +902,11 @@ export default function POInwardForm({
                 if (acceptedQty !== calculatedAccepted) {
                     validationErrors[`item_${index}_accepted`] = `Accepted qty should be ${calculatedAccepted} for ${productName}`;
                 }
-                if (isSerialItem(item)) {
+                if (isSerialItem(item) && acceptedQty > 0) {
                     const serialCount = (item.serials || []).length;
                     if (serialCount !== acceptedQty) {
-                        validationErrors[`item_${index}_serials`] = `Enter exactly ${acceptedQty} serial(s) for ${productName}`;
+                        validationErrors[`item_${index}_serials`] =
+                            `Serials ${serialCount}/${acceptedQty} for ${productName} — set qty to ${serialCount} or finish scanning`;
                     } else {
                         const sns = (item.serials || []).map((s) => (typeof s === "string" ? s.trim() : s.serial_number?.trim())).filter(Boolean);
                         const uniqueSns = new Set(sns.map((s) => s.toLowerCase()));
@@ -1079,7 +1198,21 @@ export default function POInwardForm({
                                                 errors[`item_${index}_rejected`] ||
                                                 errors[`item_${index}_serials`]
                                             );
-                                            const serialComplete = isSerial && acceptedQty > 0 && serialCount === acceptedQty;
+                                            const serialStatus = isSerial
+                                                ? getSerialLineStatus(serialCount, acceptedQty)
+                                                : "empty";
+                                            const serialComplete = serialStatus === "complete";
+                                            const serialBorder =
+                                                errors[`item_${index}_serials`] ? "error.main"
+                                                    : serialStatus === "complete" ? "success.main"
+                                                        : serialStatus === "over" ? "error.main"
+                                                            : serialStatus === "pending" ? "warning.main"
+                                                                : "divider";
+                                            const serialBg =
+                                                serialStatus === "complete" ? "success.50"
+                                                    : serialStatus === "over" ? "error.50"
+                                                        : serialStatus === "pending" ? "warning.50"
+                                                            : "action.hover";
 
                                             return (
                                                 <Card
@@ -1165,38 +1298,40 @@ export default function POInwardForm({
                                                                 />
                                                             )}
 
-                                                            {isSerial && acceptedQty > 0 && (
+                                                            {isSerial && (acceptedQty > 0 || serialCount > 0) && (
                                                                 <Box sx={{ mt: 1.25 }}>
                                                                     <Box
                                                                         sx={{
                                                                             display: "flex", alignItems: "center",
                                                                             justifyContent: "space-between",
                                                                             p: 1.25, borderRadius: 1.5, border: 1,
-                                                                            borderColor: errors[`item_${index}_serials`]
-                                                                                ? "error.main"
-                                                                                : serialComplete ? "success.main" : "divider",
-                                                                            bgcolor: serialComplete ? "success.50" : "action.hover",
+                                                                            borderColor: serialBorder,
+                                                                            bgcolor: serialBg,
                                                                             cursor: "pointer", minHeight: 44,
                                                                         }}
                                                                         onClick={() => openSerialDialog(index)}
                                                                     >
                                                                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                                            {serialComplete
-                                                                                ? <CheckCircleIcon fontSize="small" color="success" />
-                                                                                : <QrCodeScannerIcon fontSize="small" color="action" />
-                                                                            }
-                                                                            <Typography variant="body2">
-                                                                                Serials: {serialCount} / {acceptedQty}
-                                                                            </Typography>
+                                                                            <QrCodeScannerIcon fontSize="small" color="action" />
+                                                                            <SerialStatusChip count={serialCount} qty={acceptedQty} />
                                                                         </Box>
                                                                         <Typography variant="caption" color="primary.main" fontWeight={600}>
                                                                             {serialComplete ? "✓ Done — Tap to edit" : "Tap to enter →"}
                                                                         </Typography>
                                                                     </Box>
                                                                     {errors[`item_${index}_serials`] && (
-                                                                        <FormHelperText error sx={{ mt: 0.5 }}>
-                                                                            {errors[`item_${index}_serials`]}
-                                                                        </FormHelperText>
+                                                                        <Box sx={{ mt: 0.5 }}>
+                                                                            <FormHelperText error>
+                                                                                {errors[`item_${index}_serials`]}
+                                                                            </FormHelperText>
+                                                                            {serialCount !== acceptedQty && serialCount > 0 && (
+                                                                                <SerialMismatchFixLink
+                                                                                    count={serialCount}
+                                                                                    qty={acceptedQty}
+                                                                                    onSetQty={() => handleSyncQtyToSerials(index)}
+                                                                                />
+                                                                            )}
+                                                                        </Box>
                                                                     )}
                                                                 </Box>
                                                             )}
@@ -1235,10 +1370,25 @@ export default function POInwardForm({
                                                         const isLot = item.tracking_type === "LOT" && !isSerial;
                                                         const serialCount = (item.serials || []).length;
                                                         const acceptedQty = item.accepted_quantity || 0;
-                                                        const serialComplete = isSerial && acceptedQty > 0 && serialCount === acceptedQty;
+                                                        const serialStatus = isSerial
+                                                            ? getSerialLineStatus(serialCount, acceptedQty)
+                                                            : "empty";
+                                                        const serialComplete = serialStatus === "complete";
                                                         const pendingQty = getItemPendingQty(item);
                                                         const cancelledQty = getItemCancelledQty(item);
                                                         const lineClosed = pendingQty <= 0 && (parseInt(item.received_quantity, 10) || 0) <= 0;
+                                                        const canOpenSerial = acceptedQty > 0 || serialCount > 0;
+                                                        const tableSerialBorder =
+                                                            errors[`item_${index}_serials`] ? "error.main"
+                                                                : serialStatus === "complete" ? "success.main"
+                                                                    : serialStatus === "over" ? "error.main"
+                                                                        : serialStatus === "pending" ? "warning.main"
+                                                                            : acceptedQty > 0 ? "primary.main" : "divider";
+                                                        const tableSerialBg =
+                                                            serialStatus === "complete" ? "success.50"
+                                                                : serialStatus === "over" ? "error.50"
+                                                                    : serialStatus === "pending" ? "warning.50"
+                                                                        : acceptedQty > 0 ? "primary.50" : "transparent";
 
                                                         return (
                                                             <TableRow
@@ -1302,33 +1452,31 @@ export default function POInwardForm({
                                                                                         display: "inline-flex", alignItems: "center", gap: 0.75,
                                                                                         px: 1.25, py: 0.5, borderRadius: 1.5,
                                                                                         border: 1,
-                                                                                        borderColor: errors[`item_${index}_serials`]
-                                                                                            ? "error.main"
-                                                                                            : serialComplete ? "success.main" : acceptedQty > 0 ? "primary.main" : "divider",
-                                                                                        bgcolor: serialComplete ? "success.50" : acceptedQty > 0 ? "primary.50" : "transparent",
-                                                                                        cursor: acceptedQty > 0 ? "pointer" : "default",
+                                                                                        borderColor: tableSerialBorder,
+                                                                                        bgcolor: tableSerialBg,
+                                                                                        cursor: canOpenSerial ? "pointer" : "default",
                                                                                         transition: "all 0.15s",
-                                                                                        "&:hover": acceptedQty > 0 ? { opacity: 0.8 } : {},
+                                                                                        "&:hover": canOpenSerial ? { opacity: 0.8 } : {},
                                                                                     }}
-                                                                                    onClick={() => acceptedQty > 0 && openSerialDialog(index)}
+                                                                                    onClick={() => canOpenSerial && openSerialDialog(index)}
                                                                                 >
-                                                                                    {serialComplete
-                                                                                        ? <CheckCircleIcon sx={{ fontSize: 14, color: "success.main" }} />
-                                                                                        : <QrCodeScannerIcon sx={{ fontSize: 14, color: acceptedQty > 0 ? "primary.main" : "text.disabled" }} />
-                                                                                    }
-                                                                                    <Typography
-                                                                                        variant="caption"
-                                                                                        fontWeight={600}
-                                                                                        color={serialComplete ? "success.main" : acceptedQty > 0 ? "primary.main" : "text.disabled"}
-                                                                                    >
-                                                                                        {serialCount}/{acceptedQty}
-                                                                                    </Typography>
+                                                                                    <QrCodeScannerIcon sx={{ fontSize: 14, color: canOpenSerial ? "primary.main" : "text.disabled" }} />
+                                                                                    <SerialStatusChip count={serialCount} qty={acceptedQty} />
                                                                                 </Box>
                                                                             </Tooltip>
                                                                             {errors[`item_${index}_serials`] && (
-                                                                                <FormHelperText error sx={{ mt: 0.25 }}>
-                                                                                    {errors[`item_${index}_serials`]}
-                                                                                </FormHelperText>
+                                                                                <Box sx={{ mt: 0.25 }}>
+                                                                                    <FormHelperText error>
+                                                                                        {errors[`item_${index}_serials`]}
+                                                                                    </FormHelperText>
+                                                                                    {serialCount !== acceptedQty && serialCount > 0 && (
+                                                                                        <SerialMismatchFixLink
+                                                                                            count={serialCount}
+                                                                                            qty={acceptedQty}
+                                                                                            onSetQty={() => handleSyncQtyToSerials(index)}
+                                                                                        />
+                                                                                    )}
+                                                                                </Box>
                                                                             )}
                                                                         </Box>
                                                                     ) : isLot ? (
@@ -1407,6 +1555,7 @@ export default function POInwardForm({
                 initialSerials={activeSerialInitial}
                 onDone={handleSerialDialogDone}
                 onClose={() => setSerialDialogIndex(null)}
+                onGrowQty={handleSerialGrowQty}
                 onValidateSerials={poInwardService.validateSerials}
                 poInwardId={defaultValues?.id ?? null}
             />
