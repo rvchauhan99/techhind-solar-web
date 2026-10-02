@@ -13,7 +13,13 @@ import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import quotationService from "@/services/quotationService";
 import inquiryService from "@/services/inquiryService";
+import inquiryDocumentsService from "@/services/inquiryDocumentsService";
 import { useAuth } from "@/hooks/useAuth";
+import {
+    LEGACY_ORDER_FORM_DOCUMENTS,
+    useOrderFormDocumentConfig,
+    findInquiryDocForSlot,
+} from "../components/orderFormDocuments";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -65,6 +71,8 @@ function AddOrderContent() {
     const [fullQuotationDetails, setFullQuotationDetails] = useState(null);
     const [fullQuotationDetailsLoading, setFullQuotationDetailsLoading] = useState(false);
     const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
+    const [inquiryDocuments, setInquiryDocuments] = useState([]);
+    const { documents: orderFormDocuments } = useOrderFormDocumentConfig();
 
     const dialogTotalPayable = useMemo(
         () => (fullQuotationDetails ? resolveQuotationTotalPayable(fullQuotationDetails) : null),
@@ -86,6 +94,19 @@ function AddOrderContent() {
                 if (inquiry) {
                     setInquiryData(inquiry);
                     setInquiryNumber(inquiry?.inquiry_number);
+
+                    try {
+                        const docsRes = await inquiryDocumentsService.listInquiryDocuments({
+                            inquiry_id: inquiryId,
+                            limit: 200,
+                        });
+                        const docs = docsRes?.data || docsRes?.result?.data || [];
+                        setInquiryDocuments(Array.isArray(docs) ? docs : []);
+                    } catch (docsErr) {
+                        console.error("Failed to load inquiry documents", docsErr);
+                        setInquiryDocuments([]);
+                    }
+
                     // Fetch quotations for this inquiry
                     const quotationResponse = await quotationService.getQuotations({
                         inquiry_id: inquiryId,
@@ -174,26 +195,22 @@ function AddOrderContent() {
         setServerError(null);
 
         try {
-            // Extract documents from data
-            const documents = {
-                electricity_bill: data.electricity_bill,
-                house_tax_bill: data.house_tax_bill,
-                aadhar_card: data.aadhar_card,
-                passport_photo: data.passport_photo,
-                pan_card: data.pan_card,
-                cancelled_cheque: data.cancelled_cheque,
-                customer_sign: data.customer_sign,
-            };
+            const documentTypes = (orderFormDocuments?.length
+                ? orderFormDocuments
+                : LEGACY_ORDER_FORM_DOCUMENTS
+            ).map((d) => ({ key: d.key, label: d.label }));
+
+            const documents = {};
+            documentTypes.forEach((docType) => {
+                documents[docType.key] = data[docType.key];
+            });
 
             // Remove document fields from order data
             const orderData = { ...data };
-            delete orderData.electricity_bill;
-            delete orderData.house_tax_bill;
-            delete orderData.aadhar_card;
-            delete orderData.passport_photo;
-            delete orderData.pan_card;
-            delete orderData.cancelled_cheque;
-            delete orderData.customer_sign;
+            documentTypes.forEach((docType) => {
+                delete orderData[docType.key];
+            });
+            delete orderData.documentIds;
 
             // Ensure quotation_id is sent when creating from quotation (for bom_snapshot carry-forward)
             if (quotationData?.id && !orderData.quotation_id) {
@@ -209,24 +226,20 @@ function AddOrderContent() {
 
             // Upload documents if any
             if (orderId) {
-                const documentTypes = [
-                    { key: 'electricity_bill', label: 'Electricity Bill' },
-                    { key: 'house_tax_bill', label: 'House Tax Bill' },
-                    { key: 'aadhar_card', label: 'Aadhar Card' },
-                    { key: 'passport_photo', label: 'Passport Photo' },
-                    { key: 'pan_card', label: 'PAN Card' },
-                    { key: 'cancelled_cheque', label: 'Cancelled Cheque' },
-                    { key: 'customer_sign', label: 'Customer Sign' },
-                ];
-
                 for (const docType of documentTypes) {
                     const file = documents[docType.key];
                     if (file && file instanceof File) {
                         try {
+                            const matchedInquiryDoc = findInquiryDocForSlot(
+                                { key: docType.key, label: docType.label },
+                                inquiryDocuments
+                            );
+                            const uploadDocType = matchedInquiryDoc?.doc_type || docType.key;
+
                             const formData = new FormData();
                             formData.append('document', file);
                             formData.append('order_id', orderId);
-                            formData.append('doc_type', docType.key);
+                            formData.append('doc_type', uploadDocType);
                             formData.append('remarks', docType.label);
 
                             await orderDocumentsService.createOrderDocument(formData);
@@ -413,6 +426,8 @@ function AddOrderContent() {
                         loading={loading}
                         serverError={serverError}
                         onClearServerError={() => setServerError(null)}
+                        enforceRequiredDocuments
+                        inquiryDocuments={inquiryDocuments}
                     />
                 </>
             )}
