@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
+import { applyDiscountFieldChange, previewLineDiscount } from "@/utils/lineDiscount";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -88,6 +89,8 @@ const emptyCurrentItem = () => ({
   per_watt_rate: "",
   unit_rate: "",
   discount_percent: "",
+  discount_amount: "",
+  discount_basis: "percent",
   gst_percent: "",
   measurement_unit: "",
   product_capacity: "",
@@ -912,7 +915,7 @@ export default function B2bSalesOrderForm({
         const unitRate = Number(value);
         next.per_watt_rate = Number.isFinite(unitRate) && unitRate > 0 ? (unitRate / capacity).toFixed(4) : "";
       }
-      return next;
+      return applyDiscountFieldChange(next, name, "unit_rate");
     });
     if (itemErrors[name]) setItemErrors((p) => { const n = { ...p }; delete n[name]; return n; });
   };
@@ -936,6 +939,20 @@ export default function B2bSalesOrderForm({
     if (currentItem.gst_percent === "" || currentItem.gst_percent === null || currentItem.gst_percent === undefined) {
       errs.gst_percent = "GST % is required";
     }
+    const discountPreview = previewLineDiscount({
+      quantity: currentItem.quantity,
+      rate: currentItem.unit_rate,
+      discount_percent: currentItem.discount_percent,
+      discount_amount: currentItem.discount_amount,
+      discount_basis: currentItem.discount_basis,
+    });
+    if (discountPreview.invalid) {
+      if (currentItem.discount_basis === "amount") {
+        errs.discount_amount = "Discount amount cannot exceed line value";
+      } else {
+        errs.discount_percent = "Discount % must be between 0 and 100";
+      }
+    }
     if (Object.keys(errs).length > 0) {
       setItemErrors(errs);
       return;
@@ -958,7 +975,9 @@ export default function B2bSalesOrderForm({
           quantity: parseInt(currentItem.quantity, 10),
           per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
           unit_rate: parseFloat(currentItem.unit_rate),
-          discount_percent: parseFloat(currentItem.discount_percent || 0),
+          discount_percent: discountPreview.discount_percent,
+          discount_amount: discountPreview.discount_amount,
+          discount_basis: discountPreview.discount_basis,
           gst_percent: parseFloat(currentItem.gst_percent),
           measurement_unit: currentItem.measurement_unit || "",
           product_capacity: currentItem.product_capacity || "",
@@ -982,11 +1001,15 @@ export default function B2bSalesOrderForm({
     formData.items.forEach((item) => {
       const qty = Number(item.quantity) || 0;
       const rate = Number(item.unit_rate) || 0;
-      const disc = Number(item.discount_percent) || 0;
       const gst = Number(item.gst_percent) || 0;
-      const lineValue = rate * qty;
-      const discountAmt = (lineValue * disc) / 100;
-      const taxable = lineValue - discountAmt;
+      const discount = previewLineDiscount({
+        quantity: qty,
+        rate,
+        discount_percent: item.discount_percent,
+        discount_amount: item.discount_amount,
+        discount_basis: item.discount_basis,
+      });
+      const taxable = Math.max(0, discount.lineValue - discount.discount_amount);
       const gstAmt = (taxable * gst) / 100;
       totalQuantity += qty;
       taxableAmount += taxable;
@@ -1071,6 +1094,8 @@ export default function B2bSalesOrderForm({
         unit_rate: parseFloat(it.unit_rate) || 0,
         per_watt_rate: it.per_watt_rate != null && it.per_watt_rate !== "" ? parseFloat(it.per_watt_rate) : null,
         discount_percent: parseFloat(it.discount_percent) || 0,
+        discount_amount: parseInt(it.discount_amount, 10) || 0,
+        discount_basis: it.discount_basis === "amount" ? "amount" : "percent",
         gst_percent: parseFloat(it.gst_percent) || 0,
         hsn_code: it.hsn_code || "",
       })),
@@ -1604,6 +1629,18 @@ export default function B2bSalesOrderForm({
                   value={currentItem.discount_percent}
                   onChange={handleCurrentItemChange}
                   inputProps={{ min: 0, max: 100, step: 0.01 }}
+                  error={!!itemErrors.discount_percent}
+                  helperText={itemErrors.discount_percent}
+                />
+                <Input
+                  name="discount_amount"
+                  label="Disc Amt"
+                  type="number"
+                  value={currentItem.discount_amount}
+                  onChange={handleCurrentItemChange}
+                  inputProps={{ min: 0, step: 1 }}
+                  error={!!itemErrors.discount_amount}
+                  helperText={itemErrors.discount_amount}
                 />
                 <Input
                   name="gst_percent"
@@ -1653,6 +1690,7 @@ export default function B2bSalesOrderForm({
                       <TableCell align="right">Per Watt (₹/W)</TableCell>
                       <TableCell align="right">Rate (₹)</TableCell>
                       <TableCell align="right">Disc %</TableCell>
+                      <TableCell align="right">Disc Amt</TableCell>
                       <TableCell align="right">GST %</TableCell>
                       <TableCell align="right">Taxable Amt</TableCell>
                       <TableCell align="right">GST Amt</TableCell>
@@ -1665,10 +1703,10 @@ export default function B2bSalesOrderForm({
                       const qty = Number(item.quantity) || 0;
                       const rate = Number(item.unit_rate) || 0;
                       const disc = Number(item.discount_percent) || 0;
+                      const discountAmt = Number(item.discount_amount) || 0;
                       const gst = Number(item.gst_percent) || 0;
                       const lineValue = rate * qty;
-                      const discountAmt = (lineValue * disc) / 100;
-                      const taxable = lineValue - discountAmt;
+                      const taxable = Math.max(0, lineValue - discountAmt);
                       const gstAmt = (taxable * gst) / 100;
                       const total = taxable + gstAmt;
                       const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
@@ -1703,6 +1741,7 @@ export default function B2bSalesOrderForm({
                           </TableCell>
                           <TableCell align="right">₹{rate.toFixed(2)}</TableCell>
                           <TableCell align="right">{disc > 0 ? `${disc}%` : "–"}</TableCell>
+                          <TableCell align="right">{discountAmt > 0 ? discountAmt : "–"}</TableCell>
                           <TableCell align="right">{gst}%</TableCell>
                           <TableCell align="right">₹{taxable.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{gstAmt.toFixed(2)}</TableCell>

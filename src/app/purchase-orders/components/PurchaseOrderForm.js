@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
+import { applyDiscountFieldChange, previewLineDiscount } from "@/utils/lineDiscount";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
@@ -151,6 +152,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         rate: "",
         per_watt_rate: "",
         quantity: "",
+        discount_percent: "",
+        discount_amount: "",
+        discount_basis: "percent",
         gst_percent: "",
         measurement_unit: "",
         product_capacity: "",
@@ -445,7 +449,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 const rate = Number(value);
                 next.per_watt_rate = Number.isFinite(rate) && rate > 0 ? (rate / capacity).toFixed(4) : "";
             }
-            return next;
+            return applyDiscountFieldChange(next, name, "rate");
         });
 
         // Clear item errors when user starts typing
@@ -515,6 +519,21 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             validationErrors.gst_percent = "GST % cannot exceed 100%";
         }
 
+        const discountPreview = previewLineDiscount({
+            quantity: currentItem.quantity,
+            rate: currentItem.rate,
+            discount_percent: currentItem.discount_percent,
+            discount_amount: currentItem.discount_amount,
+            discount_basis: currentItem.discount_basis,
+        });
+        if (discountPreview.invalid) {
+            if (currentItem.discount_basis === "amount") {
+                validationErrors.discount_amount = "Discount amount cannot exceed line value";
+            } else {
+                validationErrors.discount_percent = "Discount % must be between 0 and 100";
+            }
+        }
+
         // If validation fails, show errors and don't add item
         if (Object.keys(validationErrors).length > 0) {
             setItemErrors(validationErrors);
@@ -531,6 +550,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: parseFloat(currentItem.rate),
             per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
             quantity: parseInt(currentItem.quantity),
+            discount_percent: discountPreview.discount_percent,
+            discount_amount: discountPreview.discount_amount,
+            discount_basis: discountPreview.discount_basis,
             gst_percent: isImport ? 0 : parseFloat(currentItem.gst_percent),
             measurement_unit: currentItem.measurement_unit || product?.measurement_unit?.unit || "",
             product_capacity: currentItem.product_capacity || product?.capacity || "",
@@ -550,6 +572,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: "",
             per_watt_rate: "",
             quantity: "",
+            discount_percent: "",
+            discount_amount: "",
+            discount_basis: "percent",
             gst_percent: isImport ? 0 : "",
             measurement_unit: "",
             product_capacity: "",
@@ -585,7 +610,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
         formData.items.forEach((item) => {
             totalQuantity += item.quantity;
-            const itemTaxable = item.rate * item.quantity;
+            const discount = previewLineDiscount({
+                quantity: item.quantity,
+                rate: item.rate,
+                discount_percent: item.discount_percent,
+                discount_amount: item.discount_amount,
+                discount_basis: item.discount_basis,
+            });
+            const itemTaxable = Math.max(0, discount.lineValue - discount.discount_amount);
             const gstPercent = isImport ? 0 : item.gst_percent;
             const itemGst = (itemTaxable * gstPercent) / 100;
             taxableAmountFc += itemTaxable;
@@ -691,6 +723,22 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     hasError = true;
                 } else if (item.gst_percent > 100) {
                     itemErrors.gst_percent = "GST % cannot exceed 100%";
+                    hasError = true;
+                }
+
+                const lineDiscount = previewLineDiscount({
+                    quantity: item.quantity,
+                    rate: item.rate,
+                    discount_percent: item.discount_percent,
+                    discount_amount: item.discount_amount,
+                    discount_basis: item.discount_basis,
+                });
+                if (lineDiscount.invalid) {
+                    if (item.discount_basis === "amount") {
+                        itemErrors.discount_amount = "Discount amount cannot exceed line value";
+                    } else {
+                        itemErrors.discount_percent = "Discount % must be between 0 and 100";
+                    }
                     hasError = true;
                 }
 
@@ -1122,6 +1170,26 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     helperText={itemErrors.rate}
                                     required
                                 />
+                                <Input
+                                    name="discount_percent"
+                                    label="Disc %"
+                                    type="number"
+                                    value={currentItem.discount_percent}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                    error={!!itemErrors.discount_percent}
+                                    helperText={itemErrors.discount_percent}
+                                />
+                                <Input
+                                    name="discount_amount"
+                                    label={isImport ? `Disc Amt (${currencyCode})` : "Disc Amt"}
+                                    type="number"
+                                    value={currentItem.discount_amount}
+                                    onChange={handleItemChange}
+                                    inputProps={{ min: 0, step: 1 }}
+                                    error={!!itemErrors.discount_amount}
+                                    helperText={itemErrors.discount_amount}
+                                />
                                 {!isImport && (
                                     <Input
                                         name="gst_percent"
@@ -1162,6 +1230,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             <TableCell align="right">Qty</TableCell>
                                             <TableCell align="right">{isImport ? `Per Watt (${currencyCode}/W)` : "Per Watt (₹/W)"}</TableCell>
                                             <TableCell align="right">{isImport ? `Rate (${currencyCode})` : "Rate (₹)"}</TableCell>
+                                            <TableCell align="right">Disc %</TableCell>
+                                            <TableCell align="right">Disc Amt</TableCell>
                                             {!isImport && <TableCell align="right">GST %</TableCell>}
                                             <TableCell align="right">Taxable Amount</TableCell>
                                             {!isImport && <TableCell align="right">GST Amount</TableCell>}
@@ -1172,7 +1242,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     <TableBody>
                                         {formData.items.map((item, index) => {
                                             const displayLabel = item.product_name ?? item.product?.product_name;
-                                            const itemTaxableFc = item.rate * item.quantity;
+                                            const lineDiscount = previewLineDiscount({
+                                                quantity: item.quantity,
+                                                rate: item.rate,
+                                                discount_percent: item.discount_percent,
+                                                discount_amount: item.discount_amount,
+                                                discount_basis: item.discount_basis,
+                                            });
+                                            const itemTaxableFc = Math.max(0, lineDiscount.lineValue - lineDiscount.discount_amount);
                                             const itemGstFc = isImport ? 0 : (itemTaxableFc * item.gst_percent) / 100;
                                             const itemTotalFc = itemTaxableFc + itemGstFc;
                                             const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
@@ -1227,6 +1304,22 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                         {rowErrors.rate && (
                                                             <Typography variant="caption" color="error" display="block">
                                                                 {rowErrors.rate}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {Number(item.discount_percent) > 0 ? `${item.discount_percent}%` : "–"}
+                                                        {rowErrors.discount_percent && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.discount_percent}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {Number(item.discount_amount) > 0 ? item.discount_amount : "–"}
+                                                        {rowErrors.discount_amount && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.discount_amount}
                                                             </Typography>
                                                         )}
                                                     </TableCell>
