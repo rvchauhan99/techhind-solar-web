@@ -35,8 +35,17 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/common/LoadingButton";
-import { toastError } from "@/utils/toast";
-import { splitSerialInput, fillSerialSlots, findCaseInsensitiveDuplicateIndex } from "@/utils/serialInput";
+import { toastError, toastWarning } from "@/utils/toast";
+import {
+    splitSerialInput,
+    fillSerialSlots,
+    findCaseInsensitiveDuplicateIndex,
+    compactSerials,
+    growSlotsForOverflow,
+    getSerialLineStatus,
+    resolveSerialCap,
+} from "@/utils/serialInput";
+import { SerialStatusChip, SerialPartialSaveStrip, SerialMismatchFixLink } from "@/components/common/SerialQtyStatus";
 import { COMPACT_FORM_SPACING, COMPACT_SECTION_HEADER_STYLE, FORM_PADDING } from "@/utils/formConstants";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import orderService from "@/services/orderService";
@@ -390,10 +399,7 @@ export default function DeliveryChallanForm({
             prev.map((l, i) => {
                 if (i !== index) return l;
                 const newLine = { ...l, ship_now: value };
-                // Reset serials if ship_now changes
-                if (l.serial_required && newLine.serials.length > shipNowNum) {
-                    newLine.serials = newLine.serials.slice(0, shipNowNum);
-                }
+                // Keep all scanned serials when qty is lowered — mismatch shown on line chip.
                 pendingForLine = newLine.pending_qty;
                 availableForLine = newLine.available_qty;
                 return newLine;
@@ -432,8 +438,9 @@ export default function DeliveryChallanForm({
         // Auto-open serial drawer when user enters ship qty for a serialized item
         if (isSerialRequired && shipNowNum > 0) {
             setTimeout(() => {
-                const existing = (line.serials || []).map((s) => String(s || "").trim()).slice(0, shipNowNum);
-                const padded = Array.from({ length: shipNowNum }, (_, i) => existing[i] ?? "");
+                const existing = (line.serials || []).map((s) => String(s || "").trim());
+                const slotLen = Math.max(shipNowNum, existing.length);
+                const padded = Array.from({ length: slotLen }, (_, i) => existing[i] ?? "");
                 setSerialDrawerValues(padded);
                 setSerialDrawerError("");
                 setSerialDrawerFieldErrors({});
@@ -465,13 +472,19 @@ export default function DeliveryChallanForm({
 
         setLines((prev) => {
             const currentLine = prev[lineIndex];
-            const shipNow = Number(currentLine?.ship_now) || 0;
             const label = currentLine?.product_name ? ` for ${currentLine.product_name}` : "";
-            if (currentLine && currentLine.serials.length >= shipNow) {
-                toastError(`Maximum ${shipNow} serial numbers allowed for ship quantity${label}`);
+            const skipCap = isCommercialProject || currentLine?.is_custom;
+            const cap = resolveSerialCap({
+                pending: currentLine?.pending_qty,
+                available: currentLine?.available_qty,
+                skipCap,
+            });
+            const serials = currentLine?.serials || [];
+            if (cap != null && serials.length >= cap) {
+                toastError(`Cannot exceed pending/available (${cap})${label}`);
                 return prev;
             }
-            if (currentLine && currentLine.serials.includes(trimmed)) {
+            if (currentLine && serials.includes(trimmed)) {
                 toastError(`Serial number already added${label}`);
                 return prev;
             }
@@ -482,7 +495,10 @@ export default function DeliveryChallanForm({
             }
             return prev.map((line, i) => {
                 if (i !== lineIndex) return line;
-                return { ...line, serials: [...(line.serials || []), trimmed] };
+                const nextSerials = [...(line.serials || []), trimmed];
+                const shipNow = Number(line.ship_now) || 0;
+                const nextShip = nextSerials.length > shipNow ? String(nextSerials.length) : line.ship_now;
+                return { ...line, serials: nextSerials, ship_now: nextShip };
             });
         });
     };
@@ -592,21 +608,17 @@ export default function DeliveryChallanForm({
         const line = lines[lineIndex];
         if (!line?.serial_required) return;
         const shipNow = Number(line.ship_now) || 0;
-        if (shipNow <= 0) return;
+        const existingCount = (line.serials || []).length;
+        if (shipNow <= 0 && existingCount <= 0) return;
 
         if (expandedSerialLineIndex === lineIndex) {
-            setExpandedSerialLineIndex(null);
-            setSerialDrawerValues([]);
-            setSerialDrawerError("");
-            setSerialDrawerFieldErrors({});
-            setSerialDrawerValidating(null);
-            setGunScanValue("");
-            serialInputRefs.current = [];
+            requestCloseSerialDrawer();
             return;
         }
 
         const existing = (line.serials || []).map((s) => String(s || "").trim());
-        const padded = Array.from({ length: shipNow }, (_, i) => existing[i] ?? "");
+        const slotLen = Math.max(shipNow, existing.length);
+        const padded = Array.from({ length: slotLen }, (_, i) => existing[i] ?? "");
         setSerialDrawerValues(padded);
         setSerialDrawerError("");
         setSerialDrawerFieldErrors({});
@@ -615,6 +627,72 @@ export default function DeliveryChallanForm({
         setGunScanValue("");
         serialInputRefs.current = [];
         setTimeout(() => gunScanRef.current?.focus(), 100);
+    };
+
+    const getLineSerialCap = (line) => {
+        const skipCap = isCommercialProject || line?.is_custom;
+        return resolveSerialCap({
+            pending: line?.pending_qty,
+            available: line?.available_qty,
+            skipCap,
+        });
+    };
+
+    const growDrawerFromOverflow = (overflow) => {
+        if (!overflow?.length || expandedSerialLineIndex == null) return serialDrawerValues;
+        const line = lines[expandedSerialLineIndex];
+        const cap = getLineSerialCap(line);
+        const { nextSlots, remaining, grownBy } = growSlotsForOverflow({
+            slots: serialDrawerValues,
+            overflow,
+            cap,
+            caseInsensitive: true,
+        });
+        if (grownBy > 0) {
+            setLines((prev) =>
+                prev.map((l, i) =>
+                    i !== expandedSerialLineIndex ? l : { ...l, ship_now: String(nextSlots.length) }
+                )
+            );
+            setErrors((prev) => {
+                const next = { ...prev };
+                delete next[`line_${expandedSerialLineIndex}_ship_now`];
+                return next;
+            });
+        }
+        if (remaining.length) {
+            const capLabel = cap != null ? String(cap) : "limit";
+            toastWarning(`Cannot exceed pending/available (${capLabel}). ${remaining.length} serial(s) not added.`);
+            setSerialDrawerError(`Cannot exceed pending/available (${capLabel}).`);
+        }
+        return nextSlots;
+    };
+
+    const requestCloseSerialDrawer = () => {
+        const current = compactSerials(serialDrawerValues);
+        const baseline = new Set((lines[expandedSerialLineIndex]?.serials || []).map((s) => String(s).trim().toLowerCase()));
+        const added = current.filter((s) => !baseline.has(s.toLowerCase()));
+        if (added.length > 0) {
+            const ok = window.confirm(`Discard ${added.length} new scan(s)? Unsaved serials will be lost.`);
+            if (!ok) return;
+        }
+        closeSerialRowExpand();
+    };
+
+    const handleSyncShipQtyToSerials = (index) => {
+        setLines((prev) =>
+            prev.map((line, i) => {
+                if (i !== index) return line;
+                const n = (line.serials || []).length;
+                return { ...line, ship_now: String(n) };
+            })
+        );
+        setErrors((prev) => {
+            const next = { ...prev };
+            delete next[`line_${index}_serials`];
+            delete next[`line_${index}_ship_now`];
+            return next;
+        });
     };
 
     const closeSerialRowExpand = () => {
@@ -744,13 +822,34 @@ export default function DeliveryChallanForm({
                 toastError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
             }
             if (overflow.length) {
-                toastError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
-                return;
+                const lineForCap = lines[expandedSerialLineIndex];
+                const cap = getLineSerialCap(lineForCap);
+                const merged = growSlotsForOverflow({
+                    slots: nextSlots,
+                    overflow,
+                    cap,
+                    caseInsensitive: true,
+                });
+                if (merged.grownBy > 0) {
+                    setLines((prev) =>
+                        prev.map((l, i) =>
+                            i !== expandedSerialLineIndex ? l : { ...l, ship_now: String(merged.nextSlots.length) }
+                        )
+                    );
+                }
+                if (merged.remaining.length) {
+                    toastWarning(`Cannot exceed pending/available (${cap ?? "limit"}). ${merged.remaining.length} not added.`);
+                }
+                setSerialDrawerValues(merged.nextSlots);
+                merged.nextSlots.forEach((val, idx) => {
+                    if ((val || "").trim()) validateSerialWithBackend(idx, val);
+                });
+            } else {
+                setSerialDrawerValues(nextSlots);
+                nextSlots.forEach((val, idx) => {
+                    if ((val || "").trim()) validateSerialWithBackend(idx, val);
+                });
             }
-            setSerialDrawerValues(nextSlots);
-            nextSlots.forEach((val, idx) => {
-                if ((val || "").trim()) validateSerialWithBackend(idx, val);
-            });
         }
         setScannerOpen(false);
         setScanTargetIndex(null);
@@ -885,7 +984,34 @@ export default function DeliveryChallanForm({
                 setSerialDrawerError(`Duplicate serial(s) ignored: ${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""}`);
             }
             if (overflow.length) {
-                setSerialDrawerError(`Cannot add ${overflow.length} serial(s): quantity limit reached.`);
+                const cap = getLineSerialCap(line);
+                const merged = growSlotsForOverflow({
+                    slots: nextSlots,
+                    overflow,
+                    cap,
+                    caseInsensitive: true,
+                });
+                if (merged.grownBy > 0) {
+                    setLines((prev) =>
+                        prev.map((l, i) =>
+                            i !== expandedSerialLineIndex ? l : { ...l, ship_now: String(merged.nextSlots.length) }
+                        )
+                    );
+                    setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next[`line_${expandedSerialLineIndex}_ship_now`];
+                        return next;
+                    });
+                }
+                if (merged.remaining.length) {
+                    toastWarning(`Cannot exceed pending/available (${cap ?? "limit"}). ${merged.remaining.length} not added.`);
+                    setSerialDrawerError(`Cannot exceed pending/available (${cap ?? "limit"}).`);
+                }
+                setSerialDrawerValues(merged.nextSlots);
+                setSerialDrawerError((prev) => merged.remaining.length ? prev : "");
+                merged.nextSlots.forEach((val, idx) => {
+                    if ((val || "").trim()) validateSerialWithBackend(idx, val);
+                });
                 return;
             }
             setSerialDrawerValues(nextSlots);
@@ -911,38 +1037,54 @@ export default function DeliveryChallanForm({
             if (value) validateSerialWithBackend(index, value);
             if (index < shipNow - 1) {
                 serialInputRefs.current[index + 1]?.focus();
-            } else {
-                handleSerialDrawerDone();
             }
+            // Do not auto-save on last field — user chooses Save / Set qty / Keep qty
         }
     };
 
-    const handleSerialDrawerDone = () => {
-        const trimmed = serialDrawerValues.map((s) => String(s || "").trim());
-        const emptyIndex = trimmed.findIndex((s) => !s);
-        if (emptyIndex !== -1) {
-            setSerialDrawerError("Please fill all serial numbers.");
-            serialInputRefs.current[emptyIndex]?.focus();
-            return;
-        }
-        const unique = new Set(trimmed.map((s) => s.toLowerCase()));
-        if (unique.size !== trimmed.length) {
+    const finishSerialDrawerSave = (serials, { syncQty = false } = {}) => {
+        if (expandedSerialLineIndex == null) return;
+        const unique = new Set(serials.map((s) => s.toLowerCase()));
+        if (unique.size !== serials.length) {
             setSerialDrawerError("Duplicate serial numbers are not allowed.");
             return;
         }
-        if (expandedSerialLineIndex == null) return;
+        const idx = expandedSerialLineIndex;
         setLines((prev) =>
             prev.map((line, i) => {
-                if (i !== expandedSerialLineIndex) return line;
-                return { ...line, serials: trimmed };
+                if (i !== idx) return line;
+                const next = { ...line, serials };
+                if (syncQty) next.ship_now = String(serials.length);
+                return next;
             })
         );
         setErrors((prev) => {
             const next = { ...prev };
-            delete next[`line_${expandedSerialLineIndex}_serials`];
+            delete next[`line_${idx}_serials`];
+            if (syncQty) delete next[`line_${idx}_ship_now`];
             return next;
         });
         closeSerialRowExpand();
+    };
+
+    const handleSerialDrawerDone = () => {
+        const trimmed = compactSerials(serialDrawerValues);
+        if (trimmed.length === 0) {
+            setSerialDrawerError("Scan at least one serial, or set ship qty to 0.");
+            return;
+        }
+        finishSerialDrawerSave(trimmed, { syncQty: false });
+    };
+
+    const handleSerialDrawerPartialSetQty = () => {
+        const trimmed = compactSerials(serialDrawerValues);
+        if (!trimmed.length) return;
+        finishSerialDrawerSave(trimmed, { syncQty: true });
+    };
+
+    const handleSerialDrawerPartialKeepQty = () => {
+        const trimmed = compactSerials(serialDrawerValues);
+        finishSerialDrawerSave(trimmed, { syncQty: false });
     };
 
     // ── Validation + payload ───────────────────────────────────────────
@@ -978,9 +1120,9 @@ export default function DeliveryChallanForm({
             if (line.serial_required) {
                 const serialCount = (line.serials || []).length;
                 if (serialCount !== shipNow) {
-                    validationErrors[`line_${index}_serials`] = `Serial count (${serialCount}) must match quantity (${shipNow})${productLabel}`;
+                    validationErrors[`line_${index}_serials`] =
+                        `Serials ${serialCount}/${shipNow}${productLabel} — set qty to ${serialCount} or finish scanning`;
                 }
-                // Check for duplicates
                 const uniqueSerials = new Set((line.serials || []).map((s) => String(s || "").trim().toLowerCase()));
                 if (uniqueSerials.size !== (line.serials || []).length) {
                     validationErrors[`line_${index}_serials`] = `Duplicate serial numbers are not allowed${productLabel}`;
@@ -1337,17 +1479,24 @@ export default function DeliveryChallanForm({
                                                                 onClick={() => toggleSerialRowExpand(index)}
                                                             >
                                                                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                                    <QrCodeScannerIcon fontSize="small" color={serialCount === shipNow ? "success" : "action"} />
-                                                                    <Typography variant="body2">
-                                                                        Serials: {serialCount} / {shipNow}
-                                                                    </Typography>
+                                                                    <QrCodeScannerIcon fontSize="small" color="action" />
+                                                                    <SerialStatusChip count={serialCount} qty={shipNow} />
                                                                 </Box>
                                                                 {isExpanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
                                                             </Box>
                                                             {errors[`line_${index}_serials`] && (
-                                                                <FormHelperText error sx={{ mt: 0.5 }}>
-                                                                    {errors[`line_${index}_serials`]}
-                                                                </FormHelperText>
+                                                                <Box sx={{ mt: 0.5 }}>
+                                                                    <FormHelperText error>
+                                                                        {errors[`line_${index}_serials`]}
+                                                                    </FormHelperText>
+                                                                    {serialCount !== shipNow && serialCount > 0 && (
+                                                                        <SerialMismatchFixLink
+                                                                            count={serialCount}
+                                                                            qty={shipNow}
+                                                                            onSetQty={() => handleSyncShipQtyToSerials(index)}
+                                                                        />
+                                                                    )}
+                                                                </Box>
                                                             )}
 
                                                             {/* Expanded entry panel */}
@@ -1389,7 +1538,7 @@ export default function DeliveryChallanForm({
 
                                                                     {/* Serial text fields */}
                                                                     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25, mb: 1.5 }}>
-                                                                        {isExpanded && serialDrawerValues.length === shipNow && serialDrawerValues.map((value, idx) => (
+                                                                        {isExpanded && serialDrawerValues.map((value, idx) => (
                                                                             <TextField
                                                                                 key={idx}
                                                                                 size="small"
@@ -1417,25 +1566,43 @@ export default function DeliveryChallanForm({
                                                                     </Box>
 
                                                                     {/* Done / Cancel */}
-                                                                    <Box sx={{ display: "flex", gap: 1 }}>
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            className="flex-1 min-h-[44px] touch-manipulation"
-                                                                            onClick={closeSerialRowExpand}
-                                                                        >
-                                                                            Cancel
-                                                                        </Button>
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="sm"
-                                                                            className="flex-1 min-h-[44px] touch-manipulation"
-                                                                            onClick={handleSerialDrawerDone}
-                                                                        >
-                                                                            Done
-                                                                        </Button>
-                                                                    </Box>
+                                                                    {(() => {
+                                                                        const filled = serialDrawerValues.filter((v) => (v || "").trim()).length;
+                                                                        const isPartial = filled > 0 && filled < shipNow;
+                                                                        return (
+                                                                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                                                                {isPartial && (
+                                                                                    <SerialPartialSaveStrip
+                                                                                        filledCount={filled}
+                                                                                        targetQty={shipNow}
+                                                                                        onSetQty={handleSerialDrawerPartialSetQty}
+                                                                                        onKeepQty={handleSerialDrawerPartialKeepQty}
+                                                                                    />
+                                                                                )}
+                                                                                <Box sx={{ display: "flex", gap: 1 }}>
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        className="flex-1 min-h-[44px] touch-manipulation"
+                                                                                        onClick={requestCloseSerialDrawer}
+                                                                                    >
+                                                                                        Cancel
+                                                                                    </Button>
+                                                                                    {!isPartial && (
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            size="sm"
+                                                                                            className="flex-1 min-h-[44px] touch-manipulation"
+                                                                                            onClick={handleSerialDrawerDone}
+                                                                                        >
+                                                                                            Done
+                                                                                        </Button>
+                                                                                    )}
+                                                                                </Box>
+                                                                            </Box>
+                                                                        );
+                                                                    })()}
                                                                 </Box>
                                                             </Collapse>
                                                         </Box>
@@ -1560,11 +1727,9 @@ export default function DeliveryChallanForm({
                                                                 />
                                                             </TableCell>
                                                             <TableCell sx={{ ...compactCellSx, minWidth: 120, maxWidth: 140 }}>
-                                                                {line.serial_required && shipNow > 0 ? (
+                                                                {line.serial_required && (shipNow > 0 || serialCount > 0) ? (
                                                                     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-                                                                        <Typography variant="caption" color="text.secondary" noWrap title={`${serialCount} / ${shipNow} serials`}>
-                                                                            {serialCount} / {shipNow} serials
-                                                                        </Typography>
+                                                                        <SerialStatusChip count={serialCount} qty={shipNow} />
                                                                         {line.serials?.length > 0 && (
                                                                             <Typography variant="caption" color="text.secondary">
                                                                                 {line.serials.length <= 2
@@ -1573,9 +1738,18 @@ export default function DeliveryChallanForm({
                                                                             </Typography>
                                                                         )}
                                                                         {errors[`line_${index}_serials`] && (
-                                                                            <FormHelperText error sx={{ mt: 0.5 }}>
-                                                                                {errors[`line_${index}_serials`]}
-                                                                            </FormHelperText>
+                                                                            <Box>
+                                                                                <FormHelperText error sx={{ mt: 0.5 }}>
+                                                                                    {errors[`line_${index}_serials`]}
+                                                                                </FormHelperText>
+                                                                                {serialCount !== shipNow && serialCount > 0 && (
+                                                                                    <SerialMismatchFixLink
+                                                                                        count={serialCount}
+                                                                                        qty={shipNow}
+                                                                                        onSetQty={() => handleSyncShipQtyToSerials(index)}
+                                                                                    />
+                                                                                )}
+                                                                            </Box>
                                                                         )}
                                                                     </Box>
                                                                 ) : (
@@ -1592,7 +1766,7 @@ export default function DeliveryChallanForm({
                                         <Box data-no-row-toggle sx={{ p: 2, bgcolor: "action.hover", borderBottom: 1, borderColor: "divider" }}>
                                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1, flexWrap: "wrap", gap: 1 }}>
                                                 <Typography variant="subtitle2" color="text.secondary">
-                                                    Enter exactly {shipNow} serial number(s). Use TAB or ENTER to move to the next.
+                                                    Scan up to remaining/available; save anytime. Use TAB or ENTER to move to the next.
                                                 </Typography>
                                                 <Button
                                                     type="button"
@@ -1623,7 +1797,7 @@ export default function DeliveryChallanForm({
                                                 </Alert>
                                             )}
                                             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mb: 1.5 }}>
-                                                                                {isExpanded && serialDrawerValues.length === shipNow && serialDrawerValues.map((value, idx) => (
+                                                                                {isExpanded && serialDrawerValues.map((value, idx) => (
                                                                                     <Box key={idx} sx={{ minWidth: 200 }}>
                                                                                         <TextField
                                                                                             size="small"
@@ -1651,13 +1825,33 @@ export default function DeliveryChallanForm({
                                                                                     </Box>
                                                                                 ))}
                                                                             </Box>
-                                                                            <Box sx={{ display: "flex", gap: 1 }}>
-                                                                                <Button type="button" variant="outline" size="sm" onClick={closeSerialRowExpand}>
-                                                                                    Cancel
-                                                                                </Button>
-                                                                                <Button type="button" size="sm" onClick={handleSerialDrawerDone}>
-                                                                                    Done
-                                                                                </Button>
+                                                                            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                                                                                {(() => {
+                                                                                    const filled = serialDrawerValues.filter((v) => (v || "").trim()).length;
+                                                                                    const isPartial = filled > 0 && filled < shipNow;
+                                                                                    return (
+                                                                                        <>
+                                                                                            {isPartial && (
+                                                                                                <SerialPartialSaveStrip
+                                                                                                    filledCount={filled}
+                                                                                                    targetQty={shipNow}
+                                                                                                    onSetQty={handleSerialDrawerPartialSetQty}
+                                                                                                    onKeepQty={handleSerialDrawerPartialKeepQty}
+                                                                                                />
+                                                                                            )}
+                                                                                            <Box sx={{ display: "flex", gap: 1 }}>
+                                                                                                <Button type="button" variant="outline" size="sm" onClick={requestCloseSerialDrawer}>
+                                                                                                    Cancel
+                                                                                                </Button>
+                                                                                                {!isPartial && (
+                                                                                                    <Button type="button" size="sm" onClick={handleSerialDrawerDone}>
+                                                                                                        Done
+                                                                                                    </Button>
+                                                                                                )}
+                                                                                            </Box>
+                                                                                        </>
+                                                                                    );
+                                                                                })()}
                                                                             </Box>
                                                                         </Box>
                                                                     </Collapse>
