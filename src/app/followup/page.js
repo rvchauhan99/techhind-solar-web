@@ -226,9 +226,24 @@ export default function FollowupPage() {
     setLoading(true);
     setServerError(null);
     try {
-      await followupService.createFollowup(payload);
+      const { next_reminder_date, ...createPayload } = payload || {};
+      await followupService.createFollowup(createPayload);
       toastSuccess("Followup created successfully");
       handleCloseModal();
+      const reminderDate = next_reminder_date || null;
+      const from = filters.followup_next_reminder_from;
+      const to = filters.followup_next_reminder_to;
+      const outsideWindow =
+        reminderDate &&
+        ((from && reminderDate < from) || (to && reminderDate > to) || (!from && !to && filters.reminder_view === "overdue"));
+      if (outsideWindow) {
+        setActivePreset(null);
+        setFilters({
+          followup_next_reminder_from: reminderDate,
+          followup_next_reminder_to: reminderDate,
+          reminder_view: "",
+        });
+      }
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Failed to create followup";
