@@ -14,7 +14,6 @@ import Checkbox from "@/components/common/Checkbox";
 import LoadingButton from "@/components/common/LoadingButton";
 import { cn } from "@/lib/utils";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import { toastSuccess, toastError } from "@/utils/toast";
 
 const inquiryStatusOptions = [
   { key: "Live", value: "Live" },
@@ -226,30 +225,29 @@ export default function FollowupForm({
 
         setErrors({});
 
+        const blankToNull = (value) => {
+            if (value == null) return null;
+            if (typeof value === "string" && value.trim() === "") return null;
+            return value;
+        };
+
         const payload = {
-            ...formData,
             inquiry_id: formData.inquiry_id || null,
+            inquiry_status: formData.inquiry_status,
             call_by: formData.call_by || user?.id || null,
             next_reminder: formData.next_reminder
                 ? new Date(formData.next_reminder + "T00:00:00").toISOString()
                 : null,
-            remarks: formData.remarks || null,
-            rating: formData.rating || "",
+            next_reminder_date: formData.next_reminder || null,
+            remarks: blankToNull(formData.remarks),
+            rating: blankToNull(formData.rating),
+            is_schedule_site_visit: !!formData.is_schedule_site_visit,
+            is_msg_send_to_customer: !!formData.is_msg_send_to_customer,
+            dead_reason_id: blankToNull(formData.dead_reason_id),
+            dead_remarks: blankToNull(formData.dead_remarks),
         };
 
-        // Handle submission with toast messages
-        const submitFollowup = async () => {
-            try {
-                await followupService.createFollowup(payload);
-                toastSuccess(`Followup ${defaultValues?.id ? "updated" : "created"} successfully`);
-                onSubmit(payload);
-            } catch (err) {
-                const errorMessage = err.response?.data?.message || err.message || `Failed to ${defaultValues?.id ? "update" : "create"} followup`;
-                toastError(errorMessage);
-            }
-        };
-
-        submitFollowup();
+        onSubmit(payload);
     };
 
   if (loading) {

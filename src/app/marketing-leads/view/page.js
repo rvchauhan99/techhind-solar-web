@@ -400,6 +400,98 @@ function FollowUpHistory({ leadId, refreshKey }) {
   );
 }
 
+function AssignmentActivity({ leadId }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await marketingLeadsService.listAssignmentActivities(leadId);
+        const list = res?.result || res?.data || res;
+        setData(Array.isArray(list) ? list : []);
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load assignment activity";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (leadId) load();
+  }, [leadId]);
+
+  if (loading)
+    return (
+      <div className="py-4 flex justify-center">
+        <Loader />
+      </div>
+    );
+  if (error)
+    return (
+      <div className="p-2 bg-destructive/10 text-destructive text-sm rounded-md border border-destructive/20">
+        {error}
+      </div>
+    );
+  if (!data.length)
+    return (
+      <div className="py-6 text-center border rounded-xl bg-muted/10 border-dashed">
+        <IconUser className="size-8 text-muted-foreground/40 mx-auto mb-1.5" />
+        <div className="text-sm text-muted-foreground">
+          No assignment activity recorded yet.
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden bg-card">
+      <div className="overflow-x-auto max-h-[360px] custom-scrollbar">
+        <table className="w-full text-sm text-left">
+          <thead className="text-[11px] text-muted-foreground uppercase bg-muted/50 sticky top-0 z-10">
+            <tr>
+              <th className="px-3 py-2 font-bold whitespace-nowrap">When</th>
+              <th className="px-3 py-2 font-bold whitespace-nowrap">Action</th>
+              <th className="px-3 py-2 font-bold whitespace-nowrap">From</th>
+              <th className="px-3 py-2 font-bold whitespace-nowrap">To</th>
+              <th className="px-3 py-2 font-bold whitespace-nowrap">Assigned by</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {data.map((row) => (
+              <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                <td className="px-3 py-2 whitespace-nowrap text-foreground text-xs">
+                  {row.created_at
+                    ? moment(row.created_at).format("DD-MMM-YYYY HH:mm")
+                    : "—"}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <Badge variant="outline" className="font-medium bg-background text-xs capitalize">
+                    {row.action?.replace(/_/g, " ") || "—"}
+                  </Badge>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground text-xs">
+                  {row.from_user_name || "—"}
+                </td>
+                <td className="px-3 py-2 text-foreground text-xs font-semibold">
+                  {row.to_user_name || "—"}
+                </td>
+                <td className="px-3 py-2 text-foreground text-xs">
+                  {row.assigned_by_name || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main page content ───────────────────────────────────── */
 
 function MarketingLeadViewContent() {
@@ -517,6 +609,14 @@ function MarketingLeadViewContent() {
                 leadId={lead.id}
                 refreshKey={historyRefreshKey}
               />
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-2 px-0 flex items-center gap-1.5">
+                <IconUser className="size-3.5" />
+                Assignment Activity
+              </h3>
+              <AssignmentActivity leadId={lead.id} />
             </div>
           </div>
         </div>

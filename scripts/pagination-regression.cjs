@@ -59,6 +59,7 @@ const ROUTES = [
   "/closed-orders",
   "/confirm-orders",
   "/marketing-leads?view=list",
+  "/marketing-leads/assign",
   "/b2b-leads?view=list",
 ];
 

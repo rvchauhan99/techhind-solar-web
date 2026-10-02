@@ -349,6 +349,7 @@ function InquiryDetailsContent() {
         return await followupService.listFollowups({
             ...params,
             inquiry_id: id,
+            history: 1,
         });
     }, [id]);
 
