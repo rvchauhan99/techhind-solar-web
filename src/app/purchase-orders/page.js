@@ -922,6 +922,8 @@ export default function PurchaseOrderPage() {
                     <th className="px-2 py-1 text-left font-semibold">UOM</th>
                     <th className="px-2 py-1 text-right font-semibold">HSN</th>
                     <th className="px-2 py-1 text-right font-semibold">Rate</th>
+                    <th className="px-2 py-1 text-right font-semibold">Disc %</th>
+                    <th className="px-2 py-1 text-right font-semibold">Disc Amt</th>
                     <th className="px-2 py-1 text-right font-semibold">Ord</th>
                     <th className="px-2 py-1 text-right font-semibold">Rec</th>
                     <th className="px-2 py-1 text-right font-semibold">Ret</th>
@@ -944,6 +946,8 @@ export default function PurchaseOrderPage() {
                           ? `${currencyCode} ${Number(item.rate || 0).toFixed(2)}`
                           : formatCurrency(item.rate || 0)}
                       </td>
+                      <td className="px-2 py-1.5 text-right">{text(item.discount_percent ?? 0)}</td>
+                      <td className="px-2 py-1.5 text-right">{text(item.discount_amount ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.order_qty ?? item.quantity)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.received_qty ?? item.received_quantity ?? 0)}</td>
                       <td className="px-2 py-1.5 text-right">{text(item.returned_qty ?? item.returned_quantity ?? 0)}</td>
