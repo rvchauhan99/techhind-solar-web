@@ -16,6 +16,14 @@ import { resolveDocumentUrl } from "@/services/apiClient";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import AddressFields, { DEFAULT_COUNTRY, isIndiaCountry } from "@/components/common/AddressFields";
 import { validatePostalCode } from "@/utils/validators";
+import {
+    LEGACY_ORDER_FORM_DOCUMENTS,
+    useOrderFormDocumentConfig,
+    isDocumentSatisfied,
+    findInquiryDocForSlot,
+    getUnmatchedInquiryDocs,
+} from "./orderFormDocuments";
+import inquiryDocumentsService from "@/services/inquiryDocumentsService";
 
 const resolveLocationId = (value, options) => {
     if (value == null || value === "") return "";
@@ -58,7 +66,11 @@ export default function OrderForm({
     serverError = null,
     onClearServerError,
     amendMode = false,
+    enforceRequiredDocuments = false,
+    inquiryDocuments = [],
 }) {
+    const { documents: orderFormDocuments, documentKeys } = useOrderFormDocumentConfig();
+
     const [formData, setFormData] = useState({
         // Order details
         order_date: "",
@@ -121,19 +133,16 @@ export default function OrderForm({
         payment_type: "",
         loan_type_id: "",
 
-        // Documents
-        electricity_bill: null,
-        house_tax_bill: null,
-        aadhar_card: null,
-        passport_photo: null,
-        pan_card: null,
-        cancelled_cheque: null,
-        customer_sign: null,
+        // Documents — seeded from legacy keys; config keys merged below / in effects
+        ...LEGACY_ORDER_FORM_DOCUMENTS.reduce((acc, doc) => {
+            acc[doc.key] = defaultValues[doc.key] !== undefined ? defaultValues[doc.key] : null;
+            return acc;
+        }, {}),
 
         ...Object.keys(defaultValues).reduce((acc, key) => {
-            const docFields = ['electricity_bill', 'house_tax_bill', 'aadhar_card', 'passport_photo', 'pan_card', 'cancelled_cheque', 'customer_sign'];
-            if (docFields.includes(key)) {
-                acc[key] = defaultValues[key];
+            const legacyKeys = LEGACY_ORDER_FORM_DOCUMENTS.map((d) => d.key);
+            if (legacyKeys.includes(key) || key === "documentIds") {
+                if (key !== "documentIds") acc[key] = defaultValues[key];
             } else {
                 acc[key] = defaultValues[key] === null ? '' : defaultValues[key];
             }
@@ -238,13 +247,19 @@ export default function OrderForm({
         if (Object.keys(defaultValues).length > 0) {
             setFormData(prev => {
                 const updated = { ...prev };
+                let changed = false;
                 Object.keys(defaultValues).forEach(key => {
                     const value = defaultValues[key];
-                    // If the field is one of the documents, we might keep it as null or string path
-                    const docFields = ['electricity_bill', 'house_tax_bill', 'aadhar_card', 'passport_photo', 'pan_card', 'cancelled_cheque', 'customer_sign'];
+                    const isDocKey = documentKeys.includes(key)
+                        || LEGACY_ORDER_FORM_DOCUMENTS.some((d) => d.key === key);
 
-                    if (docFields.includes(key)) {
-                        if (value !== undefined) updated[key] = value;
+                    if (isDocKey) {
+                        if (value !== undefined && updated[key] !== value) {
+                            updated[key] = value;
+                            changed = true;
+                        }
+                    } else if (key === "documentIds") {
+                        // ignore — used only for view links
                     } else {
                         // For all other fields (presumably strings/numbers), convert null to empty string
                         if (value !== undefined) {
@@ -255,15 +270,37 @@ export default function OrderForm({
                             if (key === "city_id" && locationOptions.cities.length) {
                                 v = resolveLocationId(v, locationOptions.cities) || v;
                             }
-                            updated[key] = v;
+                            if (updated[key] !== v) {
+                                updated[key] = v;
+                                changed = true;
+                            }
                         }
                     }
                 });
-                if (!updated.country) updated.country = DEFAULT_COUNTRY;
-                return updated;
+                if (!updated.country) {
+                    updated.country = DEFAULT_COUNTRY;
+                    changed = true;
+                }
+                return changed ? updated : prev;
             });
         }
-    }, [defaultValues, locationOptions.states, locationOptions.cities]);
+    }, [defaultValues, locationOptions.states, locationOptions.cities, documentKeys]);
+
+    // Ensure dynamic document keys exist on form state when config loads
+    useEffect(() => {
+        if (!documentKeys.length) return;
+        setFormData((prev) => {
+            let changed = false;
+            const next = { ...prev };
+            documentKeys.forEach((key) => {
+                if (next[key] === undefined) {
+                    next[key] = defaultValues[key] !== undefined ? defaultValues[key] : null;
+                    changed = true;
+                }
+            });
+            return changed ? next : prev;
+        });
+    }, [documentKeys, defaultValues]);
 
     // Auto-populate solar_panel_id and inverter_id from quotationData (prefer bom_snapshot, fallback to panel_product/inverter_product)
     useEffect(() => {
@@ -282,14 +319,30 @@ export default function OrderForm({
             }
             const solar_panel_id = panelId != null ? Number(panelId) : (quotationData.panel_product ? Number(quotationData.panel_product) : undefined);
             const inverter_id = inverterId != null ? Number(inverterId) : (quotationData.inverter_product ? Number(quotationData.inverter_product) : undefined);
-            setFormData(prev => ({
-                ...prev,
-                capacity: quotationData.project_capacity ? Number(quotationData.project_capacity) : prev.capacity,
-                project_scheme_id: quotationData.project_scheme_id ? Number(quotationData.project_scheme_id) : prev.project_scheme_id,
-                order_type_id: quotationData.order_type_id ? Number(quotationData.order_type_id) : prev.order_type_id,
-                solar_panel_id: solar_panel_id ?? prev.solar_panel_id,
-                inverter_id: inverter_id ?? prev.inverter_id,
-            }));
+            setFormData(prev => {
+                const nextCapacity = quotationData.project_capacity ? Number(quotationData.project_capacity) : prev.capacity;
+                const nextScheme = quotationData.project_scheme_id ? Number(quotationData.project_scheme_id) : prev.project_scheme_id;
+                const nextOrderType = quotationData.order_type_id ? Number(quotationData.order_type_id) : prev.order_type_id;
+                const nextPanel = solar_panel_id ?? prev.solar_panel_id;
+                const nextInverter = inverter_id ?? prev.inverter_id;
+                if (
+                    prev.capacity === nextCapacity
+                    && prev.project_scheme_id === nextScheme
+                    && prev.order_type_id === nextOrderType
+                    && prev.solar_panel_id === nextPanel
+                    && prev.inverter_id === nextInverter
+                ) {
+                    return prev;
+                }
+                return {
+                    ...prev,
+                    capacity: nextCapacity,
+                    project_scheme_id: nextScheme,
+                    order_type_id: nextOrderType,
+                    solar_panel_id: nextPanel,
+                    inverter_id: nextInverter,
+                };
+            });
         }
     }, [quotationData, formData.quotation_id]);
 
@@ -381,6 +434,15 @@ export default function OrderForm({
         );
         if (cpError) {
             newErrors.channel_partner_id = cpError;
+        }
+
+        if (enforceRequiredDocuments) {
+            orderFormDocuments.forEach((doc) => {
+                if (!doc.required) return;
+                if (!isDocumentSatisfied(doc, formData, inquiryDocuments)) {
+                    newErrors[doc.key] = `${doc.label} is required`;
+                }
+            });
         }
 
         setErrors(newErrors);
@@ -825,24 +887,28 @@ export default function OrderForm({
 
                 <FormSection title="Document Uploads">
                     <FormGrid cols={3}>
-                        {[
-                            { key: "electricity_bill", label: "Electricity Bill *", accept: "image/*,application/pdf" },
-                            { key: "house_tax_bill", label: "House Tax Bill", accept: "image/*,application/pdf" },
-                            { key: "aadhar_card", label: "Aadhar Card *", accept: "image/*,application/pdf" },
-                            { key: "passport_photo", label: "Passport Photo *", accept: "image/*" },
-                            { key: "pan_card", label: "PAN Card", accept: "image/*,application/pdf" },
-                            { key: "cancelled_cheque", label: "Cancelled Cheque *", accept: "image/*,application/pdf" },
-                            { key: "customer_sign", label: "Customer Sign *", accept: "image/*" },
-                        ].map(({ key, label, accept }) => (
+                        {orderFormDocuments.map(({ key, label, accept, required }) => {
+                            const inquiryDoc = findInquiryDocForSlot({ key, label }, inquiryDocuments);
+                            const pickedFile = formData[key] instanceof File ? formData[key] : null;
+                            const existingPath = typeof formData[key] === "string" && formData[key].trim() !== ""
+                                ? formData[key]
+                                : null;
+
+                            return (
                             <div key={key} className="space-y-1">
                                 <Button variant="outline" className="w-full justify-start gap-2 h-9" asChild>
                                     <label className="cursor-pointer flex items-center gap-2 w-full justify-start">
                                         <IconUpload className="size-4 shrink-0" />
-                                        <span>{label}</span>
+                                        <span>
+                                            {label}
+                                            {required ? (
+                                                <span className="text-destructive" aria-hidden="true"> *</span>
+                                            ) : null}
+                                        </span>
                                         <input
                                             type="file"
                                             className="hidden"
-                                            accept={accept}
+                                            accept={accept || "image/*,application/pdf"}
                                             onChange={(e) => {
                                                 const file = e.target.files?.[0];
                                                 if (file) handleChange(key, file);
@@ -850,41 +916,122 @@ export default function OrderForm({
                                         />
                                     </label>
                                 </Button>
-                                {formData[key] && (
-                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                        <span>{typeof formData[key] === "string" ? "Current File" : formData[key].name}</span>
-                                        {typeof formData[key] === "string" && (
-                                            defaultValues?.documentIds?.[key] ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={async () => {
-                                                        try {
-                                                            const url = await orderDocumentsService.getDocumentUrl(defaultValues.documentIds[key]);
-                                                            if (url) window.open(url, "_blank");
-                                                        } catch (e) {
-                                                            console.error("Failed to get document URL", e);
-                                                        }
-                                                    }}
-                                                    className="text-primary hover:underline text-xs"
-                                                >
-                                                    (View)
-                                                </button>
-                                            ) : (
-                                                <a
-                                                    href={resolveDocumentUrl(formData[key])}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary hover:underline text-xs"
-                                                >
-                                                    (View)
-                                                </a>
-                                            )
+                                {errors[key] && (
+                                    <p className="text-xs text-destructive">{errors[key]}</p>
+                                )}
+                                {pickedFile && (
+                                    <div className="space-y-0.5">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <span className="truncate max-w-[70%]" title={pickedFile.name}>
+                                                {pickedFile.name}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    try {
+                                                        const url = URL.createObjectURL(pickedFile);
+                                                        window.open(url, "_blank", "noopener,noreferrer");
+                                                        // Revoke after the new tab has a chance to load the blob
+                                                        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                                                    } catch (e) {
+                                                        console.error("Failed to open local document preview", e);
+                                                    }
+                                                }}
+                                                className="text-primary hover:underline text-xs shrink-0"
+                                            >
+                                                (View)
+                                            </button>
+                                        </div>
+                                        {inquiryDoc && (
+                                            <p className="text-xs text-muted-foreground">
+                                                Will replace inquiry copy
+                                            </p>
                                         )}
                                     </div>
                                 )}
+                                {!pickedFile && existingPath && (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <span>Current File</span>
+                                        {defaultValues?.documentIds?.[key] ? (
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        const url = await orderDocumentsService.getDocumentUrl(defaultValues.documentIds[key]);
+                                                        if (url) window.open(url, "_blank");
+                                                    } catch (e) {
+                                                        console.error("Failed to get document URL", e);
+                                                    }
+                                                }}
+                                                className="text-primary hover:underline text-xs"
+                                            >
+                                                (View)
+                                            </button>
+                                        ) : (
+                                            <a
+                                                href={resolveDocumentUrl(existingPath)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary hover:underline text-xs"
+                                            >
+                                                (View)
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                                {!pickedFile && !existingPath && inquiryDoc && (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <span>Attached (from inquiry)</span>
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                try {
+                                                    const url = await inquiryDocumentsService.getDocumentUrl(inquiryDoc.id);
+                                                    if (url) window.open(url, "_blank");
+                                                } catch (e) {
+                                                    console.error("Failed to get inquiry document URL", e);
+                                                }
+                                            }}
+                                            className="text-primary hover:underline text-xs"
+                                        >
+                                            (View)
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        ))}
+                            );
+                        })}
                     </FormGrid>
+                    {(() => {
+                        const unmatched = getUnmatchedInquiryDocs(orderFormDocuments, inquiryDocuments);
+                        if (!unmatched.length) return null;
+                        return (
+                            <div className="mt-2 space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground">Other inquiry documents</p>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                    {unmatched.map((doc) => (
+                                        <div key={doc.id || `${doc.doc_type}-${doc.created_at}`} className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <span>{doc.doc_type || "Document"}</span>
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    try {
+                                                        const url = await inquiryDocumentsService.getDocumentUrl(doc.id);
+                                                        if (url) window.open(url, "_blank");
+                                                    } catch (e) {
+                                                        console.error("Failed to get inquiry document URL", e);
+                                                    }
+                                                }}
+                                                className="text-primary hover:underline text-xs"
+                                            >
+                                                (View)
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </FormSection>
             </form>
             <FormActions>
