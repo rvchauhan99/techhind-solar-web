@@ -709,8 +709,8 @@ export default function B2bSalesOrdersPage() {
                     <th className="text-right p-2">Returned</th>
                     <th className="text-right p-2">Pending</th>
                     <th className="text-right p-2">Rate</th>
-                    <th className="text-right p-2">Disc %</th>
-                    <th className="text-right p-2">Disc Amt</th>
+                    <th className="text-right p-2">Disc % / Qty</th>
+                    <th className="text-right p-2">Disc Amt / Qty</th>
                     <th className="text-right p-2">GST %</th>
                     <th className="text-right p-2">Taxable</th>
                     <th className="text-right p-2">GST</th>

@@ -2,7 +2,10 @@ const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 const lineValueOf = (quantity, rate) => (Number(quantity) || 0) * (Number(rate) || 0);
 
-/** Preview the other discount field while the user is typing. Does not throw. */
+/**
+ * Preview line discount. Disc Amt is rupees per qty; Disc % is of the unit rate.
+ * Returns discount_amount as the per-unit integer and line_discount as perUnit × qty.
+ */
 const previewLineDiscount = ({
   quantity,
   rate,
@@ -10,32 +13,40 @@ const previewLineDiscount = ({
   discount_amount,
   discount_basis,
 } = {}) => {
-  const lineValue = lineValueOf(quantity, rate);
+  const qty = Number(quantity) || 0;
+  const unitRate = Number(rate) || 0;
+  const lineValue = lineValueOf(qty, unitRate);
   const basis = String(discount_basis || "percent").toLowerCase() === "amount" ? "amount" : "percent";
 
   if (basis === "amount") {
     const raw = discount_amount === "" || discount_amount == null ? 0 : Number(discount_amount);
-    const amount = Number.isFinite(raw) ? Math.round(raw) : 0;
-    const percent = lineValue > 0 && amount > 0 ? round2((amount / lineValue) * 100) : 0;
+    const perUnit = Number.isFinite(raw) ? Math.round(raw) : 0;
+    const percent = unitRate > 0 && perUnit > 0 ? round2((perUnit / unitRate) * 100) : 0;
+    const lineDiscount = Math.max(0, perUnit * qty);
     return {
       discount_basis: "amount",
-      discount_amount: amount,
+      discount_amount: perUnit,
       discount_percent: percent,
       lineValue,
-      invalid: amount < 0 || (lineValue > 0 && amount > lineValue + 1e-9) || (lineValue <= 0 && amount > 0),
+      line_discount: lineDiscount,
+      taxable: Math.max(0, round2(lineValue - lineDiscount)),
+      invalid: perUnit < 0 || (unitRate > 0 && perUnit > unitRate + 1e-9) || (unitRate <= 0 && perUnit > 0),
     };
   }
 
   const rawPct = discount_percent === "" || discount_percent == null ? 0 : Number(discount_percent);
   const percent = Number.isFinite(rawPct) ? rawPct : 0;
-  let amount = lineValue > 0 && percent > 0 ? Math.round((lineValue * percent) / 100) : 0;
-  if (amount > lineValue) amount = Math.floor(lineValue);
-  if (amount < 0) amount = 0;
+  let perUnit = unitRate > 0 && percent > 0 ? Math.round((unitRate * percent) / 100) : 0;
+  if (perUnit > unitRate) perUnit = Math.floor(unitRate);
+  if (perUnit < 0) perUnit = 0;
+  const lineDiscount = Math.max(0, perUnit * qty);
   return {
     discount_basis: "percent",
     discount_percent: round2(percent),
-    discount_amount: amount,
+    discount_amount: perUnit,
     lineValue,
+    line_discount: lineDiscount,
+    taxable: Math.max(0, round2(lineValue - lineDiscount)),
     invalid: percent < 0 || percent > 100,
   };
 };
@@ -43,21 +54,22 @@ const previewLineDiscount = ({
 const integerAmountInput = (value) => String(value ?? "").split(".")[0].replace(/[^\d]/g, "");
 
 /**
- * Keep Disc % and Disc Amt in sync. The field the user is typing is left as entered.
- * Quantity or rate changes recalculate the field that was not last edited.
+ * Keep Disc % and Disc Amt / Qty in sync. The field the user is typing is left as entered.
+ * Rate (or per-watt) changes recalculate the field that was not last edited.
+ * Quantity changes do not rewrite either discount input.
  */
 const applyDiscountFieldChange = (item, changedName, rateKey = "unit_rate") => {
   const next = { ...item };
   const editsPercent = changedName === "discount_percent";
   const editsAmount = changedName === "discount_amount";
-  const editsLine = changedName === "quantity" || changedName === rateKey || changedName === "per_watt_rate";
+  const editsRate = changedName === rateKey || changedName === "per_watt_rate";
 
   if (editsAmount) {
     next.discount_amount = integerAmountInput(item.discount_amount);
     next.discount_basis = "amount";
   } else if (editsPercent) {
     next.discount_basis = "percent";
-  } else if (editsLine) {
+  } else if (editsRate) {
     next.discount_basis = item.discount_basis === "amount" ? "amount" : item.discount_basis || "percent";
   } else {
     return next;

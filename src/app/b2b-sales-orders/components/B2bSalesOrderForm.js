@@ -948,7 +948,7 @@ export default function B2bSalesOrderForm({
     });
     if (discountPreview.invalid) {
       if (currentItem.discount_basis === "amount") {
-        errs.discount_amount = "Discount amount cannot exceed line value";
+        errs.discount_amount = "Discount amount cannot exceed unit rate";
       } else {
         errs.discount_percent = "Discount % must be between 0 and 100";
       }
@@ -1009,7 +1009,7 @@ export default function B2bSalesOrderForm({
         discount_amount: item.discount_amount,
         discount_basis: item.discount_basis,
       });
-      const taxable = Math.max(0, discount.lineValue - discount.discount_amount);
+      const taxable = discount.taxable ?? Math.max(0, discount.lineValue - (discount.line_discount ?? 0));
       const gstAmt = (taxable * gst) / 100;
       totalQuantity += qty;
       taxableAmount += taxable;
@@ -1624,7 +1624,7 @@ export default function B2bSalesOrderForm({
                 />
                 <Input
                   name="discount_percent"
-                  label="Disc %"
+                  label="Disc % / Qty"
                   type="number"
                   value={currentItem.discount_percent}
                   onChange={handleCurrentItemChange}
@@ -1634,7 +1634,7 @@ export default function B2bSalesOrderForm({
                 />
                 <Input
                   name="discount_amount"
-                  label="Disc Amt"
+                  label="Disc Amt / Qty"
                   type="number"
                   value={currentItem.discount_amount}
                   onChange={handleCurrentItemChange}
@@ -1689,8 +1689,8 @@ export default function B2bSalesOrderForm({
                       <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Per Watt (₹/W)</TableCell>
                       <TableCell align="right">Rate (₹)</TableCell>
-                      <TableCell align="right">Disc %</TableCell>
-                      <TableCell align="right">Disc Amt</TableCell>
+                      <TableCell align="right">Disc % / Qty</TableCell>
+                      <TableCell align="right">Disc Amt / Qty</TableCell>
                       <TableCell align="right">GST %</TableCell>
                       <TableCell align="right">Taxable Amt</TableCell>
                       <TableCell align="right">GST Amt</TableCell>
@@ -1705,8 +1705,14 @@ export default function B2bSalesOrderForm({
                       const disc = Number(item.discount_percent) || 0;
                       const discountAmt = Number(item.discount_amount) || 0;
                       const gst = Number(item.gst_percent) || 0;
-                      const lineValue = rate * qty;
-                      const taxable = Math.max(0, lineValue - discountAmt);
+                      const lineDiscount = previewLineDiscount({
+                        quantity: qty,
+                        rate,
+                        discount_percent: item.discount_percent,
+                        discount_amount: item.discount_amount,
+                        discount_basis: item.discount_basis,
+                      });
+                      const taxable = lineDiscount.taxable;
                       const gstAmt = (taxable * gst) / 100;
                       const total = taxable + gstAmt;
                       const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
@@ -1760,33 +1766,41 @@ export default function B2bSalesOrderForm({
             )}
 
             {formData.items.length > 0 && (
-              <Paper sx={{ p: 1, mt: 1, bgcolor: "grey.100" }}>
+              <Paper sx={{ px: 0.75, py: 0.5, mt: 0.5, bgcolor: "grey.50" }}>
                 <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Box sx={{ minWidth: 300 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Total Quantity:</Typography>
-                      <Typography variant="body2" fontWeight="bold">{totals.total_quantity}</Typography>
+                  <Box
+                    sx={{
+                      minWidth: 240,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 0.25,
+                      "& .MuiTypography-root": { fontSize: 12, lineHeight: 1.25 },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Total Quantity</Typography>
+                      <Typography variant="caption" fontWeight={600}>{totals.total_quantity}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Taxable Amount:</Typography>
-                      <Typography variant="body2" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Taxable Amount</Typography>
+                      <Typography variant="caption" fontWeight={600}>₹{totals.taxable_amount.toFixed(2)}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">{applicableGstLabel}:</Typography>
-                      <Typography variant="body2" fontWeight="bold">{applicableGstValue}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">{applicableGstLabel}</Typography>
+                      <Typography variant="caption" fontWeight={600}>{applicableGstValue}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Total GST Amount:</Typography>
-                      <Typography variant="body2" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Total GST Amount</Typography>
+                      <Typography variant="caption" fontWeight={600}>₹{totals.total_gst_amount.toFixed(2)}</Typography>
                     </Box>
-                    <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 0.5 }}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                        <Typography variant="body2">Round Off:</Typography>
-                        <Typography variant="body2" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
+                    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 0.5, mt: 0.25, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="caption" color="text.secondary">Round Off</Typography>
+                        <Typography variant="caption" fontWeight={600}>{signedRoundOff(totals.round_off_amount)}</Typography>
                       </Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                        <Typography variant="subtitle1" fontWeight="bold">Final Amount:</Typography>
-                        <Typography variant="subtitle1" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" fontWeight={700}>Final Amount</Typography>
+                        <Typography variant="body2" fontWeight={700}>₹{Number(totals.final_amount).toFixed(2)}</Typography>
                       </Box>
                     </Box>
                   </Box>
