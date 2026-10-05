@@ -487,12 +487,12 @@ export default function B2bSalesOrderLinesReport({ filters, refreshKey }) {
     },
     {
       field: "discount_percent",
-      label: "Disc %",
+      label: "Disc % / Qty",
       render: (row) => <span className="text-[10px] text-slate-600">{row.discount_percent ?? 0}</span>,
     },
     {
       field: "discount_amount",
-      label: "Disc Amt",
+      label: "Disc Amt / Qty",
       render: (row) => <span className="text-[10px] text-slate-600">{row.discount_amount ?? 0}</span>,
     },
     {
