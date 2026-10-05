@@ -10,21 +10,28 @@ import {
     Alert,
     Grid,
     Paper,
-    Tabs,
-    Tab,
     Chip,
     Divider,
     Button,
-    MenuItem,
     Tooltip,
     Dialog,
     DialogTitle,
     DialogContent,
     DialogActions,
+    Card,
+    CardContent,
+    CardHeader,
+    Avatar,
+    Stack,
 } from "@mui/material";
 import PhoneIcon from "@mui/icons-material/Phone";
-import PrintIcon from "@mui/icons-material/Print";
+import PersonIcon from "@mui/icons-material/Person";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import PaymentIcon from "@mui/icons-material/Payment";
+import BusinessIcon from "@mui/icons-material/Business";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
 import Input from "@/components/common/Input";
+import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { getReferenceOptionsSearch } from "@/services/mastersService";
@@ -52,6 +59,11 @@ import QuotationDetailsDrawer from "@/components/common/QuotationDetailsDrawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
+import { PendingStageStrip, LkycPanel, TkycPanel, OrderQueryPanel } from "./OrderPendingWorkflow";
+import { fetchPendingOrderKycEnabled } from "@/utils/pendingOrderKycConfig";
+import { Button as UiButton } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const LEGACY_ORDER_DOC_TYPE_LABELS = {
     electricity_bill: "Electricity Bill",
@@ -75,21 +87,24 @@ const resolveOrderDocTypeLabel = (docType, masterTypes = []) => {
 
 const getValidationStatusMeta = (status) => {
     const s = String(status || "").toLowerCase();
-    if (s === "approved") return { label: "Approved", color: "success" };
-    if (s === "rejected") return { label: "Rejected", color: "error" };
-    if (s === "pending") return { label: "Pending", color: "warning" };
-    return { label: "-", color: "default" };
+    if (s === "approved") return { label: "Approved", variant: "success" };
+    if (s === "rejected") return { label: "Rejected", variant: "destructive" };
+    if (s === "pending") return { label: "Pending", variant: "accent" };
+    return { label: "-", variant: "secondary" };
 };
 
-function TabPanel({ children, value, index }) {
-    return (
-        <div hidden={value !== index} style={{ padding: "20px 0" }}>
-            {children}
-        </div>
-    );
-}
+const ORDER_TABS = [
+    { value: 6, label: "L-KYC" },
+    { value: 7, label: "T-KYC" },
+    { value: 0, label: "Registration" },
+    { value: 1, label: "Documents" },
+    { value: 2, label: "Receive Payment" },
+    { value: 3, label: "Previous Payments" },
+    { value: 4, label: "Remarks" },
+    { value: 5, label: "Upload Documents" },
+];
 
-function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
+function RegistrationForm({ orderData, orderId, orderDocumentTypes = [], locked = false }) {
     const router = useRouter();
   const { goToList } = useListReturnNavigation("/order");
     const [formData, setFormData] = useState({
@@ -99,6 +114,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
         date_of_registration_gov: "",
         application_no: "",
         feasibility_date: "",
+        pm_application_status: "not_applied",
     });
     const [registrationLetter, setRegistrationLetter] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -114,6 +130,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
                 date_of_registration_gov: orderData.date_of_registration_gov ? moment(orderData.date_of_registration_gov).format("YYYY-MM-DD") : "",
                 application_no: orderData.application_no || "",
                 feasibility_date: orderData.feasibility_date ? moment(orderData.feasibility_date).format("YYYY-MM-DD") : "",
+                pm_application_status: orderData.pm_application_status || "not_applied",
             });
         }
     }, [orderData]);
@@ -134,7 +151,7 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     };
 
     const handleSave = async () => {
-        if (loading) return;
+        if (loading || locked) return;
         try {
             setLoading(true);
             setErrors({});
@@ -156,6 +173,10 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
             }
 
             // Update order with registration details and change status to confirmed
+            await orderService.updateOrderKyc(orderId, {
+                stage: "registration",
+                pm_application_status: formData.pm_application_status || "not_applied",
+            });
             await orderService.updateOrder(orderId, { ...formData, status: 'confirmed' });
 
             // Upload registration letter if provided
@@ -190,8 +211,13 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
     };
 
     return (
-        <Box p={2}>
-            <Grid container spacing={3}>
+        <Box p={1}>
+            {locked ? (
+                <Alert severity="warning" sx={{ mb: 1 }}>
+                    Registration is locked until L-KYC and T-KYC are both Passed.
+                </Alert>
+            ) : null}
+            <Grid container spacing={1}>
                 <Grid size={4}>
                     <AutocompleteField
                         name="discom_id"
@@ -279,28 +305,41 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
                     />
                 </Grid>
 
-                <Grid size={12}>
-                    <Typography variant="body2" gutterBottom>
-                        Upload Registration Letter
-                    </Typography>
-                    <Button
-                        variant="outlined"
-                        component="label"
-                        size="small"
+                <Grid size={4}>
+                    <Select
+                        name="pm_application_status"
+                        label="PM application status"
+                        value={formData.pm_application_status || "not_applied"}
+                        onChange={(e) => handleChange("pm_application_status", e.target.value)}
+                        disabled={locked}
                     >
-                        Choose File
-                        <input
-                            type="file"
-                            hidden
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleFileChange}
-                        />
-                    </Button>
-                    {registrationLetter && (
-                        <Typography variant="caption" ml={2}>
-                            {registrationLetter.name}
-                        </Typography>
-                    )}
+                        <MenuItem value="not_applied">Not applied</MenuItem>
+                        <MenuItem value="submitted">Application submitted</MenuItem>
+                        <MenuItem value="under_process">Under process</MenuItem>
+                        <MenuItem value="feasibility_completed">Feasibility completed</MenuItem>
+                        <MenuItem value="approved">Approved</MenuItem>
+                        <MenuItem value="rejected">Rejected</MenuItem>
+                    </Select>
+                </Grid>
+
+                <Grid size={12}>
+                    <p className="mb-1 text-xs text-slate-500">Upload Registration Letter</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <UiButton type="button" size="sm" variant="outline" asChild>
+                            <label className="cursor-pointer">
+                                Choose File
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onChange={handleFileChange}
+                                />
+                            </label>
+                        </UiButton>
+                        {registrationLetter ? (
+                            <span className="text-xs text-slate-500">{registrationLetter.name}</span>
+                        ) : null}
+                    </div>
                 </Grid>
 
                 {errors.submit && (
@@ -316,15 +355,15 @@ function RegistrationForm({ orderData, orderId, orderDocumentTypes = [] }) {
                 )}
 
                 <Grid size={12}>
-                    <Button
-                        variant="contained"
-                        color="success"
+                    <UiButton
+                        type="button"
+                        size="sm"
                         onClick={handleSave}
-                        disabled={loading}
-                        startIcon={loading ? <CircularProgress size={20} /> : null}
+                        disabled={loading || locked}
+                        loading={loading}
                     >
                         Save
-                    </Button>
+                    </UiButton>
                 </Grid>
             </Grid>
         </Box>
@@ -526,8 +565,8 @@ function ReceivePaymentForm({
         : Math.max(0, projectCostAmount - totalCommittedAmount);
 
     return (
-        <Box p={2}>
-            <Grid container spacing={3}>
+        <Box p={1}>
+            <Grid container spacing={1}>
                 <Grid size={3}>
                     <DateField
                         fullWidth
@@ -623,17 +662,22 @@ function ReceivePaymentForm({
                 </Grid>
 
                 <Grid size={3}>
-                    <Button variant="outlined" component="label" size="small">
-                        Upload Receipt / Cheque
-                        <input
-                            key={fileInputKey}
-                            type="file"
-                            hidden
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            onChange={handleFileChange}
-                        />
-                    </Button>
-                    {receiptFile && <Typography variant="caption" ml={2}>{receiptFile.name}</Typography>}
+                    <p className="mb-1 text-xs text-slate-500">Upload Receipt / Cheque</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <UiButton type="button" size="sm" variant="outline" asChild>
+                            <label className="cursor-pointer">
+                                Choose File
+                                <input
+                                    key={fileInputKey}
+                                    type="file"
+                                    className="hidden"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    onChange={handleFileChange}
+                                />
+                            </label>
+                        </UiButton>
+                        {receiptFile ? <span className="text-xs text-slate-500">{receiptFile.name}</span> : null}
+                    </div>
                 </Grid>
 
                 <Grid size={12}>
@@ -660,15 +704,15 @@ function ReceivePaymentForm({
                 )}
 
                 <Grid size={12}>
-                    <Button
-                        variant="contained"
-                        color="success"
+                    <UiButton
+                        type="button"
+                        size="sm"
                         onClick={handleSave}
                         disabled={loading || !canRecordPayment}
-                        startIcon={loading ? <CircularProgress size={20} /> : null}
+                        loading={loading}
                     >
                         Save
-                    </Button>
+                    </UiButton>
                 </Grid>
 
             </Grid>
@@ -725,7 +769,7 @@ function PreviousPaymentsTable({ orderId }) {
                         <Typography component="span" variant="body2" color={isRev ? "warning.main" : "inherit"}>
                             ₹{n.toLocaleString("en-IN")}
                         </Typography>
-                        {isRev && <Chip label="REV" size="small" color="warning" />}
+                        {isRev && <Badge variant="accent">REV</Badge>}
                     </Box>
                 );
             },
@@ -801,9 +845,9 @@ function PreviousPaymentsTable({ orderId }) {
                     : row.status === "rejected"
                         ? "Rejected"
                         : "Pending";
-                const color =
-                    row.status === "approved" ? "success" : row.status === "rejected" ? "error" : "warning";
-                return <Chip label={label} color={color} size="small" />;
+                const variant =
+                    row.status === "approved" ? "success" : row.status === "rejected" ? "destructive" : "accent";
+                return <Badge variant={variant}>{label}</Badge>;
             },
         },
         {
@@ -828,18 +872,18 @@ function PreviousPaymentsTable({ orderId }) {
             render: (row) => {
                 const isApproved = row.status === "approved";
                 return (
-                    <Box display="flex" gap={1} flexWrap="wrap">
+                    <div className="flex flex-wrap gap-1">
                         {isApproved && (
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<PrintIcon />}
+                            <UiButton
+                                type="button"
+                                variant="outline"
+                                size="sm"
                                 onClick={() => handlePrintReceipt(row.id)}
                             >
                                 Print Receipt
-                            </Button>
+                            </UiButton>
                         )}
-                    </Box>
+                    </div>
                 );
             },
         },
@@ -889,14 +933,14 @@ function RemarksForm({ orderData, orderId }) {
     };
 
     return (
-        <Box p={2}>
-            <Grid container spacing={3}>
+        <Box p={1}>
+            <Grid container spacing={1}>
                 <Grid size={12}>
                     <Input
                         fullWidth
                         label="Order Remarks"
                         multiline
-                        rows={10}
+                        rows={4}
                         value={remarks}
                         onChange={(e) => setRemarks(e.target.value)}
                         placeholder="Enter any remarks or notes about this order..."
@@ -916,14 +960,9 @@ function RemarksForm({ orderData, orderId }) {
                 )}
 
                 <Grid size={12}>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleSave}
-                        disabled={loading}
-                    >
-                        {loading ? "Saving..." : "Save Remarks"}
-                    </Button>
+                    <UiButton type="button" size="sm" onClick={handleSave} disabled={loading} loading={loading}>
+                        Save Remarks
+                    </UiButton>
                 </Grid>
             </Grid>
         </Box>
@@ -1013,8 +1052,8 @@ function UploadDocumentsForm({
     };
 
     return (
-        <Box p={2}>
-            <Grid container spacing={3}>
+        <Box p={1}>
+            <Grid container spacing={1}>
                 <Grid size={6}>
                     <AutocompleteField
                         name="doc_type"
@@ -1036,15 +1075,17 @@ function UploadDocumentsForm({
                 </Grid>
 
                 <Grid size={6}>
-                    <Typography variant="body2" gutterBottom>
-                        Document File *
-                    </Typography>
-                    <Button variant="outlined" component="label" fullWidth>
-                        Choose File
-                        <input key={fileInputKey} type="file" hidden onChange={handleFileChange} />
-                    </Button>
-                    {documentFile && <Typography variant="caption" mt={1}>{documentFile.name}</Typography>}
-                    {errors.document && <Typography variant="caption" color="error">{errors.document}</Typography>}
+                    <p className="mb-1 text-xs text-slate-500">Document File *</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <UiButton type="button" size="sm" variant="outline" asChild>
+                            <label className="cursor-pointer">
+                                Choose File
+                                <input key={fileInputKey} type="file" className="hidden" onChange={handleFileChange} />
+                            </label>
+                        </UiButton>
+                        {documentFile ? <span className="text-xs text-slate-500">{documentFile.name}</span> : null}
+                    </div>
+                    {errors.document ? <p className="mt-1 text-xs text-red-600">{errors.document}</p> : null}
                 </Grid>
 
                 <Grid size={12}>
@@ -1071,20 +1112,26 @@ function UploadDocumentsForm({
                 )}
 
                 <Grid size={12}>
-                    <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleSubmit}
-                        disabled={loading}
-                    >
-                        {loading ? "Uploading..." : "Upload Document"}
-                    </Button>
+                    <UiButton type="button" size="sm" onClick={handleSubmit} disabled={loading} loading={loading}>
+                        Upload Document
+                    </UiButton>
                 </Grid>
             </Grid>
         </Box>
     );
 }
 
+
+
+const InfoRow = ({ label, value, icon, valueColor = "text.primary" }) => (
+    <Box display="flex" alignItems="flex-start" mb={1.5} gap={1.5}>
+        {icon && <Box sx={{ color: 'text.secondary', mt: 0.2 }}>{icon}</Box>}
+        <Box flex={1}>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 500, mb: 0.5 }}>{label}</Typography>
+            <Typography variant="body2" fontWeight="500" color={valueColor} sx={{ wordBreak: 'break-word' }}>{value}</Typography>
+        </Box>
+    </Box>
+);
 
 export default function OrderViewPage() {
     return (
@@ -1102,13 +1149,16 @@ function OrderViewPageContent() {
     const { user } = useAuth();
     const canAmendOrder = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND);
     const orderId = searchParams.get("id");
-    const initialTab = parseInt(searchParams.get("tab")) || null; // Get tab from URL or default to 0
+    const tabParam = searchParams.get("tab");
+    const hasExplicitTab = tabParam != null && tabParam !== "";
+    const explicitTab = hasExplicitTab ? parseInt(tabParam, 10) : null;
+    const [kycEnabled, setKycEnabled] = useState(false);
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [orderData, setOrderData] = useState(null);
-    const [tabValue, setTabValue] = useState(initialTab || 0); // Use initialTab from URL
-    const [visitedTabs, setVisitedTabs] = useState(new Set([initialTab || 0])); // Track visited tabs, start with initialTab
+    const [tabValue, setTabValue] = useState(Number.isFinite(explicitTab) ? explicitTab : 0);
+    const [visitedTabs, setVisitedTabs] = useState(new Set([Number.isFinite(explicitTab) ? explicitTab : 0]));
     const [paymentsDocumentsRefreshKey, setPaymentsDocumentsRefreshKey] = useState(0);
     const [orderDocumentTypes, setOrderDocumentTypes] = useState([]);
     const [loadingOrderDocumentTypes, setLoadingOrderDocumentTypes] = useState(false);
@@ -1120,21 +1170,39 @@ function OrderViewPageContent() {
     const [cancelling, setCancelling] = useState(false);
     const [quotationDrawerOpen, setQuotationDrawerOpen] = useState(false);
 
-    // Determine which tabs should be visible based on initial tab
+    useEffect(() => {
+        let cancelled = false;
+        fetchPendingOrderKycEnabled().then((enabled) => {
+            if (cancelled) return;
+            setKycEnabled(enabled);
+            if (enabled && !hasExplicitTab) {
+                setTabValue(6);
+                setVisitedTabs((prev) => new Set([...prev, 6]));
+            }
+            if (!enabled && (explicitTab === 6 || explicitTab === 7)) {
+                setTabValue(0);
+                setVisitedTabs((prev) => new Set([...prev, 0]));
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [hasExplicitTab, explicitTab]);
+
     const getVisibleTabs = () => {
-        // Documents (tab 1) is always visible
-        switch (initialTab) {
-            case 0: // Registration
-                return [0, 1]; // Registration + Documents
-            case 2: // Receive Payment
-            case 3: // Previous Payments
-                return [1, 2, 3]; // Documents + Receive Payment + Previous Payments
-            case 4: // Remarks
-                return [4]; // Remarks
-            case 5: // Upload Documents
-                return [1, 5]; // Documents + Upload Documents
+        const allTabs = kycEnabled ? [6, 7, 0, 1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5];
+        switch (explicitTab) {
+            case 0:
+                return [0, 1];
+            case 2:
+            case 3:
+                return [1, 2, 3];
+            case 4:
+                return [4];
+            case 5:
+                return [1, 5];
             default:
-                return [0, 1, 2, 3, 4, 5]; // All tabs (when no specific tab is selected)
+                return allTabs;
         }
     };
     const visibleTabs = getVisibleTabs();
@@ -1148,7 +1216,6 @@ function OrderViewPageContent() {
         : Math.max(0, committedOutstandingAmount);
     const projectCostAmount = getOrderProjectCostAmount(orderData);
     const pendingCommittedAmount = Math.max(0, totalCommittedAmount - totalReceivedAmount);
-    console.warn('visibleTabs', visibleTabs);
 
     useEffect(() => {
         if (!orderId) {
@@ -1198,9 +1265,10 @@ function OrderViewPageContent() {
         };
     }, []);
 
-    const handleTabChange = (event, newValue) => {
-        setTabValue(newValue);
-        setVisitedTabs(prev => new Set([...prev, newValue])); // Mark tab as visited
+    const handleTabChange = (newValue) => {
+        const next = Number(newValue);
+        setTabValue(next);
+        setVisitedTabs((prev) => new Set([...prev, next]));
     };
 
     const refreshPaymentTotal = async () => {
@@ -1217,6 +1285,12 @@ function OrderViewPageContent() {
         refreshPaymentTotal();
         setPaymentsDocumentsRefreshKey((k) => k + 1);
     };
+    const reloadOrder = async () => {
+        const orderResponse = await orderService.getOrderById(orderId);
+        setOrderData(orderResponse?.result || orderResponse);
+        setPaymentsDocumentsRefreshKey((k) => k + 1);
+    };
+    const registrationLocked = kycEnabled && ((orderData?.l_kyc_status || "pending") !== "passed" || (orderData?.t_kyc_status || "pending") !== "passed");
     const fetchDocuments = async (params) => {
         const result = await orderDocumentsService.getOrderDocuments({
             ...params,
@@ -1260,17 +1334,18 @@ function OrderViewPageContent() {
             render: (row) => {
                 const meta = getValidationStatusMeta(row?.validation_status);
                 if (meta.label === "-") return "-";
-                return <Chip label={meta.label} color={meta.color} size="small" />;
+                return <Badge variant={meta.variant}>{meta.label}</Badge>;
             },
         },
         {
             id: "actions",
             label: "Actions",
             render: (row) => (
-                <Box display="flex" gap={1}>
-                    <Button
-                        variant="outlined"
-                        size="small"
+                <div className="flex flex-wrap gap-1">
+                    <UiButton
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={async () => {
                             try {
                                 const url = await orderDocumentsService.getDocumentUrl(row.id);
@@ -1281,10 +1356,11 @@ function OrderViewPageContent() {
                         }}
                     >
                         View Document
-                    </Button>
-                    <Button
-                        variant="outlined"
-                        size="small"
+                    </UiButton>
+                    <UiButton
+                        type="button"
+                        variant="outline"
+                        size="sm"
                         onClick={async () => {
                             try {
                                 const { blob, filename } = await orderDocumentsService.downloadOrderDocument(row.id);
@@ -1308,8 +1384,8 @@ function OrderViewPageContent() {
                         }}
                     >
                         Download
-                    </Button>
-                </Box>
+                    </UiButton>
+                </div>
             ),
         },
     ];
@@ -1372,288 +1448,287 @@ function OrderViewPageContent() {
                         <Alert severity="error">{error}</Alert>
                     </Box>
                 )}
-                <Box px={1.5} py={1} display="flex" justifyContent="space-between" alignItems="center">
-                    <Typography variant="h6">
-                        Pending Order - {orderData?.order_number || "N/A"}
-                    </Typography>
-                    <Box display="flex" gap={1}>
-                        <Button
-                            variant="outlined"
-                            size="small"
+                
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-1.5 mb-2">
+                    <div className="min-w-0">
+                        <h1 className="text-xl font-bold tracking-tight text-slate-900 leading-tight">
+                            Pending Order - {orderData?.order_number || "N/A"}
+                        </h1>
+                        <p className="text-[11px] text-slate-500 truncate">
+                            {orderData?.customer_name || "N/A"} · {orderData?.branch_name || "N/A"}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <UiButton
+                            type="button"
+                            size="sm"
+                            variant="outline"
                             onClick={() => setQuotationDrawerOpen(true)}
                         >
                             Quotation
-                        </Button>
+                        </UiButton>
                         {canAmendOrder && (
-                            <Button
-                                variant="outlined"
-                                size="small"
+                            <UiButton
+                                type="button"
+                                size="sm"
+                                variant="outline"
                                 onClick={() => router.push(`/order/amend?id=${orderId}`)}
                             >
                                 Amend (BA)
-                            </Button>
+                            </UiButton>
                         )}
                         {cancelEligibility.canCancel && (
-                            <Button
-                                variant="outlined"
-                                color="error"
-                                size="small"
+                            <UiButton
+                                type="button"
+                                size="sm"
+                                variant="destructive"
                                 onClick={handleOpenCancelDialog}
                             >
                                 Cancel Order
-                            </Button>
+                            </UiButton>
                         )}
-                    </Box>
-                </Box>
-                <Grid container spacing={2} >
-                    {/* Left Sidebar - 20% */}
-                    <Grid size={3} >
-                        {/* Customer Details */}
-                        <Paper sx={{ p: 2, mb: 2, height: calculateInquiryDetailsHeight(), overflowY: "auto" }}>
-                            <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5 }}>
-                                Customer Details
-                            </Typography>
-                            <Box mt={2} mb={2}>
-                                <Typography variant="body2" color="text.secondary">Order No:</Typography>
-                                <Typography variant="body1" color="primary" fontWeight="bold">
-                                    {orderData?.order_number || "N/A"}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" mt={2}>Name:</Typography>
-                                <Typography variant="body1" color="primary" fontWeight="bold">
-                                    {orderData?.customer_name || "N/A"}
-                                </Typography>
+                    </div>
+                </div>
+                
+                <Grid container spacing={3}>
+                    {/* Left Sidebar */}
+                    <Grid size={3}>
+                        <Box sx={{ height: calculateInquiryDetailsHeight(), overflowY: "auto", pr: 1, '&::-webkit-scrollbar': { width: '6px' }, '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: '10px' } }}>
+                            <Stack spacing={2.5}>
+                                {/* Customer Details */}
+                                <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                                    <CardHeader 
+                                        title="Customer Details" 
+                                        titleTypographyProps={{ variant: 'subtitle2', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                                        sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'grey.200', py: 1.5 }}
+                                        avatar={<Avatar sx={{ bgcolor: 'primary.light', width: 32, height: 32 }}><PersonIcon fontSize="small" /></Avatar>}
+                                    />
+                                    <CardContent sx={{ p: 2.5, pb: "20px !important" }}>
+                                        <InfoRow label="Order No" value={orderData?.order_number || "N/A"} />
+                                        <InfoRow label="Name" value={orderData?.customer_name || "N/A"} />
+                                        <InfoRow label="Contact No" value={getPrimaryPhone(orderData || {})} icon={<PhoneIcon fontSize="small" />} />
+                                        <InfoRow label="Address" value={getFullOrderAddress(orderData || {})} icon={<LocationOnIcon fontSize="small" />} />
+                                        <InfoRow label="Reference" value={orderData?.reference_from || "N/A"} />
+                                        <InfoRow label="Channel Partner" value={orderData?.channel_partner_name || "N/A"} />
+                                        <InfoRow label="Handled By" value={orderData?.handled_by_name || "N/A"} />
+                                        <InfoRow label="Branch" value={orderData?.branch_name || "N/A"} icon={<BusinessIcon fontSize="small" />} />
+                                    </CardContent>
+                                </Card>
 
-                                <Typography variant="body2" color="text.secondary" mt={2}>Contact No:</Typography>
-                                <Typography variant="body1" display="flex" alignItems="center" gap={0.5}>
-                                    <PhoneIcon fontSize="small" color="primary" />
-                                    {getPrimaryPhone(orderData || {})}
-                                </Typography>
+                                {/* Project Details */}
+                                <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                                    <CardHeader 
+                                        title="Project Details" 
+                                        titleTypographyProps={{ variant: 'subtitle2', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                                        sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'grey.200', py: 1.5 }}
+                                        avatar={<Avatar sx={{ bgcolor: 'secondary.light', width: 32, height: 32 }}><AssignmentIcon fontSize="small" /></Avatar>}
+                                    />
+                                    <CardContent sx={{ p: 2.5, pb: "20px !important" }}>
+                                        <InfoRow label="Order Date" value={orderData?.order_date ? moment(orderData.order_date).format("DD-MM-YYYY") : "N/A"} />
+                                        <InfoRow label="Consumer No" value={orderData?.consumer_no || "N/A"} />
+                                        <Box display="flex" gap={2} mb={2} p={1.5} sx={{ bgcolor: 'grey.50', borderRadius: 2 }}>
+                                            <Box flex={1}>
+                                                <Typography variant="caption" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 500, mb: 0.5 }}>Capacity</Typography>
+                                                <Typography variant="body2" fontWeight="700" color="primary">{orderData?.capacity || "N/A"}</Typography>
+                                            </Box>
+                                            <Box flex={1}>
+                                                <Typography variant="caption" color="text.secondary" display="block" sx={{ textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 500, mb: 0.5 }}>Order Type</Typography>
+                                                <Chip label={orderData?.order_type_name || "New"} color="success" size="small" sx={{ height: 22, fontSize: '0.7rem', fontWeight: 'bold' }} />
+                                            </Box>
+                                        </Box>
+                                        <InfoRow label="Scheme" value={orderData?.project_scheme_name || "N/A"} />
+                                        <InfoRow label="Application" value={orderData?.application_no || "N/A"} />
+                                        <InfoRow label="Registration Date" value={orderData?.date_of_registration_gov ? moment(orderData.date_of_registration_gov).format("DD-MM-YYYY") : "N/A"} />
+                                        <InfoRow label="Discom" value={orderData?.discom_name || "N/A"} />
+                                    </CardContent>
+                                </Card>
 
-                                <Typography variant="body2" color="text.secondary" mt={2}>Address:</Typography>
-                                <Typography variant="body1">{getFullOrderAddress(orderData || {})}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Reference:</Typography>
-                                <Typography variant="body1">{orderData?.reference_from || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Channel Partner:</Typography>
-                                <Typography variant="body1">{orderData?.channel_partner_name || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Handled By:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.handled_by_name || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Branch:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.branch_name || "N/A"}</Typography>
-                            </Box>
-                            <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5 }}>
-                                Project Details
-                            </Typography>
-                            <Box mt={2} mb={2}>
-                                <Typography variant="body2" color="text.secondary">Order Date:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    {orderData?.order_date ? moment(orderData.order_date).format("DD-MM-YYYY") : "N/A"}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Consumer No:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.consumer_no || "N/A"}</Typography>
-
-                                <Grid container spacing={2} mt={1}>
-                                    <Grid size={6}>
-                                        <Typography variant="body2" color="text.secondary">Capacity:</Typography>
-                                        <Typography variant="body1" fontWeight="bold">{orderData?.capacity || "N/A"}</Typography>
-                                    </Grid>
-                                    <Grid size={6}>
-                                        <Typography variant="body2" color="text.secondary">Order Type:</Typography>
-                                        <Chip label={orderData?.order_type_name || "New"} color="success" size="small" />
-                                    </Grid>
-                                </Grid>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Scheme:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.project_scheme_name || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Application:</Typography>
-                                <Typography variant="body1">{orderData?.application_no || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Registration Date:</Typography>
-                                <Typography variant="body1">
-                                    {orderData?.date_of_registration_gov ? moment(orderData.date_of_registration_gov).format("DD-MM-YYYY") : "N/A"}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Discom:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.discom_name || "N/A"}</Typography>
-                            </Box>
-                            {orderData?.bom_snapshot?.length > 0 && (
-                                <>
-                                    <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, mt: 2 }}>
-                                        Scope (BOM)
-                                    </Typography>
-                                    <Box mt={1} mb={2} sx={{ overflowX: "auto" }}>
-                                        <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: "collapse" }}>
-                                            <thead>
-                                                <tr style={{ borderBottom: "1px solid #e0e0e0" }}>
-                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>#</th>
-                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Product</th>
-                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
-                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Make</th>
-                                                    <th style={{ textAlign: "left", padding: "4px 6px" }}>Qty</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {orderData.bom_snapshot.map((line, idx) => {
-                                                    const p = line.product_snapshot || line;
-                                                    return (
-                                                        <tr key={idx} style={{ borderBottom: "1px solid #eee" }}>
-                                                            <td style={{ padding: "4px 6px" }}>{idx + 1}</td>
-                                                            <td style={{ padding: "4px 6px" }}>{p?.product_name ?? "-"}</td>
-                                                            <td style={{ padding: "4px 6px" }}>{p?.product_type_name ?? "-"}</td>
-                                                            <td style={{ padding: "4px 6px" }}>{p?.product_make_name ?? "-"}</td>
-                                                            <td style={{ padding: "4px 6px" }}>{line.quantity ?? "-"}</td>
+                                {/* Scope (BOM) */}
+                                {orderData?.bom_snapshot?.length > 0 && (
+                                    <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                                        <CardHeader 
+                                            title="Scope (BOM)" 
+                                            titleTypographyProps={{ variant: 'subtitle2', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                                            sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'grey.200', py: 1.5 }}
+                                        />
+                                        <CardContent sx={{ p: 0, pb: "0 !important" }}>
+                                            <Box sx={{ overflowX: "auto" }}>
+                                                <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: "2px solid #e2e8f0", backgroundColor: "#f1f5f9" }}>
+                                                            <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600 }}>#</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600 }}>Product</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600 }}>Type</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600 }}>Make</th>
+                                                            <th style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600 }}>Qty</th>
                                                         </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </Box>
-                                </>
-                            )}
-                            <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5, }}>
-                                Payment Details
-                            </Typography>
-                            <Box mt={2} mb={2}>
-                                <Typography variant="body2" color="text.secondary">Payment Mode:</Typography>
-                                <Typography variant="body1" fontWeight="bold">{orderData?.payment_type || orderData?.loan_type_name || "N/A"}</Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Total Payable:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    Rs. {formatRupeesInteger(orderData?.project_cost)}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Received:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    Rs. {formatRupeesInteger(totalReceivedAmount)}
-                                </Typography>
-
-                                <Typography variant="body2" color="text.secondary" mt={2}>Outstanding:</Typography>
-                                <Typography
-                                    variant="h6"
-                                    fontWeight="bold"
-                                    color="white"
-                                    bgcolor="error.main"
-                                    px={1}
-                                    py={0.5}
-                                    borderRadius={0.5}
-                                    mt={1}
-                                >
-                                    Rs. {formatRupeesInteger(Math.max(0, outstandingAmount))}
-                                </Typography>
-                                {outstandingAmount < 0 && (
-                                    <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
-                                        Over-recorded by Rs. {formatRupeesInteger(Math.abs(outstandingAmount))}
-                                    </Typography>
+                                                    </thead>
+                                                    <tbody>
+                                                        {orderData.bom_snapshot.map((line, idx) => {
+                                                            const p = line.product_snapshot || line;
+                                                            return (
+                                                                <tr key={idx} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                                                    <td style={{ padding: "10px 12px", color: "#64748b" }}>{idx + 1}</td>
+                                                                    <td style={{ padding: "10px 12px", fontWeight: 500 }}>{p?.product_name ?? "-"}</td>
+                                                                    <td style={{ padding: "10px 12px" }}>{p?.product_type_name ?? "-"}</td>
+                                                                    <td style={{ padding: "10px 12px" }}>{p?.product_make_name ?? "-"}</td>
+                                                                    <td style={{ padding: "10px 12px", fontWeight: 600, color: "#0f172a" }}>{line.quantity ?? "-"}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
                                 )}
-                                {committedOutstandingAmount < 0 && (
-                                    <Typography variant="caption" color="warning.main" display="block" mt={0.5}>
-                                        Pending + approved payments exceed order by Rs.{" "}
-                                        {formatRupeesInteger(Math.abs(committedOutstandingAmount))}
-                                    </Typography>
-                                )}
-                                {pendingCommittedAmount > 0 && committedOutstandingAmount >= 0 && (
-                                    <Typography variant="caption" color="text.secondary" display="block" mt={0.5}>
-                                        Pending (awaiting approval): Rs. {formatRupeesInteger(pendingCommittedAmount)}
-                                    </Typography>
-                                )}
-                            </Box>
-                            <Typography variant="h6" borderRadius={0.5} gutterBottom sx={{ bgcolor: "#1976d2", color: "#fff", px: 1, py: 0.5 }}>
-                                Third-Party Audit
-                            </Typography>
-                            <Box mt={1} mb={1}>
-                                <Typography variant="body2" color="text.secondary">Audited:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    {orderData?.third_party_audited ? "Yes" : "No"}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" mt={1}>Auditor:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    {orderData?.third_party_auditor_name || "—"}
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" mt={1}>Audited At:</Typography>
-                                <Typography variant="body1" fontWeight="bold">
-                                    {orderData?.third_party_audit_at
-                                        ? moment(orderData.third_party_audit_at).format("DD-MM-YYYY HH:mm")
-                                        : "—"}
-                                </Typography>
-                            </Box>
-                        </Paper>
+
+                                {/* Payment Details */}
+                                <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                                    <CardHeader 
+                                        title="Payment Details" 
+                                        titleTypographyProps={{ variant: 'subtitle2', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                                        sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'grey.200', py: 1.5 }}
+                                        avatar={<Avatar sx={{ bgcolor: 'success.light', width: 32, height: 32 }}><PaymentIcon fontSize="small" /></Avatar>}
+                                    />
+                                    <CardContent sx={{ p: 2.5, pb: "20px !important" }}>
+                                        <InfoRow label="Payment Mode" value={orderData?.payment_type || orderData?.loan_type_name || "N/A"} />
+                                        
+                                        <Box sx={{ mt: 2, p: 2, borderRadius: 2, bgcolor: '#f8fafc', border: '1px solid', borderColor: 'grey.200' }}>
+                                            <Box display="flex" justifyContent="space-between" mb={1}>
+                                                <Typography variant="body2" color="text.secondary">Total Payable</Typography>
+                                                <Typography variant="body2" fontWeight="700">₹{formatRupeesInteger(orderData?.project_cost)}</Typography>
+                                            </Box>
+                                            <Box display="flex" justifyContent="space-between" mb={1.5}>
+                                                <Typography variant="body2" color="text.secondary">Received</Typography>
+                                                <Typography variant="body2" fontWeight="700" color="success.main">₹{formatRupeesInteger(totalReceivedAmount)}</Typography>
+                                            </Box>
+                                            <Divider sx={{ mb: 1.5 }} />
+                                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                                <Typography variant="body2" fontWeight="600" color="text.secondary">Outstanding</Typography>
+                                                <Typography variant="h6" fontWeight="800" color="error.main">
+                                                    ₹{formatRupeesInteger(Math.max(0, outstandingAmount))}
+                                                </Typography>
+                                            </Box>
+                                            {outstandingAmount < 0 && (
+                                                <Typography variant="caption" color="warning.main" display="block" mt={1}>
+                                                    Over-recorded by ₹{formatRupeesInteger(Math.abs(outstandingAmount))}
+                                                </Typography>
+                                            )}
+                                            {committedOutstandingAmount < 0 && (
+                                                <Typography variant="caption" color="warning.main" display="block" mt={1}>
+                                                    Pending + approved payments exceed order by ₹{formatRupeesInteger(Math.abs(committedOutstandingAmount))}
+                                                </Typography>
+                                            )}
+                                            {pendingCommittedAmount > 0 && committedOutstandingAmount >= 0 && (
+                                                <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+                                                    Pending (awaiting approval): ₹{formatRupeesInteger(pendingCommittedAmount)}
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </CardContent>
+                                </Card>
+
+                                {/* Third-Party Audit */}
+                                <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)' }}>
+                                    <CardHeader 
+                                        title="Third-Party Audit" 
+                                        titleTypographyProps={{ variant: 'subtitle2', fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}
+                                        sx={{ bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'grey.200', py: 1.5 }}
+                                    />
+                                    <CardContent sx={{ p: 2.5, pb: "20px !important" }}>
+                                        <InfoRow label="Audited" value={orderData?.third_party_audited ? "Yes" : "No"} />
+                                        <InfoRow label="Auditor" value={orderData?.third_party_auditor_name || "—"} />
+                                        <InfoRow label="Audited At" value={orderData?.third_party_audit_at ? moment(orderData.third_party_audit_at).format("DD-MM-YYYY HH:mm") : "—"} />
+                                    </CardContent>
+                                </Card>
+                            </Stack>
+                        </Box>
                     </Grid>
 
-                    {/* Right Content Area - 80% */}
+                    {/* Right Content Area */}
                     <Grid size={9}>
-                        <Paper sx={{ height: calculateInquiryDetailsHeight(), overflowY: "hidden" }}>
-                            <Tabs value={tabValue} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: "divider" }}>
-                                {visibleTabs.includes(0) && <Tab label="Registration" value={0} />}
-                                {visibleTabs.includes(1) && <Tab label="Documents" value={1} />}
-                                {visibleTabs.includes(2) && <Tab label="Receive Payment" value={2} />}
-                                {visibleTabs.includes(3) && <Tab label="Previous Payments" value={3} />}
-                                {visibleTabs.includes(4) && <Tab label="Remarks" value={4} />}
-                                {visibleTabs.includes(5) && <Tab label="Upload Documents" value={5} />}
+                        <Paper elevation={0} sx={{ height: calculateInquiryDetailsHeight(), overflowY: "auto", borderRadius: 3, border: '1px solid', borderColor: 'grey.200', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+                            {kycEnabled && (
+                            <Box sx={{ px: 1, pt: 1, pb: 0.5 }}>
+                                <PendingStageStrip order={orderData} />
+                            </Box>
+                            )}
+                            <Tabs value={String(tabValue)} onValueChange={handleTabChange} className="w-full">
+                                <TabsList className="h-auto w-full justify-start gap-1 rounded-none border-b border-slate-200 bg-transparent px-1 py-1">
+                                    {ORDER_TABS.filter((tab) => visibleTabs.includes(tab.value)).map((tab) => (
+                                        <TabsTrigger key={tab.value} value={String(tab.value)}>
+                                            {tab.label}
+                                        </TabsTrigger>
+                                    ))}
+                                </TabsList>
+
+                                <TabsContent value="6" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(6) && <LkycPanel order={orderData} orderId={orderId} onSaved={reloadOrder} />}
+                                </TabsContent>
+                                <TabsContent value="7" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(7) && <TkycPanel order={orderData} orderId={orderId} onSaved={reloadOrder} />}
+                                </TabsContent>
+                                <TabsContent value="0" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(0) && (
+                                        <RegistrationForm
+                                            orderData={orderData}
+                                            orderId={orderId}
+                                            orderDocumentTypes={orderDocumentTypes}
+                                            locked={registrationLocked}
+                                        />
+                                    )}
+                                </TabsContent>
+                                <TabsContent value="1" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(1) && (
+                                        <PaginatedTable
+                                            key={`documents-${paymentsDocumentsRefreshKey}`}
+                                            columns={documentsColumns}
+                                            fetcher={fetchDocuments}
+                                            initialPage={1}
+                                            initialLimit={10}
+                                            showSearch={true}
+                                            height={calculatedTableHeight()}
+                                            getRowKey={(row) => row.id}
+                                        />
+                                    )}
+                                </TabsContent>
+                                <TabsContent value="2" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(2) && (
+                                        <ReceivePaymentForm
+                                            orderId={orderId}
+                                            onPaymentSaved={handlePaymentSaved}
+                                            orderDocumentTypes={orderDocumentTypes}
+                                            maxPaymentAmount={Number.isFinite(maxPaymentAmount) ? maxPaymentAmount : 0}
+                                            totalReceivedAmount={totalReceivedAmount}
+                                            totalCommittedAmount={totalCommittedAmount}
+                                            projectCostAmount={projectCostAmount}
+                                            allowOverpayment={allowOverpayment}
+                                        />
+                                    )}
+                                </TabsContent>
+                                <TabsContent value="3" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(3) && <PreviousPaymentsTable key={`payments-${paymentsDocumentsRefreshKey}`} orderId={orderId} />}
+                                </TabsContent>
+                                <TabsContent value="4" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(4) && <RemarksForm orderData={orderData} orderId={orderId} />}
+                                </TabsContent>
+                                <TabsContent value="5" keepMounted className="mt-1 p-1">
+                                    {visitedTabs.has(5) && (
+                                        <UploadDocumentsForm
+                                            orderId={orderId}
+                                            orderData={orderData}
+                                            orderDocumentTypes={orderDocumentTypes}
+                                            loadingDocumentTypes={loadingOrderDocumentTypes}
+                                        />
+                                    )}
+                                </TabsContent>
                             </Tabs>
-
-                            <TabPanel value={tabValue} index={0}>
-                                {visitedTabs.has(0) && (
-                                    <RegistrationForm
-                                        orderData={orderData}
-                                        orderId={orderId}
-                                        orderDocumentTypes={orderDocumentTypes}
-                                    />
-                                )}
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={1}>
-                                {visitedTabs.has(1) && (
-                                    <PaginatedTable
-                                        key={`documents-${paymentsDocumentsRefreshKey}`}
-                                        columns={documentsColumns}
-                                        fetcher={fetchDocuments}
-                                        initialPage={1}
-                                        initialLimit={10}
-                                        showSearch={true}
-                                        height={calculatedTableHeight()}
-                                        getRowKey={(row) => row.id}
-                                    />
-                                )}
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={2}>
-                                {visitedTabs.has(2) && (
-                                    <ReceivePaymentForm
-                                        orderId={orderId}
-                                        onPaymentSaved={handlePaymentSaved}
-                                        orderDocumentTypes={orderDocumentTypes}
-                                        maxPaymentAmount={Number.isFinite(maxPaymentAmount) ? maxPaymentAmount : 0}
-                                        totalReceivedAmount={totalReceivedAmount}
-                                        totalCommittedAmount={totalCommittedAmount}
-                                        projectCostAmount={projectCostAmount}
-                                        allowOverpayment={allowOverpayment}
-                                    />
-                                )}
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={3}>
-                                {visitedTabs.has(3) && <PreviousPaymentsTable key={`payments-${paymentsDocumentsRefreshKey}`} orderId={orderId} />}
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={4}>
-                                {visitedTabs.has(4) && <RemarksForm orderData={orderData} orderId={orderId} />}
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={5}>
-                                {visitedTabs.has(5) && (
-                                    <UploadDocumentsForm
-                                        orderId={orderId}
-                                        orderData={orderData}
-                                        orderDocumentTypes={orderDocumentTypes}
-                                        loadingDocumentTypes={loadingOrderDocumentTypes}
-                                    />
-                                )}
-                            </TabPanel>
+                            {kycEnabled && (
+                            <Box sx={{ px: 1, pb: 1 }}>
+                                <OrderQueryPanel orderId={orderId} onChanged={reloadOrder} />
+                            </Box>
+                            )}
                         </Paper>
                     </Grid>
                 </Grid>

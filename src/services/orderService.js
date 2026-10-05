@@ -20,6 +20,18 @@ export const previewWorkCommission = (id, params = {}) =>
 export const updateOrder = (id, payload) =>
     apiClient.put(`/order/${id}`, payload).then((r) => r.data);
 
+export const updateOrderKyc = (id, payload) =>
+    apiClient.put(`/order/${id}/kyc`, payload).then((r) => r.data);
+
+export const listOrderQueries = (id) =>
+    apiClient.get(`/order/${id}/queries`).then((r) => r.data);
+
+export const createOrderQuery = (id, payload) =>
+    apiClient.post(`/order/${id}/queries`, payload).then((r) => r.data);
+
+export const transitionOrderQuery = (queryId, payload) =>
+    apiClient.put(`/order/query/${queryId}`, payload).then((r) => r.data);
+
 export const deleteOrder = (id) =>
     apiClient.delete(`/order/${id}`).then((r) => r.data);
 
@@ -123,6 +135,10 @@ export default {
     getOrderById,
     previewWorkCommission,
     updateOrder,
+    updateOrderKyc,
+    listOrderQueries,
+    createOrderQuery,
+    transitionOrderQuery,
     deleteOrder,
     getSolarPanels,
     getInverters,
