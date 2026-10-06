@@ -97,6 +97,7 @@ export default function ListView({
   exportDisabled = false,
   showHomeButton = false,
   onHomeClick,
+  showQueryOrders = false,
 }) {
   const router = useRouter();
   const { user } = useAuth();
@@ -115,6 +116,8 @@ export default function ListView({
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
   const [projectSchemeOptions, setProjectSchemeOptions] = useState([]);
   const [loadingProjectSchemes, setLoadingProjectSchemes] = useState(false);
+  const [queryOnly, setQueryOnly] = useState(false);
+  const [queryOrderCount, setQueryOrderCount] = useState(0);
 
   const columnFilterValues = useMemo(() => ({ ...filters, status: filters.status || defaultStatus }), [filters, defaultStatus]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -125,8 +128,9 @@ export default function ListView({
     const entries = Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "");
     const obj = Object.fromEntries(entries);
     if (!obj.status) obj.status = defaultStatus;
+    if (queryOnly) obj.has_active_query = "true";
     return { q: undefined, ...obj };
-  }, [filters, defaultStatus]);
+  }, [filters, defaultStatus, queryOnly]);
 
   useEffect(() => {
     let mounted = true;
@@ -184,6 +188,7 @@ export default function ListView({
     () => async (params) => {
       const response = await orderService.getOrders(params);
       const result = response?.result ?? response;
+      setQueryOrderCount(Number(result?.meta?.query_order_count || 0));
       return {
         data: result?.data ?? [],
         meta: result?.meta ?? { total: 0, page: params.page, pages: 0, limit: params.limit },
@@ -238,14 +243,17 @@ export default function ListView({
         filterKey: "order_number",
         defaultFilterOperator: "contains",
         render: (row) => (
-          <Button
-            type="button"
-            variant="link"
-            className={`${ORDER_LINK_CLASS} p-0 h-auto text-left font-semibold`}
-            onClick={() => router.push(`/order/view?id=${row.id}`)}
-          >
-            {row.pui_number || "-"}
-          </Button>
+          <span className="inline-flex items-center gap-1">
+            <Button
+              type="button"
+              variant="link"
+              className={`${ORDER_LINK_CLASS} p-0 h-auto text-left font-semibold`}
+              onClick={() => router.push(`/order/view?id=${row.id}`)}
+            >
+              {row.pui_number || "-"}
+            </Button>
+            {row.has_active_query ? <Badge variant="destructive" className="text-[10px]">QUERY</Badge> : null}
+          </span>
         ),
       },
       {
@@ -411,6 +419,16 @@ export default function ListView({
       <div className="flex justify-between items-center flex-shrink-0">
         <h1 className="text-2xl font-bold">{title}</h1>
         <div className="flex gap-2">
+          {showQueryOrders && (
+            <Button
+              onClick={() => { setQueryOnly((v) => !v); setPage(1); }}
+              size="sm"
+              variant={queryOnly ? "default" : "outline"}
+              className="gap-1.5"
+            >
+              {queryOnly ? "Show All Pending Orders" : `Query Orders (${queryOrderCount})`}
+            </Button>
+          )}
           {exportButtonLabel && (
             <Button
               onClick={handleExport}
