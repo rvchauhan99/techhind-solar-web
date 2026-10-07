@@ -38,6 +38,7 @@ function MapContent() {
   const maxAcc = searchParams.get("max_accuracy_m") || ""
 
   const [points, setPoints] = useState([])
+  const [gaps, setGaps] = useState([])
   const [loading, setLoading] = useState(true)
   const [meta, setMeta] = useState({ truncated: false, total: 0, userName: null })
 
@@ -63,6 +64,8 @@ function MapContent() {
           session_id: sessionId,
         })
         const pts = (timeline?.sessions || []).flatMap((session) => session.points || [])
+        const gapRows = (timeline?.sessions || []).flatMap((session) => session.gaps || [])
+        setGaps(gapRows)
         setPoints(
           pts.map((p, i) => ({
             ...p,
@@ -81,6 +84,7 @@ function MapContent() {
       if (userId && date && !ids) {
         const trail = await locationTrackingService.getUserTrail(userId, { date })
         const pts = Array.isArray(trail?.points) ? trail.points : []
+        setGaps(Array.isArray(trail?.gaps) ? trail.gaps : [])
         setPoints(
           pts.map((p, i) => ({
             ...p,
@@ -216,7 +220,7 @@ function MapContent() {
         {loading ? (
           <div className="h-full animate-pulse bg-muted/30" />
         ) : points.length ? (
-          <LocationTrackingMap trail={points} />
+          <LocationTrackingMap trail={points} gaps={gaps} />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No points for this filter set. GPS pings older than the previous month are not kept.

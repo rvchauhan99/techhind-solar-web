@@ -9,6 +9,7 @@ import MultiSelect from "@/components/common/MultiSelect"
 import { Button } from "@/components/ui/button"
 import { toastError, toastSuccess } from "@/utils/toast"
 import locationTrackingService from "@/services/locationTrackingService"
+import { fmtTenantTime } from "../utils/formatTrackingTime"
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
@@ -20,13 +21,8 @@ function daysAgoIso(days) {
   return d.toISOString().slice(0, 10)
 }
 
-function fmtTime(v) {
-  if (!v) return "—"
-  try {
-    return new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  } catch {
-    return "—"
-  }
+function fmtTime(v, timeZone) {
+  return fmtTenantTime(v, timeZone)
 }
 
 function fmtMinutes(mins) {
@@ -90,6 +86,7 @@ function TimesheetContent() {
   const [forceReason, setForceReason] = useState("")
   const [forceBusy, setForceBusy] = useState(false)
   const [confirmForce, setConfirmForce] = useState(false)
+  const [timeZone, setTimeZone] = useState("Asia/Kolkata")
 
   useEffect(() => {
     let cancelled = false
@@ -121,6 +118,7 @@ function TimesheetContent() {
       })
       setRows(Array.isArray(data?.rows) ? data.rows : [])
       setKpis(data?.kpis || null)
+      if (data?.timezone) setTimeZone(data.timezone)
       setSelected(null)
     } catch (err) {
       toastError(err?.response?.data?.message || err.message || "Failed to load timesheet")
@@ -288,12 +286,12 @@ function TimesheetContent() {
                           <div className="font-medium leading-tight">{row.user_name}</div>
                           <div className="text-[10px] text-muted-foreground">{row.role_name || ""}</div>
                         </td>
-                        <td className="px-2 py-1 tabular-nums">{fmtTime(row.clock_in)}</td>
+                        <td className="px-2 py-1 tabular-nums">{fmtTime(row.clock_in, timeZone)}</td>
                         <td className="px-2 py-1 tabular-nums">
                           {row.on_duty_now ? (
                             <span className="text-green-700 font-medium">Active</span>
                           ) : (
-                            fmtTime(row.clock_out)
+                            fmtTime(row.clock_out, timeZone)
                           )}
                         </td>
                         <td className="px-2 py-1 tabular-nums">
@@ -322,10 +320,10 @@ function TimesheetContent() {
                   <div className="text-[11px] text-muted-foreground">{selected.summary_date}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-[11px]">
-                  <div>Clock-in: <b>{fmtTime(selected.clock_in)}</b></div>
+                  <div>Clock-in: <b>{fmtTime(selected.clock_in, timeZone)}</b></div>
                   <div>
                     Clock-out:{" "}
-                    <b>{selected.on_duty_now ? "Active" : fmtTime(selected.clock_out)}</b>
+                    <b>{selected.on_duty_now ? "Active" : fmtTime(selected.clock_out, timeZone)}</b>
                   </div>
                   <div>Duty: <b>{fmtMinutes(selected.duty_duration_minutes)}</b></div>
                   <div>GPS: <b>{selected.coverage_pct}%</b></div>
@@ -343,7 +341,7 @@ function TimesheetContent() {
                             href={`/location-tracking/logs/map?user_id=${selected.user_id}&session_id=${s.id}&date=${selected.summary_date}`}
                             className="text-[#1b365d] underline-offset-2 hover:underline"
                           >
-                            {fmtTime(s.started_at)} → {s.ended_at ? fmtTime(s.ended_at) : "open"}
+                            {fmtTime(s.started_at, timeZone)} → {s.ended_at ? fmtTime(s.ended_at, timeZone) : "open"}
                             {s.end_source === "admin_force" ? (
                               <span className="ml-1 text-[9px] uppercase text-rose-700">forced</span>
                             ) : null}
