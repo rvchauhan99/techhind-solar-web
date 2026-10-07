@@ -13,11 +13,15 @@ import {
 import L from "leaflet"
 import "leaflet/dist/leaflet.css"
 import { openGoogleMapsPoint } from "../utils/googleMapsLinks"
+import { fmtTenantDateTime, fmtTenantTime } from "../utils/formatTrackingTime"
 
 const STATUS_COLORS = {
   live: "#16a34a",
   stale: "#d97706",
+  location_off: "#c2410c",
+  no_fix: "#6b7280",
   no_data: "#6b7280",
+  off_duty: "#64748b",
 }
 
 function makeDivIcon(color, label) {
@@ -122,7 +126,7 @@ function FocusUser({ focusUserId, markers }) {
                   {m.age_minutes != null ? <p>Age: {m.age_minutes} min</p> : null}
                   {m.battery_pct != null ? <p>Battery: {m.battery_pct}%</p> : null}
                   {m.last_sync_at ? (
-                    <p>Sync: {new Date(m.last_sync_at).toLocaleTimeString()}</p>
+                    <p>Sync: {fmtTenantTime(m.last_sync_at)}</p>
                   ) : null}
                   <button
                     type="button"
@@ -144,14 +148,47 @@ function FocusUser({ focusUserId, markers }) {
   )
 }
 
-function TrailLayer({ trail }) {
-  const positions = useMemo(
-    () =>
-      (trail || [])
-        .filter((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [Number(p.latitude), Number(p.longitude)]),
+function pointCrossesGap(prev, next, gaps) {
+  if (!prev?.recorded_at || !next?.recorded_at) return false
+  const startMs = new Date(prev.recorded_at).getTime()
+  const endMs = new Date(next.recorded_at).getTime()
+  if (!(endMs > startMs)) return false
+  return (gaps || []).some((gap) => {
+    const gapStart = new Date(gap.started_at).getTime()
+    const gapEnd = gap.ended_at ? new Date(gap.ended_at).getTime() : endMs
+    return gapStart < endMs && gapEnd > startMs
+  })
+}
+
+function TrailLayer({ trail, gaps = [] }) {
+  const points = useMemo(
+    () => (trail || []).filter((p) => p.latitude != null && p.longitude != null),
     [trail]
   )
+  const positions = useMemo(
+    () => points.map((p) => [Number(p.latitude), Number(p.longitude)]),
+    [points]
+  )
+  const { routeSegments, gapSegments } = useMemo(() => {
+    const route = []
+    const dashed = []
+    let current = []
+    for (let i = 0; i < points.length; i += 1) {
+      const pos = [Number(points[i].latitude), Number(points[i].longitude)]
+      if (i > 0 && pointCrossesGap(points[i - 1], points[i], gaps)) {
+        if (current.length > 1) route.push(current)
+        dashed.push([
+          [Number(points[i - 1].latitude), Number(points[i - 1].longitude)],
+          pos,
+        ])
+        current = [pos]
+      } else {
+        current.push(pos)
+      }
+    }
+    if (current.length > 1) route.push(current)
+    return { routeSegments: route, gapSegments: dashed }
+  }, [points, gaps])
 
   if (!positions.length) return null
 
@@ -165,9 +202,19 @@ function TrailLayer({ trail }) {
 
   return (
     <>
-      {positions.length > 1 ? (
-        <Polyline positions={positions} color="#1b365d" weight={3} opacity={0.85} />
-      ) : null}
+      {routeSegments.map((segment, i) => (
+        <Polyline key={`route-${i}`} positions={segment} color="#1b365d" weight={3} opacity={0.85} />
+      ))}
+      {gapSegments.map((segment, i) => (
+        <Polyline
+          key={`gap-${i}`}
+          positions={segment}
+          color="#c2410c"
+          weight={3}
+          opacity={0.9}
+          dashArray="6 8"
+        />
+      ))}
       {midSampled.map((p, i) => {
         const mocked = !!p.is_mocked
         const fill = mocked ? "#7c3aed" : "#1b365d"
@@ -185,7 +232,7 @@ function TrailLayer({ trail }) {
           >
             <Popup>
               <div className="text-xs space-y-0.5">
-                <p>{p.recorded_at ? new Date(p.recorded_at).toLocaleString() : "—"}</p>
+                <p>{fmtTenantDateTime(p.recorded_at)}</p>
                 {p.accuracy_m != null ? <p>Accuracy: {p.accuracy_m}m</p> : null}
                 {p.battery_pct != null ? <p>Battery: {p.battery_pct}%</p> : null}
                 {mocked ? <p className="text-violet-700">Mocked</p> : null}
@@ -218,6 +265,7 @@ function TrailLayer({ trail }) {
 export default function LocationTrackingMap({
   markers = [],
   trail = [],
+  gaps = [],
   focusUserId = null,
   className = "",
   emptyMessage = "No locations to show",
@@ -263,7 +311,7 @@ export default function LocationTrackingMap({
         <InvalidateSize />
         {hasData ? <FitBounds points={points} /> : null}
         {isTrail ? (
-          <TrailLayer trail={trail} />
+          <TrailLayer trail={trail} gaps={gaps} />
         ) : (
           <FocusUser focusUserId={focusUserId} markers={markers} />
         )}
