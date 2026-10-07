@@ -1664,10 +1664,32 @@ function OrderViewPageContent() {
                                 </TabsList>
 
                                 <TabsContent value="6" keepMounted className="mt-1 p-1">
-                                    {visitedTabs.has(6) && <LkycPanel order={orderData} orderId={orderId} onSaved={reloadOrder} />}
+                                    {visitedTabs.has(6) && (
+                                        <LkycPanel
+                                            order={orderData}
+                                            orderId={orderId}
+                                            onSaved={reloadOrder}
+                                            onPassed={async () => {
+                                                await reloadOrder();
+                                                handleTabChange(7);
+                                            }}
+                                            docsRefreshKey={`${tabValue}-${paymentsDocumentsRefreshKey}`}
+                                            orderDocumentTypes={orderDocumentTypes}
+                                        />
+                                    )}
                                 </TabsContent>
                                 <TabsContent value="7" keepMounted className="mt-1 p-1">
-                                    {visitedTabs.has(7) && <TkycPanel order={orderData} orderId={orderId} onSaved={reloadOrder} />}
+                                    {visitedTabs.has(7) && (
+                                        <TkycPanel
+                                            order={orderData}
+                                            orderId={orderId}
+                                            onSaved={reloadOrder}
+                                            onPassed={async () => {
+                                                await reloadOrder();
+                                                handleTabChange(0);
+                                            }}
+                                        />
+                                    )}
                                 </TabsContent>
                                 <TabsContent value="0" keepMounted className="mt-1 p-1">
                                     {visitedTabs.has(0) && (
@@ -1726,7 +1748,11 @@ function OrderViewPageContent() {
                             </Tabs>
                             {kycEnabled && (
                             <Box sx={{ px: 1, pb: 1 }}>
-                                <OrderQueryPanel orderId={orderId} onChanged={reloadOrder} />
+                                <OrderQueryPanel
+                                  orderId={orderId}
+                                  onChanged={reloadOrder}
+                                  refreshKey={`${orderData?.l_kyc_status}-${orderData?.t_kyc_status}-${orderData?.has_active_query}`}
+                                />
                             </Box>
                             )}
                         </Paper>
