@@ -61,6 +61,12 @@ const USER_ID_ALLOWLIST_CONFIGS = {
     helperText: "Search by name or email. Saved as user ID JSON for order cancel access checks.",
     valueTypeHelper: "Locked to JSON for order cancel allowed user IDs",
   },
+  "pending_order.kyc.allowed_user_ids": {
+    label: "KYC Allowed Users",
+    helperText:
+      "Search by name or email. Empty = all users with pending-order access can perform L/T KYC. Non-empty = only selected users can save/pass/fail KYC (view still open to module users).",
+    valueTypeHelper: "Locked to JSON for pending-order KYC allowed user IDs",
+  },
 };
 
 const getUserIdAllowlistMeta = (configKey) =>
