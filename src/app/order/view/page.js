@@ -1668,6 +1668,7 @@ function OrderViewPageContent() {
                                         <LkycPanel
                                             order={orderData}
                                             orderId={orderId}
+                                            canPerformKyc={orderData?.can_perform_kyc !== false}
                                             onSaved={reloadOrder}
                                             onPassed={async () => {
                                                 await reloadOrder();
@@ -1683,6 +1684,7 @@ function OrderViewPageContent() {
                                         <TkycPanel
                                             order={orderData}
                                             orderId={orderId}
+                                            canPerformKyc={orderData?.can_perform_kyc !== false}
                                             onSaved={reloadOrder}
                                             onPassed={async () => {
                                                 await reloadOrder();

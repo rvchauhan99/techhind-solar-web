@@ -257,12 +257,13 @@ export function LkycPanel({
   onPassed,
   docsRefreshKey = 0,
   orderDocumentTypes = [],
+  canPerformKyc = true,
 }) {
   const { user } = useAuth();
   const canAmend = isRoleAllowed(user?.role?.name || user?.role_name, "SuperAdmin");
   const passed = String(order?.l_kyc_status || "pending") === "passed";
   const [amendMode, setAmendMode] = useState(false);
-  const editable = !passed || (canAmend && amendMode);
+  const editable = canPerformKyc && (!passed || (canAmend && amendMode));
 
   const [docs, setDocs] = useState([]);
   const [form, setForm] = useState({
@@ -342,9 +343,19 @@ export function LkycPanel({
       <p className="text-xs text-slate-500">
         Required: Aadhaar, Electricity Bill, Cancelled Cheque attached (approved when Document Master requires approval), and names matched.
       </p>
+      {!canPerformKyc ? (
+        <p className="text-xs text-amber-700">
+          Only assigned KYC users can edit. You can view this stage.
+        </p>
+      ) : null}
       {passed && !editable ? (
         <p className="text-xs text-slate-600">
-          L-KYC Passed — read-only{canAmend ? "" : ". Contact SuperAdmin to amend."}
+          L-KYC Passed — read-only
+          {!canPerformKyc
+            ? "."
+            : canAmend
+              ? ""
+              : ". Contact SuperAdmin to amend."}
         </p>
       ) : null}
       {REQUIRED_GROUPS.map((group) => {
@@ -422,11 +433,11 @@ export function LkycPanel({
               <Button type="button" size="sm" variant="default" disabled={busy} onClick={() => save("pass")}>Pass L-KYC</Button>
             ) : null}
             <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => setFailOpen(true)}>Fail</Button>
-            {passed && canAmend ? (
+            {passed && canAmend && canPerformKyc ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setAmendMode(false)}>Cancel amend</Button>
             ) : null}
           </>
-        ) : passed && canAmend ? (
+        ) : passed && canAmend && canPerformKyc ? (
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setAmendMode(true)}>Amend L-KYC</Button>
         ) : null}
       </div>
@@ -442,13 +453,13 @@ export function LkycPanel({
   );
 }
 
-export function TkycPanel({ order, orderId, onSaved, onPassed }) {
+export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = true }) {
   const { user } = useAuth();
   const canAmend = isRoleAllowed(user?.role?.name || user?.role_name, "SuperAdmin");
   const lPassed = String(order?.l_kyc_status || "pending") === "passed";
   const passed = String(order?.t_kyc_status || "pending") === "passed";
   const [amendMode, setAmendMode] = useState(false);
-  const editable = !passed || (canAmend && amendMode);
+  const editable = canPerformKyc && (!passed || (canAmend && amendMode));
   const [form, setForm] = useState({
     sanctioned_load_kw: order?.sanctioned_load_kw ?? order?.demand_load ?? "",
     t_kyc_remarks: order?.t_kyc_remarks || "",
@@ -495,9 +506,19 @@ export function TkycPanel({ order, orderId, onSaved, onPassed }) {
   return (
     <div className="flex max-w-lg flex-col gap-2 p-1">
       <p className="text-xs text-slate-500">Proposed capacity: {order?.capacity ?? "-"} kW. Pass only when sanctioned load is at least this capacity.</p>
+      {!canPerformKyc ? (
+        <p className="text-xs text-amber-700">
+          Only assigned KYC users can edit. You can view this stage.
+        </p>
+      ) : null}
       {passed && !editable ? (
         <p className="text-xs text-slate-600">
-          T-KYC Passed — read-only{canAmend ? "" : ". Contact SuperAdmin to amend."}
+          T-KYC Passed — read-only
+          {!canPerformKyc
+            ? "."
+            : canAmend
+              ? ""
+              : ". Contact SuperAdmin to amend."}
         </p>
       ) : null}
       <Input required disabled={!editable} label="Sanctioned load (kW)" type="number" value={form.sanctioned_load_kw} onChange={(e) => setForm({ ...form, sanctioned_load_kw: e.target.value })} />
@@ -513,11 +534,11 @@ export function TkycPanel({ order, orderId, onSaved, onPassed }) {
               </>
             ) : null}
             <Button type="button" size="sm" variant="destructive" disabled={busy} onClick={() => setFailOpen(true)}>Fail</Button>
-            {passed && canAmend ? (
+            {passed && canAmend && canPerformKyc ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setAmendMode(false)}>Cancel amend</Button>
             ) : null}
           </>
-        ) : passed && canAmend ? (
+        ) : passed && canAmend && canPerformKyc ? (
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setAmendMode(true)}>Amend T-KYC</Button>
         ) : null}
       </div>
