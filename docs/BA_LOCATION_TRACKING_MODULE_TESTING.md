@@ -6,14 +6,14 @@ Straight test guide for web (office) + mobile (field). No IT / server setup.
 
 ## 1. What it does
 
-While **on duty** in **working hours**, field staff share GPS. Office can:
+While **on duty**, field staff share GPS (capture interval). Office can:
 
-- **Live Map** — who is Live / Stale / No data; filter On duty / Off duty; open Google Maps
+- **Live Map** — who is Live / Stale / **Location off** / **No fix**; filter On duty / Off duty; open Google Maps
 - **Timesheet** — clock-in/out, hours vs planned, flags, CSV; **Force punch out** if phone is lost
 - **Tracking Reports** — day route + coverage (including **today** after refresh)
 - **Tracking Settings** — company on/off, intervals, working hours
 
-**Tracking runs only when all are true:** company ON → user ON → mobile consent → **Start duty** → location permission → within working hours (or grace).
+**Hard gate to track:** company ON → user ON → mobile consent → **Start duty** → location permission. Working hours (and grace) are settings context for policy/UAT hours cases — not a substitute for checking Live Map status.
 
 ### One-device rule (anti-cheat)
 
@@ -24,7 +24,9 @@ While **on duty** in **working hours**, field staff share GPS. Office can:
 
 ### Mobile sync (no manual Sync button)
 
-- Locations upload on the **sync interval** while on duty.
+- Phone **captures** GPS on the **capture interval** (default 5 min) into a local queue.
+- When online, each capture tick **uploads** the queue to the API soon after (looks near-direct). Offline rows stay queued and retry later.
+- **Sync interval** (default 10 min) is mainly for Live Map **STALE** age math and labels — it is **not** a “wait this long then upload” timer.
 - **Stop duty** always uploads any remaining queue first (queue depth → 0 when online).
 - There is **no** “Sync queue now” button.
 
@@ -64,7 +66,7 @@ Hub badge **Duty off** = consented, in hours, not clocked in.
 |---|-----|--------|----------|
 | 1 | Web | Settings ON + user tracking ON | Saved |
 | 2 | Mobile | Login → consent → **Start duty** | Duty Active; FG notification |
-| 3 | Mobile | Wait ≥1 sync interval | Queue drops when online |
+| 3 | Mobile | Wait ≥1 **capture** interval | Queue drops when online; Logs show ping |
 | 4 | Web | Live Map → On duty | User pin + on duty |
 | 5 | Web | Timesheet today | Clock-in; On duty now ≥ 1 |
 | 6 | Mobile | **Stop duty** | Queue 0; clock-out on Timesheet |
@@ -113,7 +115,7 @@ Mark Pass / Fail / Blocked.
 | LT-10 | Consent first | Must agree before Start duty |
 | LT-11 | Start duty | Active + FG + server clock-in |
 | LT-12 | Stop duty | Stopped; Off duty on Live |
-| LT-13 | Auto sync + Stop flush | Interval drains queue; Stop → depth **0** |
+| LT-13 | Capture upload + Stop flush | Capture ticks drain queue when online; Stop → depth **0** |
 | LT-14 | Location denied | Start fails / no useful Live pin |
 | LT-14a | My Timesheet | Matches Active / clock-out |
 | LT-14b | Logout on duty | Server session closed |
@@ -134,7 +136,7 @@ Mark Pass / Fail / Blocked.
 | ID | Scenario | Expected |
 |----|----------|----------|
 | LT-15 | Live Map streets + pin after sync | Map + user visible |
-| LT-16 | Filters Live/Stale/No data + On/Off duty | List matches |
+| LT-16 | Filters Live / Stale / Location off / No fix + On/Off duty | List matches |
 | LT-17 | Google from list / popup | Maps opens at point |
 | LT-18 | Reports today (refresh) | Summary/route when pings exist — do not wait until tomorrow |
 | LT-19 | Timesheet clock-in/out, flags, CSV | Correct; file downloads |
@@ -171,17 +173,64 @@ Requires local QA: `LOCATION_TRACKING_QA_FAST=true` and optional `LOCATION_TRACK
 
 ---
 
+
+## 5b. GPS % vs Location off (common BA doubt)
+
+**Do not confuse Live Map with Timesheet / Reports coverage.**
+
+| Screen | Question it answers |
+|--------|---------------------|
+| **Live Map** | Is GPS **fresh / off right now**? (LIVE / STALE / Location off / No fix) |
+| **Timesheet GPS %** / **Reports Coverage %** | How **complete** sampling was for **trackable duty time** that day |
+
+**Coverage formula (day summary):**  
+`pings ÷ expected pings` (capped at 100%).  
+**Expected** uses **duty minutes minus location-off gap minutes**, at the user’s capture interval.
+
+### Why GPS % can stay ~100% after turning location off
+
+Turning phone location **off** does **not** mean coverage must become **0%**.
+
+- If every expected ping **before** the outage was already received, coverage can stay **near 100%**.
+- When a **location-off gap** is recorded, trackable minutes shrink, so **expected** can drop — coverage of the trackable portion often stays high.
+- What **should** change: Live → **Location off** (preferred) or **STALE** if gaps never uploaded; **Logs** stop getting new pings.
+
+| Check | Pass signal |
+|-------|-------------|
+| Live Map (still on duty) | **Location off** or **STALE** with Age rising — not stuck **LIVE** |
+| Tracking Logs | No new pings after location off |
+| Timesheet / Reports today | High / ~100% GPS or Coverage is **OK** if Live + Logs match above |
+
+### Test scenarios — GPS off mid-duty
+
+Mark Pass / Fail / Blocked. Capture interval default is 5 min (use QA fast intervals if IT provides them). Live Map polls about every **2 minutes**.
+
+| ID | Steps | Expected | Fail if |
+|----|-------|----------|---------|
+| LT-GPS-01 | On duty, GPS **on**, wait ≥1 capture, open Live | **LIVE** (or **STALE** only if Age already past stale threshold) | Stuck **No fix** while GPS is on and duty is Active |
+| LT-GPS-02 | Still on duty, turn **phone location off**, wait ≥1 capture + Live poll (~2 min) | Live = **Location off** (preferred) **or** **STALE** with Age rising; no new Logs pings | Still **LIVE** with Age not rising |
+| LT-GPS-03 | Same session: open Timesheet + Reports for **today** | GPS % / Coverage may still be **high / ~100%** — **Pass** if LT-GPS-02 Live/Logs expectations hold | Treating “must be 0%” as a defect without checking Live Map |
+| LT-GPS-04 | Turn location **on** again mid-duty, wait ≥1 capture | Live returns **LIVE**; new Logs pings appear | Stays Location off forever while GPS is on |
+| LT-GPS-05 | Optional: force-stop app mid-duty (OS kill) so no gap uploads | Live **STALE** / silence; coverage may **drop** later as expected grows without pings | — Document only; gaps need the FG service alive |
+
+**BA one-liner:** GPS % is day coverage of expected samples, not a live “GPS is on” light. Location off belongs on **Live Map**.
+
+---
+
 ## 6. Field meanings (short)
 
 | Term | Meaning |
 |------|---------|
-| Live / Stale / No data | GPS freshness on Live Map |
-| On / Off duty | Open duty session (not the same as Live) |
-| Coverage % / Pings / Distance | Day GPS completeness on Reports |
+| LIVE | On duty; GPS fix from this session; Age within stale threshold |
+| STALE | On duty; last ping older than threshold (sync + capture + sync; defaults ~25 min) |
+| Location off | On duty; phone reported GPS/location services outage (open gap synced) |
+| No fix | On duty; no GPS pin for **this** duty session yet |
+| On / Off duty | Open duty session (separate from LIVE/STALE) |
+| Coverage % / GPS % / Pings / Distance | Day GPS **completeness** on Reports / Timesheet — **not** “GPS is on right now” (see §5b) |
 | Flags | Active, Weak GPS, Not started, Late start, Left open, **Device changed**, **Forced out** |
 | Force punch out | Office closes stuck open duty so another phone can log in |
 
-**Live vs Reports vs Timesheet:** Live = latest GPS + duty. Reports = day summary (refresh for today). Timesheet = attendance even with weak GPS.
+**Live vs Reports vs Timesheet:** Live = latest GPS status + duty. Reports = day coverage summary (refresh for today). Timesheet = attendance; GPS % can stay high after location off if sampling before the outage was complete.
 
 ---
 
@@ -192,6 +241,7 @@ Requires local QA: `LOCATION_TRACKING_QA_FAST=true` and optional `LOCATION_TRACK
 | Environment | Test |
 | Tester / Date | |
 | Happy path ( §4 ) | Pass / Fail |
+| GPS off scenarios ( §5b LT-GPS-01…05 ) | Pass / Fail / N/A |
 | Critical fails (IDs) | |
 | Notes | |
 
