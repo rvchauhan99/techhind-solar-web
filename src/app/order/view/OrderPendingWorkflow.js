@@ -250,6 +250,21 @@ function FailAndRaiseQueryDialog({
   );
 }
 
+/** Empty KYC name → seed from order party (customer_name); keep stored values when set. */
+const seedLkycNameFromParty = (stored, order) => {
+  const existing = String(stored || "").trim();
+  if (existing) return existing;
+  return String(order?.customer_name || "").trim();
+};
+
+const buildLkycFormFromOrder = (order) => ({
+  aadhaar_name: seedLkycNameFromParty(order?.aadhaar_name, order),
+  electricity_bill_name: seedLkycNameFromParty(order?.electricity_bill_name, order),
+  bank_account_holder_name: seedLkycNameFromParty(order?.bank_account_holder_name, order),
+  name_match_result: order?.name_match_result || "",
+  l_kyc_remarks: order?.l_kyc_remarks || "",
+});
+
 export function LkycPanel({
   order,
   orderId,
@@ -266,31 +281,20 @@ export function LkycPanel({
   const editable = canPerformKyc && (!passed || (canAmend && amendMode));
 
   const [docs, setDocs] = useState([]);
-  const [form, setForm] = useState({
-    aadhaar_name: order?.aadhaar_name || "",
-    electricity_bill_name: order?.electricity_bill_name || "",
-    bank_account_holder_name: order?.bank_account_holder_name || "",
-    name_match_result: order?.name_match_result || "",
-    l_kyc_remarks: order?.l_kyc_remarks || "",
-  });
+  const [form, setForm] = useState(() => buildLkycFormFromOrder(order));
   const [reason, setReason] = useState(null);
   const [busy, setBusy] = useState(false);
   const [failOpen, setFailOpen] = useState(false);
 
   useEffect(() => {
-    setForm({
-      aadhaar_name: order?.aadhaar_name || "",
-      electricity_bill_name: order?.electricity_bill_name || "",
-      bank_account_holder_name: order?.bank_account_holder_name || "",
-      name_match_result: order?.name_match_result || "",
-      l_kyc_remarks: order?.l_kyc_remarks || "",
-    });
+    setForm(buildLkycFormFromOrder(order));
     setAmendMode(false);
   }, [
     order?.l_kyc_status,
     order?.aadhaar_name,
     order?.electricity_bill_name,
     order?.bank_account_holder_name,
+    order?.customer_name,
     order?.name_match_result,
     order?.l_kyc_remarks,
   ]);
