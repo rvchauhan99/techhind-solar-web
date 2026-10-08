@@ -3,6 +3,9 @@ import apiClient from "./apiClient";
 export const getOrderDocuments = (params = {}) =>
     apiClient.get("/order-documents", { params }).then((r) => r.data);
 
+export const getOrderFormConfig = () =>
+    apiClient.get("/order-documents/order-form-config").then((r) => r.data);
+
 export const createOrderDocument = (formData) =>
     apiClient.post("/order-documents", formData, {
         headers: { "Content-Type": undefined },
@@ -45,6 +48,7 @@ export const downloadOrderDocument = (id) =>
 
 export default {
     getOrderDocuments,
+    getOrderFormConfig,
     createOrderDocument,
     getOrderDocumentById,
     updateOrderDocument,

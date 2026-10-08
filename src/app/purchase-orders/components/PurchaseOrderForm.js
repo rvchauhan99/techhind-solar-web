@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import LoadingButton from "@/components/common/LoadingButton";
 import Input from "@/components/common/Input";
+import { applyDiscountFieldChange, previewLineDiscount } from "@/utils/lineDiscount";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
@@ -151,6 +152,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
         rate: "",
         per_watt_rate: "",
         quantity: "",
+        discount_percent: "",
+        discount_amount: "",
+        discount_basis: "percent",
         gst_percent: "",
         measurement_unit: "",
         product_capacity: "",
@@ -445,7 +449,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                 const rate = Number(value);
                 next.per_watt_rate = Number.isFinite(rate) && rate > 0 ? (rate / capacity).toFixed(4) : "";
             }
-            return next;
+            return applyDiscountFieldChange(next, name, "rate");
         });
 
         // Clear item errors when user starts typing
@@ -515,6 +519,21 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             validationErrors.gst_percent = "GST % cannot exceed 100%";
         }
 
+        const discountPreview = previewLineDiscount({
+            quantity: currentItem.quantity,
+            rate: currentItem.rate,
+            discount_percent: currentItem.discount_percent,
+            discount_amount: currentItem.discount_amount,
+            discount_basis: currentItem.discount_basis,
+        });
+        if (discountPreview.invalid) {
+            if (currentItem.discount_basis === "amount") {
+                validationErrors.discount_amount = "Discount amount cannot exceed unit rate";
+            } else {
+                validationErrors.discount_percent = "Discount % must be between 0 and 100";
+            }
+        }
+
         // If validation fails, show errors and don't add item
         if (Object.keys(validationErrors).length > 0) {
             setItemErrors(validationErrors);
@@ -531,6 +550,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: parseFloat(currentItem.rate),
             per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
             quantity: parseInt(currentItem.quantity),
+            discount_percent: discountPreview.discount_percent,
+            discount_amount: discountPreview.discount_amount,
+            discount_basis: discountPreview.discount_basis,
             gst_percent: isImport ? 0 : parseFloat(currentItem.gst_percent),
             measurement_unit: currentItem.measurement_unit || product?.measurement_unit?.unit || "",
             product_capacity: currentItem.product_capacity || product?.capacity || "",
@@ -550,6 +572,9 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
             rate: "",
             per_watt_rate: "",
             quantity: "",
+            discount_percent: "",
+            discount_amount: "",
+            discount_basis: "percent",
             gst_percent: isImport ? 0 : "",
             measurement_unit: "",
             product_capacity: "",
@@ -585,7 +610,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
         formData.items.forEach((item) => {
             totalQuantity += item.quantity;
-            const itemTaxable = item.rate * item.quantity;
+            const discount = previewLineDiscount({
+                quantity: item.quantity,
+                rate: item.rate,
+                discount_percent: item.discount_percent,
+                discount_amount: item.discount_amount,
+                discount_basis: item.discount_basis,
+            });
+            const itemTaxable = discount.taxable ?? Math.max(0, discount.lineValue - (discount.line_discount ?? 0));
             const gstPercent = isImport ? 0 : item.gst_percent;
             const itemGst = (itemTaxable * gstPercent) / 100;
             taxableAmountFc += itemTaxable;
@@ -691,6 +723,22 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                     hasError = true;
                 } else if (item.gst_percent > 100) {
                     itemErrors.gst_percent = "GST % cannot exceed 100%";
+                    hasError = true;
+                }
+
+                const lineDiscount = previewLineDiscount({
+                    quantity: item.quantity,
+                    rate: item.rate,
+                    discount_percent: item.discount_percent,
+                    discount_amount: item.discount_amount,
+                    discount_basis: item.discount_basis,
+                });
+                if (lineDiscount.invalid) {
+                    if (item.discount_basis === "amount") {
+                        itemErrors.discount_amount = "Discount amount cannot exceed unit rate";
+                    } else {
+                        itemErrors.discount_percent = "Discount % must be between 0 and 100";
+                    }
                     hasError = true;
                 }
 
@@ -890,7 +938,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 </Typography>
                             </div>
                         )}
-                        <FormGrid cols={2} className="lg:grid-cols-4">
+                        <FormSection title="General" className="mt-0">
+                        <FormGrid cols={2} className="lg:grid-cols-4 gap-1.5">
                             <DateField
                                 name="po_date"
                                 label="PO Date"
@@ -1000,7 +1049,7 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                 value={formData.dispatch_terms}
                                 onChange={handleChange}
                             />
-                            <div className="md:col-span-2 lg:col-span-4">
+                            <div className="md:col-span-2 lg:col-span-2">
                                 <Input
                                     name="remarks"
                                     label="Remarks"
@@ -1008,13 +1057,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     value={formData.remarks}
                                     onChange={handleChange}
                                     multiline
-                                    rows={2}
+                                    rows={1}
                                 />
                             </div>
                         </FormGrid>
+                        </FormSection>
                     </div>
 
-                    <FormSection title="Items" className="mt-2" data-items-section>
+                    <FormSection title="Items" className="mt-1" data-items-section>
                         {errors.items && (
                             <Alert severity="error" sx={{ mb: 1 }}>
                                 {errors.items}
@@ -1022,128 +1072,166 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         )}
 
                         {/* Add Item Form */}
-                        <Paper sx={{ p: 1, mb: 1 }}>
-                            <div className={`grid grid-cols-1 md:grid-cols-2 gap-2 items-end ${isImport ? "lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]" : "lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_auto]"}`}>
-                                <AutocompleteField
-                                    label="Product *"
-                                    placeholder="Search and select product"
-                                    options={[]}
-                                    asyncLoadOptions={async (q) => {
-                                        const res = await productService.getProducts({ q: q || undefined, limit: 20, visibility: "active" });
-                                        const data = res?.result?.data ?? res?.data ?? [];
-                                        return Array.isArray(data) ? data : [];
-                                    }}
-                                    resolveOptionById={async (id) => {
-                                        if (id == null || id === "") return null;
-                                        const p = await productService.getProductById(id);
-                                        const row = p?.result ?? p;
-                                        return row
-                                            ? {
-                                                id: row.id,
-                                                product_name: row.product_name,
-                                                model_number: row.model_number ?? null,
-                                                hsn_ssn_code: row.hsn_ssn_code,
-                                                gst_percent: row.gst_percent,
-                                                measurement_unit_name: row.measurement_unit_name || null,
-                                                capacity: row.capacity ?? null,
-                                                product_type_name: row.product_type_name || null,
+                        <Paper variant="outlined" sx={{ px: 0.5, py: 0.375, mb: 0.5 }}>
+                            <div className="flex flex-wrap gap-1.5 items-start w-full">
+                                <div className="flex-[2_2_200px] min-w-[200px]">
+                                    <AutocompleteField
+                                        label="Product *"
+                                        placeholder="Search and select product"
+                                        options={[]}
+                                        asyncLoadOptions={async (q) => {
+                                            const res = await productService.getProducts({ q: q || undefined, limit: 20, visibility: "active" });
+                                            const data = res?.result?.data ?? res?.data ?? [];
+                                            return Array.isArray(data) ? data : [];
+                                        }}
+                                        resolveOptionById={async (id) => {
+                                            if (id == null || id === "") return null;
+                                            const p = await productService.getProductById(id);
+                                            const row = p?.result ?? p;
+                                            return row
+                                                ? {
+                                                    id: row.id,
+                                                    product_name: row.product_name,
+                                                    model_number: row.model_number ?? null,
+                                                    hsn_ssn_code: row.hsn_ssn_code,
+                                                    gst_percent: row.gst_percent,
+                                                    measurement_unit_name: row.measurement_unit_name || null,
+                                                    capacity: row.capacity ?? null,
+                                                    product_type_name: row.product_type_name || null,
+                                                }
+                                                : null;
+                                        }}
+                                        getOptionLabel={(p) => formatProductAutocompleteLabel(p) || String(p?.id ?? "")}
+                                        value={currentItem.product_id ? { id: currentItem.product_id } : null}
+                                        onChange={(e, newValue) => {
+                                            handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
+                                            if (newValue) {
+                                                setCurrentItem((prev) => ({
+                                                    ...prev,
+                                                    product_id: newValue.id ?? prev.product_id,
+                                                    product_name: newValue.product_name ?? prev.product_name,
+                                                    hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
+                                                    gst_percent: isImport ? 0 : (newValue.gst_percent ?? prev.gst_percent),
+                                                    measurement_unit:
+                                                        newValue.measurement_unit_name ||
+                                                        prev.measurement_unit ||
+                                                        "",
+                                                    product_capacity: newValue.capacity ?? prev.product_capacity ?? "",
+                                                    product_type_name: newValue.product_type_name ?? prev.product_type_name ?? "",
+                                                }));
                                             }
-                                            : null;
-                                    }}
-                                    getOptionLabel={(p) => formatProductAutocompleteLabel(p) || String(p?.id ?? "")}
-                                    value={currentItem.product_id ? { id: currentItem.product_id } : null}
-                                    onChange={(e, newValue) => {
-                                        handleItemChange({ target: { name: "product_id", value: newValue?.id ?? "" } });
-                                        if (newValue) {
-                                            setCurrentItem((prev) => ({
-                                                ...prev,
-                                                product_id: newValue.id ?? prev.product_id,
-                                                product_name: newValue.product_name ?? prev.product_name,
-                                                hsn_code: newValue.hsn_ssn_code ?? prev.hsn_code,
-                                                gst_percent: isImport ? 0 : (newValue.gst_percent ?? prev.gst_percent),
-                                                measurement_unit:
-                                                    newValue.measurement_unit_name ||
-                                                    prev.measurement_unit ||
-                                                    "",
-                                                product_capacity: newValue.capacity ?? prev.product_capacity ?? "",
-                                                product_type_name: newValue.product_type_name ?? prev.product_type_name ?? "",
-                                            }));
-                                        }
-                                    }}
-                                    error={!!itemErrors.product_id}
-                                    helperText={itemErrors.product_id}
-                                    required
-                                />
-                                <Input
-                                    name="hsn_code"
-                                    label="HSN Code"
-                                    placeholder="Enter HSN code"
-                                    value={currentItem.hsn_code}
-                                    onChange={handleItemChange}
-                                    error={!!itemErrors.hsn_code}
-                                    helperText={itemErrors.hsn_code}
-                                />
-                                <Input
-                                    name="quantity"
-                                    label={
-                                        currentItem.measurement_unit
-                                            ? `Quantity (${currentItem.measurement_unit})`
-                                            : "Quantity"
-                                    }
-                                    placeholder="Enter quantity"
-                                    type="number"
-                                    value={currentItem.quantity}
-                                    onChange={handleItemChange}
-                                    inputProps={{ min: 1 }}
-                                    error={!!itemErrors.quantity}
-                                    helperText={itemErrors.quantity}
-                                    required
-                                />
-                                {String(currentItem.product_type_name || "").trim().toLowerCase() === "panel" && (
-                                    <Input
-                                        name="per_watt_rate"
-                                        label={isImport ? `Per Watt (${currencyCode}/W)` : "Per Watt (₹/W)"}
-                                        placeholder="Enter per watt"
-                                        type="number"
-                                        value={currentItem.per_watt_rate}
-                                        onChange={handleItemChange}
-                                        inputProps={{ min: 0, step: 0.0001 }}
-                                    />
-                                )}
-                                <Input
-                                    name="rate"
-                                    label={isImport ? `Rate (${currencyCode})` : "Rate (₹)"}
-                                    placeholder="Enter rate"
-                                    type="number"
-                                    value={currentItem.rate}
-                                    onChange={handleItemChange}
-                                    inputProps={{ min: 0, step: 0.01 }}
-                                    error={!!itemErrors.rate}
-                                    helperText={itemErrors.rate}
-                                    required
-                                />
-                                {!isImport && (
-                                    <Input
-                                        name="gst_percent"
-                                        label="GST %"
-                                        placeholder="Enter GST %"
-                                        type="number"
-                                        value={currentItem.gst_percent}
-                                        onChange={handleItemChange}
-                                        inputProps={{ min: 0, step: 0.01, max: 100 }}
-                                        error={!!itemErrors.gst_percent}
-                                        helperText={itemErrors.gst_percent}
+                                        }}
+                                        error={!!itemErrors.product_id}
+                                        helperText={itemErrors.product_id}
                                         required
                                     />
+                                </div>
+                                <div className="flex-1 min-w-[100px]">
+                                    <Input
+                                        name="hsn_code"
+                                        label="HSN Code"
+                                        placeholder="Enter HSN"
+                                        value={currentItem.hsn_code}
+                                        onChange={handleItemChange}
+                                        error={!!itemErrors.hsn_code}
+                                        helperText={itemErrors.hsn_code}
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-[100px]">
+                                    <Input
+                                        name="quantity"
+                                        label={
+                                            currentItem.measurement_unit
+                                                ? `Qty (${currentItem.measurement_unit})`
+                                                : "Qty"
+                                        }
+                                        placeholder="Enter qty"
+                                        type="number"
+                                        value={currentItem.quantity}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 1 }}
+                                        error={!!itemErrors.quantity}
+                                        helperText={itemErrors.quantity}
+                                        required
+                                    />
+                                </div>
+                                {String(currentItem.product_type_name || "").trim().toLowerCase() === "panel" && (
+                                    <div className="flex-1 min-w-[100px]">
+                                        <Input
+                                            name="per_watt_rate"
+                                            label={isImport ? `Per Watt (${currencyCode})` : "Per Watt (₹)"}
+                                            placeholder="Enter rate"
+                                            type="number"
+                                            value={currentItem.per_watt_rate}
+                                            onChange={handleItemChange}
+                                            inputProps={{ min: 0, step: 0.0001 }}
+                                        />
+                                    </div>
                                 )}
-                                <div className="flex items-end">
+                                <div className="flex-1 min-w-[100px]">
+                                    <Input
+                                        name="rate"
+                                        label={isImport ? `Rate (${currencyCode})` : "Rate (₹)"}
+                                        placeholder="Enter rate"
+                                        type="number"
+                                        value={currentItem.rate}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 0, step: 0.01 }}
+                                        error={!!itemErrors.rate}
+                                        helperText={itemErrors.rate}
+                                        required
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-[90px]">
+                                    <Input
+                                        name="discount_percent"
+                                        label="Disc % / Qty"
+                                        type="number"
+                                        placeholder="%"
+                                        value={currentItem.discount_percent}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                        error={!!itemErrors.discount_percent}
+                                        helperText={itemErrors.discount_percent}
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-[110px]">
+                                    <Input
+                                        name="discount_amount"
+                                        label="Disc Amt / Qty"
+                                        type="number"
+                                        placeholder="Amt"
+                                        value={currentItem.discount_amount}
+                                        onChange={handleItemChange}
+                                        inputProps={{ min: 0, step: 1 }}
+                                        error={!!itemErrors.discount_amount}
+                                        helperText={itemErrors.discount_amount}
+                                    />
+                                </div>
+                                {!isImport && (
+                                    <div className="flex-1 min-w-[90px]">
+                                        <Input
+                                            name="gst_percent"
+                                            label="GST %"
+                                            placeholder="%"
+                                            type="number"
+                                            value={currentItem.gst_percent}
+                                            onChange={handleItemChange}
+                                            inputProps={{ min: 0, step: 0.01, max: 100 }}
+                                            error={!!itemErrors.gst_percent}
+                                            helperText={itemErrors.gst_percent}
+                                            required
+                                        />
+                                    </div>
+                                )}
+                                <div className="flex-none pt-[22px]">
                                     <Button
                                         type="button"
                                         variant="default"
                                         size="sm"
                                         startIcon={<AddIcon />}
                                         onClick={handleAddItem}
-                                        className="w-full lg:w-auto"
+                                        className="h-10"
                                     >
                                         Add
                                     </Button>
@@ -1153,8 +1241,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
                         {/* Items Table with Price Details */}
                         {formData.items.length > 0 && (
-                            <TableContainer component={Paper}>
-                                <Table size="small">
+                            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                                <Table size="small" stickyHeader sx={{ '& .MuiTableCell-root': { px: 0.75, py: 0.375, fontSize: '0.75rem', lineHeight: 1.25, whiteSpace: 'nowrap' }, '& .MuiTableCell-head': { py: 0.375, fontWeight: 600, fontSize: '0.625rem', textTransform: 'uppercase', letterSpacing: '0.03em' } }}>
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Product</TableCell>
@@ -1162,6 +1250,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                             <TableCell align="right">Qty</TableCell>
                                             <TableCell align="right">{isImport ? `Per Watt (${currencyCode}/W)` : "Per Watt (₹/W)"}</TableCell>
                                             <TableCell align="right">{isImport ? `Rate (${currencyCode})` : "Rate (₹)"}</TableCell>
+                                            <TableCell align="right">Disc % / Qty</TableCell>
+                                            <TableCell align="right">Disc Amt / Qty</TableCell>
                                             {!isImport && <TableCell align="right">GST %</TableCell>}
                                             <TableCell align="right">Taxable Amount</TableCell>
                                             {!isImport && <TableCell align="right">GST Amount</TableCell>}
@@ -1172,7 +1262,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                     <TableBody>
                                         {formData.items.map((item, index) => {
                                             const displayLabel = item.product_name ?? item.product?.product_name;
-                                            const itemTaxableFc = item.rate * item.quantity;
+                                            const lineDiscount = previewLineDiscount({
+                                                quantity: item.quantity,
+                                                rate: item.rate,
+                                                discount_percent: item.discount_percent,
+                                                discount_amount: item.discount_amount,
+                                                discount_basis: item.discount_basis,
+                                            });
+                                            const itemTaxableFc = lineDiscount.taxable ?? Math.max(0, lineDiscount.lineValue - (lineDiscount.line_discount ?? 0));
                                             const itemGstFc = isImport ? 0 : (itemTaxableFc * item.gst_percent) / 100;
                                             const itemTotalFc = itemTaxableFc + itemGstFc;
                                             const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
@@ -1230,6 +1327,22 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                                                             </Typography>
                                                         )}
                                                     </TableCell>
+                                                    <TableCell align="right">
+                                                        {Number(item.discount_percent) > 0 ? `${item.discount_percent}%` : "–"}
+                                                        {rowErrors.discount_percent && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.discount_percent}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell align="right">
+                                                        {Number(item.discount_amount) > 0 ? item.discount_amount : "–"}
+                                                        {rowErrors.discount_amount && (
+                                                            <Typography variant="caption" color="error" display="block">
+                                                                {rowErrors.discount_amount}
+                                                            </Typography>
+                                                        )}
+                                                    </TableCell>
                                                     {!isImport && (
                                                         <TableCell align="right">
                                                             {item.gst_percent >= 0 && item.gst_percent <= 100 ? `${item.gst_percent}%` : <Typography color="error" variant="caption">Invalid</Typography>}
@@ -1274,47 +1387,55 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
                         {/* Totals Summary */}
                         {formData.items.length > 0 && (
-                            <Paper sx={{ p: 1, mt: 1, bgcolor: "grey.100" }}>
+                            <Paper sx={{ px: 0.75, py: 0.5, mt: 0.5, bgcolor: "grey.50" }}>
                                 <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                    <Box sx={{ minWidth: 320 }}>
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                            <Typography variant="body1">Total Quantity:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">{totals.total_quantity}</Typography>
+                                    <Box
+                                        sx={{
+                                            minWidth: 240,
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            gap: 0.25,
+                                            "& .MuiTypography-root": { fontSize: 12, lineHeight: 1.25 },
+                                        }}
+                                    >
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                            <Typography variant="caption" color="text.secondary">Total Quantity</Typography>
+                                            <Typography variant="caption" fontWeight={600}>{totals.total_quantity}</Typography>
                                         </Box>
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                            <Typography variant="body1">Taxable Amount:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                            <Typography variant="caption" color="text.secondary">Taxable Amount</Typography>
+                                            <Typography variant="caption" fontWeight={600}>
                                                 {isImport
                                                     ? formatFcWithInr(totals.taxable_amount_fc, displayExchangeRate, currencyCode)
                                                     : `₹${totals.taxable_amount.toFixed(2)}`}
                                             </Typography>
                                         </Box>
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                            <Typography variant="body1">{applicableGstLabel}:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">{applicableGstValue}</Typography>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                            <Typography variant="caption" color="text.secondary">{applicableGstLabel}</Typography>
+                                            <Typography variant="caption" fontWeight={600}>{applicableGstValue}</Typography>
                                         </Box>
                                         {!isImport && (
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                                <Typography variant="body1">Total GST Amount:</Typography>
-                                                <Typography variant="body1" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                                <Typography variant="caption" color="text.secondary">Total GST Amount</Typography>
+                                                <Typography variant="caption" fontWeight={600}>₹{totals.total_gst_amount.toFixed(2)}</Typography>
                                             </Box>
                                         )}
-                                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                            <Typography variant="body1">Grand Total:</Typography>
-                                            <Typography variant="body1" fontWeight="bold">
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                            <Typography variant="caption" color="text.secondary">Grand Total</Typography>
+                                            <Typography variant="caption" fontWeight={600}>
                                                 {isImport
                                                     ? formatFcWithInr(totals.grand_total_fc, displayExchangeRate, currencyCode)
                                                     : `₹${totals.grand_total.toFixed(2)}`}
                                             </Typography>
                                         </Box>
-                                        <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 1 }}>
-                                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                                                <Typography variant="body1">Round Off:</Typography>
-                                                <Typography variant="body1" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
+                                        <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 0.5, mt: 0.25, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                                <Typography variant="caption" color="text.secondary">Round Off</Typography>
+                                                <Typography variant="caption" fontWeight={600}>{signedRoundOff(totals.round_off_amount)}</Typography>
                                             </Box>
-                                            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                                                <Typography variant="h6">Final Amount{isImport ? " (INR)" : ""}:</Typography>
-                                                <Typography variant="h6" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                                                <Typography variant="body2" fontWeight={700}>Final Amount{isImport ? " (INR)" : ""}</Typography>
+                                                <Typography variant="body2" fontWeight={700}>₹{Number(totals.final_amount).toFixed(2)}</Typography>
                                             </Box>
                                         </Box>
                                     </Box>
@@ -1323,12 +1444,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                         )}
                     </FormSection>
 
-                    <FormSection title="Attachments" className="mt-2">
-                        <Paper sx={{ p: 1 }}>
-                            <FormGrid cols={2} className="lg:grid-cols-4 mb-1">
+                    <FormSection title="Attachments" className="mt-1">
+                        <Paper variant="outlined" sx={{ px: 0.5, py: 0.375 }}>
+                            <FormGrid cols={2} className="lg:grid-cols-4 gap-1.5 mb-0.5">
                                 <div className="md:col-span-2 lg:col-span-3">
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                                        Files are stored privately. Access via time-limited signed URLs (tokens).
+                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", lineHeight: 1.3 }}>
+                                        Private files · signed URL download
                                     </Typography>
                                 </div>
 
@@ -1359,12 +1480,12 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
 
                             {/* New Files to Upload */}
                             {uploadedFiles.length > 0 && (
-                                <Box sx={{ mb: 1 }}>
-                                    <Typography variant="subtitle2" gutterBottom>New Files to Upload:</Typography>
+                                <Box sx={{ mb: 0.5 }}>
+                                    <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.25 }}>New files</Typography>
                                     {uploadedFiles.map((file, index) => (
-                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                                            <AttachFileIcon fontSize="small" />
-                                            <Typography variant="body2" sx={{ flex: 1 }}>
+                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.375 }}>
+                                            <AttachFileIcon sx={{ fontSize: 16 }} />
+                                            <Typography variant="caption" sx={{ flex: 1 }}>
                                                 {file.name} ({formatFileSize(file.size)})
                                             </Typography>
                                             <IconButton
@@ -1382,14 +1503,14 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                             {/* Existing Attachments */}
                             {attachments.length > 0 && (
                                 <Box>
-                                    <Typography variant="subtitle2" gutterBottom>Existing Attachments:</Typography>
+                                    <Typography variant="caption" fontWeight={600} sx={{ display: "block", mb: 0.25 }}>Existing</Typography>
                                     {attachments.map((attachment, index) => (
-                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, p: 1, bgcolor: "#f9f9f9", borderRadius: 1 }}>
-                                            <AttachFileIcon fontSize="small" />
-                                            <Typography variant="body2" sx={{ flex: 1 }}>
+                                        <Box key={index} sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 0.375, px: 0.5, py: 0.25, bgcolor: "#f9f9f9", borderRadius: 0.5 }}>
+                                            <AttachFileIcon sx={{ fontSize: 16 }} />
+                                            <Typography variant="caption" sx={{ flex: 1 }}>
                                                 {attachment.filename} ({formatFileSize(attachment.size || 0)})
                                             </Typography>
-                                            <Typography variant="caption" color="text.secondary">
+                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
                                                 {attachment.uploaded_at ? new Date(attachment.uploaded_at).toLocaleDateString() : ""}
                                             </Typography>
                                             {defaultValues?.id && (
@@ -1417,8 +1538,8 @@ export default function PurchaseOrderForm({ defaultValues = {}, onSubmit, loadin
                             )}
 
                             {attachments.length === 0 && uploadedFiles.length === 0 && (
-                                <Typography variant="body2" color="text.secondary">
-                                    No attachments. Click "Upload Documents" to add files.
+                                <Typography variant="caption" color="text.secondary">
+                                    No attachments
                                 </Typography>
                             )}
                         </Paper>

@@ -52,6 +52,7 @@ const PLATFORM_CONFIG_MODEL = "platform_config.model";
 const USER_ID_ALLOWLIST_CONFIG_KEYS = new Set([
     "po_inward.import.allowed_approver_user_ids",
     "order.cancel.allowed_user_ids",
+    "pending_order.kyc.allowed_user_ids",
 ]);
 
 const isUserIdAllowlistConfigKey = (configKey) =>

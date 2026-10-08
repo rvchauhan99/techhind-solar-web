@@ -151,7 +151,8 @@ export default function B2bSalesOrderDetailsContent({
                   <th className="text-right p-2">Cancelled</th>
                   <th className="text-right p-2">Pending</th>
                   <th className="text-right p-2">Rate</th>
-                  <th className="text-right p-2">Disc %</th>
+                  <th className="text-right p-2">Disc % / Qty</th>
+                  <th className="text-right p-2">Disc Amt / Qty</th>
                   <th className="text-right p-2">GST %</th>
                   <th className="text-right p-2">Taxable</th>
                   <th className="text-right p-2">GST</th>
@@ -175,6 +176,7 @@ export default function B2bSalesOrderDetailsContent({
                       <td className="p-2 text-right">{it.pending_qty ?? (it.quantity != null ? Number(it.quantity) : "-")}</td>
                       <td className="p-2 text-right">{formatCurrency(it.unit_rate) ?? "-"}</td>
                       <td className="p-2 text-right">{it.discount_percent ?? 0}</td>
+                      <td className="p-2 text-right">{it.discount_amount ?? 0}</td>
                       <td className="p-2 text-right">{it.gst_percent ?? "-"}</td>
                       <td className="p-2 text-right">{formatCurrency(it.taxable_amount) ?? "-"}</td>
                       <td className="p-2 text-right">{formatCurrency(it.gst_amount) ?? "-"}</td>

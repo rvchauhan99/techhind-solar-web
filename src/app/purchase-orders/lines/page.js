@@ -188,6 +188,8 @@ export default function PurchaseOrderLinesPage() {
         sortable: true,
         render: (r) => formatLineMoney(r.rate, r),
       },
+      { field: "discount_percent", label: "Disc % / Qty", sortable: false },
+      { field: "discount_amount", label: "Disc Amt / Qty", sortable: false },
       { field: "quantity", label: "Qty", sortable: true },
       { field: "received_quantity", label: "Recv", sortable: true },
       { field: "returned_quantity", label: "Ret", sortable: true },

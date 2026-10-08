@@ -10,6 +10,11 @@ import orderDocumentsService from "@/services/orderDocumentsService";
 import orderService from "@/services/orderService";
 import { toastSuccess, toastError } from "@/utils/toast";
 import { resolveReturnTo } from "@/utils/listNavigation";
+import {
+    LEGACY_ORDER_FORM_DOCUMENTS,
+    useOrderFormDocumentConfig,
+    normalizeDocToken,
+} from "../components/orderFormDocuments";
 
 export default function EditOrderPage() {
     return (
@@ -26,6 +31,8 @@ function EditOrderPageContent() {
     const searchParams = useSearchParams();
     const orderId = searchParams.get("id");
     const returnPath = resolveReturnTo(searchParams, "/order");
+    const { documents: orderFormDocuments, documentKeys } = useOrderFormDocumentConfig();
+    const documentKeysSignature = documentKeys.join("|");
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -50,15 +57,24 @@ function EditOrderPageContent() {
 
                 const order = orderRes?.result || orderRes;
                 const documents = docsRes?.result?.data || docsRes?.data || [];
+                const formDocs = orderFormDocuments?.length
+                    ? orderFormDocuments
+                    : LEGACY_ORDER_FORM_DOCUMENTS;
 
-                // Map documents to the specific keys expected by OrderForm (path and id for bucket URL)
+                // Map documents onto form keys (code/snake key or master label)
                 const documentMap = {};
                 const documentIds = {};
-                documents.forEach(doc => {
-                    if (doc.doc_type) {
-                        documentMap[doc.doc_type] = doc.document_path;
-                        documentIds[doc.doc_type] = doc.id;
-                    }
+                documents.forEach((doc) => {
+                    if (!doc.doc_type) return;
+                    const dtNorm = normalizeDocToken(doc.doc_type);
+                    const matched = formDocs.find(
+                        (d) =>
+                            normalizeDocToken(d.key) === dtNorm ||
+                            normalizeDocToken(d.label) === dtNorm
+                    );
+                    const formKey = matched?.key || doc.doc_type;
+                    documentMap[formKey] = doc.document_path;
+                    documentIds[formKey] = doc.id;
                 });
 
                 if (order?.current_stage_key === "order_completed") {
@@ -80,21 +96,17 @@ function EditOrderPageContent() {
         };
 
         fetchOrderData();
-    }, [orderId]);
+        // Remap when orderFormDocuments keys settle (legacy → API config)
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- orderFormDocuments identity tracked via documentKeysSignature
+    }, [orderId, documentKeysSignature]);
 
     const handleSubmit = async (formData) => {
         try {
             setSubmitting(true);
-            // 1. Separate documents (File objects) from basic order data
-            const documentTypes = [
-                { key: 'electricity_bill', label: 'Electricity Bill' },
-                { key: 'house_tax_bill', label: 'House Tax Bill' },
-                { key: 'aadhar_card', label: 'Aadhar Card' },
-                { key: 'passport_photo', label: 'Passport Photo' },
-                { key: 'pan_card', label: 'PAN Card' },
-                { key: 'cancelled_cheque', label: 'Cancelled Cheque' },
-                { key: 'customer_sign', label: 'Customer Sign' },
-            ];
+            const documentTypes = (orderFormDocuments?.length
+                ? orderFormDocuments
+                : LEGACY_ORDER_FORM_DOCUMENTS
+            ).map((d) => ({ key: d.key, label: d.label }));
 
             const orderUpdates = { ...formData };
             delete orderUpdates.documentIds; // not sent to API
@@ -121,15 +133,14 @@ function EditOrderPageContent() {
                 delete orderUpdates[key];
             });
 
-            documentTypes.forEach(doc => {
+            documentTypes.forEach((doc) => {
                 if (formData[doc.key] instanceof File) {
                     filesToUpload.push({
                         file: formData[doc.key],
                         docType: doc.key,
-                        label: doc.label
+                        label: doc.label,
                     });
                 }
-                // Remove document keys from the main update payload to avoid sending binary/old paths to updateOrder
                 delete orderUpdates[doc.key];
             });
 
