@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { toastError, toastSuccess } from "@/utils/toast"
 import locationTrackingService from "@/services/locationTrackingService"
 import { openGoogleMapsPoint, openGoogleMapsRoute } from "../utils/googleMapsLinks"
+import { fmtTenantTime } from "../utils/formatTrackingTime"
 
 const LocationTrackingMap = dynamic(
   () => import("../components/LocationTrackingMap"),
@@ -31,13 +32,8 @@ function daysAgoIso(days) {
   return d.toISOString().slice(0, 10)
 }
 
-function fmtTime(v) {
-  if (!v) return "—"
-  try {
-    return new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  } catch {
-    return "—"
-  }
+function fmtTime(v, timeZone) {
+  return fmtTenantTime(v, timeZone)
 }
 
 function KpiChip({ label, value }) {
@@ -61,6 +57,8 @@ function ReportsContent() {
   const [trail, setTrail] = useState([])
   const [trailSummary, setTrailSummary] = useState(null)
   const [trailLoading, setTrailLoading] = useState(false)
+  const [trailGaps, setTrailGaps] = useState([])
+  const [timeZone, setTimeZone] = useState("Asia/Kolkata")
 
   useEffect(() => {
     let cancelled = false
@@ -94,6 +92,7 @@ function ReportsContent() {
       setTotals(data?.totals || null)
       setSelected(null)
       setTrail([])
+      setTrailGaps([])
       setTrailSummary(null)
     } catch (err) {
       toastError(err?.response?.data?.message || err.message || "Failed to load report")
@@ -110,14 +109,18 @@ function ReportsContent() {
     setSelected(row)
     setTrailLoading(true)
     setTrailSummary(null)
+    setTrailGaps([])
     try {
       const data = await locationTrackingService.getUserTrail(row.user_id, {
         date: String(row.summary_date).slice(0, 10),
       })
       setTrail(Array.isArray(data?.points) ? data.points : [])
+      setTrailGaps(Array.isArray(data?.gaps) ? data.gaps : [])
       setTrailSummary(data?.summary || null)
+      if (data?.timezone) setTimeZone(data.timezone)
     } catch (err) {
       setTrail([])
+      setTrailGaps([])
       setTrailSummary(null)
       toastError(err?.response?.data?.message || err.message || "Failed to load trail")
     } finally {
@@ -154,6 +157,8 @@ function ReportsContent() {
         coverage: trailSummary.coverage_pct,
         km: trailSummary.distance_km,
         gap: trailSummary.max_gap_minutes,
+        gapCount: trailSummary.gap_count,
+        gapMinutes: trailSummary.gap_minutes,
       }
     }
     if (selected) {
@@ -165,6 +170,8 @@ function ReportsContent() {
         coverage: selected.coverage_pct,
         km: selected.distance_km,
         gap: selected.max_gap_minutes,
+        gapCount: selected.gap_count,
+        gapMinutes: selected.gap_minutes,
       }
     }
     return null
@@ -286,8 +293,8 @@ function ReportsContent() {
                         {row.ping_count}/{row.expected_ping_count}
                       </td>
                       <td className="px-2 py-1 tabular-nums">{row.distance_km}</td>
-                      <td className="px-2 py-1 tabular-nums">{fmtTime(row.first_ping_at)}</td>
-                      <td className="px-2 py-1 tabular-nums">{fmtTime(row.last_ping_at)}</td>
+                      <td className="px-2 py-1 tabular-nums">{fmtTime(row.first_ping_at, timeZone)}</td>
+                      <td className="px-2 py-1 tabular-nums">{fmtTime(row.last_ping_at, timeZone)}</td>
                       <td className="px-2 py-1 tabular-nums">{row.max_gap_minutes}m</td>
                       <td className="px-2 py-1 tabular-nums">{row.mocked_ping_count}</td>
                     </tr>
@@ -338,15 +345,18 @@ function ReportsContent() {
                 </div>
                 {routeMeta ? (
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-muted-foreground tabular-nums">
-                    <span>First {fmtTime(routeMeta.first)}</span>
-                    <span>Last {fmtTime(routeMeta.last)}</span>
+                    <span>First {fmtTime(routeMeta.first, timeZone)}</span>
+                    <span>Last {fmtTime(routeMeta.last, timeZone)}</span>
                     <span>
-                      Pings {routeMeta.pings}
+                      Captures {routeMeta.pings}
                       {routeMeta.expected != null ? `/${routeMeta.expected}` : ""}
                     </span>
                     <span>Coverage {routeMeta.coverage}%</span>
                     <span>{routeMeta.km} km</span>
-                    <span>Max gap {routeMeta.gap}m</span>
+                    <span>
+                      Gaps {routeMeta.gapCount ?? trailGaps.length}
+                      {routeMeta.gapMinutes != null ? ` · ${routeMeta.gapMinutes}m` : ""}
+                    </span>
                     <span>{trail.length} pts on map</span>
                   </div>
                 ) : null}
@@ -358,6 +368,7 @@ function ReportsContent() {
           <div className="flex-1 min-h-[360px]">
             <LocationTrackingMap
               trail={trail}
+              gaps={trailGaps}
               emptyMessage={
                 selected
                   ? trailLoading

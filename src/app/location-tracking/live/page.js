@@ -24,24 +24,28 @@ const POLL_MS = 2 * 60 * 1000
 const STATUS_FILTERS = [
   { key: "all", label: "All" },
   { key: "live", label: "Live" },
+  { key: "location_off", label: "Location off" },
   { key: "stale", label: "Stale" },
-  { key: "no_data", label: "No data" },
+  { key: "no_fix", label: "No fix" },
   { key: "on_duty", label: "On duty" },
   { key: "off_duty", label: "Off duty" },
 ]
 
 function statusBadge(status) {
-  const s = status || "no_data"
+  const s = status || "off_duty"
   const map = {
     live: "bg-green-100 text-green-800",
     stale: "bg-amber-100 text-amber-800",
+    location_off: "bg-orange-100 text-orange-800",
+    no_fix: "bg-gray-100 text-gray-600",
     no_data: "bg-gray-100 text-gray-600",
+    off_duty: "bg-slate-100 text-slate-700",
   }
   return (
     <span
       className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${map[s] || map.no_data}`}
     >
-      {s}
+      {s.replace(/_/g, " ")}
     </span>
   )
 }
@@ -88,11 +92,21 @@ function LiveContent() {
   }, [load])
 
   const counts = useMemo(() => {
-    const c = { live: 0, stale: 0, no_data: 0, on_duty: 0, off_duty: 0, total: users.length }
+    const c = {
+      live: 0,
+      stale: 0,
+      location_off: 0,
+      no_fix: 0,
+      no_data: 0,
+      on_duty: 0,
+      off_duty: 0,
+      total: users.length,
+    }
     users.forEach((u) => {
-      const s = u.status || "no_data"
-      if (c[s] != null) c[s] += 1
-      else c.no_data += 1
+      const s = u.status || "off_duty"
+      if (s === "live" || s === "stale" || s === "location_off" || s === "no_fix" || s === "no_data") {
+        c[s] += 1
+      }
       if (u.on_duty) c.on_duty += 1
       else c.off_duty += 1
     })
@@ -149,8 +163,11 @@ function LiveContent() {
         <div className="flex flex-col min-h-0 rounded border border-border bg-card">
           <div className="grid grid-cols-3 gap-1 p-1.5 border-b border-border">
             <KpiChip label="Live" value={counts.live} tone="live" />
+            <KpiChip label="Loc off" value={counts.location_off} tone="stale" />
+            <KpiChip label="Stale" value={counts.stale} tone="stale" />
+            <KpiChip label="No fix" value={counts.no_fix} tone="muted" />
             <KpiChip label="On duty" value={counts.on_duty} tone="live" />
-            <KpiChip label="Off duty" value={counts.off_duty} tone="stale" />
+            <KpiChip label="Off duty" value={counts.off_duty} tone="muted" />
           </div>
 
           <div className="p-1.5 border-b border-border space-y-1.5">

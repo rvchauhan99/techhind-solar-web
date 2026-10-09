@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import Input from "@/components/common/Input";
+import { applyDiscountFieldChange, previewLineDiscount } from "@/utils/lineDiscount";
 import DateField from "@/components/common/DateField";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
@@ -88,6 +89,8 @@ const emptyCurrentItem = () => ({
   per_watt_rate: "",
   unit_rate: "",
   discount_percent: "",
+  discount_amount: "",
+  discount_basis: "percent",
   gst_percent: "",
   measurement_unit: "",
   product_capacity: "",
@@ -912,7 +915,7 @@ export default function B2bSalesOrderForm({
         const unitRate = Number(value);
         next.per_watt_rate = Number.isFinite(unitRate) && unitRate > 0 ? (unitRate / capacity).toFixed(4) : "";
       }
-      return next;
+      return applyDiscountFieldChange(next, name, "unit_rate");
     });
     if (itemErrors[name]) setItemErrors((p) => { const n = { ...p }; delete n[name]; return n; });
   };
@@ -936,6 +939,20 @@ export default function B2bSalesOrderForm({
     if (currentItem.gst_percent === "" || currentItem.gst_percent === null || currentItem.gst_percent === undefined) {
       errs.gst_percent = "GST % is required";
     }
+    const discountPreview = previewLineDiscount({
+      quantity: currentItem.quantity,
+      rate: currentItem.unit_rate,
+      discount_percent: currentItem.discount_percent,
+      discount_amount: currentItem.discount_amount,
+      discount_basis: currentItem.discount_basis,
+    });
+    if (discountPreview.invalid) {
+      if (currentItem.discount_basis === "amount") {
+        errs.discount_amount = "Discount amount cannot exceed unit rate";
+      } else {
+        errs.discount_percent = "Discount % must be between 0 and 100";
+      }
+    }
     if (Object.keys(errs).length > 0) {
       setItemErrors(errs);
       return;
@@ -958,7 +975,9 @@ export default function B2bSalesOrderForm({
           quantity: parseInt(currentItem.quantity, 10),
           per_watt_rate: currentItem.per_watt_rate ? parseFloat(currentItem.per_watt_rate) : null,
           unit_rate: parseFloat(currentItem.unit_rate),
-          discount_percent: parseFloat(currentItem.discount_percent || 0),
+          discount_percent: discountPreview.discount_percent,
+          discount_amount: discountPreview.discount_amount,
+          discount_basis: discountPreview.discount_basis,
           gst_percent: parseFloat(currentItem.gst_percent),
           measurement_unit: currentItem.measurement_unit || "",
           product_capacity: currentItem.product_capacity || "",
@@ -982,11 +1001,15 @@ export default function B2bSalesOrderForm({
     formData.items.forEach((item) => {
       const qty = Number(item.quantity) || 0;
       const rate = Number(item.unit_rate) || 0;
-      const disc = Number(item.discount_percent) || 0;
       const gst = Number(item.gst_percent) || 0;
-      const lineValue = rate * qty;
-      const discountAmt = (lineValue * disc) / 100;
-      const taxable = lineValue - discountAmt;
+      const discount = previewLineDiscount({
+        quantity: qty,
+        rate,
+        discount_percent: item.discount_percent,
+        discount_amount: item.discount_amount,
+        discount_basis: item.discount_basis,
+      });
+      const taxable = discount.taxable ?? Math.max(0, discount.lineValue - (discount.line_discount ?? 0));
       const gstAmt = (taxable * gst) / 100;
       totalQuantity += qty;
       taxableAmount += taxable;
@@ -1071,6 +1094,8 @@ export default function B2bSalesOrderForm({
         unit_rate: parseFloat(it.unit_rate) || 0,
         per_watt_rate: it.per_watt_rate != null && it.per_watt_rate !== "" ? parseFloat(it.per_watt_rate) : null,
         discount_percent: parseFloat(it.discount_percent) || 0,
+        discount_amount: parseInt(it.discount_amount, 10) || 0,
+        discount_basis: it.discount_basis === "amount" ? "amount" : "percent",
         gst_percent: parseFloat(it.gst_percent) || 0,
         hsn_code: it.hsn_code || "",
       })),
@@ -1599,11 +1624,23 @@ export default function B2bSalesOrderForm({
                 />
                 <Input
                   name="discount_percent"
-                  label="Disc %"
+                  label="Disc % / Qty"
                   type="number"
                   value={currentItem.discount_percent}
                   onChange={handleCurrentItemChange}
                   inputProps={{ min: 0, max: 100, step: 0.01 }}
+                  error={!!itemErrors.discount_percent}
+                  helperText={itemErrors.discount_percent}
+                />
+                <Input
+                  name="discount_amount"
+                  label="Disc Amt / Qty"
+                  type="number"
+                  value={currentItem.discount_amount}
+                  onChange={handleCurrentItemChange}
+                  inputProps={{ min: 0, step: 1 }}
+                  error={!!itemErrors.discount_amount}
+                  helperText={itemErrors.discount_amount}
                 />
                 <Input
                   name="gst_percent"
@@ -1652,7 +1689,8 @@ export default function B2bSalesOrderForm({
                       <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Per Watt (₹/W)</TableCell>
                       <TableCell align="right">Rate (₹)</TableCell>
-                      <TableCell align="right">Disc %</TableCell>
+                      <TableCell align="right">Disc % / Qty</TableCell>
+                      <TableCell align="right">Disc Amt / Qty</TableCell>
                       <TableCell align="right">GST %</TableCell>
                       <TableCell align="right">Taxable Amt</TableCell>
                       <TableCell align="right">GST Amt</TableCell>
@@ -1665,10 +1703,16 @@ export default function B2bSalesOrderForm({
                       const qty = Number(item.quantity) || 0;
                       const rate = Number(item.unit_rate) || 0;
                       const disc = Number(item.discount_percent) || 0;
+                      const discountAmt = Number(item.discount_amount) || 0;
                       const gst = Number(item.gst_percent) || 0;
-                      const lineValue = rate * qty;
-                      const discountAmt = (lineValue * disc) / 100;
-                      const taxable = lineValue - discountAmt;
+                      const lineDiscount = previewLineDiscount({
+                        quantity: qty,
+                        rate,
+                        discount_percent: item.discount_percent,
+                        discount_amount: item.discount_amount,
+                        discount_basis: item.discount_basis,
+                      });
+                      const taxable = lineDiscount.taxable;
                       const gstAmt = (taxable * gst) / 100;
                       const total = taxable + gstAmt;
                       const productTypeName = String(item.product_type_name || item.product?.productType?.name || "").trim().toLowerCase();
@@ -1703,6 +1747,7 @@ export default function B2bSalesOrderForm({
                           </TableCell>
                           <TableCell align="right">₹{rate.toFixed(2)}</TableCell>
                           <TableCell align="right">{disc > 0 ? `${disc}%` : "–"}</TableCell>
+                          <TableCell align="right">{discountAmt > 0 ? discountAmt : "–"}</TableCell>
                           <TableCell align="right">{gst}%</TableCell>
                           <TableCell align="right">₹{taxable.toFixed(2)}</TableCell>
                           <TableCell align="right">₹{gstAmt.toFixed(2)}</TableCell>
@@ -1721,33 +1766,41 @@ export default function B2bSalesOrderForm({
             )}
 
             {formData.items.length > 0 && (
-              <Paper sx={{ p: 1, mt: 1, bgcolor: "grey.100" }}>
+              <Paper sx={{ px: 0.75, py: 0.5, mt: 0.5, bgcolor: "grey.50" }}>
                 <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                  <Box sx={{ minWidth: 300 }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Total Quantity:</Typography>
-                      <Typography variant="body2" fontWeight="bold">{totals.total_quantity}</Typography>
+                  <Box
+                    sx={{
+                      minWidth: 240,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 0.25,
+                      "& .MuiTypography-root": { fontSize: 12, lineHeight: 1.25 },
+                    }}
+                  >
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Total Quantity</Typography>
+                      <Typography variant="caption" fontWeight={600}>{totals.total_quantity}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Taxable Amount:</Typography>
-                      <Typography variant="body2" fontWeight="bold">₹{totals.taxable_amount.toFixed(2)}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Taxable Amount</Typography>
+                      <Typography variant="caption" fontWeight={600}>₹{totals.taxable_amount.toFixed(2)}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">{applicableGstLabel}:</Typography>
-                      <Typography variant="body2" fontWeight="bold">{applicableGstValue}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">{applicableGstLabel}</Typography>
+                      <Typography variant="caption" fontWeight={600}>{applicableGstValue}</Typography>
                     </Box>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                      <Typography variant="body2">Total GST Amount:</Typography>
-                      <Typography variant="body2" fontWeight="bold">₹{totals.total_gst_amount.toFixed(2)}</Typography>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                      <Typography variant="caption" color="text.secondary">Total GST Amount</Typography>
+                      <Typography variant="caption" fontWeight={600}>₹{totals.total_gst_amount.toFixed(2)}</Typography>
                     </Box>
-                    <Box sx={{ borderTop: "2px solid #000", pt: 1, mt: 0.5 }}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                        <Typography variant="body2">Round Off:</Typography>
-                        <Typography variant="body2" fontWeight="bold">{signedRoundOff(totals.round_off_amount)}</Typography>
+                    <Box sx={{ borderTop: "1px solid", borderColor: "divider", pt: 0.5, mt: 0.25, display: "flex", flexDirection: "column", gap: 0.25 }}>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="caption" color="text.secondary">Round Off</Typography>
+                        <Typography variant="caption" fontWeight={600}>{signedRoundOff(totals.round_off_amount)}</Typography>
                       </Box>
-                      <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                        <Typography variant="subtitle1" fontWeight="bold">Final Amount:</Typography>
-                        <Typography variant="subtitle1" fontWeight="bold">₹{Number(totals.final_amount).toFixed(2)}</Typography>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}>
+                        <Typography variant="body2" fontWeight={700}>Final Amount</Typography>
+                        <Typography variant="body2" fontWeight={700}>₹{Number(totals.final_amount).toFixed(2)}</Typography>
                       </Box>
                     </Box>
                   </Box>
