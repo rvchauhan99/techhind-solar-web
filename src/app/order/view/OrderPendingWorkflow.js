@@ -13,6 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import orderService from "@/services/orderService";
 import orderDocumentsService from "@/services/orderDocumentsService";
 import documentAuditService from "@/services/documentAuditService";
@@ -21,22 +31,6 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { toastError, toastSuccess } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isRoleAllowed } from "@/lib/platformRoleAccess";
-
-/** Labels + legacy store codes (same aliases as API orderPendingKyc.js). */
-const REQUIRED_GROUPS = [
-  {
-    label: "Aadhaar",
-    types: ["Aadhar Card", "Aadhaar Card", "aadhar_card", "aadhaar_card", "aadhar card", "aadhaar card"],
-  },
-  {
-    label: "Electricity Bill",
-    types: ["Electricity Bill", "electricity_bill", "electricity bill"],
-  },
-  {
-    label: "Cancelled Cheque",
-    types: ["Cancelled Cheque", "cancelled_cheque", "cancelled cheque"],
-  },
-];
 
 const TEAMS = ["Liaison Team", "Technical Team", "Documentation Team", "Accounts Team", "Other"];
 const QUERY_TYPES = [
@@ -68,28 +62,6 @@ const statusVariant = (status) => {
   return "secondary";
 };
 
-const parseApprovalRequired = (value) => {
-  if (value === true || value === 1 || value === "1") return true;
-  if (value === false || value === 0 || value === "0") return false;
-  if (typeof value === "string") {
-    const s = value.trim().toLowerCase();
-    if (["true", "yes", "y"].includes(s)) return true;
-    if (["false", "no", "n"].includes(s)) return false;
-  }
-  return Boolean(value);
-};
-
-/** Document Master approval_required for any alias in types[]; default false if no master row. */
-const groupRequiresApproval = (types, documentTypes = []) => {
-  const wanted = new Set((types || []).map(normalizeDocType));
-  for (const row of documentTypes || []) {
-    const key = normalizeDocType(row?.type || row?.label || row?.key);
-    if (!key || !wanted.has(key)) continue;
-    if (parseApprovalRequired(row?.approval_required)) return true;
-  }
-  return false;
-};
-
 const StatusBadge = ({ status }) => {
   const label = String(status || "pending").replaceAll("_", " ");
   return <Badge variant={statusVariant(status)}>{label}</Badge>;
@@ -113,19 +85,19 @@ export function PendingStageStrip({ order }) {
   );
 }
 
-const findDoc = (docs, types) => {
-  const wanted = new Set(types.map(normalizeDocType));
-  return docs.find((d) => wanted.has(normalizeDocType(d.doc_type || d.type)));
+const findDocByType = (docs, typeLabel) => {
+  const wanted = normalizeDocType(typeLabel);
+  return (docs || []).find((d) => normalizeDocType(d.doc_type || d.type) === wanted);
 };
 
-const docStatusForBadge = (doc, needsApproval) => {
+/** L-KYC always requires Verify (approved); attachment alone is not enough. */
+const lkycDocStatusForBadge = (doc) => {
   if (!doc?.id) return "missing";
   const status = String(doc.validation_status || "").trim().toLowerCase();
   if (status === "rejected") return "rejected";
   if (status === "approved") return "approved";
-  if (!needsApproval) return "attached";
   if (!status || status === "pending") return "pending";
-  return status;
+  return status || "pending";
 };
 
 const STAGE_LABELS = { l_kyc: "L-KYC", t_kyc: "T-KYC", registration: "Registration" };
@@ -257,6 +229,20 @@ const seedLkycNameFromParty = (stored, order) => {
   return String(order?.customer_name || "").trim();
 };
 
+const formatKycPassedAudit = ({ at, byName, byId }) => {
+  if (!at && !byName && !byId) return null;
+  const who = byName || (byId != null ? `User #${byId}` : "Unknown");
+  const when = at ? new Date(at).toLocaleString() : "-";
+  return `Passed by ${who} on ${when}`;
+};
+
+const isSanctionedLoadBelowCapacity = (sanctionedLoadKw, capacityKw) => {
+  const load = Number(sanctionedLoadKw);
+  const capacity = Number(capacityKw);
+  if (!Number.isFinite(load) || !Number.isFinite(capacity)) return false;
+  return !(load + 1e-9 >= capacity);
+};
+
 const buildLkycFormFromOrder = (order) => ({
   aadhaar_name: seedLkycNameFromParty(order?.aadhaar_name, order),
   electricity_bill_name: seedLkycNameFromParty(order?.electricity_bill_name, order),
@@ -271,7 +257,6 @@ export function LkycPanel({
   onSaved,
   onPassed,
   docsRefreshKey = 0,
-  orderDocumentTypes = [],
   canPerformKyc = true,
 }) {
   const { user } = useAuth();
@@ -281,6 +266,7 @@ export function LkycPanel({
   const editable = canPerformKyc && (!passed || (canAmend && amendMode));
 
   const [docs, setDocs] = useState([]);
+  const [requiredTypes, setRequiredTypes] = useState([]);
   const [form, setForm] = useState(() => buildLkycFormFromOrder(order));
   const [reason, setReason] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -299,6 +285,22 @@ export function LkycPanel({
     order?.l_kyc_remarks,
   ]);
 
+  useEffect(() => {
+    let cancelled = false;
+    orderDocumentsService.getOrderFormConfig()
+      .then((res) => {
+        const list = res?.result ?? res?.data ?? res;
+        const rows = Array.isArray(list) ? list : [];
+        if (!cancelled) {
+          setRequiredTypes(rows.filter((row) => row?.required === true));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRequiredTypes([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   const loadDocs = () => {
     if (!orderId) {
       setDocs([]);
@@ -312,6 +314,14 @@ export function LkycPanel({
   };
   useEffect(() => { loadDocs(); }, [orderId, docsRefreshKey]);
 
+  const unverifiedLabels = requiredTypes
+    .filter((slot) => {
+      const label = slot.label || slot.key;
+      const doc = findDocByType(docs, label);
+      return lkycDocStatusForBadge(doc) !== "approved";
+    })
+    .map((slot) => slot.label || slot.key);
+
   const save = async (action) => {
     if (action === "pass") {
       if (!String(form.aadhaar_name || "").trim()
@@ -322,6 +332,10 @@ export function LkycPanel({
       }
       if (String(form.name_match_result || "") !== "matched") {
         toastError("Name verification must be Matched before L-KYC can pass");
+        return;
+      }
+      if (unverifiedLabels.length) {
+        toastError(`Attach or verify required documents first: ${unverifiedLabels.join(", ")}`);
         return;
       }
     }
@@ -342,71 +356,99 @@ export function LkycPanel({
     }
   };
 
+  const viewDoc = async (docId) => {
+    try {
+      const url = await orderDocumentsService.getDocumentUrl(docId);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      else toastError("Document URL not available");
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Failed to open document");
+    }
+  };
+
+  const lKycAudit = formatKycPassedAudit({
+    at: order?.l_kyc_passed_at,
+    byName: order?.l_kyc_passed_by_name,
+    byId: order?.l_kyc_passed_by,
+  });
+
   return (
     <div className="flex flex-col gap-2 p-1">
       <p className="text-xs text-slate-500">
-        Required: Aadhaar, Electricity Bill, Cancelled Cheque attached (approved when Document Master requires approval), and names matched.
+        Required documents match Document Master order-conversion required types. View and Verify each; Pass when all are approved and names are matched.
       </p>
       {!canPerformKyc ? (
         <p className="text-xs text-amber-700">
           Only assigned KYC users can edit. You can view this stage.
         </p>
       ) : null}
-      {passed && !editable ? (
-        <p className="text-xs text-slate-600">
-          L-KYC Passed — read-only
-          {!canPerformKyc
-            ? "."
-            : canAmend
-              ? ""
-              : ". Contact SuperAdmin to amend."}
-        </p>
+      {passed ? (
+        <div className="flex flex-col gap-0.5 text-xs text-slate-600">
+          {!editable ? (
+            <p>
+              L-KYC Passed — read-only
+              {!canPerformKyc
+                ? "."
+                : canAmend
+                  ? ""
+                  : ". Contact SuperAdmin to amend."}
+            </p>
+          ) : null}
+          {lKycAudit ? <p className="text-slate-500">{lKycAudit}</p> : null}
+        </div>
       ) : null}
-      {REQUIRED_GROUPS.map((group) => {
-        const doc = findDoc(docs, group.types);
-        const needsApproval = groupRequiresApproval(group.types, orderDocumentTypes);
-        const badge = docStatusForBadge(doc, needsApproval);
+      {requiredTypes.length === 0 ? (
+        <p className="text-xs text-amber-700">No required order-form document types configured in Document Master.</p>
+      ) : null}
+      {requiredTypes.map((slot) => {
+        const label = slot.label || slot.key;
+        const doc = findDocByType(docs, label);
+        const badge = lkycDocStatusForBadge(doc);
+        const approved = badge === "approved";
         return (
-          <div key={group.label} className="flex flex-wrap items-end gap-2">
-            <span className="min-w-[140px] pb-2 text-sm text-slate-700">{group.label}</span>
+          <div key={slot.id || label} className="flex flex-wrap items-end gap-2">
+            <span className="min-w-[140px] pb-2 text-sm text-slate-700">{label}</span>
             <span className="pb-2"><StatusBadge status={badge} /></span>
             {doc?.id ? (
-              needsApproval && editable ? (
-                <>
-                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => {
-                    try {
-                      await documentAuditService.approveDocument(doc.id, "L-KYC verified");
-                      toastSuccess("Document approved");
-                      loadDocs();
-                      onSaved?.();
-                    } catch (err) {
-                      toastError(err?.response?.data?.message || "Approve failed");
-                    }
-                  }}>Verify</Button>
-                  <div className="min-w-[180px] flex-1">
-                    <AutocompleteField
-                      name={`reject-${group.label}`}
-                      label="Reject reason"
-                      asyncLoadOptions={(q) => getReferenceOptionsSearch("reason.model", { q, limit: 20, reason_type: "document_rejection", is_active: "true" })}
-                      getOptionLabel={(o) => o?.reason || o?.name || ""}
-                      value={reason}
-                      onChange={(_e, value) => setReason(value)}
-                    />
-                  </div>
-                  <Button type="button" size="sm" variant="destructive" disabled={busy || !reason?.id} onClick={async () => {
-                    try {
-                      await documentAuditService.rejectDocument(doc.id, reason.id, "L-KYC rejected");
-                      toastSuccess("Document rejected");
-                      loadDocs();
-                      onSaved?.();
-                    } catch (err) {
-                      toastError(err?.response?.data?.message || "Reject failed");
-                    }
-                  }}>Reject</Button>
-                </>
-              ) : needsApproval ? null : (
-                <span className="pb-2 text-xs text-slate-500">No approval required</span>
-              )
+              <>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => viewDoc(doc.id)}>
+                  View
+                </Button>
+                {editable && !approved ? (
+                  <>
+                    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => {
+                      try {
+                        await documentAuditService.approveDocument(doc.id, "L-KYC verified");
+                        toastSuccess("Document verified");
+                        loadDocs();
+                        onSaved?.();
+                      } catch (err) {
+                        toastError(err?.response?.data?.message || "Verify failed");
+                      }
+                    }}>Verify</Button>
+                    <div className="min-w-[180px] flex-1">
+                      <AutocompleteField
+                        name={`reject-${label}`}
+                        label="Reject reason"
+                        asyncLoadOptions={(q) => getReferenceOptionsSearch("reason.model", { q, limit: 20, reason_type: "document_rejection", is_active: "true" })}
+                        getOptionLabel={(o) => o?.reason || o?.name || ""}
+                        value={reason}
+                        onChange={(_e, value) => setReason(value)}
+                      />
+                    </div>
+                    <Button type="button" size="sm" variant="destructive" disabled={busy || !reason?.id} onClick={async () => {
+                      try {
+                        await documentAuditService.rejectDocument(doc.id, reason.id, "L-KYC rejected");
+                        toastSuccess("Document rejected");
+                        loadDocs();
+                        onSaved?.();
+                      } catch (err) {
+                        toastError(err?.response?.data?.message || "Reject failed");
+                      }
+                    }}>Reject</Button>
+                  </>
+                ) : null}
+              </>
             ) : <span className="pb-2 text-xs text-slate-500">Not uploaded</span>}
           </div>
         );
@@ -470,6 +512,7 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
   });
   const [busy, setBusy] = useState(false);
   const [failOpen, setFailOpen] = useState(false);
+  const [confirmInsufficientOpen, setConfirmInsufficientOpen] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -479,12 +522,17 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
     setAmendMode(false);
   }, [order?.t_kyc_status, order?.sanctioned_load_kw, order?.demand_load, order?.t_kyc_remarks]);
 
-  const save = async (action) => {
+  const save = async (action, { confirmInsufficientLoad = false } = {}) => {
     if (action === "pass" || action === "load_enhancement") {
       if (form.sanctioned_load_kw === "" || form.sanctioned_load_kw == null || Number.isNaN(Number(form.sanctioned_load_kw))) {
         toastError("Sanctioned load (kW) is required");
         return;
       }
+    }
+    if (action === "pass" && !confirmInsufficientLoad
+      && isSanctionedLoadBelowCapacity(form.sanctioned_load_kw, order?.capacity)) {
+      setConfirmInsufficientOpen(true);
+      return;
     }
     if (action === "load_enhancement" && !String(form.t_kyc_remarks || "").trim()) {
       toastError("Load enhancement remarks are required");
@@ -492,9 +540,14 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
     }
     setBusy(true);
     try {
-      await orderService.updateOrderKyc(orderId, { stage: "t_kyc", action, ...form });
+      const payload = { stage: "t_kyc", action, ...form };
+      if (action === "pass" && confirmInsufficientLoad) {
+        payload.confirm_insufficient_load = true;
+      }
+      await orderService.updateOrderKyc(orderId, payload);
       toastSuccess(action === "pass" ? "T-KYC passed" : "T-KYC updated");
       setAmendMode(false);
+      setConfirmInsufficientOpen(false);
       if (action === "pass") {
         await onPassed?.();
       } else {
@@ -507,23 +560,35 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
     }
   };
   if (!lPassed) return <Alert severity="info">T-KYC is locked until L-KYC is Passed.</Alert>;
+  const tKycAudit = formatKycPassedAudit({
+    at: order?.t_kyc_passed_at,
+    byName: order?.t_kyc_passed_by_name,
+    byId: order?.t_kyc_passed_by,
+  });
   return (
     <div className="flex max-w-lg flex-col gap-2 p-1">
-      <p className="text-xs text-slate-500">Proposed capacity: {order?.capacity ?? "-"} kW. Pass only when sanctioned load is at least this capacity.</p>
+      <p className="text-xs text-slate-500">
+        Proposed capacity: {order?.capacity ?? "-"} kW. If sanctioned load is below this capacity, Pass asks for confirmation. Load enhancement remains available.
+      </p>
       {!canPerformKyc ? (
         <p className="text-xs text-amber-700">
           Only assigned KYC users can edit. You can view this stage.
         </p>
       ) : null}
-      {passed && !editable ? (
-        <p className="text-xs text-slate-600">
-          T-KYC Passed — read-only
-          {!canPerformKyc
-            ? "."
-            : canAmend
-              ? ""
-              : ". Contact SuperAdmin to amend."}
-        </p>
+      {passed ? (
+        <div className="flex flex-col gap-0.5 text-xs text-slate-600">
+          {!editable ? (
+            <p>
+              T-KYC Passed — read-only
+              {!canPerformKyc
+                ? "."
+                : canAmend
+                  ? ""
+                  : ". Contact SuperAdmin to amend."}
+            </p>
+          ) : null}
+          {tKycAudit ? <p className="text-slate-500">{tKycAudit}</p> : null}
+        </div>
       ) : null}
       <Input required disabled={!editable} label="Sanctioned load (kW)" type="number" value={form.sanctioned_load_kw} onChange={(e) => setForm({ ...form, sanctioned_load_kw: e.target.value })} />
       <Input disabled={!editable} label="Technical remarks" value={form.t_kyc_remarks} onChange={(e) => setForm({ ...form, t_kyc_remarks: e.target.value })} />
@@ -554,6 +619,29 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
         kycPayload={form}
         onSuccess={onSaved}
       />
+      <AlertDialog open={confirmInsufficientOpen} onOpenChange={setConfirmInsufficientOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sanctioned load below proposed capacity</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sanctioned load ({form.sanctioned_load_kw} kW) is below proposed capacity ({order?.capacity ?? "-"} kW).
+              Pass T-KYC anyway? You can also use Load enhancement instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault();
+                save("pass", { confirmInsufficientLoad: true });
+              }}
+            >
+              Pass anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
