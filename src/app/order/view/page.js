@@ -60,30 +60,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { RBAC_CONFIG_KEYS } from "@/lib/platformRoleAccess";
 import { PendingStageStrip, LkycPanel, TkycPanel, OrderQueryPanel } from "./OrderPendingWorkflow";
+import { resolveOrderDocTypeLabel } from "../components/orderFormDocuments";
 import { fetchPendingOrderKycEnabled } from "@/utils/pendingOrderKycConfig";
 import { Button as UiButton } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const LEGACY_ORDER_DOC_TYPE_LABELS = {
-    electricity_bill: "Electricity Bill",
-    house_tax_bill: "House Tax Bill",
-    aadhar_card: "Aadhar Card",
-    passport_photo: "Passport Size Picture",
-    pan_card: "PAN Card or Driving Licence",
-    cancelled_cheque: "Cancelled Cheque",
-    customer_sign: "Customer Sign",
-    registration_letter: "Registration Letter",
-    payment_receipt: "Payment Receipt",
-};
-
-const resolveOrderDocTypeLabel = (docType, masterTypes = []) => {
-    if (!docType) return "";
-    const str = String(docType);
-    const found = Array.isArray(masterTypes) ? masterTypes.find((t) => t?.type === str) : null;
-    if (found?.type) return found.type;
-    return LEGACY_ORDER_DOC_TYPE_LABELS[str] || str;
-};
 
 const getValidationStatusMeta = (status) => {
     const s = String(status || "").toLowerCase();

@@ -234,7 +234,8 @@ function AddOrderContent() {
                                 { key: docType.key, label: docType.label },
                                 inquiryDocuments
                             );
-                            const uploadDocType = matchedInquiryDoc?.doc_type || docType.key;
+                            const uploadDocType =
+                                matchedInquiryDoc?.doc_type || docType.label || docType.key;
 
                             const formData = new FormData();
                             formData.append('document', file);

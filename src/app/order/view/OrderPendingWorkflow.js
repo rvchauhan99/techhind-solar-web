@@ -32,6 +32,7 @@ import AutocompleteField from "@/components/common/AutocompleteField";
 import { toastError, toastSuccess } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isRoleAllowed } from "@/lib/platformRoleAccess";
+import { findDocForSlot } from "../components/orderFormDocuments";
 
 const QUERY_TYPES = [
   ["document_mismatch", "Document mismatch"],
@@ -44,13 +45,6 @@ const QUERY_TYPES = [
   ["application_info", "Application info"],
   ["other", "Other"],
 ];
-
-const normalizeDocType = (value) =>
-  String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
 
 const statusVariant = (status) => {
   const s = String(status || "pending");
@@ -84,11 +78,6 @@ export function PendingStageStrip({ order }) {
     </div>
   );
 }
-
-const findDocByType = (docs, typeLabel) => {
-  const wanted = normalizeDocType(typeLabel);
-  return (docs || []).find((d) => normalizeDocType(d.doc_type || d.type) === wanted);
-};
 
 /** L-KYC always requires Verify (approved); attachment alone is not enough. */
 const lkycDocStatusForBadge = (doc) => {
@@ -308,8 +297,7 @@ export function LkycPanel({
 
   const unverifiedLabels = requiredTypes
     .filter((slot) => {
-      const label = slot.label || slot.key;
-      const doc = findDocByType(docs, label);
+      const doc = findDocForSlot(docs, slot);
       return lkycDocStatusForBadge(doc) !== "approved";
     })
     .map((slot) => slot.label || slot.key);
@@ -418,7 +406,7 @@ export function LkycPanel({
       ) : null}
       {requiredTypes.map((slot) => {
         const label = slot.label || slot.key;
-        const doc = findDocByType(docs, label);
+        const doc = findDocForSlot(docs, slot);
         const badge = lkycDocStatusForBadge(doc);
         const approved = badge === "approved";
         return (
