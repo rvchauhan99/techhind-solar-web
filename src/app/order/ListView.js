@@ -21,7 +21,7 @@ import {
   IconHome,
   IconDownload,
 } from "@tabler/icons-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import OrderDetailsDrawer from "@/components/common/OrderDetailsDrawer";
@@ -100,6 +100,7 @@ export default function ListView({
   showQueryOrders = false,
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canAmendOrder = useRoleAccess(RBAC_CONFIG_KEYS.ORDER_AMEND);
   const listingState = useListingQueryState({
@@ -116,8 +117,16 @@ export default function ListView({
   const [selectedQuotationOrder, setSelectedQuotationOrder] = useState(null);
   const [projectSchemeOptions, setProjectSchemeOptions] = useState([]);
   const [loadingProjectSchemes, setLoadingProjectSchemes] = useState(false);
-  const [queryOnly, setQueryOnly] = useState(false);
+  const activeQueryParam = searchParams?.get("has_active_query");
+  const [queryOnly, setQueryOnly] = useState(
+    () => activeQueryParam === "true" || activeQueryParam === "1"
+  );
   const [queryOrderCount, setQueryOrderCount] = useState(0);
+
+  useEffect(() => {
+    const flag = searchParams?.get("has_active_query");
+    if (flag === "true" || flag === "1") setQueryOnly(true);
+  }, [searchParams]);
 
   const columnFilterValues = useMemo(() => ({ ...filters, status: filters.status || defaultStatus }), [filters, defaultStatus]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
