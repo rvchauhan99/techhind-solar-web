@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Alert } from "@mui/material";
+import { Alert, Tooltip } from "@mui/material";
+import { IconCheck, IconX } from "@tabler/icons-react";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import { Button } from "@/components/ui/button";
@@ -268,9 +269,14 @@ export function LkycPanel({
   const [docs, setDocs] = useState([]);
   const [requiredTypes, setRequiredTypes] = useState([]);
   const [form, setForm] = useState(() => buildLkycFormFromOrder(order));
-  const [reason, setReason] = useState(null);
   const [busy, setBusy] = useState(false);
   const [failOpen, setFailOpen] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState({
+    open: false,
+    docId: null,
+    reasonId: null,
+    reasonLabel: "",
+  });
 
   useEffect(() => {
     setForm(buildLkycFormFromOrder(order));
@@ -321,6 +327,30 @@ export function LkycPanel({
       return lkycDocStatusForBadge(doc) !== "approved";
     })
     .map((slot) => slot.label || slot.key);
+
+  const closeRejectDialog = () => {
+    setRejectDialog({ open: false, docId: null, reasonId: null, reasonLabel: "" });
+  };
+
+  const confirmReject = async () => {
+    if (!rejectDialog.docId || !rejectDialog.reasonId) return;
+    setBusy(true);
+    try {
+      await documentAuditService.rejectDocument(
+        rejectDialog.docId,
+        rejectDialog.reasonId,
+        "L-KYC rejected"
+      );
+      toastSuccess("Document rejected");
+      closeRejectDialog();
+      loadDocs();
+      onSaved?.();
+    } catch (err) {
+      toastError(err?.response?.data?.message || "Reject failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async (action) => {
     if (action === "pass") {
@@ -373,9 +403,9 @@ export function LkycPanel({
   });
 
   return (
-    <div className="flex flex-col gap-2 p-1">
+    <div className="flex flex-col gap-1.5 p-1">
       <p className="text-xs text-slate-500">
-        Required documents match Document Master order-conversion required types. View and Verify each; Pass when all are approved and names are matched.
+        Document Master required types — View and Verify each; Pass when all approved and names matched.
       </p>
       {!canPerformKyc ? (
         <p className="text-xs text-amber-700">
@@ -406,72 +436,85 @@ export function LkycPanel({
         const badge = lkycDocStatusForBadge(doc);
         const approved = badge === "approved";
         return (
-          <div key={slot.id || label} className="flex flex-wrap items-end gap-2">
-            <span className="min-w-[140px] pb-2 text-sm text-slate-700">{label}</span>
-            <span className="pb-2"><StatusBadge status={badge} /></span>
+          <div key={slot.id || label} className="flex flex-wrap items-center gap-1.5">
+            <span className="min-w-[120px] text-xs font-medium text-slate-700">{label}</span>
+            <StatusBadge status={badge} />
             {doc?.id ? (
-              <>
-                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => viewDoc(doc.id)}>
-                  View
-                </Button>
+              <div className="flex flex-nowrap items-center gap-0.5">
+                <Tooltip title="View Document" arrow placement="top">
+                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => viewDoc(doc.id)}>
+                    View
+                  </Button>
+                </Tooltip>
                 {editable && !approved ? (
                   <>
-                    <Button type="button" size="sm" variant="outline" disabled={busy} onClick={async () => {
-                      try {
-                        await documentAuditService.approveDocument(doc.id, "L-KYC verified");
-                        toastSuccess("Document verified");
-                        loadDocs();
-                        onSaved?.();
-                      } catch (err) {
-                        toastError(err?.response?.data?.message || "Verify failed");
-                      }
-                    }}>Verify</Button>
-                    <div className="min-w-[180px] flex-1">
-                      <AutocompleteField
-                        name={`reject-${label}`}
-                        label="Reject reason"
-                        asyncLoadOptions={(q) => getReferenceOptionsSearch("reason.model", { q, limit: 20, reason_type: "document_rejection", is_active: "true" })}
-                        getOptionLabel={(o) => o?.reason || o?.name || ""}
-                        value={reason}
-                        onChange={(_e, value) => setReason(value)}
-                      />
-                    </div>
-                    <Button type="button" size="sm" variant="destructive" disabled={busy || !reason?.id} onClick={async () => {
-                      try {
-                        await documentAuditService.rejectDocument(doc.id, reason.id, "L-KYC rejected");
-                        toastSuccess("Document rejected");
-                        loadDocs();
-                        onSaved?.();
-                      } catch (err) {
-                        toastError(err?.response?.data?.message || "Reject failed");
-                      }
-                    }}>Reject</Button>
+                    <Tooltip title="Verify" arrow placement="top">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="success"
+                        disabled={busy}
+                        onClick={async () => {
+                          try {
+                            await documentAuditService.approveDocument(doc.id, "L-KYC verified");
+                            toastSuccess("Document verified");
+                            loadDocs();
+                            onSaved?.();
+                          } catch (err) {
+                            toastError(err?.response?.data?.message || "Verify failed");
+                          }
+                        }}
+                      >
+                        <IconCheck className="size-4" />
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Reject" arrow placement="top">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="outline"
+                        disabled={busy}
+                        className="border-destructive/40 text-destructive hover:bg-destructive/5"
+                        onClick={() => setRejectDialog({
+                          open: true,
+                          docId: doc.id,
+                          reasonId: null,
+                          reasonLabel: "",
+                        })}
+                      >
+                        <IconX className="size-4" />
+                      </Button>
+                    </Tooltip>
                   </>
                 ) : null}
-              </>
-            ) : <span className="pb-2 text-xs text-slate-500">Not uploaded</span>}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-500">Not uploaded</span>
+            )}
           </div>
         );
       })}
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-3">
         <Input required disabled={!editable} label="Aadhaar name" value={form.aadhaar_name} onChange={(e) => setForm({ ...form, aadhaar_name: e.target.value })} />
         <Input required disabled={!editable} label="Electricity bill name" value={form.electricity_bill_name} onChange={(e) => setForm({ ...form, electricity_bill_name: e.target.value })} />
         <Input required disabled={!editable} label="Bank account holder" value={form.bank_account_holder_name} onChange={(e) => setForm({ ...form, bank_account_holder_name: e.target.value })} />
       </div>
-      <Select
-        name="name_match_result"
-        label="Name result"
-        required
-        disabled={!editable}
-        value={form.name_match_result}
-        onChange={(e) => setForm({ ...form, name_match_result: e.target.value })}
-      >
-        <MenuItem value="matched">Matched</MenuItem>
-        <MenuItem value="mismatch">Mismatch</MenuItem>
-        <MenuItem value="requires_clarification">Requires clarification</MenuItem>
-      </Select>
-      <Input disabled={!editable} label="Remarks" value={form.l_kyc_remarks} onChange={(e) => setForm({ ...form, l_kyc_remarks: e.target.value })} />
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-2">
+        <Select
+          name="name_match_result"
+          label="Name result"
+          required
+          disabled={!editable}
+          value={form.name_match_result}
+          onChange={(e) => setForm({ ...form, name_match_result: e.target.value })}
+        >
+          <MenuItem value="matched">Matched</MenuItem>
+          <MenuItem value="mismatch">Mismatch</MenuItem>
+          <MenuItem value="requires_clarification">Requires clarification</MenuItem>
+        </Select>
+        <Input disabled={!editable} label="Remarks" value={form.l_kyc_remarks} onChange={(e) => setForm({ ...form, l_kyc_remarks: e.target.value })} />
+      </div>
+      <div className="flex flex-wrap gap-1">
         {editable ? (
           <>
             <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => save("save")}>Save</Button>
@@ -495,6 +538,50 @@ export function LkycPanel({
         kycPayload={form}
         onSuccess={onSaved}
       />
+      <Dialog open={rejectDialog.open} onOpenChange={(open) => !open && closeRejectDialog()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Document</DialogTitle>
+          </DialogHeader>
+          <AutocompleteField
+            name="document_rejection_reason"
+            label="Rejection Reason"
+            asyncLoadOptions={(q) => getReferenceOptionsSearch("reason.model", {
+              q,
+              limit: 20,
+              reason_type: "document_rejection",
+              is_active: "true",
+            })}
+            referenceModel="reason.model"
+            getOptionLabel={(o) => o?.reason ?? o?.label ?? o?.name ?? ""}
+            value={
+              rejectDialog.reasonId
+                ? { id: rejectDialog.reasonId, reason: rejectDialog.reasonLabel }
+                : null
+            }
+            onChange={(_e, value) => setRejectDialog((prev) => ({
+              ...prev,
+              reasonId: value?.id ?? null,
+              reasonLabel: value?.reason ?? value?.label ?? value?.name ?? "",
+            }))}
+            placeholder="Search reason..."
+          />
+          <DialogFooter className="pt-3">
+            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={closeRejectDialog}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={busy || !rejectDialog.reasonId}
+              onClick={confirmReject}
+            >
+              Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -566,7 +653,7 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
     byId: order?.t_kyc_passed_by,
   });
   return (
-    <div className="flex max-w-lg flex-col gap-2 p-1">
+    <div className="flex max-w-lg flex-col gap-1.5 p-1">
       <p className="text-xs text-slate-500">
         Proposed capacity: {order?.capacity ?? "-"} kW. If sanctioned load is below this capacity, Pass asks for confirmation. Load enhancement remains available.
       </p>
@@ -590,9 +677,11 @@ export function TkycPanel({ order, orderId, onSaved, onPassed, canPerformKyc = t
           {tKycAudit ? <p className="text-slate-500">{tKycAudit}</p> : null}
         </div>
       ) : null}
-      <Input required disabled={!editable} label="Sanctioned load (kW)" type="number" value={form.sanctioned_load_kw} onChange={(e) => setForm({ ...form, sanctioned_load_kw: e.target.value })} />
-      <Input disabled={!editable} label="Technical remarks" value={form.t_kyc_remarks} onChange={(e) => setForm({ ...form, t_kyc_remarks: e.target.value })} />
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+        <Input required disabled={!editable} label="Sanctioned load (kW)" type="number" value={form.sanctioned_load_kw} onChange={(e) => setForm({ ...form, sanctioned_load_kw: e.target.value })} />
+        <Input disabled={!editable} label="Technical remarks" value={form.t_kyc_remarks} onChange={(e) => setForm({ ...form, t_kyc_remarks: e.target.value })} />
+      </div>
+      <div className="flex flex-wrap gap-1">
         {editable ? (
           <>
             <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => save("save")}>Save</Button>
@@ -694,9 +783,9 @@ export function OrderQueryPanel({ orderId, onChanged, refreshKey = 0 }) {
   };
 
   return (
-    <div className="mt-2 border-t border-slate-200 pt-2">
-      <p className="mb-1 text-sm font-semibold text-slate-800">Queries</p>
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+    <div className="mt-1.5 border-t border-slate-200 pt-1.5">
+      <p className="mb-1 text-xs font-semibold text-slate-800">Queries</p>
+      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-5">
         <Select name="query_type" label="Type" value={form.query_type} onChange={(e) => setForm({ ...form, query_type: e.target.value })}>
           {QUERY_TYPES.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
         </Select>
@@ -715,16 +804,16 @@ export function OrderQueryPanel({ orderId, onChanged, refreshKey = 0 }) {
           <MenuItem value="registration">Registration</MenuItem>
         </Select>
       </div>
-      <Button type="button" size="sm" variant="outline" className="mt-2" onClick={raise}>Raise Query</Button>
+      <Button type="button" size="sm" variant="outline" className="mt-1.5" onClick={raise}>Raise Query</Button>
       {rows.map((row) => (
-        <div key={row.id} className="mt-2 flex flex-wrap items-center gap-2">
+        <div key={row.id} className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <StatusBadge status={row.status} />
           <span className="text-xs text-slate-500">{row.query_type} · {row.assign_team || "unassigned"} · blocks {row.blocks_stage}</span>
-          <span className="text-sm text-slate-800">{row.description}</span>
+          <span className="text-xs text-slate-800">{row.description}</span>
           {row.status !== "closed" && row.status !== "resolved" ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={() => act(row.id, "start")}>Start</Button>
-              <div className="min-w-[160px] flex-1">
+              <div className="min-w-[140px] max-w-[220px] flex-1">
                 <Input label="Resolution" value={resolution} onChange={(e) => setResolution(e.target.value)} />
               </div>
               <Button type="button" size="sm" variant="default" onClick={() => act(row.id, "resolve", { resolution })}>Resolve</Button>
