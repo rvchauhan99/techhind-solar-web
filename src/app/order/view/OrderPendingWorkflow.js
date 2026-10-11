@@ -33,7 +33,6 @@ import { toastError, toastSuccess } from "@/utils/toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isRoleAllowed } from "@/lib/platformRoleAccess";
 
-const TEAMS = ["Liaison Team", "Technical Team", "Documentation Team", "Accounts Team", "Other"];
 const QUERY_TYPES = [
   ["document_mismatch", "Document mismatch"],
   ["name_mismatch", "Name mismatch"],
@@ -115,7 +114,6 @@ function FailAndRaiseQueryDialog({
     query_type: "other",
     description: "",
     priority: "normal",
-    assign_team: "Liaison Team",
   });
   const [busy, setBusy] = useState(false);
 
@@ -125,7 +123,6 @@ function FailAndRaiseQueryDialog({
         query_type: "other",
         description: "",
         priority: "normal",
-        assign_team: "Liaison Team",
       });
     }
   }, [open, stage]);
@@ -148,7 +145,6 @@ function FailAndRaiseQueryDialog({
           query_type: form.query_type,
           description,
           priority: form.priority,
-          assign_team: form.assign_team,
           blocks_stage: stage,
         },
       });
@@ -197,16 +193,6 @@ function FailAndRaiseQueryDialog({
             <MenuItem value="low">Low</MenuItem>
             <MenuItem value="normal">Normal</MenuItem>
             <MenuItem value="high">High</MenuItem>
-          </Select>
-          <Select
-            name="fail_assign_team"
-            label="Assign team"
-            value={form.assign_team}
-            onChange={(e) => setForm({ ...form, assign_team: e.target.value })}
-          >
-            {TEAMS.map((team) => (
-              <MenuItem key={team} value={team}>{team}</MenuItem>
-            ))}
           </Select>
           <Input label="Blocks" value={STAGE_LABELS[stage] || stage} disabled />
         </div>
@@ -741,7 +727,6 @@ export function OrderQueryPanel({ orderId, onChanged, refreshKey = 0 }) {
     query_type: "other",
     description: "",
     priority: "normal",
-    assign_team: "Liaison Team",
     blocks_stage: "l_kyc",
     remarks: "",
   });
@@ -785,7 +770,7 @@ export function OrderQueryPanel({ orderId, onChanged, refreshKey = 0 }) {
   return (
     <div className="mt-1.5 border-t border-slate-200 pt-1.5">
       <p className="mb-1 text-xs font-semibold text-slate-800">Queries</p>
-      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-5">
+      <div className="grid grid-cols-1 gap-1.5 md:grid-cols-4">
         <Select name="query_type" label="Type" value={form.query_type} onChange={(e) => setForm({ ...form, query_type: e.target.value })}>
           {QUERY_TYPES.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
         </Select>
@@ -794,9 +779,6 @@ export function OrderQueryPanel({ orderId, onChanged, refreshKey = 0 }) {
           <MenuItem value="low">Low</MenuItem>
           <MenuItem value="normal">Normal</MenuItem>
           <MenuItem value="high">High</MenuItem>
-        </Select>
-        <Select name="assign_team" label="Assign team" value={form.assign_team} onChange={(e) => setForm({ ...form, assign_team: e.target.value })}>
-          {TEAMS.map((team) => <MenuItem key={team} value={team}>{team}</MenuItem>)}
         </Select>
         <Select name="blocks_stage" label="Blocks" value={form.blocks_stage} onChange={(e) => setForm({ ...form, blocks_stage: e.target.value })}>
           <MenuItem value="l_kyc">L-KYC</MenuItem>
