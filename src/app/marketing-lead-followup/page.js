@@ -95,9 +95,16 @@ const DATE_PRESETS = [
   },
   {
     label: "All",
-    // No date constraint; clear reminder_view so no chip noise
-    fn: () => ({ reminder_view: "", next_follow_up_from: "", next_follow_up_to: "" }),
+    // Sentinel so empty-URL default Today cannot re-fire; stripped before API
+    fn: () => ({ reminder_view: "all", next_follow_up_from: "", next_follow_up_to: "" }),
   },
+];
+
+/** Open statuses only — closed values yield empty API results on this queue */
+const OPEN_STATUS_OPTIONS = [
+  { value: "new", label: "New" },
+  { value: "viewed", label: "Viewed" },
+  { value: "follow_up", label: "Follow Up" },
 ];
 
 const FOLLOWUP_OUTCOME_OPTIONS = [
@@ -137,10 +144,36 @@ function buildApiFilters(filters = {}) {
       const cleaned = value.map((v) => String(v).trim()).filter(Boolean);
       if (cleaned.length) result[key] = cleaned.join(",");
     } else if (value != null && String(value).trim() !== "") {
+      // reminder_view=all is a UI sentinel — omit so API returns unconstrained open queue
+      if (key === "reminder_view" && String(value).trim().toLowerCase() === "all") return;
       result[key] = value;
     }
   });
   return result;
+}
+
+function deriveActivePreset(filters = {}) {
+  const rv = String(filters.reminder_view || "").toLowerCase();
+  if (rv === "today") return "Today";
+  if (rv === "overdue") return "Overdue";
+  if (rv === "all") return "All";
+  const tomorrow = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return localYmd(d);
+  })();
+  if (
+    filters.next_follow_up_from === tomorrow &&
+    filters.next_follow_up_to === tomorrow &&
+    !rv
+  ) {
+    return "Tomorrow";
+  }
+  // Bare URL / first visit — activeFilters injects Today
+  if (!rv && !filters.next_follow_up_from && !filters.next_follow_up_to) {
+    return "Today";
+  }
+  return null;
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────
@@ -159,48 +192,47 @@ export default function MarketingLeadFollowupPage() {
     filters,
     setPage,
     setLimit,
-    setQ,
     setFilters,
     setFilter,
   } = listingState;
 
-  // Default reminder_view=today when URL has no reminder_view yet
+  // Default reminder_view=today when URL has no queue/date mode (never when reminder_view=all)
   const activeFilters = useMemo(() => {
     const merged = { ...EMPTY_PAGE_FILTERS, ...filters, q: q || filters.q || "" };
     if (!merged.reminder_view && !merged.next_follow_up_from && !merged.next_follow_up_to) {
-      // Only apply default when user hasn't set other date filters; if page freshly loaded with empty filters
-      if (!Object.values(filters).some((v) => v != null && String(v).trim() !== "") && !q) {
-        return { ...merged, reminder_view: "today" };
-      }
+      return { ...merged, reminder_view: "today" };
     }
     return merged;
   }, [filters, q]);
 
-  const [activePreset, setActivePreset] = useState(() =>
-    !filters.reminder_view || filters.reminder_view === "today" ? "Today" : null
-  );
+  const activePreset = useMemo(() => deriveActivePreset(filters), [filters]);
 
   const handlePreset = useCallback((preset) => {
     const vals = preset.fn();
     setFilters({ ...filters, ...vals, q });
-    setActivePreset(preset.label);
   }, [filters, q, setFilters]);
 
   const handleFilterApply = useCallback((panelValues) => {
-    setFilters({ ...filters, ...panelValues, q: panelValues.q ?? q });
-    if (panelValues.q != null) setQ(panelValues.q);
-    setActivePreset(null);
-  }, [filters, q, setFilters, setQ]);
+    const next = { ...filters, ...panelValues, q: panelValues.q ?? q };
+    // Custom Next-FU range must win over Today/Overdue/All (API checks reminder_view first)
+    if (panelValues.next_follow_up_from || panelValues.next_follow_up_to) {
+      next.reminder_view = "";
+    }
+    // Empty MultiSelect arrays → "" so URL deletes them (String([]) would set key=)
+    Object.keys(next).forEach((key) => {
+      if (Array.isArray(next[key]) && next[key].length === 0) next[key] = "";
+    });
+    // Single URL replace — avoid setQ race that can restore stale reminder_view
+    setFilters(next);
+  }, [filters, q, setFilters]);
 
   const handleFilterClear = useCallback(() => {
-    setFilters({ ...EMPTY_PAGE_FILTERS, reminder_view: "today" });
-    setQ("");
-    setActivePreset("Today");
-  }, [setFilters, setQ]);
+    // Include q:"" in the same replace so a follow-up setQ cannot race and keep old params
+    setFilters({ ...EMPTY_PAGE_FILTERS, reminder_view: "today", q: "" });
+  }, [setFilters]);
 
   const handleExtraChange = useCallback((key, value) => {
     setFilter(key, value);
-    setActivePreset(null);
   }, [setFilter]);
 
   // ── Table / modal state ───────────────────────────────────────────────
@@ -251,7 +283,7 @@ export default function MarketingLeadFollowupPage() {
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      const blob = await marketingLeadFollowupService.exportLeadFollowups(buildApiFilters(filters));
+      const blob = await marketingLeadFollowupService.exportLeadFollowups(buildApiFilters(activeFilters));
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -266,7 +298,7 @@ export default function MarketingLeadFollowupPage() {
     } finally {
       setExporting(false);
     }
-  }, [filters]);
+  }, [activeFilters]);
 
   // ── Global "Add Follow-Up" (select lead first) ────────────────────────
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -648,6 +680,7 @@ export default function MarketingLeadFollowupPage() {
             defaultOpen={false}
             // Hide created_from/created_to — not relevant for follow-up view
             hideFields={["created_from", "created_to"]}
+            statusOptions={OPEN_STATUS_OPTIONS}
             // Inject followup-specific filters
             extraFields={extraFields}
           />
