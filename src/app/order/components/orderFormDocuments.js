@@ -70,6 +70,50 @@ export const normalizeDocToken = (value) =>
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 
+/** Snake keys historically stored as order_documents.doc_type → Documents / L-KYC labels. */
+export const LEGACY_ORDER_DOC_TYPE_LABELS = {
+  electricity_bill: "Electricity Bill",
+  house_tax_bill: "House Tax Bill",
+  aadhar_card: "Aadhar Card",
+  passport_photo: "Passport Size Picture",
+  pan_card: "PAN Card or Driving Licence",
+  cancelled_cheque: "Cancelled Cheque",
+  customer_sign: "Customer Sign",
+  registration_letter: "Registration Letter",
+  payment_receipt: "Payment Receipt",
+};
+
+export const resolveOrderDocTypeLabel = (docType, masterTypes = []) => {
+  if (!docType) return "";
+  const str = String(docType);
+  const found = Array.isArray(masterTypes) ? masterTypes.find((t) => t?.type === str) : null;
+  if (found?.type) return found.type;
+  return LEGACY_ORDER_DOC_TYPE_LABELS[str] || str;
+};
+
+/**
+ * Whether an uploaded order document matches an order-form / L-KYC slot
+ * (key/code, label/type, or legacy snake key whose mapped label equals the slot).
+ */
+export const docMatchesSlot = (doc, slot) => {
+  if (!doc || !slot) return false;
+  const dt = normalizeDocToken(doc.doc_type || doc.type);
+  if (!dt) return false;
+  const keyNorm = normalizeDocToken(slot.key);
+  const labelNorm = normalizeDocToken(slot.label);
+  if (keyNorm && dt === keyNorm) return true;
+  if (labelNorm && dt === labelNorm) return true;
+  const legacyLabel = LEGACY_ORDER_DOC_TYPE_LABELS[String(doc.doc_type || doc.type || "").trim()];
+  if (legacyLabel && labelNorm && normalizeDocToken(legacyLabel) === labelNorm) return true;
+  return false;
+};
+
+/** Latest order document for a form / L-KYC slot (key or label or legacy map). */
+export const findDocForSlot = (docs, slot) => {
+  const list = Array.isArray(docs) ? docs : [];
+  return list.find((d) => docMatchesSlot(d, slot)) || null;
+};
+
 const matchesSlot = (doc, inquiryDoc) => {
   const dt = normalizeDocToken(inquiryDoc?.doc_type);
   if (!dt || !doc?.key) return false;

@@ -2,9 +2,11 @@
 
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { getIcon } from "@/utils/iconMapper";
-import { IconArrowRight, IconCircle, IconApps, IconSearch } from "@tabler/icons-react";
+import { IconArrowRight, IconCircle, IconApps, IconSearch, IconMessageCircle } from "@tabler/icons-react";
+import orderService from "@/services/orderService";
 
 function getGreeting(date = new Date()) {
   const hour = date.getHours();
@@ -36,10 +38,13 @@ function flattenLeafModules(items, parents = []) {
 }
 
 export default function HomeLandingPage() {
+  const router = useRouter();
   const { user, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [timeState, setTimeState] = useState({ date: "", time: "" });
+  const [liveQueryCount, setLiveQueryCount] = useState(null);
+  const [liveQueryLoading, setLiveQueryLoading] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -67,9 +72,73 @@ export default function HomeLandingPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setLiveQueryLoading(true);
+    orderService
+      .getOrders({ status: "pending", limit: 1, page: 1 })
+      .then((res) => {
+        if (cancelled) return;
+        const result = res?.result ?? res;
+        const count = Number(result?.meta?.query_order_count ?? 0);
+        setLiveQueryCount(Number.isFinite(count) ? count : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setLiveQueryCount(0);
+      })
+      .finally(() => {
+        if (!cancelled) setLiveQueryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const greeting = useMemo(() => getGreeting(), []);
   const displayName = user?.name?.trim() || user?.email || "there";
   const roleName = user?.role?.name || null;
+  const queryCount = liveQueryCount ?? 0;
+  const hasLiveQueries = !liveQueryLoading && queryCount > 0;
+
+  const liveQueriesControl = (className = "") => (
+    <button
+      type="button"
+      onClick={() => router.push("/order?has_active_query=true")}
+      className={[
+        "flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-white/90 backdrop-blur-md shadow-sm text-left transition-all hover:shadow-md",
+        hasLiveQueries ? "border-red-200 hover:border-red-300" : "border-slate-200 hover:border-slate-300",
+        className,
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+          hasLiveQueries ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500",
+        ].join(" ")}
+      >
+        <IconMessageCircle size={18} stroke={1.5} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="text-xs font-semibold text-slate-700">Live Queries</span>
+          {liveQueryLoading ? (
+            <span className="inline-block h-5 w-8 animate-pulse rounded bg-slate-200" />
+          ) : (
+            <span
+              className={[
+                "text-lg font-bold leading-none tracking-tight",
+                hasLiveQueries ? "text-red-600" : "text-slate-800",
+              ].join(" ")}
+            >
+              {queryCount}
+            </span>
+          )}
+        </span>
+        <span className="block text-[11px] text-slate-500 truncate">Pending with active query</span>
+      </span>
+      <IconArrowRight size={16} stroke={2} className={hasLiveQueries ? "text-red-400" : "text-slate-300"} />
+    </button>
+  );
 
   const allQuickLinks = useMemo(() => {
     const leaves = flattenLeafModules(user?.modules || []);
@@ -104,30 +173,34 @@ export default function HomeLandingPage() {
       <div className="absolute -top-[15%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/[0.04] blur-[100px] pointer-events-none" />
       <div className="absolute top-[5%] -right-[10%] w-[40%] h-[40%] rounded-full bg-[#1b365d]/[0.03] blur-[100px] pointer-events-none" />
       
-      <div className="relative mx-auto max-w-[1440px] px-6 py-10 md:py-16 space-y-12">
-        {/* Header Section */}
-        <header className={`transition-all duration-700 ease-out transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 backdrop-blur-md border border-white shadow-sm shadow-primary/5">
+      <div className="relative mx-auto max-w-[1440px] px-6 py-6 md:py-10 space-y-6">
+        {/* Header Section — greeting + Live Queries control */}
+        <header className={`transition-all duration-700 ease-out transform ${mounted ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 md:gap-6">
+            <div className="space-y-2 min-w-0 flex-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/70 backdrop-blur-md border border-white shadow-sm shadow-primary/5">
                 <span className="text-xs font-bold tracking-widest text-primary uppercase">
                   {roleName ? `${roleName} Workspace` : "Workspace"}
                 </span>
               </div>
-              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-                {greeting}, <span className="text-primary">{displayName}</span> <span className="inline-block animate-wave origin-[70%_70%]">👋</span>
+              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight">
+                {greeting}, <span className="text-primary">{displayName}</span>{" "}
+                <span className="inline-block animate-wave origin-[70%_70%]">👋</span>
               </h1>
-              <p className="text-base text-slate-600 max-w-2xl leading-relaxed font-medium">
+              <p className="text-sm text-slate-600 max-w-2xl leading-relaxed font-medium">
                 Welcome to your personalized dashboard. Access your authorized modules seamlessly below.
               </p>
+
+              {liveQueriesControl("md:hidden w-full")}
             </div>
-            
-            <div className={`hidden md:flex flex-col items-end transition-opacity duration-500 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="text-3xl font-light text-slate-800 tracking-tight">
-                {timeState.time}
-              </div>
-              <div className="text-sm font-medium text-slate-500 mt-1">
-                {timeState.date}
+
+            <div
+              className={`flex flex-col items-stretch md:items-end gap-2 shrink-0 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}
+            >
+              {liveQueriesControl("hidden md:flex min-w-[220px]")}
+              <div className="hidden md:flex flex-col items-end">
+                <div className="text-2xl font-light text-slate-800 tracking-tight">{timeState.time}</div>
+                <div className="text-sm font-medium text-slate-500 mt-0.5">{timeState.date}</div>
               </div>
             </div>
           </div>
