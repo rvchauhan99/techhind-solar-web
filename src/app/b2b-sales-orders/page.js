@@ -14,7 +14,6 @@ import {
   IconX,
   IconCurrencyRupee,
   IconDotsVertical,
-  IconFileText,
 } from "@tabler/icons-react";
 import {
   canCollectB2bPayment,
@@ -46,6 +45,11 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import B2bSalesOrderFilterPanel, {
+  B2B_SO_FILTER_KEYS,
+  EMPTY_VALUES as B2B_SO_FILTER_EMPTY,
+} from "@/components/common/B2bSalesOrderFilterPanel";
+import B2bSalesOrderPnlDrawer from "@/app/b2b-sales-orders/components/B2bSalesOrderPnlDrawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -56,30 +60,6 @@ import { formatDate, formatCurrency } from "@/utils/dataTableUtils";
 import { Badge } from "@/components/ui/badge";
 import B2bSalesOrderDetailsContent from "./components/B2bSalesOrderDetailsContent";
 import B2bCancelOrderDialog from "./components/B2bCancelOrderDialog";
-
-const COLUMN_FILTER_KEYS = [
-  "order_no",
-  "order_no_op",
-  "order_date",
-  "order_date_op",
-  "order_date_to",
-  "due_date",
-  "due_date_op",
-  "due_date_to",
-  "client_name",
-  "client_name_op",
-  "ship_to_name",
-  "ship_to_name_op",
-  "planned_warehouse_name",
-  "planned_warehouse_name_op",
-  "remarks",
-  "remarks_op",
-  "status",
-  "grand_total",
-  "grand_total_op",
-  "grand_total_to",
-  "payment_outstanding",
-];
 
 const formatSignedCurrency = (val) => {
   const n = Number(val) || 0;
@@ -106,14 +86,14 @@ const getStatusBadgeVariant = (status) => {
 };
 
 const renderOrderStatusBadge = (status) => (
-  <Badge variant={getStatusBadgeVariant(status)} className="text-xs">
+  <Badge variant={getStatusBadgeVariant(status)} className="text-[10px] px-1.5 py-0">
     {STATUS_LABELS[status] || status || "Draft"}
   </Badge>
 );
 
 const renderOrderTypeBadge = (orderType) =>
   String(orderType || "").toUpperCase() === "SCHEDULED" ? (
-    <Badge variant="navy" className="text-xs ml-1">
+    <Badge variant="navy" className="text-[10px] px-1.5 py-0 ml-0.5">
       Scheduled
     </Badge>
   ) : null;
@@ -132,9 +112,21 @@ export default function B2bSalesOrdersPage() {
   const router = useRouter();
   const listingState = useListingQueryState({
     defaultLimit: 20,
-    filterKeys: COLUMN_FILTER_KEYS,
+    filterKeys: B2B_SO_FILTER_KEYS,
   });
-  const { page, limit, sortBy, sortOrder, filters, setPage, setLimit, setFilter , listReturnTo} = listingState;
+  const {
+    page,
+    limit,
+    q,
+    sortBy,
+    sortOrder,
+    filters,
+    setPage,
+    setLimit,
+    setFilters,
+    clearFilters,
+    listReturnTo,
+  } = listingState;
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -151,23 +143,56 @@ export default function B2bSalesOrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [pnlDrawerOpen, setPnlDrawerOpen] = useState(false);
+  const [pnlOrder, setPnlOrder] = useState(null);
+  const [pnlInitialView, setPnlInitialView] = useState("actual");
 
-  const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
-  const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
+  const handleOpenPnl = useCallback((row, view = "actual") => {
+    setPnlOrder(row);
+    setPnlInitialView(view === "average" ? "average" : "actual");
+    setPnlDrawerOpen(true);
+  }, []);
+
+  const handleClosePnl = useCallback(() => {
+    setPnlDrawerOpen(false);
+    setPnlOrder(null);
+    setPnlInitialView("actual");
+  }, []);
 
   const filterParams = useMemo(
     () =>
       Object.fromEntries(
-        Object.entries(filters || {}).filter(([, v]) => v != null && String(v).trim() !== "")
+        Object.entries(filters || {}).filter(
+          ([key, v]) => key !== "q" && v != null && String(v).trim() !== ""
+        )
       ),
     [filters]
   );
+
+  const panelValues = useMemo(
+    () => ({ ...B2B_SO_FILTER_EMPTY, ...filters, q: filters.q || q || "" }),
+    [filters, q]
+  );
+
+  const handleApplyFilters = useCallback(
+    (next) => {
+      setFilters({ ...B2B_SO_FILTER_EMPTY, ...next });
+      setReloadTrigger((k) => k + 1);
+    },
+    [setFilters]
+  );
+
+  const handleClearFilters = useCallback(() => {
+    clearFilters({ keepQuickSearch: false });
+    setReloadTrigger((k) => k + 1);
+  }, [clearFilters]);
 
   const fetcher = useCallback(
     async (params) => {
       const response = await b2bSalesOrderService.getB2bSalesOrders({
         ...params,
         ...filterParams,
+        q: filters.q || q || params.q || undefined,
       });
       const result = response?.result ?? response;
       return {
@@ -175,7 +200,7 @@ export default function B2bSalesOrdersPage() {
         meta: result?.meta ?? { total: 0, page: params.page, pages: 0, limit: params.limit },
       };
     },
-    [filterParams, reloadTrigger]
+    [filterParams, filters.q, q, reloadTrigger]
   );
 
   const handleOpenSidebar = useCallback((row) => {
@@ -340,74 +365,119 @@ export default function B2bSalesOrdersPage() {
         field: "order_no",
         label: "Order #",
         sortable: true,
-        filterType: "text",
-        filterKey: "order_no",
-        defaultFilterOperator: "contains",
+        stickyLeft: true,
+        stickyWidth: 88,
+        width: 88,
+        minWidth: 88,
+        maxWidth: 88,
         render: (row) => (
-          <div className="flex items-center gap-1.5">
-            <IconFileText className="size-4 text-slate-400 shrink-0" />
-            <Button
-              type="button"
-              variant="link"
-              className="text-xs p-0 h-auto text-left font-semibold text-[#1b365d] hover:underline"
-              onClick={() => handleOpenSidebar(row)}
-            >
-              {row.order_no || row.id}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="link"
+            className="text-[11px] p-0 h-auto text-left font-semibold text-[#1b365d] hover:underline truncate max-w-full"
+            onClick={() => handleOpenSidebar(row)}
+          >
+            {row.order_no || row.id}
+          </Button>
         ),
+      },
+      {
+        field: "actual_pnl",
+        label: "P&L",
+        width: 110,
+        minWidth: 110,
+        maxWidth: 110,
+        headerRender: () => <span className="ml-auto">P&L</span>,
+        render: (row) => {
+          if (!row.pnl_available || row.pnl_access_allowed === false) {
+            return (
+              <div className="flex justify-end select-none">
+                <span className="text-xs text-slate-400">—</span>
+              </div>
+            );
+          }
+          const incomplete = Boolean(row.actual_incomplete);
+          const actual = Number(row.actual_pnl);
+          const avg = Number(row.avg_pnl);
+          const pnlColor = (n, warn = false) => {
+            if (warn) return "text-amber-700";
+            if (!Number.isFinite(n)) return "text-slate-500";
+            if (n < 0) return "text-destructive";
+            return "text-emerald-700";
+          };
+          return (
+            <div className="flex flex-col items-end gap-0 select-none min-w-0 w-full">
+              <Button
+                type="button"
+                variant="link"
+                className="text-[11px] p-0 h-auto leading-none"
+                title={incomplete ? "Incomplete – Actual Cost Missing" : "Actual P&L"}
+                onClick={() => handleOpenPnl(row, "actual")}
+              >
+                <span className="font-medium text-slate-500 mr-1">Actual</span>
+                <span className={`font-semibold tabular-nums ${pnlColor(actual, incomplete)}`}>
+                  {formatCurrency(actual)}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                className="text-[11px] p-0 h-auto leading-none"
+                title="P&L as per Average Price"
+                onClick={() => handleOpenPnl(row, "average")}
+              >
+                <span className="font-medium text-slate-500 mr-1">Avg</span>
+                <span className={`font-semibold tabular-nums ${pnlColor(avg)}`}>
+                  {formatCurrency(avg)}
+                </span>
+              </Button>
+            </div>
+          );
+        },
       },
       {
         field: "order_date",
         label: "Date",
         sortable: true,
-        filterType: "date",
-        filterKey: "order_date",
-        filterKeyTo: "order_date_to",
-        defaultFilterOperator: "inRange",
+        width: 88,
+        minWidth: 88,
+        maxWidth: 88,
         render: (row) => formatDate(row.order_date) || "-",
       },
       {
         field: "due_date",
         label: "Due Date",
         sortable: true,
-        filterType: "date",
-        filterKey: "due_date",
-        filterKeyTo: "due_date_to",
-        defaultFilterOperator: "inRange",
+        width: 88,
+        minWidth: 88,
+        maxWidth: 88,
         render: (row) => formatDate(row.due_date) || "—",
       },
       {
         field: "client",
         label: "Client",
-        filterType: "text",
-        filterKey: "client_name",
-        defaultFilterOperator: "contains",
+        minWidth: 120,
         render: (row) => row.client?.client_name || "-",
       },
       {
         field: "shipTo",
         label: "Ship To",
-        filterType: "text",
-        filterKey: "ship_to_name",
-        defaultFilterOperator: "contains",
+        minWidth: 120,
         render: (row) => row.shipTo?.ship_to_name || "-",
       },
       {
         field: "plannedWarehouse",
         label: "Warehouse",
-        filterType: "text",
-        filterKey: "planned_warehouse_name",
-        defaultFilterOperator: "contains",
+        width: 100,
+        minWidth: 100,
+        maxWidth: 100,
         render: (row) => row.plannedWarehouse?.name || "-",
       },
       {
         field: "remarks",
         label: "Remarks",
-        filterType: "text",
-        filterKey: "remarks",
-        defaultFilterOperator: "contains",
         width: 120,
+        minWidth: 120,
         maxWidth: 120,
         render: (row) => {
           const text = String(row.remarks ?? "").trim();
@@ -422,9 +492,9 @@ export default function B2bSalesOrdersPage() {
       {
         field: "status",
         label: "Status",
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
+        width: 96,
+        minWidth: 96,
+        maxWidth: 96,
         render: (row) => (
           <span className="inline-flex items-center flex-wrap gap-0.5">
             {renderOrderStatusBadge(row.status)}
@@ -436,20 +506,21 @@ export default function B2bSalesOrdersPage() {
         field: "grand_total",
         label: "Total",
         sortable: true,
-        filterType: "number",
-        filterKey: "grand_total",
-        filterKeyTo: "grand_total_to",
-        defaultFilterOperator: "equals",
+        width: 100,
+        minWidth: 100,
+        maxWidth: 100,
         headerRender: () => <span className="ml-auto">Total</span>,
         render: (row) => {
           const totalVal = row.final_amount ?? row.grand_total ?? 0;
           const { showProgress, paidPercent } = getB2bOrderPaymentProgress(row);
 
           return (
-            <div className="flex flex-col items-end gap-1 select-none">
-              <span className="font-semibold text-slate-800">{formatCurrency(totalVal)}</span>
+            <div className="flex flex-col items-end gap-0.5 select-none">
+              <span className="text-[11px] font-semibold text-slate-800 tabular-nums">
+                {formatCurrency(totalVal)}
+              </span>
               {showProgress && (
-                <div className="flex items-center gap-1 w-16" title={`${paidPercent.toFixed(0)}% Paid`}>
+                <div className="flex items-center gap-0.5 w-12" title={`${paidPercent.toFixed(0)}% Paid`}>
                   <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden border border-slate-200/80">
                     <div
                       className="bg-emerald-600 h-full rounded-full"
@@ -466,13 +537,16 @@ export default function B2bSalesOrdersPage() {
       {
         field: "outstanding_balance",
         label: "Outstanding",
+        width: 100,
+        minWidth: 100,
+        maxWidth: 100,
         headerRender: () => <span className="ml-auto">Outstanding</span>,
         render: (row) => {
           const display = getB2bOrderOutstandingDisplay(row);
           if (display.type === "outstanding") {
             return (
               <div className="flex justify-end select-none">
-                <Badge variant="destructive" className="px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">
+                <Badge variant="destructive" className="px-1 py-0 text-[10px] font-semibold tracking-wide">
                   {formatCurrency(display.amount)}
                 </Badge>
               </div>
@@ -481,7 +555,7 @@ export default function B2bSalesOrdersPage() {
           if (display.type === "fully_paid") {
             return (
               <div className="flex justify-end select-none">
-                <span className="text-xs text-emerald-600 font-semibold">
+                <span className="text-[11px] text-emerald-600 font-semibold">
                   {display.label}
                 </span>
               </div>
@@ -489,7 +563,7 @@ export default function B2bSalesOrdersPage() {
           }
           return (
             <div className="flex justify-end select-none">
-              <span className="text-xs text-slate-400 font-medium">
+              <span className="text-[11px] text-slate-400 font-medium">
                 {display.label}
               </span>
             </div>
@@ -500,32 +574,35 @@ export default function B2bSalesOrdersPage() {
         field: "actions",
         label: "Actions",
         isActionColumn: true,
+        width: 128,
+        minWidth: 128,
+        stickyWidth: 128,
         render: (row) => {
           const cancelEligibility = getB2bOrderCancelEligibility(row, {
             canUpdate: currentPerm.can_update,
             canCancelConfirmed,
           });
           return (
-          <div className="flex items-center justify-end gap-0.5">
+          <div className="flex items-center justify-end gap-0">
             <Button
               variant="ghost"
               size="icon-sm"
-              className="size-8 text-slate-500 hover:text-slate-900"
+              className="size-7 text-slate-500 hover:text-slate-900"
               onClick={() => handleOpenSidebar(row)}
               title="View details"
             >
-              <IconFileDescription className="size-4" />
+              <IconFileDescription className="size-3.5" />
             </Button>
             
             {currentPerm.can_update && row.status === "DRAFT" && (
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="size-8 text-slate-500 hover:text-[#00823b] hover:bg-[#00823b]/5"
+                className="size-7 text-slate-500 hover:text-[#00823b] hover:bg-[#00823b]/5"
                 onClick={() => handleEdit(row.id)}
                 title="Edit"
               >
-                <IconPencil className="size-4" />
+                <IconPencil className="size-3.5" />
               </Button>
             )}
 
@@ -533,20 +610,20 @@ export default function B2bSalesOrdersPage() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="size-8 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
+                className="size-7 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50"
                 title="Collect Payment"
                 onClick={() => router.push(`/b2b-sales-orders/view?id=${row.id}&tab=2`)}
               >
-                <IconCurrencyRupee className="size-4" />
+                <IconCurrencyRupee className="size-3.5" />
               </Button>
             )}
 
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-label="More actions"
               >
-                <IconDotsVertical className="size-4" />
+                <IconDotsVertical className="size-3.5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
                 {currentPerm.can_update && row.status === "DRAFT" && (
@@ -593,7 +670,7 @@ export default function B2bSalesOrdersPage() {
         },
       },
     ],
-    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
+    [handleOpenSidebar, handleOpenPnl, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -808,32 +885,23 @@ export default function B2bSalesOrdersPage() {
         onAddClick={currentPerm.can_create ? handleAdd : undefined}
       >
         <div className="flex flex-col flex-1 min-h-0 gap-2">
-          <div className="flex items-center gap-2 px-0.5">
-            <Button
-              type="button"
-              size="sm"
-              variant={filters.payment_outstanding === "true" ? "default" : "outline"}
-              className="h-7 text-xs"
-              onClick={() => {
-                const next = filters.payment_outstanding === "true" ? "" : "true";
-                setFilter("payment_outstanding", next);
-                setReloadTrigger((k) => k + 1);
-              }}
-            >
-              Payment outstanding
-            </Button>
-          </div>
+          <B2bSalesOrderFilterPanel
+            values={panelValues}
+            onApply={handleApplyFilters}
+            onClear={handleClearFilters}
+            defaultOpen={false}
+          />
           <PaginatedTable
-            key={reloadTrigger}
+            key={`${reloadTrigger}-${JSON.stringify(filterParams)}-${filters.q || q || ""}`}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}
             showPagination={false}
-            height="calc(100vh - 150px)"
+            compactDensity
+            height="calc(100vh - 180px)"
             onTotalChange={setTotalCount}
-            columnFilterValues={columnFilterValues}
-            onColumnFilterChange={handleColumnFilterChange}
             filterParams={filterParams}
+            q={filters.q || q || ""}
             page={page}
             limit={limit}
             sortBy={sortBy || "id"}
@@ -850,6 +918,14 @@ export default function B2bSalesOrdersPage() {
             rowsPerPageOptions={[20, 50, 100]}
           />
         </div>
+
+        <B2bSalesOrderPnlDrawer
+          open={pnlDrawerOpen}
+          onClose={handleClosePnl}
+          orderId={pnlOrder?.id}
+          orderNo={pnlOrder?.order_no}
+          initialView={pnlInitialView}
+        />
 
         <DetailsSidebar
           open={sidebarOpen}

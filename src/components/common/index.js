@@ -14,6 +14,11 @@ export { default as DetailsSidebar } from "./DetailsSidebar";
 export { default as FilterBar } from "./FilterBar";
 export { default as OrderListFilterDialog, FILTER_KEYS as ORDER_LIST_FILTER_KEYS } from "./OrderListFilterDialog";
 export { default as OrderListFilterPanel } from "./OrderListFilterPanel";
+export {
+  default as B2bSalesOrderFilterPanel,
+  B2B_SO_FILTER_KEYS,
+  EMPTY_VALUES as B2B_SO_FILTER_EMPTY_VALUES,
+} from "./B2bSalesOrderFilterPanel";
 export { default as ProductionOrderFilterPanel, PRODUCTION_ORDER_FILTER_KEYS } from "./ProductionOrderFilterPanel";
 export { default as ProductionBookingFilterPanel, PRODUCTION_BOOKING_FILTER_KEYS } from "./ProductionBookingFilterPanel";
 export { default as ProductionDashboardFilterPanel, PRODUCTION_DASHBOARD_FILTER_KEYS } from "./ProductionDashboardFilterPanel";
