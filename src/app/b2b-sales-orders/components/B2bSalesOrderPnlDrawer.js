@@ -8,19 +8,10 @@ import Loader from "@/components/common/Loader";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import { formatCurrency } from "@/utils/dataTableUtils";
 
-function SummaryCell({ label, value, emphasize = false, warn = false }) {
-  return (
-    <div className="min-w-0 rounded border border-slate-200 bg-slate-50/80 px-2 py-1">
-      <p className="text-[10px] uppercase tracking-wide text-slate-500 leading-none mb-0.5">{label}</p>
-      <p
-        className={`text-xs font-semibold tabular-nums ${
-          warn ? "text-amber-700" : emphasize ? "text-emerald-700" : "text-slate-800"
-        }`}
-      >
-        {value}
-      </p>
-    </div>
-  );
+function pnlTone(n) {
+  if (n == null || Number.isNaN(Number(n))) return "text-slate-800";
+  if (Number(n) < 0) return "text-destructive";
+  return "text-emerald-700";
 }
 
 function formatMargin(pct) {
@@ -37,6 +28,25 @@ function formatDate(value) {
   } catch (_) {
     return String(value);
   }
+}
+
+function StatementRow({ label, value, strong = false, toneClass = "text-slate-800", muted = false }) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 px-2.5 py-1.5 ${
+        strong ? "bg-slate-50 border-t border-slate-200" : ""
+      }`}
+    >
+      <span
+        className={`text-[11px] ${strong ? "font-semibold text-slate-900" : muted ? "text-slate-500" : "text-slate-700"}`}
+      >
+        {label}
+      </span>
+      <span className={`text-xs tabular-nums ${strong ? "font-bold" : "font-semibold"} ${toneClass}`}>
+        {value}
+      </span>
+    </div>
+  );
 }
 
 export default function B2bSalesOrderPnlDrawer({
@@ -100,22 +110,47 @@ export default function B2bSalesOrderPnlDrawer({
     pnl?.cost_completeness === "incomplete_average_cost_missing" ||
     Boolean(pnl?.actual_incomplete);
 
+  const cogs = isActual ? pnl?.actual_cogs : pnl?.avg_cogs;
+  const gross = isActual ? pnl?.actual_pnl : pnl?.avg_pnl;
+  const margin = isActual ? pnl?.actual_margin_pct : pnl?.avg_margin_pct;
+  const grossLabel =
+    Number(gross) < 0 ? "Gross (loss)" : Number(gross) > 0 ? "Gross profit" : "Gross profit / (loss)";
+
   return (
-    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: { xs: "100%", sm: 560 } } }}>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ sx: { width: { xs: "100%", sm: 620 } } }}
+    >
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">
-              {isActual ? "Actual P&L" : "P&L as per Average Price"}
-            </p>
-            <p className="text-[11px] text-slate-500 truncate">
+        <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-3 py-2.5 bg-slate-50/80">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold text-slate-900 leading-tight">
+                Order P&L Report
+              </p>
+              {pnl?.pnl_available ? (
+                <span
+                  className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${
+                    incomplete
+                      ? "border-amber-300 bg-amber-50 text-amber-800"
+                      : "border-emerald-300 bg-emerald-50 text-emerald-800"
+                  }`}
+                >
+                  {incomplete ? "Provisional" : "Complete"}
+                </span>
+              ) : null}
+            </div>
+            <p className="text-[11px] text-slate-600 truncate mt-0.5">
               {pnl?.order_no || orderNo || `#${orderId}`}
               {pnl?.customer_name ? ` · ${pnl.customer_name}` : ""}
             </p>
             <p className="text-[10px] text-slate-400 truncate">
-              {pnl?.order_date ? `Date ${formatDate(pnl.order_date)}` : null}
-              {pnl?.status ? ` · ${pnl.status}` : null}
-              {pnl?.completed_at ? ` · Completed ${formatDate(pnl.completed_at)}` : null}
+              {isActual ? "Actual cost basis" : "Average price cost basis"}
+              {pnl?.order_date ? ` · ${formatDate(pnl.order_date)}` : ""}
+              {pnl?.status ? ` · ${pnl.status}` : ""}
+              {pnl?.completed_at ? ` · Completed ${formatDate(pnl.completed_at)}` : ""}
             </p>
           </div>
           <IconButton size="small" aria-label="Close" onClick={onClose}>
@@ -155,16 +190,15 @@ export default function B2bSalesOrderPnlDrawer({
             <p className="text-xs text-slate-500">No PNL data.</p>
           ) : !pnl.pnl_available ? (
             <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900">
-              PNL available for shipments after cost snapshot go-live. This order has no snapshotted deliveries yet.
+              PNL available for shipments after cost snapshot go-live. This order has no snapshotted
+              deliveries yet.
             </div>
           ) : (
             <>
               {pnl.mixed_inventory ? (
                 <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-950">
-                  <span className="font-semibold">Mixed Inventory Costing:</span> This order contains
-                  both serialized and non-serialized inventory. Actual P&L uses actual serial-level
-                  cost for serialized inventory and average inventory cost for non-serialized
-                  inventory.
+                  <span className="font-semibold">Mixed Inventory Costing:</span> Serialized lines use
+                  actual serial cost; non-serialized lines use average inventory cost.
                 </div>
               ) : null}
 
@@ -176,53 +210,61 @@ export default function B2bSalesOrderPnlDrawer({
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                <SummaryCell label="Net sales" value={money(pnl.shipped_revenue)} />
-                <SummaryCell
-                  label={isActual ? "Actual COGS" : "Avg COGS"}
-                  value={money(isActual ? pnl.actual_cogs : pnl.avg_cogs)}
+              <div className="rounded border border-slate-200 overflow-hidden">
+                <div className="px-2.5 py-1 bg-slate-100 border-b border-slate-200">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    {isActual ? "Actual P&L statement" : "Average-price P&L statement"}
+                  </p>
+                </div>
+                <StatementRow label="Net sales (pre-GST)" value={money(pnl.shipped_revenue)} />
+                <StatementRow
+                  label={isActual ? "(−) Actual COGS" : "(−) Avg COGS"}
+                  value={money(cogs)}
+                  muted
                 />
-                <SummaryCell
-                  label={isActual ? "Actual P&L" : "Avg P&L"}
-                  value={money(isActual ? pnl.actual_pnl : pnl.avg_pnl)}
-                  emphasize={!incomplete}
-                  warn={incomplete}
+                <StatementRow
+                  label={grossLabel}
+                  value={money(gross)}
+                  strong
+                  toneClass={pnlTone(gross)}
                 />
-                <SummaryCell
-                  label="Margin %"
-                  value={formatMargin(isActual ? pnl.actual_margin_pct : pnl.avg_margin_pct)}
+                <StatementRow
+                  label="Gross margin %"
+                  value={formatMargin(margin)}
+                  toneClass={pnlTone(margin)}
                 />
-                <SummaryCell label="Qty shipped" value={String(pnl.total_qty ?? "—")} />
-                <SummaryCell
-                  label="Cost status"
-                  value={
-                    incomplete
-                      ? "Provisional"
-                      : pnl.cost_completeness === "complete"
-                        ? "Complete"
-                        : String(pnl.cost_completeness || "—")
-                  }
-                  warn={incomplete}
+                <StatementRow
+                  label="Qty shipped (net returns)"
+                  value={String(pnl.total_qty ?? "—")}
+                  muted
                 />
               </div>
 
               {isActual && (pnl.has_serialized || pnl.has_non_serialized) ? (
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   {pnl.has_serialized ? (
-                    <div className="rounded border border-slate-200 px-2 py-1 text-[11px]">
-                      <p className="text-[10px] uppercase text-slate-500 mb-0.5">Serialized</p>
-                      <p className="tabular-nums text-slate-800">
-                        Sales {money(pnl.serialized_shipped_revenue)} · COGS{" "}
-                        {money(pnl.serialized_actual_cogs)}
+                    <div className="rounded border border-slate-200 px-2 py-1.5 text-[11px]">
+                      <p className="text-[10px] uppercase font-semibold text-slate-500 mb-0.5">
+                        Serialized
+                      </p>
+                      <p className="tabular-nums text-slate-800 leading-snug">
+                        Sales {money(pnl.serialized_shipped_revenue)}
+                      </p>
+                      <p className="tabular-nums text-slate-600 leading-snug">
+                        Actual COGS {money(pnl.serialized_actual_cogs)}
                       </p>
                     </div>
                   ) : null}
                   {pnl.has_non_serialized ? (
-                    <div className="rounded border border-slate-200 px-2 py-1 text-[11px]">
-                      <p className="text-[10px] uppercase text-slate-500 mb-0.5">Non-serialized</p>
-                      <p className="tabular-nums text-slate-800">
-                        Sales {money(pnl.non_serialized_shipped_revenue)} · COGS{" "}
-                        {money(pnl.non_serialized_actual_cogs)}
+                    <div className="rounded border border-slate-200 px-2 py-1.5 text-[11px]">
+                      <p className="text-[10px] uppercase font-semibold text-slate-500 mb-0.5">
+                        Non-serialized
+                      </p>
+                      <p className="tabular-nums text-slate-800 leading-snug">
+                        Sales {money(pnl.non_serialized_shipped_revenue)}
+                      </p>
+                      <p className="tabular-nums text-slate-600 leading-snug">
+                        Avg COGS {money(pnl.non_serialized_actual_cogs)}
                       </p>
                     </div>
                   ) : null}
@@ -230,6 +272,11 @@ export default function B2bSalesOrderPnlDrawer({
               ) : null}
 
               <div className="rounded border border-slate-200 overflow-hidden">
+                <div className="px-2.5 py-1 bg-slate-100 border-b border-slate-200">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    Line details
+                  </p>
+                </div>
                 <table className="w-full text-[11px]">
                   <thead className="bg-slate-50 text-slate-600">
                     <tr>
@@ -296,10 +343,14 @@ export default function B2bSalesOrderPnlDrawer({
                               {money(line.shipped_revenue)}
                             </td>
                             <td className="px-1.5 py-1 text-right tabular-nums">{money(lineCogs)}</td>
-                            <td className="px-1.5 py-1 text-right tabular-nums font-semibold text-emerald-700">
+                            <td
+                              className={`px-1.5 py-1 text-right tabular-nums font-semibold ${pnlTone(linePnl)}`}
+                            >
                               {money(linePnl)}
                             </td>
-                            <td className="px-1.5 py-1 text-right tabular-nums">
+                            <td
+                              className={`px-1.5 py-1 text-right tabular-nums ${pnlTone(lineMargin)}`}
+                            >
                               {formatMargin(lineMargin)}
                             </td>
                           </tr>
@@ -342,9 +393,9 @@ export default function B2bSalesOrderPnlDrawer({
                   </tbody>
                 </table>
               </div>
-              <p className="text-[10px] text-slate-400">
-                Realized PNL on snapshotted shipped qty (net returns). Pre-GST sell rate.
-                Cancelled/pending excluded. Same sales value for Actual and Avg views.
+              <p className="text-[10px] text-slate-400 pb-1">
+                Realized P&L on snapshotted shipped qty (net returns). Pre-GST sell rate. Same sales
+                value for Actual and Avg views; only COGS method differs.
               </p>
             </>
           )}
