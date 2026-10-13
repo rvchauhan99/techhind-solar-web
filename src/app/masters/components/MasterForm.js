@@ -67,6 +67,12 @@ const USER_ID_ALLOWLIST_CONFIGS = {
       "Search by name or email. Empty = all users with pending-order access can perform L/T KYC. Non-empty = only selected users can save/pass/fail KYC (view still open to module users).",
     valueTypeHelper: "Locked to JSON for pending-order KYC allowed user IDs",
   },
+  "b2b_sales_order.pnl_allowed_user_ids": {
+    label: "B2B Order PNL Allowed Users",
+    helperText:
+      "Search by name or email. Empty = nobody can view Actual / Avg P&L on B2B Sales Orders. Listed users also need B2B Sales Orders read access. Missing or inactive config denies everyone.",
+    valueTypeHelper: "Locked to JSON for B2B Sales Order PNL allowed user IDs",
+  },
 };
 
 const getUserIdAllowlistMeta = (configKey) =>

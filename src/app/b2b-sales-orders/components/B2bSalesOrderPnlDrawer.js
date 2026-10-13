@@ -8,22 +8,55 @@ import Loader from "@/components/common/Loader";
 import b2bSalesOrderService from "@/services/b2bSalesOrderService";
 import { formatCurrency } from "@/utils/dataTableUtils";
 
-function SummaryCell({ label, value, emphasize = false }) {
+function SummaryCell({ label, value, emphasize = false, warn = false }) {
   return (
     <div className="min-w-0 rounded border border-slate-200 bg-slate-50/80 px-2 py-1">
       <p className="text-[10px] uppercase tracking-wide text-slate-500 leading-none mb-0.5">{label}</p>
-      <p className={`text-xs font-semibold tabular-nums ${emphasize ? "text-emerald-700" : "text-slate-800"}`}>
+      <p
+        className={`text-xs font-semibold tabular-nums ${
+          warn ? "text-amber-700" : emphasize ? "text-emerald-700" : "text-slate-800"
+        }`}
+      >
         {value}
       </p>
     </div>
   );
 }
 
-export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo }) {
+function formatMargin(pct) {
+  if (pct == null || Number.isNaN(Number(pct))) return "N/A";
+  return `${Number(pct).toFixed(2)}%`;
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  } catch (_) {
+    return String(value);
+  }
+}
+
+export default function B2bSalesOrderPnlDrawer({
+  open,
+  onClose,
+  orderId,
+  orderNo,
+  initialView = "actual",
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pnl, setPnl] = useState(null);
   const [expandedLine, setExpandedLine] = useState(null);
+  const [view, setView] = useState(initialView === "average" ? "average" : "actual");
+
+  useEffect(() => {
+    if (open) {
+      setView(initialView === "average" ? "average" : "actual");
+    }
+  }, [open, initialView, orderId]);
 
   useEffect(() => {
     if (!open || !orderId) return undefined;
@@ -40,7 +73,14 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err?.response?.data?.message || err?.message || "Failed to load PNL");
+        const status = err?.response?.status;
+        const msg =
+          err?.response?.data?.message ||
+          err?.message ||
+          (status === 403
+            ? "You are not allowed to view B2B Sales Order P&L."
+            : "Failed to load PNL");
+        setError(msg);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -54,17 +94,54 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
   const serialsForProduct = (productId) =>
     (pnl?.serials || []).filter((s) => Number(s.product_id) === Number(productId));
 
+  const isActual = view === "actual";
+  const incomplete =
+    pnl?.cost_completeness === "incomplete_actual_cost_missing" ||
+    pnl?.cost_completeness === "incomplete_average_cost_missing" ||
+    Boolean(pnl?.actual_incomplete);
+
   return (
-    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: { xs: "100%", sm: 520 } } }}>
+    <Drawer anchor="right" open={open} onClose={onClose} PaperProps={{ sx: { width: { xs: "100%", sm: 560 } } }}>
       <div className="flex h-full flex-col">
         <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">Order PNL</p>
-            <p className="text-[11px] text-slate-500 truncate">{orderNo || `#${orderId}`}</p>
+            <p className="text-sm font-semibold text-slate-900 truncate">
+              {isActual ? "Actual P&L" : "P&L as per Average Price"}
+            </p>
+            <p className="text-[11px] text-slate-500 truncate">
+              {pnl?.order_no || orderNo || `#${orderId}`}
+              {pnl?.customer_name ? ` · ${pnl.customer_name}` : ""}
+            </p>
+            <p className="text-[10px] text-slate-400 truncate">
+              {pnl?.order_date ? `Date ${formatDate(pnl.order_date)}` : null}
+              {pnl?.status ? ` · ${pnl.status}` : null}
+              {pnl?.completed_at ? ` · Completed ${formatDate(pnl.completed_at)}` : null}
+            </p>
           </div>
           <IconButton size="small" aria-label="Close" onClick={onClose}>
             <IconX size={18} />
           </IconButton>
+        </div>
+
+        <div className="flex gap-1 border-b border-slate-100 px-3 py-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant={isActual ? "default" : "outline"}
+            className="h-7 text-[11px] px-2"
+            onClick={() => setView("actual")}
+          >
+            Actual P&L
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={!isActual ? "default" : "outline"}
+            className="h-7 text-[11px] px-2"
+            onClick={() => setView("average")}
+          >
+            Avg Price P&L
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
@@ -82,19 +159,75 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
             </div>
           ) : (
             <>
-              {pnl.actual_incomplete ? (
+              {pnl.mixed_inventory ? (
+                <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-950">
+                  <span className="font-semibold">Mixed Inventory Costing:</span> This order contains
+                  both serialized and non-serialized inventory. Actual P&L uses actual serial-level
+                  cost for serialized inventory and average inventory cost for non-serialized
+                  inventory.
+                </div>
+              ) : null}
+
+              {incomplete ? (
                 <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
-                  Some serials had missing purchase unit price — Actual COGS may be incomplete.
+                  {pnl.cost_completeness === "incomplete_average_cost_missing"
+                    ? "Incomplete – Average Cost Missing. Totals below are provisional."
+                    : "Incomplete – Actual Cost Missing. Totals below are provisional."}
                 </div>
               ) : null}
 
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                <SummaryCell label="Shipped revenue" value={money(pnl.shipped_revenue)} />
-                <SummaryCell label="Actual COGS" value={money(pnl.actual_cogs)} />
-                <SummaryCell label="Avg COGS" value={money(pnl.avg_cogs)} />
-                <SummaryCell label="Actual PNL" value={money(pnl.actual_pnl)} emphasize />
-                <SummaryCell label="Avg PNL" value={money(pnl.avg_pnl)} />
+                <SummaryCell label="Net sales" value={money(pnl.shipped_revenue)} />
+                <SummaryCell
+                  label={isActual ? "Actual COGS" : "Avg COGS"}
+                  value={money(isActual ? pnl.actual_cogs : pnl.avg_cogs)}
+                />
+                <SummaryCell
+                  label={isActual ? "Actual P&L" : "Avg P&L"}
+                  value={money(isActual ? pnl.actual_pnl : pnl.avg_pnl)}
+                  emphasize={!incomplete}
+                  warn={incomplete}
+                />
+                <SummaryCell
+                  label="Margin %"
+                  value={formatMargin(isActual ? pnl.actual_margin_pct : pnl.avg_margin_pct)}
+                />
+                <SummaryCell label="Qty shipped" value={String(pnl.total_qty ?? "—")} />
+                <SummaryCell
+                  label="Cost status"
+                  value={
+                    incomplete
+                      ? "Provisional"
+                      : pnl.cost_completeness === "complete"
+                        ? "Complete"
+                        : String(pnl.cost_completeness || "—")
+                  }
+                  warn={incomplete}
+                />
               </div>
+
+              {isActual && (pnl.has_serialized || pnl.has_non_serialized) ? (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {pnl.has_serialized ? (
+                    <div className="rounded border border-slate-200 px-2 py-1 text-[11px]">
+                      <p className="text-[10px] uppercase text-slate-500 mb-0.5">Serialized</p>
+                      <p className="tabular-nums text-slate-800">
+                        Sales {money(pnl.serialized_shipped_revenue)} · COGS{" "}
+                        {money(pnl.serialized_actual_cogs)}
+                      </p>
+                    </div>
+                  ) : null}
+                  {pnl.has_non_serialized ? (
+                    <div className="rounded border border-slate-200 px-2 py-1 text-[11px]">
+                      <p className="text-[10px] uppercase text-slate-500 mb-0.5">Non-serialized</p>
+                      <p className="tabular-nums text-slate-800">
+                        Sales {money(pnl.non_serialized_shipped_revenue)} · COGS{" "}
+                        {money(pnl.non_serialized_actual_cogs)}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="rounded border border-slate-200 overflow-hidden">
                 <table className="w-full text-[11px]">
@@ -103,16 +236,23 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
                       <th className="px-1.5 py-1 text-left font-semibold">Product</th>
                       <th className="px-1.5 py-1 text-right font-semibold">Qty</th>
                       <th className="px-1.5 py-1 text-right font-semibold">Sell</th>
-                      <th className="px-1.5 py-1 text-right font-semibold">Act COGS</th>
-                      <th className="px-1.5 py-1 text-right font-semibold">Avg COGS</th>
-                      <th className="px-1.5 py-1 text-right font-semibold">Act PNL</th>
+                      <th className="px-1.5 py-1 text-right font-semibold">
+                        {isActual ? "Act COGS" : "Avg COGS"}
+                      </th>
+                      <th className="px-1.5 py-1 text-right font-semibold">
+                        {isActual ? "Act P&L" : "Avg P&L"}
+                      </th>
+                      <th className="px-1.5 py-1 text-right font-semibold">Margin</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(pnl.lines || []).map((line) => {
-                      const open = expandedLine === line.order_item_id;
+                      const openRow = expandedLine === line.order_item_id;
                       const serials = serialsForProduct(line.product_id);
-                      const hasSerials = serials.length > 0;
+                      const hasSerials = isActual && serials.length > 0;
+                      const lineCogs = isActual ? line.actual_cogs : line.avg_cogs;
+                      const linePnl = isActual ? line.actual_pnl : line.avg_pnl;
+                      const lineMargin = isActual ? line.actual_margin_pct : line.avg_margin_pct;
                       return (
                         <Fragment key={line.order_item_id}>
                           <tr className="border-t border-slate-100 align-top">
@@ -125,10 +265,10 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
                                     size="icon-sm"
                                     className="size-5 shrink-0"
                                     onClick={() =>
-                                      setExpandedLine(open ? null : line.order_item_id)
+                                      setExpandedLine(openRow ? null : line.order_item_id)
                                     }
                                   >
-                                    {open ? (
+                                    {openRow ? (
                                       <IconChevronDown className="size-3.5" />
                                     ) : (
                                       <IconChevronRight className="size-3.5" />
@@ -141,21 +281,29 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
                                   <p className="font-medium text-slate-800 leading-tight">
                                     {line.product_name || line.product_id}
                                   </p>
-                                  {line.product_code ? (
-                                    <p className="text-[10px] text-slate-400">{line.product_code}</p>
+                                  {line.inventory_type ? (
+                                    <p className="text-[10px] text-slate-400 capitalize">
+                                      {String(line.inventory_type).replace("_", " ")}
+                                    </p>
                                   ) : null}
                                 </div>
                               </div>
                             </td>
-                            <td className="px-1.5 py-1 text-right tabular-nums">{line.net_delivered_qty}</td>
-                            <td className="px-1.5 py-1 text-right tabular-nums">{money(line.shipped_revenue)}</td>
-                            <td className="px-1.5 py-1 text-right tabular-nums">{money(line.actual_cogs)}</td>
-                            <td className="px-1.5 py-1 text-right tabular-nums">{money(line.avg_cogs)}</td>
+                            <td className="px-1.5 py-1 text-right tabular-nums">
+                              {line.net_delivered_qty}
+                            </td>
+                            <td className="px-1.5 py-1 text-right tabular-nums">
+                              {money(line.shipped_revenue)}
+                            </td>
+                            <td className="px-1.5 py-1 text-right tabular-nums">{money(lineCogs)}</td>
                             <td className="px-1.5 py-1 text-right tabular-nums font-semibold text-emerald-700">
-                              {money(line.actual_pnl)}
+                              {money(linePnl)}
+                            </td>
+                            <td className="px-1.5 py-1 text-right tabular-nums">
+                              {formatMargin(lineMargin)}
                             </td>
                           </tr>
-                          {hasSerials && open ? (
+                          {hasSerials && openRow ? (
                             <tr className="bg-slate-50/60">
                               <td colSpan={6} className="px-2 py-1">
                                 <table className="w-full text-[10px] border border-slate-100 bg-white">
@@ -168,8 +316,13 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
                                   </thead>
                                   <tbody>
                                     {serials.map((s) => (
-                                      <tr key={`${s.serial_id}-${s.serial_number}`} className="border-t border-slate-50">
-                                        <td className="px-1 py-0.5 font-mono">{s.serial_number || "—"}</td>
+                                      <tr
+                                        key={`${s.serial_id}-${s.serial_number}`}
+                                        className="border-t border-slate-50"
+                                      >
+                                        <td className="px-1 py-0.5 font-mono">
+                                          {s.serial_number || "—"}
+                                        </td>
                                         <td className="px-1 py-0.5 text-right tabular-nums">
                                           {money(s.actual_unit_cost)}
                                         </td>
@@ -190,7 +343,8 @@ export default function B2bSalesOrderPnlDrawer({ open, onClose, orderId, orderNo
                 </table>
               </div>
               <p className="text-[10px] text-slate-400">
-                Realized PNL on snapshotted shipped qty (net returns). Pre-GST sell rate. Cancelled/pending excluded.
+                Realized PNL on snapshotted shipped qty (net returns). Pre-GST sell rate.
+                Cancelled/pending excluded. Same sales value for Actual and Avg views.
               </p>
             </>
           )}
