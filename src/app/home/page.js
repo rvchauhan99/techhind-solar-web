@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getIcon } from "@/utils/iconMapper";
 import { IconArrowRight, IconCircle, IconApps, IconSearch, IconMessageCircle } from "@tabler/icons-react";
 import orderService from "@/services/orderService";
+import { getAllowedRoutes, isPathAllowedByRoutes } from "@/lib/permissionUtils";
 
 function getGreeting(date = new Date()) {
   const hour = date.getHours();
@@ -44,7 +45,12 @@ export default function HomeLandingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [timeState, setTimeState] = useState({ date: "", time: "" });
   const [liveQueryCount, setLiveQueryCount] = useState(null);
-  const [liveQueryLoading, setLiveQueryLoading] = useState(true);
+  const [liveQueryLoading, setLiveQueryLoading] = useState(false);
+
+  const canViewPendingOrders = useMemo(
+    () => isPathAllowedByRoutes("/order", getAllowedRoutes(user?.modules || [])),
+    [user?.modules]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -73,6 +79,11 @@ export default function HomeLandingPage() {
   }, []);
 
   useEffect(() => {
+    if (!canViewPendingOrders) {
+      setLiveQueryCount(null);
+      setLiveQueryLoading(false);
+      return;
+    }
     let cancelled = false;
     setLiveQueryLoading(true);
     orderService
@@ -92,7 +103,7 @@ export default function HomeLandingPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canViewPendingOrders]);
 
   const greeting = useMemo(() => getGreeting(), []);
   const displayName = user?.name?.trim() || user?.email || "there";
@@ -191,13 +202,13 @@ export default function HomeLandingPage() {
                 Welcome to your personalized dashboard. Access your authorized modules seamlessly below.
               </p>
 
-              {liveQueriesControl("md:hidden w-full")}
+              {canViewPendingOrders ? liveQueriesControl("md:hidden w-full") : null}
             </div>
 
             <div
               className={`flex flex-col items-stretch md:items-end gap-2 shrink-0 transition-opacity duration-500 ${mounted ? "opacity-100" : "opacity-0"}`}
             >
-              {liveQueriesControl("hidden md:flex min-w-[220px]")}
+              {canViewPendingOrders ? liveQueriesControl("hidden md:flex min-w-[220px]") : null}
               <div className="hidden md:flex flex-col items-end">
                 <div className="text-2xl font-light text-slate-800 tracking-tight">{timeState.time}</div>
                 <div className="text-sm font-medium text-slate-500 mt-0.5">{timeState.date}</div>
