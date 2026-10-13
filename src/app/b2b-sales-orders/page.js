@@ -46,6 +46,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import B2bSalesOrderPnlDrawer from "@/app/b2b-sales-orders/components/B2bSalesOrderPnlDrawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -151,6 +152,18 @@ export default function B2bSalesOrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [pnlDrawerOpen, setPnlDrawerOpen] = useState(false);
+  const [pnlOrder, setPnlOrder] = useState(null);
+
+  const handleOpenPnl = useCallback((row) => {
+    setPnlOrder(row);
+    setPnlDrawerOpen(true);
+  }, []);
+
+  const handleClosePnl = useCallback(() => {
+    setPnlDrawerOpen(false);
+    setPnlOrder(null);
+  }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -497,6 +510,37 @@ export default function B2bSalesOrdersPage() {
         },
       },
       {
+        field: "actual_pnl",
+        label: "Actual PNL",
+        headerRender: () => <span className="ml-auto">Actual PNL</span>,
+        render: (row) => {
+          if (!row.pnl_available) {
+            return (
+              <div className="flex justify-end select-none">
+                <span className="text-xs text-slate-400">—</span>
+              </div>
+            );
+          }
+          const pnl = Number(row.actual_pnl);
+          const incomplete = Boolean(row.actual_incomplete);
+          return (
+            <div className="flex justify-end select-none">
+              <Button
+                type="button"
+                variant="link"
+                className={`text-xs p-0 h-auto font-semibold tabular-nums ${
+                  incomplete ? "text-amber-700" : pnl < 0 ? "text-destructive" : "text-emerald-700"
+                }`}
+                title={incomplete ? "Actual COGS may be incomplete" : "View PNL detail"}
+                onClick={() => handleOpenPnl(row)}
+              >
+                {formatCurrency(pnl)}
+              </Button>
+            </div>
+          );
+        },
+      },
+      {
         field: "actions",
         label: "Actions",
         isActionColumn: true,
@@ -593,7 +637,7 @@ export default function B2bSalesOrdersPage() {
         },
       },
     ],
-    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
+    [handleOpenSidebar, handleOpenPnl, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -850,6 +894,13 @@ export default function B2bSalesOrdersPage() {
             rowsPerPageOptions={[20, 50, 100]}
           />
         </div>
+
+        <B2bSalesOrderPnlDrawer
+          open={pnlDrawerOpen}
+          onClose={handleClosePnl}
+          orderId={pnlOrder?.id}
+          orderNo={pnlOrder?.order_no}
+        />
 
         <DetailsSidebar
           open={sidebarOpen}

@@ -17,6 +17,7 @@ import { toastError, toastSuccess } from "@/utils/toast";
 import moment from "moment";
 import { cn } from "@/lib/utils";
 import { IconUserPlus, IconUsersGroup } from "@tabler/icons-react";
+import Tooltip from "@mui/material/Tooltip";
 
 const LEAD_LIST_FILTER_KEYS = [
   "customer_name",
@@ -219,6 +220,24 @@ export default function MarketingLeadsAssignPage() {
       field: "mobile_number",
       label: "Mobile",
       render: (row) => <span className="text-xs">{row.mobile_number}</span>,
+    },
+    {
+      field: "address",
+      label: "Address",
+      render: (row) => {
+        const text = String(row.address || "").trim();
+        if (!text) return "-";
+        const isLong = text.length > 48;
+        const preview = (
+          <span className="block max-w-[220px] truncate text-[0.75rem]">{text}</span>
+        );
+        if (!isLong) return preview;
+        return (
+          <Tooltip title={text} placement="top">
+            {preview}
+          </Tooltip>
+        );
+      },
     },
     {
       field: "assigned_to_name",
