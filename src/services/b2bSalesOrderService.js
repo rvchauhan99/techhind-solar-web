@@ -30,6 +30,9 @@ export const getNextB2bSalesOrderNumber = () =>
 export const getB2bSalesOrderItemsForShipment = (orderId) =>
   apiClient.get(`/b2b-sales-orders/${orderId}/items-for-shipment`).then((r) => r.data);
 
+export const getB2bSalesOrderPnl = (id) =>
+  apiClient.get(`/b2b-sales-orders/${id}/pnl`).then((r) => r.data);
+
 export const downloadB2bSalesOrderPDF = (id) =>
   apiClient
     .get(`/b2b-sales-orders/${id}/pdf`, { responseType: "blob" })
@@ -53,5 +56,6 @@ export default {
   cancelB2bSalesOrder,
   getNextB2bSalesOrderNumber,
   getB2bSalesOrderItemsForShipment,
+  getB2bSalesOrderPnl,
   downloadB2bSalesOrderPDF,
 };

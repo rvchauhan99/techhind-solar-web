@@ -46,6 +46,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import B2bSalesOrderPnlDrawer from "@/app/b2b-sales-orders/components/B2bSalesOrderPnlDrawer";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -151,6 +152,21 @@ export default function B2bSalesOrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState(null);
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const [pnlDrawerOpen, setPnlDrawerOpen] = useState(false);
+  const [pnlOrder, setPnlOrder] = useState(null);
+  const [pnlInitialView, setPnlInitialView] = useState("actual");
+
+  const handleOpenPnl = useCallback((row, view = "actual") => {
+    setPnlOrder(row);
+    setPnlInitialView(view === "average" ? "average" : "actual");
+    setPnlDrawerOpen(true);
+  }, []);
+
+  const handleClosePnl = useCallback(() => {
+    setPnlDrawerOpen(false);
+    setPnlOrder(null);
+    setPnlInitialView("actual");
+  }, []);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -356,6 +372,45 @@ export default function B2bSalesOrdersPage() {
             </Button>
           </div>
         ),
+      },
+      {
+        field: "actual_pnl",
+        label: "P&L",
+        headerRender: () => <span className="ml-auto">P&L</span>,
+        render: (row) => {
+          if (!row.pnl_available || row.pnl_access_allowed === false) {
+            return (
+              <div className="flex justify-end select-none">
+                <span className="text-xs text-slate-400">—</span>
+              </div>
+            );
+          }
+          const incomplete = Boolean(row.actual_incomplete);
+          return (
+            <div className="flex flex-col items-end gap-0.5 select-none">
+              <Button
+                type="button"
+                variant="link"
+                className={`text-[11px] p-0 h-auto font-semibold leading-tight ${
+                  incomplete ? "text-amber-700" : "text-emerald-700"
+                }`}
+                title={incomplete ? "Incomplete – Actual Cost Missing" : "Actual P&L"}
+                onClick={() => handleOpenPnl(row, "actual")}
+              >
+                Actual P&L
+              </Button>
+              <Button
+                type="button"
+                variant="link"
+                className="text-[11px] p-0 h-auto font-medium leading-tight text-slate-600"
+                title="P&L as per Average Price"
+                onClick={() => handleOpenPnl(row, "average")}
+              >
+                Avg P&L
+              </Button>
+            </div>
+          );
+        },
       },
       {
         field: "order_date",
@@ -593,7 +648,7 @@ export default function B2bSalesOrdersPage() {
         },
       },
     ],
-    [handleOpenSidebar, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
+    [handleOpenSidebar, handleOpenPnl, handleEdit, handleDeleteClick, handleConfirmOrderClick, handleCancelOrderClick, handlePdfDownload, currentPerm, canCancelConfirmed, router]
   );
 
   const sidebarContent = useMemo(() => {
@@ -850,6 +905,14 @@ export default function B2bSalesOrdersPage() {
             rowsPerPageOptions={[20, 50, 100]}
           />
         </div>
+
+        <B2bSalesOrderPnlDrawer
+          open={pnlDrawerOpen}
+          onClose={handleClosePnl}
+          orderId={pnlOrder?.id}
+          orderNo={pnlOrder?.order_no}
+          initialView={pnlInitialView}
+        />
 
         <DetailsSidebar
           open={sidebarOpen}
