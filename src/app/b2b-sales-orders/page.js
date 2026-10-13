@@ -386,27 +386,39 @@ export default function B2bSalesOrdersPage() {
             );
           }
           const incomplete = Boolean(row.actual_incomplete);
+          const actual = Number(row.actual_pnl);
+          const avg = Number(row.avg_pnl);
+          const pnlColor = (n, warn = false) => {
+            if (warn) return "text-amber-700";
+            if (!Number.isFinite(n)) return "text-slate-500";
+            if (n < 0) return "text-destructive";
+            return "text-emerald-700";
+          };
           return (
-            <div className="flex flex-col items-end gap-0.5 select-none">
+            <div className="flex flex-col items-end gap-0.5 select-none min-w-[7.5rem]">
               <Button
                 type="button"
                 variant="link"
-                className={`text-[11px] p-0 h-auto font-semibold leading-tight ${
-                  incomplete ? "text-amber-700" : "text-emerald-700"
-                }`}
+                className="text-[11px] p-0 h-auto leading-tight"
                 title={incomplete ? "Incomplete – Actual Cost Missing" : "Actual P&L"}
                 onClick={() => handleOpenPnl(row, "actual")}
               >
-                Actual P&L
+                <span className="font-medium text-slate-500 mr-1">Actual</span>
+                <span className={`font-semibold tabular-nums ${pnlColor(actual, incomplete)}`}>
+                  {formatCurrency(actual)}
+                </span>
               </Button>
               <Button
                 type="button"
                 variant="link"
-                className="text-[11px] p-0 h-auto font-medium leading-tight text-slate-600"
+                className="text-[11px] p-0 h-auto leading-tight"
                 title="P&L as per Average Price"
                 onClick={() => handleOpenPnl(row, "average")}
               >
-                Avg P&L
+                <span className="font-medium text-slate-500 mr-1">Avg</span>
+                <span className={`font-semibold tabular-nums ${pnlColor(avg)}`}>
+                  {formatCurrency(avg)}
+                </span>
               </Button>
             </div>
           );
