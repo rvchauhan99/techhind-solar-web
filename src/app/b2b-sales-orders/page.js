@@ -366,10 +366,10 @@ export default function B2bSalesOrdersPage() {
         label: "Order #",
         sortable: true,
         stickyLeft: true,
-        stickyWidth: 88,
-        width: 88,
-        minWidth: 88,
-        maxWidth: 88,
+        stickyWidth: 140,
+        width: 140,
+        minWidth: 140,
+        maxWidth: 140,
         render: (row) => (
           <Button
             type="button"
