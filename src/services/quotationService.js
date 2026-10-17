@@ -51,8 +51,8 @@ export const getExtraMaterialPrices = (payload) =>
 export const getQuotationCountByInquiry = (inquiry_id) =>
     apiClient.get("/quotation/quotation-count-by-inquiry", { params: { inquiry_id } }).then((r) => r.data);
 
-export const pdfGenerate = (id) =>
-    apiClient.get(`/quotation/${id}/pdf`, { responseType: "blob" }).then((r) => r.data);
+export const pdfGenerate = (id, params = {}) =>
+    apiClient.get(`/quotation/${id}/pdf`, { params, responseType: "blob" }).then((r) => r.data);
 
 export const createPdfJob = (id) =>
     apiClient.post(`/quotation/${id}/pdf/jobs`).then((r) => r.data);
@@ -60,8 +60,8 @@ export const createPdfJob = (id) =>
 export const getPdfJobStatus = (jobId) =>
     apiClient.get(`/quotation/pdf/jobs/${jobId}`).then((r) => r.data);
 
-export const downloadPdfJob = (jobId) =>
-    apiClient.get(`/quotation/pdf/jobs/${jobId}/download`, { responseType: "blob" }).then((r) => r.data);
+export const downloadPdfJob = (jobId, params = {}) =>
+    apiClient.get(`/quotation/pdf/jobs/${jobId}/download`, { params, responseType: "blob" }).then((r) => r.data);
 
 export const getPdfStatus = () =>
     apiClient.get("/quotation/pdf/status").then((r) => r.data);
