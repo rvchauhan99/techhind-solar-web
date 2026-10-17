@@ -99,6 +99,8 @@ export default function QuotationDetail() {
     const [quotation, setQuotation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [pdfUrl, setPdfUrl] = useState(null);
+    const [pdfJobId, setPdfJobId] = useState(null);
+    const [shortPdfLoading, setShortPdfLoading] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(false);
     const [pdfTakingLonger, setPdfTakingLonger] = useState(false);
     const [pdfQueueHint, setPdfQueueHint] = useState("");
@@ -265,6 +267,7 @@ export default function QuotationDetail() {
             const createRes = await quotationService.createPdfJob(id);
             const payload = createRes?.result || createRes?.data || createRes;
             const jobId = payload?.job_id;
+            setPdfJobId(jobId || null);
             const alreadyDone = payload?.status === "completed";
             const pollTimeoutMs = Number(payload?.timing?.recommended_poll_timeout_ms || 0);
             if (pollTimeoutMs > 0) {
@@ -325,6 +328,41 @@ export default function QuotationDetail() {
         }
         if (pdfUrl) {
             window.open(pdfUrl, "_blank");
+        }
+    };
+
+    const savePdfBlob = (blob, filename) => {
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+    };
+
+    const handleDownloadShort = async () => {
+        if (quotation?.approval_status !== "Approved") {
+            toast.error("Manager approval required before PDF actions");
+            return;
+        }
+        if (!pdfUrl) {
+            toast.error("Full quotation PDF is still generating");
+            return;
+        }
+        setShortPdfLoading(true);
+        try {
+            const blob = pdfJobId
+                ? await quotationService.downloadPdfJob(pdfJobId, { variant: "short" })
+                : await quotationService.pdfGenerate(id, { variant: "short" });
+            if (!(blob instanceof Blob)) throw new Error("Expected blob");
+            savePdfBlob(blob, `quotation-${quotation?.quotation_number || id}-short.pdf`);
+        } catch (err) {
+            console.error("Failed to download short PDF:", err);
+            toast.error(err?.response?.data?.message || err?.message || "Failed to download short PDF");
+        } finally {
+            setShortPdfLoading(false);
         }
     };
 
@@ -569,6 +607,15 @@ export default function QuotationDetail() {
                         >
                             <DownloadIcon fontSize="small" />
                         </IconButton>
+                        <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={!pdfUrl || pdfLoading || shortPdfLoading}
+                            onClick={handleDownloadShort}
+                            sx={{ textTransform: "none", px: 1.5, minHeight: 36 }}
+                        >
+                            {shortPdfLoading ? "Short PDF…" : "Short PDF"}
+                        </Button>
                         {!quotation?.is_approved && quotation?.approval_status === "Approved" && (
                             <Button
                                 variant="contained"

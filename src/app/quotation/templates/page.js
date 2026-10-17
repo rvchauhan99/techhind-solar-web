@@ -42,6 +42,7 @@ export default function QuotationTemplatesPage() {
     template_key: "",
     description: "",
     is_default: false,
+    short_pdf_pages: "1,4,5",
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -71,6 +72,7 @@ export default function QuotationTemplatesPage() {
       template_key: "",
       description: "",
       is_default: false,
+      short_pdf_pages: "1,4,5",
     });
     setFormErrors({});
     setDialogOpen(true);
@@ -83,6 +85,7 @@ export default function QuotationTemplatesPage() {
       template_key: t.template_key || "",
       description: t.description || "",
       is_default: !!t.is_default,
+      short_pdf_pages: t.short_pdf_pages || "1,4,5",
     });
     setFormErrors({});
     setDialogOpen(true);
@@ -91,7 +94,7 @@ export default function QuotationTemplatesPage() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingTemplate(null);
-    setFormData({ name: "", template_key: "", description: "", is_default: false });
+    setFormData({ name: "", template_key: "", description: "", is_default: false, short_pdf_pages: "1,4,5" });
     setFormErrors({});
   };
 
@@ -100,6 +103,7 @@ export default function QuotationTemplatesPage() {
     const errs = {};
     if (!formData.name?.trim()) errs.name = "Name is required";
     if (!formData.template_key?.trim()) errs.template_key = "Template key is required";
+    if (!formData.short_pdf_pages?.trim()) errs.short_pdf_pages = "Short PDF pages are required";
     if (Object.keys(errs).length > 0) {
       setFormErrors(errs);
       return;
@@ -112,6 +116,7 @@ export default function QuotationTemplatesPage() {
           name: formData.name.trim(),
           description: formData.description?.trim() || null,
           is_default: formData.is_default,
+          short_pdf_pages: formData.short_pdf_pages.trim(),
         });
         toast.success("Template updated");
       } else {
@@ -120,6 +125,7 @@ export default function QuotationTemplatesPage() {
           template_key: formData.template_key.trim(),
           description: formData.description?.trim() || null,
           is_default: formData.is_default,
+          short_pdf_pages: formData.short_pdf_pages.trim(),
         });
         toast.success("Template created");
       }
@@ -171,6 +177,7 @@ export default function QuotationTemplatesPage() {
                     <TableCell sx={{ fontWeight: 600 }}>Template Key</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Description</TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>Default</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Short pages</TableCell>
                     <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -187,6 +194,7 @@ export default function QuotationTemplatesPage() {
                           <Badge variant="default" className="text-xs">Default</Badge>
                         )}
                       </TableCell>
+                      <TableCell>{t.short_pdf_pages || "1,4,5"}</TableCell>
                       <TableCell align="right">
                         <div className="flex justify-end gap-1">
                           <ThemeButton
@@ -254,6 +262,17 @@ export default function QuotationTemplatesPage() {
                   fullWidth
                   multiline
                   rows={2}
+                />
+                <Input
+                  name="short_pdf_pages"
+                  label="Short PDF pages"
+                  value={formData.short_pdf_pages}
+                  onChange={(e) => setFormData((p) => ({ ...p, short_pdf_pages: e.target.value }))}
+                  fullWidth
+                  required
+                  placeholder="1,4,5"
+                  error={!!formErrors.short_pdf_pages}
+                  helperText={formErrors.short_pdf_pages || "Comma-separated pages of the full quotation PDF"}
                 />
                 <Checkbox
                   name="is_default"
