@@ -10,6 +10,7 @@ import {
   IconReceipt,
   IconArrowBackUp,
   IconFileSpreadsheet,
+  IconPhoto,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,10 +33,12 @@ import {
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import b2bShipmentService from "@/services/b2bShipmentService";
 import b2bInvoiceService from "@/services/b2bInvoiceService";
+import B2bShipmentPhotosDialog from "./components/B2bShipmentPhotosDialog";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import PaginationControls from "@/components/common/PaginationControls";
 import DetailsSidebar from "@/components/common/DetailsSidebar";
+import BucketImage from "@/components/common/BucketImage";
 import { useAuth } from "@/hooks/useAuth";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { formatDate } from "@/utils/dataTableUtils";
@@ -63,6 +66,33 @@ function splitSerials(raw) {
     .filter(Boolean);
 }
 
+function photoCount(row) {
+  return Array.isArray(row?.photos) ? row.photos.length : 0;
+}
+
+function SidebarPhotoThumb({ shipmentId, photo, onOpen }) {
+  const getUrl = useCallback(
+    (photoId) => b2bShipmentService.getB2bShipmentPhotoUrl(shipmentId, photoId),
+    [shipmentId]
+  );
+  return (
+    <button
+      type="button"
+      className="aspect-square rounded border border-border overflow-hidden bg-muted/20 hover:border-[#00823b]/60"
+      onClick={onOpen}
+      aria-label={`View ${photo.filename || "photo"}`}
+    >
+      <BucketImage
+        fill
+        path={photo.id}
+        getUrl={getUrl}
+        alt={photo.filename || "Photo"}
+        sx={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 0, display: "block" }}
+      />
+    </button>
+  );
+}
+
 function trackingLabel(item) {
   const serials = splitSerials(item?.serials);
   const tracking = String(
@@ -80,6 +110,7 @@ export default function B2bShipmentsPage() {
   const currentPerm = modulePermissions?.[currentModuleId] || {
     can_create: false,
     can_read: false,
+    can_delete: false,
   };
 
   const router = useRouter();
@@ -97,6 +128,7 @@ export default function B2bShipmentsPage() {
   const [creatingInvoice, setCreatingInvoice] = useState(null);
   const [confirmGenerateInvoiceShipmentId, setConfirmGenerateInvoiceShipmentId] = useState(null);
   const [detailExporting, setDetailExporting] = useState(false);
+  const [photosShipment, setPhotosShipment] = useState(null);
 
   const columnFilterValues = useMemo(() => ({ ...filters }), [filters]);
   const handleColumnFilterChange = useCallback((key, value) => setFilter(key, value), [setFilter]);
@@ -200,6 +232,16 @@ export default function B2bShipmentsPage() {
     }
   }, []);
 
+  const handlePhotosChange = useCallback((nextPhotos) => {
+    const id = photosShipment?.id;
+    if (!id) return;
+    setReloadTrigger((p) => p + 1);
+    setSelectedRecord((prev) =>
+      prev?.id === id ? { ...prev, photos: nextPhotos } : prev
+    );
+    setPhotosShipment((prev) => (prev?.id === id ? { ...prev, photos: nextPhotos } : prev));
+  }, [photosShipment?.id]);
+
   const handleDetailExport = useCallback(async () => {
     const id = selectedRecord?.id;
     if (!id) return;
@@ -300,6 +342,20 @@ export default function B2bShipmentsPage() {
             >
               <IconFileDescription className="size-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 relative"
+              onClick={() => setPhotosShipment(row)}
+              title="Photos"
+            >
+              <IconPhoto className="size-4" />
+              {photoCount(row) > 0 ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-primary text-[9px] leading-[14px] text-primary-foreground text-center">
+                  {photoCount(row)}
+                </span>
+              ) : null}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md hover:bg-accent h-8 w-8 shrink-0">
                 <IconDotsVertical className="size-4" />
@@ -343,6 +399,10 @@ export default function B2bShipmentsPage() {
     const existingInv = r.invoice || null;
     return (
       <div className="flex items-center gap-1 flex-wrap justify-end max-w-[min(100%,28rem)]">
+        <Button size="sm" variant="outline" onClick={() => setPhotosShipment(r)}>
+          <IconPhoto className="size-4 mr-1" />
+          Photos{photoCount(r) > 0 ? ` (${photoCount(r)})` : ""}
+        </Button>
         <Button size="sm" variant="outline" disabled={detailExporting} onClick={handleDetailExport}>
           <IconFileSpreadsheet className="size-4 mr-1" />
           {detailExporting ? "Exporting…" : "Export Excel"}
@@ -470,6 +530,32 @@ export default function B2bShipmentsPage() {
           </div>
         </div>
 
+        <div className="rounded-md border border-border p-2 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-muted-foreground">
+              Photos{photoCount(r) > 0 ? ` (${photoCount(r)})` : ""}
+            </p>
+            <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setPhotosShipment(r)}>
+              <IconPhoto className="size-3.5 mr-1" />
+              {photoCount(r) > 0 ? "View all" : "Upload"}
+            </Button>
+          </div>
+          {photoCount(r) > 0 ? (
+            <div className="grid grid-cols-4 gap-1">
+              {(Array.isArray(r.photos) ? r.photos : []).slice(0, 4).map((photo) => (
+                <SidebarPhotoThumb
+                  key={photo.id}
+                  shipmentId={r.id}
+                  photo={photo}
+                  onOpen={() => setPhotosShipment(r)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">No photos uploaded</p>
+          )}
+        </div>
+
         {items.length > 0 && (
           <div className="rounded-md border border-border overflow-hidden">
             <div className="px-2 py-1.5 bg-muted/40 flex items-center justify-between">
@@ -591,6 +677,17 @@ export default function B2bShipmentsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <B2bShipmentPhotosDialog
+          open={!!photosShipment?.id}
+          onOpenChange={(isOpen) => !isOpen && setPhotosShipment(null)}
+          shipmentId={photosShipment?.id}
+          shipmentNo={photosShipment?.shipment_no}
+          isReversed={!!photosShipment?.is_reversed}
+          canCreate={!!currentPerm.can_create}
+          canDelete={!!currentPerm.can_delete}
+          onPhotosChange={handlePhotosChange}
+        />
       </ListingPageContainer>
     </ProtectedRoute>
   );
