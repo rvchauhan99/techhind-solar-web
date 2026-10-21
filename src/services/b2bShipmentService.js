@@ -40,6 +40,24 @@ export const exportB2bShipmentById = (id) =>
       };
     });
 
+export const uploadB2bShipmentPhotos = (id, files = []) => {
+  const formData = new FormData();
+  (files || []).forEach((file) => formData.append("photos", file));
+  return apiClient
+    .post(`/b2b-shipments/${id}/photos`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const getB2bShipmentPhotoUrl = (id, photoId) =>
+  apiClient
+    .get(`/b2b-shipments/${id}/photos/${photoId}/url`)
+    .then((r) => r.data?.result?.url ?? r.data?.url ?? null);
+
+export const deleteB2bShipmentPhoto = (id, photoId) =>
+  apiClient.delete(`/b2b-shipments/${id}/photos/${photoId}`).then((r) => r.data);
+
 export default {
   getB2bShipments,
   getB2bShipmentById,
@@ -48,4 +66,7 @@ export default {
   getNextB2bShipmentNumber,
   downloadB2bShipmentPDF,
   exportB2bShipmentById,
+  uploadB2bShipmentPhotos,
+  getB2bShipmentPhotoUrl,
+  deleteB2bShipmentPhoto,
 };

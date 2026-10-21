@@ -10,8 +10,9 @@ import { Box } from "@mui/material";
  * @param {string} alt - Alt text
  * @param {object} sx - MUI sx props
  * @param {function} onClick - Optional click handler (e.g. open in new tab)
+ * @param {boolean} fill - Fill parent; show a pulse skeleton instead of "Loading…" text
  */
-export default function BucketImage({ path, getUrl, alt = "Image", sx = {}, onClick }) {
+export default function BucketImage({ path, getUrl, alt = "Image", sx = {}, onClick, fill = false }) {
   const [url, setUrl] = useState(null);
   const [error, setError] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -38,9 +39,36 @@ export default function BucketImage({ path, getUrl, alt = "Image", sx = {}, onCl
 
   const handleImgError = () => setLoadError(true);
 
-  if (error || !path) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>—</Box>;
-  if (!url) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>;
-  if (loadError) return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Image unavailable</Box>;
+  const fillSx = fill
+    ? { width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }
+    : {};
+
+  if (error || !path) {
+    if (fill) {
+      return (
+        <Box sx={{ fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.hover", ...fillSx, ...sx }}>
+          —
+        </Box>
+      );
+    }
+    return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>—</Box>;
+  }
+  if (!url) {
+    if (fill) {
+      return <Box className="animate-pulse" sx={{ bgcolor: "action.hover", ...fillSx, ...sx }} />;
+    }
+    return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Loading…</Box>;
+  }
+  if (loadError) {
+    if (fill) {
+      return (
+        <Box sx={{ fontSize: "0.7rem", color: "text.secondary", bgcolor: "action.hover", ...fillSx, ...sx }}>
+          Unavailable
+        </Box>
+      );
+    }
+    return <Box component="span" sx={{ fontSize: "0.85rem", color: "text.secondary" }}>Image unavailable</Box>;
+  }
 
   return (
     <Box
