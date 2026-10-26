@@ -451,7 +451,6 @@ export default function B2bSalesOrderForm({
   const dueDatePrefillDoneRef = useRef(false);
   const [itemErrors, setItemErrors] = useState({});
   const [currentItem, setCurrentItem] = useState(emptyCurrentItem());
-  const [clients, setClients] = useState([]);
   const [shipTos, setShipTos] = useState([]);
   const [clientDetails, setClientDetails] = useState(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -727,18 +726,6 @@ export default function B2bSalesOrderForm({
       }
     }
   }, [defaultValues, fromQuoteId]);
-
-  // Load clients for direct order form
-  useEffect(() => {
-    if (fromQuoteId) return;
-    b2bClientService
-      .getB2bClients({ limit: 500, is_active: true })
-      .then((res) => {
-        const r = res?.result ?? res;
-        setClients(r?.data ?? []);
-      })
-      .catch(() => { });
-  }, [fromQuoteId]);
 
   // Load default Terms & Conditions masters for new orders (not from quote, not editing)
   useEffect(() => {
@@ -1284,9 +1271,11 @@ export default function B2bSalesOrderForm({
                 <div className="lg:col-span-2" data-field="client_id">
                   <AutocompleteField
                     label="Client *"
-                    options={clients}
+                    placeholder="Search by code or name..."
+                    asyncLoadOptions={b2bClientService.loadB2bClientOptions}
+                    resolveOptionById={b2bClientService.resolveB2bClientById}
                     getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
-                    value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
+                    value={formData.client_id ? { id: formData.client_id } : null}
                     onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
                     required
                     error={!!errors.client_id}
