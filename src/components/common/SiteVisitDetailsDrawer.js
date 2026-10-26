@@ -5,8 +5,9 @@ import { IconButton } from "@mui/material"
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft"
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import DetailsSidebar from "./DetailsSidebar"
-import BucketImage from "./BucketImage"
+import BucketMedia from "./BucketMedia"
 import siteVisitService from "@/services/siteVisitService"
+import { isVideoPath } from "@/lib/siteVisitMedia"
 import { toastError } from "@/utils/toast"
 import { formatDate } from "@/utils/dataTableUtils"
 import {
@@ -189,14 +190,42 @@ export const normalizeSiteVisitRecord = (input) => {
   }
 }
 
-const buildPhotoSlides = (record) => {
+const buildMediaSlides = (record) => {
   if (!record) return []
   const slides = []
   PHOTO_FIELDS.forEach(({ key, label }) => {
-    if (record[key]) slides.push({ key, label, src: record[key] })
+    if (record[key]) {
+      const src = record[key]
+      slides.push({
+        key,
+        label,
+        src,
+        kind: isVideoPath(src) ? "video" : "image",
+      })
+    }
   })
+  let otherImageN = 0
+  let otherVideoN = 0
   ;(record.other_images_videos || []).forEach((src, i) => {
-    if (src) slides.push({ key: `other_${i}`, label: `Other ${i + 1}`, src })
+    if (!src) return
+    const kind = isVideoPath(src) ? "video" : "image"
+    if (kind === "video") {
+      otherVideoN += 1
+      slides.push({
+        key: `other_${i}`,
+        label: `Other Video ${otherVideoN}`,
+        src,
+        kind,
+      })
+    } else {
+      otherImageN += 1
+      slides.push({
+        key: `other_${i}`,
+        label: `Other Image ${otherImageN}`,
+        src,
+        kind,
+      })
+    }
   })
   return slides
 }
@@ -244,7 +273,7 @@ export default function SiteVisitDetailsDrawer({
     fetchDetails()
   }, [open, siteVisit?.site_visit_id, siteVisit?.id])
 
-  const slides = useMemo(() => buildPhotoSlides(resolved), [resolved])
+  const slides = useMemo(() => buildMediaSlides(resolved), [resolved])
 
   useEffect(() => {
     if (!open) {
@@ -273,7 +302,9 @@ export default function SiteVisitDetailsDrawer({
       const url = await siteVisitService.getDocumentUrl(slide.src)
       if (url) window.open(url, "_blank", "noopener,noreferrer")
     } catch {
-      toastError("Could not open image")
+      toastError(
+        slide.kind === "video" ? "Could not open video" : "Could not open image"
+      )
     }
   }
 
@@ -435,9 +466,9 @@ export default function SiteVisitDetailsDrawer({
               ) : null}
             </div>
 
-            <SectionTitle>Photos</SectionTitle>
+            <SectionTitle>Media</SectionTitle>
             {slides.length === 0 ? (
-              <p className="text-xs text-muted-foreground py-1">No photos uploaded</p>
+              <p className="text-xs text-muted-foreground py-1">No media uploaded</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-0.5">
                 {slides.map((slide) => (
@@ -450,8 +481,10 @@ export default function SiteVisitDetailsDrawer({
                     tabIndex={0}
                   >
                     <div className="aspect-[4/3] w-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden">
-                      <BucketImage
+                      <BucketMedia
                         path={slide.src}
+                        kind={slide.kind}
+                        controls={false}
                         getUrl={siteVisitService.getDocumentUrl}
                         alt={slide.label}
                         sx={{
@@ -459,6 +492,7 @@ export default function SiteVisitDetailsDrawer({
                           height: "100%",
                           objectFit: "cover",
                           borderRadius: 0,
+                          pointerEvents: "none",
                         }}
                       />
                     </div>
@@ -501,7 +535,9 @@ export default function SiteVisitDetailsDrawer({
                     size="sm"
                     className="text-white hover:bg-white/10 h-7 px-2"
                     onClick={handleOpenFull}
-                    aria-label="Open full image"
+                    aria-label={
+                      slide?.kind === "video" ? "Open full video" : "Open full image"
+                    }
                   >
                     <IconExternalLink className="size-3.5 mr-1" />
                     Open full
@@ -511,7 +547,7 @@ export default function SiteVisitDetailsDrawer({
                   {canPrev && (
                     <IconButton
                       type="button"
-                      aria-label="Previous photo"
+                      aria-label="Previous media"
                       onClick={() =>
                         setPhotoGallery((g) => (g && g.index > 0 ? { ...g, index: g.index - 1 } : g))
                       }
@@ -533,7 +569,7 @@ export default function SiteVisitDetailsDrawer({
                   {canNext && (
                     <IconButton
                       type="button"
-                      aria-label="Next photo"
+                      aria-label="Next media"
                       onClick={() =>
                         setPhotoGallery((g) =>
                           g && g.index < g.slides.length - 1 ? { ...g, index: g.index + 1 } : g
@@ -556,14 +592,15 @@ export default function SiteVisitDetailsDrawer({
                   )}
                   <div className="relative w-full h-full max-h-full flex items-center justify-center">
                     {slide?.src ? (
-                      <BucketImage
+                      <BucketMedia
                         path={slide.src}
+                        kind={slide.kind}
                         getUrl={siteVisitService.getDocumentUrl}
                         alt={slide.label}
                         sx={{
                           maxWidth: "100%",
-                          maxHeight: "100%",
-                          width: "auto",
+                          maxHeight: "calc(100dvh - 80px)",
+                          width: slide.kind === "video" ? "100%" : "auto",
                           height: "auto",
                           objectFit: "contain",
                           borderRadius: 0,

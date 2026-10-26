@@ -10,6 +10,7 @@ import PaginationControls from "@/components/common/PaginationControls";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import SiteVisitDetailsDrawer from "@/components/common/SiteVisitDetailsDrawer";
 import BucketImage from "@/components/common/BucketImage";
+import { formatSiteVisitUploadError } from '@/lib/siteVisitMedia';
 import siteVisitService from "@/services/siteVisitService";
 import { useListingQueryState } from "@/hooks/useListingQueryState";
 import { Box, Tooltip, Snackbar, Alert } from "@mui/material";
@@ -551,10 +552,7 @@ export default function SiteVisitPage() {
       handleCloseAddModal();
       setServerError(null);
     } catch (error) {
-      const msg =
-        error.response?.data?.message ||
-        error.message ||
-        "An error occurred while saving the site visit";
+      const msg = formatSiteVisitUploadError(error);
       setServerError(msg);
       toastError(msg);
     } finally {
