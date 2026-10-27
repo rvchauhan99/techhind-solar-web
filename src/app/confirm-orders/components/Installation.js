@@ -1359,17 +1359,7 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
         );
     }
 
-    if (!isReadOnly && !canPerform) {
-        return (
-            <Box className="p-4">
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                    Only warehouse managers of the planned warehouse or the assigned installer can fill and complete
-                    Installation. You do not have permission to perform this action. Contact your administrator if you
-                    need access.
-                </Alert>
-            </Box>
-        );
-    }
+    const isViewOnly = !canPerform;
 
     return (
         <Box
@@ -1379,6 +1369,12 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
             className="flex min-h-0 w-full max-w-none min-w-0 flex-col p-1.5 pb-1"
         >
             <div className="w-full space-y-1">
+                {isViewOnly && (
+                    <Alert severity="info" sx={{ mb: 0.75, py: 0.5, "& .MuiAlert-message": { py: 0.5 } }}>
+                        View only — only warehouse managers of the planned warehouse or the assigned installer can fill
+                        and complete Installation.
+                    </Alert>
+                )}
                 {Object.entries(deliveredSerialsMap).length > 0 && (
                     <Box sx={{ mb: 0.75, p: 0.5, border: 1, borderColor: "divider", borderRadius: 1, bgcolor: "action.hover" }}>
                         <Typography variant="subtitle2" sx={{ mb: 0.35, fontWeight: 600, fontSize: "0.8125rem" }}>
@@ -1948,38 +1944,45 @@ export default function Installation({ orderId, orderData, onSuccess, amendMode 
 
                 <div className="bg-transparent flex flex-col gap-2 mt-2 px-0">
                 <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                    <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
-                        <Button
-                            type="submit"
-                            size="sm"
-                            variant="default"
-                            className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-transparent transition-all active:scale-[0.98]"
-                            loading={submitting}
-                            disabled={disabled}
-                        >
-                            Save Progress
-                        </Button>
-                        {canComplete && (
+                    {canPerform && (
+                        <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
                             <Button
-                                type="button"
+                                type="submit"
                                 size="sm"
                                 variant="default"
-                                className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow hover:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white border-transparent transition-all active:scale-[0.98]"
+                                className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-transparent transition-all active:scale-[0.98]"
                                 loading={submitting}
-                                disabled={disabled || !allInstallationSerialsFilled}
-                                onClick={(e) => handleSubmit(e, true)}
+                                disabled={disabled}
                             >
-                                {approvalRequiredConfig ? "Submit for Approval" : "Complete Installation"}
+                                Save Progress
                             </Button>
-                        )}
-                    </div>
+                            {canComplete && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="default"
+                                    className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow hover:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white border-transparent transition-all active:scale-[0.98]"
+                                    loading={submitting}
+                                    disabled={disabled || !allInstallationSerialsFilled}
+                                    onClick={(e) => handleSubmit(e, true)}
+                                >
+                                    {approvalRequiredConfig ? "Submit for Approval" : "Complete Installation"}
+                                </Button>
+                            )}
+                        </div>
+                    )}
                     <div className="text-center sm:text-right">
-                        {canComplete && !allInstallationSerialsFilled && Object.keys(deliveredSerialsMap).length > 0 && (
+                        {!canPerform && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+                                View only
+                            </Typography>
+                        )}
+                        {canPerform && canComplete && !allInstallationSerialsFilled && Object.keys(deliveredSerialsMap).length > 0 && (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
                                 Enter every delivered serial to complete.
                             </Typography>
                         )}
-                        {!canComplete && orderData?.stages?.fabrication !== "completed" && !isCompleted && (
+                        {canPerform && !canComplete && orderData?.stages?.fabrication !== "completed" && !isCompleted && (
                             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
                                 Complete Fabrication to unlock Installation.
                             </Typography>
