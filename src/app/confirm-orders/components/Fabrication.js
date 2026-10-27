@@ -451,24 +451,19 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
         );
     }
 
-    if (!isReadOnly && !canPerform) {
-        return (
-            <Box className="p-4">
-                <Alert severity="warning" sx={{ mt: 1 }}>
-                    Only warehouse managers of the planned warehouse or the assigned fabricator can fill and complete
-                    Fabrication. You do not have permission to perform this action. Contact your administrator if you
-                    need access.
-                </Alert>
-            </Box>
-        );
-    }
-
     const formId = `fabrication-form-${orderId}`;
     const formShellClass = splitLayout ? "relative flex flex-col h-full bg-slate-50 min-w-0" : "relative flex flex-col min-h-full bg-slate-50";
+    const isViewOnly = !canPerform;
 
     const formBody = (
         <div className="flex-1 overflow-y-auto px-2 sm:px-4 pb-[100px] sm:pb-[80px]">
             <div className={splitLayout ? "py-3" : "py-4 max-w-5xl mx-auto"}>
+                {isViewOnly && (
+                    <Alert severity="info" sx={{ mb: 1.5, py: 0.5, "& .MuiAlert-message": { py: 0.5 } }}>
+                        View only — only warehouse managers of the planned warehouse or the assigned fabricator can fill
+                        and complete Fabrication.
+                    </Alert>
+                )}
                 <FormSection title="Fabrication Execution" className="bg-white rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] mb-4 overflow-hidden border border-slate-200">
                     <Box className="p-3">
                         <FormGrid cols={2} className="gap-3 sm:gap-4 mb-4">
@@ -627,41 +622,48 @@ export default function Fabrication({ orderId, orderData, onSuccess, splitLayout
 
                     <div className="bg-transparent flex flex-col gap-2 mt-2 px-0">
                         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                            <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
-                                <Button
-                                    type="submit"
-                                    form={formId}
-                                    size="sm"
-                                    variant="default"
-                                    className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-transparent transition-all active:scale-[0.98]"
-                                    loading={submitting}
-                                    disabled={disabled} 
-                                >
-                                    {isCompleted ? "Update Optional" : "Save Progress"}
-                                </Button>
-                                {canComplete && (
+                            {canPerform && (
+                                <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
                                     <Button
-                                        type="button"
+                                        type="submit"
+                                        form={formId}
                                         size="sm"
                                         variant="default"
-                                        className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow hover:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white border-transparent transition-all active:scale-[0.98]"
+                                        className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow-sm bg-blue-600 hover:bg-blue-700 text-white border-transparent transition-all active:scale-[0.98]"
                                         loading={submitting}
-                                        onClick={(e) => handleSubmit(e, true)}
-                                        disabled={disabled}
+                                        disabled={disabled} 
                                     >
-                                        Complete Fabrication
+                                        {isCompleted ? "Update Optional" : "Save Progress"}
                                     </Button>
-                                )}
-                            </div>
+                                    {canComplete && (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="default"
+                                            className="w-full sm:w-auto min-h-[44px] sm:min-h-9 px-6 touch-manipulation font-semibold text-[15px] sm:text-sm rounded-lg shadow hover:shadow-md bg-emerald-600 hover:bg-emerald-700 text-white border-transparent transition-all active:scale-[0.98]"
+                                            loading={submitting}
+                                            onClick={(e) => handleSubmit(e, true)}
+                                            disabled={disabled}
+                                        >
+                                            Complete Fabrication
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                             <Box className="text-center sm:text-right">
                                 {error && <Typography variant="caption" color="error.main" fontWeight={500} display="block" className="px-3 py-1 bg-red-50 rounded-md border border-red-100 mb-1">{error}</Typography>}
                                 {successMsg && <Typography variant="caption" color="success.main" fontWeight={500} display="block" className="px-3 py-1 bg-green-50 rounded-md border border-green-100 mb-1">{successMsg}</Typography>}
-                                {!canComplete && orderData?.stages?.planner !== "completed" && !isStageCompleted && !error && !successMsg && (
+                                {!canPerform && !error && !successMsg && (
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                        View only
+                                    </Typography>
+                                )}
+                                {canPerform && !canComplete && orderData?.stages?.planner !== "completed" && !isStageCompleted && !error && !successMsg && (
                                     <Typography variant="caption" color="text.secondary" display="block">
                                         Complete Planner stage to unlock Fabrication
                                     </Typography>
                                 )}
-                                {!error && !successMsg && (canComplete || isStageCompleted) && (
+                                {canPerform && !error && !successMsg && (canComplete || isStageCompleted) && (
                                     <Typography variant="caption" color="text.secondary" display="block">
                                         <span className={isCompleted ? "text-green-600 font-medium flex items-center justify-end gap-1" : ""}>
                                             {isCompleted && <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>}
