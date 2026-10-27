@@ -43,9 +43,25 @@ const COLUMN_FILTER_KEYS = [
 
 const TRANSACTION_TYPE_OPTIONS = [
   { value: "PO_INWARD", label: "PO Inward" },
+  { value: "PO_RETURN", label: "PO Return" },
+  { value: "TRANSFER_OUT", label: "Transfer Out" },
+  { value: "TRANSFER_IN", label: "Transfer In" },
   { value: "STOCK_ADJUSTMENT", label: "Stock Adjustment" },
-  { value: "STOCK_TRANSFER_OUT", label: "Stock Transfer Out" },
-  { value: "STOCK_TRANSFER_IN", label: "Stock Transfer In" },
+  { value: "DELIVERY_CHALLAN_OUT", label: "Delivery Challan Out" },
+  { value: "DELIVERY_CHALLAN_CANCEL_IN", label: "Challan Cancel In" },
+  { value: "DELIVERY_CHALLAN_RETURN_IN", label: "Challan Return In" },
+  { value: "B2B_SHIPMENT_OUT", label: "B2B Shipment Out" },
+  { value: "B2B_SHIPMENT_CANCEL_IN", label: "B2B Cancel In" },
+  { value: "B2B_SHIPMENT_RETURN_IN", label: "B2B Return In" },
+  { value: "CUTOVER_OPENING", label: "Cutover Opening" },
+  { value: "USED_INVENTORY_IMPORT", label: "Used Inventory Import" },
+  { value: "INSTALLATION_FORCE_ADJUST", label: "Installation Force Adjust" },
+  { value: "PRODUCTION_ISSUE_OUT", label: "Production Issue Out" },
+  { value: "PRODUCTION_SCRAP_OUT", label: "Production Scrap Out" },
+  { value: "PRODUCTION_RECEIPT_IN", label: "Production Receipt In" },
+  { value: "PRODUCTION_REJECT_IN", label: "Production Reject In" },
+  { value: "PRODUCTION_CANCEL_IN", label: "Production Cancel In" },
+  { value: "PRODUCTION_CANCEL_OUT", label: "Production Cancel Out" },
 ];
 
 const MOVEMENT_TYPE_OPTIONS = [
