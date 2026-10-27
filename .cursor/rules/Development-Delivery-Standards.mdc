@@ -8,7 +8,7 @@ alwaysApply: true
 Before marking **any** task complete:
 
 1. Read and follow the **techhind-delivery-qa** skill (`~/.cursor/skills/techhind-delivery-qa/SKILL.md`).
-2. Default environment is **local**: API `http://127.0.0.1:5142/api`, web `http://localhost:3000`.
+2. Default environment is **local and localhost only**: API `http://localhost:5142/api`, web `http://localhost:3000` (or `http://localhost:<port>` if 3000 is taken). Never open or call the host app via `127.0.0.1`.
 3. Pick the correct **verification tier** (Smoke / Standard / Critical / Regression). Do not skip.
 4. UI changes must match existing components (compact layout, `ProtectedRoute`, module permission keys).
 5. New API fields require solar-api migration + service; wire through `src/services/` and forms/lists. For **live field modules** shared with Flutter (fabrication/installation, site visit, delivery, PO inwards, B2B), keep `techhind-Solar` in parity — see skill `reference/mobile-conventions.md`.
