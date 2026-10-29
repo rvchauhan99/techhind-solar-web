@@ -10,8 +10,10 @@ import {
   IconList,
   IconBuildingWarehouse,
 } from "@tabler/icons-react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatRupeesInteger } from "@/utils/orderFormatters";
+import { LEDGER_DRILL } from "@/utils/stockLedgerLinks";
 
 const INR = (v) => formatRupeesInteger(v);
 const INR2 = (v) =>
@@ -20,12 +22,12 @@ const INR2 = (v) =>
     maximumFractionDigits: 0,
   });
 
-function KpiCard({ icon: Icon, iconColor, label, value, sub, loading, valueClass }) {
-  return (
+function KpiCard({ icon: Icon, iconColor, label, value, sub, loading, valueClass, href }) {
+  const card = (
     <Card
-      className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md ${
+      className={`rounded-xl shadow-sm border-slate-200 bg-white transition-all hover:shadow-md h-full ${
         loading ? "animate-pulse" : ""
-      }`}
+      } ${href ? "cursor-pointer hover:border-primary/40" : ""}`}
     >
       <CardContent className="p-2 flex flex-col justify-center h-full gap-0.5">
         <div className="flex justify-between items-center mb-0.5">
@@ -33,7 +35,9 @@ function KpiCard({ icon: Icon, iconColor, label, value, sub, loading, valueClass
             {label}
           </span>
           {Icon && (
-            <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${iconColor}`}>
+            <div
+              className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${iconColor}`}
+            >
               <Icon size={11} />
             </div>
           )}
@@ -45,10 +49,17 @@ function KpiCard({ icon: Icon, iconColor, label, value, sub, loading, valueClass
       </CardContent>
     </Card>
   );
+  if (!href || loading) return card;
+  return (
+    <Link href={href} title={`Open ${label} in Stock Ledger`} className="block">
+      {card}
+    </Link>
+  );
 }
 
-export default function StockMovementKpis({ summary, loading }) {
+export default function StockMovementKpis({ summary, loading, ledgerHref }) {
   const s = summary || {};
+  const drill = (scope, qty) => (Number(qty) ? ledgerHref?.(scope) : null);
   const netPositive = Number(s.commercial_net_value) >= 0;
   const b2c = s.b2c_sales_out_share_pct;
   const b2b = s.b2b_sales_out_share_pct;
@@ -62,6 +73,7 @@ export default function StockMovementKpis({ summary, loading }) {
         value={loading ? "…" : INR2(s.procurement_in_qty)}
         sub={loading ? undefined : `₹${INR(s.procurement_in_value)}`}
         loading={loading}
+        href={drill(LEDGER_DRILL.procurementIn, s.procurement_in_qty)}
       />
       <KpiCard
         icon={IconPackageExport}
@@ -71,11 +83,10 @@ export default function StockMovementKpis({ summary, loading }) {
         sub={
           loading
             ? undefined
-            : `₹${INR(s.sales_out_value)}${
-                b2c != null ? ` · B2C ${b2c}% / B2B ${b2b ?? 0}%` : ""
-              }`
+            : `₹${INR(s.sales_out_value)}${b2c != null ? ` · B2C ${b2c}% / B2B ${b2b ?? 0}%` : ""}`
         }
         loading={loading}
+        href={drill(LEDGER_DRILL.salesOut, s.sales_out_qty)}
       />
       <KpiCard
         icon={IconScale}
@@ -85,6 +96,13 @@ export default function StockMovementKpis({ summary, loading }) {
         sub={loading ? undefined : `₹${INR(s.commercial_net_value)}`}
         valueClass={netPositive ? "text-emerald-700" : "text-red-600"}
         loading={loading}
+        href={drill(
+          LEDGER_DRILL.commercialNet,
+          Math.abs(Number(s.procurement_in_qty) || 0) +
+            Math.abs(Number(s.sales_out_qty) || 0) +
+            Math.abs(Number(s.sales_in_qty) || 0) +
+            Math.abs(Number(s.procurement_out_qty) || 0),
+        )}
       />
       <KpiCard
         icon={IconArrowsExchange}
@@ -99,6 +117,7 @@ export default function StockMovementKpis({ summary, loading }) {
               : undefined
         }
         loading={loading}
+        href={drill(LEDGER_DRILL.transferOut, s.transfer_churn_qty)}
       />
       <KpiCard
         icon={IconAlertTriangle}
@@ -113,13 +132,16 @@ export default function StockMovementKpis({ summary, loading }) {
               }`
         }
         loading={loading}
+        href={drill(LEDGER_DRILL.shrinkage, s.shrinkage_qty)}
       />
       <KpiCard
         icon={IconCurrencyRupee}
         iconColor="bg-violet-50 text-violet-700"
         label="Closing Value"
         value={loading ? "…" : `₹${INR(s.closing_stock_value)}`}
-        sub={loading ? undefined : `On hand ${INR2(s.closing_on_hand)} · Res ${INR2(s.reserved_now)}`}
+        sub={
+          loading ? undefined : `On hand ${INR2(s.closing_on_hand)} · Res ${INR2(s.reserved_now)}`
+        }
         loading={loading}
       />
       <KpiCard
@@ -127,12 +149,9 @@ export default function StockMovementKpis({ summary, loading }) {
         iconColor="bg-slate-100 text-slate-600"
         label="Lines"
         value={loading ? "…" : INR2(s.movement_lines)}
-        sub={
-          loading || !s.value_basis_note
-            ? undefined
-            : `${s.wac_estimate_lines} WAC-estimated`
-        }
+        sub={loading || !s.value_basis_note ? undefined : `${s.wac_estimate_lines} WAC-estimated`}
         loading={loading}
+        href={drill(LEDGER_DRILL.all, s.movement_lines)}
       />
       <KpiCard
         icon={IconBuildingWarehouse}
