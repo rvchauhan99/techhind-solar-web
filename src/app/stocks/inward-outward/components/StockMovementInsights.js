@@ -1,18 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
+import { LEDGER_DRILL } from "@/utils/stockLedgerLinks";
 
-function InsightCard({ title, children, onClick }) {
+function InsightCard({ title, children, href }) {
   return (
     <Card
       className={`rounded-xl border-slate-200 bg-white shadow-sm ${
-        onClick ? "cursor-pointer hover:border-primary/40 hover:shadow-md" : ""
+        href ? "hover:border-primary/40 hover:shadow-md" : ""
       }`}
-      onClick={onClick}
     >
       <CardContent className="p-2 space-y-1">
         <div className="text-[10px] font-semibold uppercase tracking-tight text-slate-500">
-          {title}
+          {href ? (
+            <Link href={href} className="hover:text-primary hover:underline">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
         </div>
         <div className="text-[11px] text-slate-800 leading-snug">{children}</div>
       </CardContent>
@@ -20,30 +27,51 @@ function InsightCard({ title, children, onClick }) {
   );
 }
 
-export default function StockMovementInsights({ insights, onApplyFilter }) {
+function DrillLink({ href, className, children }) {
+  if (!href) return <span className={className}>{children}</span>;
+  return (
+    <Link href={href} className={`${className} hover:underline`} title="Open in Stock Ledger">
+      {children}
+    </Link>
+  );
+}
+
+export default function StockMovementInsights({ insights, ledgerHref }) {
   const i = insights || {};
   const topWh = i.top_outflow_warehouse;
   const topProducts = i.top_consumed_products || [];
   const gaps = i.supply_demand_gap || [];
   const slow = i.slow_movers || [];
+  const href = (drill) => ledgerHref?.(drill) || null;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-1.5">
       <InsightCard
         title="Top outflow warehouse"
-        onClick={
+        href={
           topWh?.warehouse_id
-            ? () => onApplyFilter?.({ warehouse_id: topWh.warehouse_id })
-            : undefined
+            ? href({ ...LEDGER_DRILL.salesOut, warehouse_id: topWh.warehouse_id })
+            : null
         }
       >
         {topWh ? (
           <>
-            <span className="font-semibold">{topWh.warehouse_name}</span>
+            <DrillLink
+              href={
+                topWh.warehouse_id
+                  ? href({ ...LEDGER_DRILL.salesOut, warehouse_id: topWh.warehouse_id })
+                  : null
+              }
+              className="font-semibold text-primary"
+            >
+              {topWh.warehouse_name}
+            </DrillLink>
             <span className="text-slate-500">
               {" "}
               · {Number(topWh.sales_out_qty || 0).toLocaleString("en-IN")} OUT
-              {topWh.vs_avg_pct != null ? ` (${topWh.vs_avg_pct >= 0 ? "+" : ""}${topWh.vs_avg_pct}% vs avg)` : ""}
+              {topWh.vs_avg_pct != null
+                ? ` (${topWh.vs_avg_pct >= 0 ? "+" : ""}${topWh.vs_avg_pct}% vs avg)`
+                : ""}
             </span>
           </>
         ) : (
@@ -56,13 +84,12 @@ export default function StockMovementInsights({ insights, onApplyFilter }) {
           <ul className="space-y-0.5">
             {topProducts.map((p) => (
               <li key={p.product_id} className="truncate">
-                <button
-                  type="button"
-                  className="text-left text-primary hover:underline font-medium"
-                  onClick={() => onApplyFilter?.({ product_id: p.product_id })}
+                <DrillLink
+                  href={href({ ...LEDGER_DRILL.salesOut, product_id: p.product_id })}
+                  className="text-left text-primary font-medium"
                 >
                   {p.product_name}
-                </button>
+                </DrillLink>
                 <span className="text-slate-500"> · {p.sales_out_qty}</span>
               </li>
             ))}
@@ -77,13 +104,15 @@ export default function StockMovementInsights({ insights, onApplyFilter }) {
           <ul className="space-y-0.5">
             {gaps.map((g) => (
               <li key={g.warehouse_id} className="truncate">
-                <button
-                  type="button"
-                  className="text-left text-amber-700 hover:underline font-medium"
-                  onClick={() => onApplyFilter?.({ warehouse_id: g.warehouse_id })}
+                <DrillLink
+                  href={href({
+                    flow_bucket: ["procurement_in", "sales_out"],
+                    warehouse_id: g.warehouse_id,
+                  })}
+                  className="text-left text-amber-700 font-medium"
                 >
                   {g.warehouse_name}
-                </button>
+                </DrillLink>
                 <span className="text-slate-500">
                   {" "}
                   · OUT {g.sales_out_qty} / IN {g.procurement_in_qty}
@@ -101,13 +130,12 @@ export default function StockMovementInsights({ insights, onApplyFilter }) {
           <ul className="space-y-0.5">
             {slow.slice(0, 5).map((p) => (
               <li key={p.product_id} className="truncate">
-                <button
-                  type="button"
-                  className="text-left text-slate-700 hover:underline font-medium"
-                  onClick={() => onApplyFilter?.({ product_id: p.product_id })}
+                <DrillLink
+                  href={href({ product_id: p.product_id })}
+                  className="text-left text-slate-700 font-medium"
                 >
                   {p.product_name}
-                </button>
+                </DrillLink>
                 <span className="text-slate-500"> · OH {p.on_hand}</span>
               </li>
             ))}
@@ -117,9 +145,17 @@ export default function StockMovementInsights({ insights, onApplyFilter }) {
         )}
       </InsightCard>
 
-      <InsightCard title="Damage rate">
+      <InsightCard
+        title="Damage rate"
+        href={i.damage_rate_pct ? href(LEDGER_DRILL.shrinkage) : null}
+      >
         {i.damage_rate_pct != null ? (
-          <span className="font-semibold text-red-600">{i.damage_rate_pct}%</span>
+          <DrillLink
+            href={i.damage_rate_pct ? href(LEDGER_DRILL.shrinkage) : null}
+            className="font-semibold text-red-600"
+          >
+            {i.damage_rate_pct}%
+          </DrillLink>
         ) : (
           <span className="text-slate-400">N/A (no sales OUT)</span>
         )}

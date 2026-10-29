@@ -93,7 +93,6 @@ export default function DeliveryReportFilters({ filters, onFiltersChange }) {
         label="Delivery Status"
         options={DELIVERY_STATUSES}
         getOptionLabel={(o) => o?.label ?? ""}
-        isOptionEqualToValue={(a, b) => a?.value === b?.value}
         value={
           filters.delivery_status
             ? DELIVERY_STATUSES.find((s) => s.value === filters.delivery_status) || null
@@ -109,7 +108,6 @@ export default function DeliveryReportFilters({ filters, onFiltersChange }) {
         label="Order Status"
         options={ORDER_STATUSES}
         getOptionLabel={(o) => o?.label ?? ""}
-        isOptionEqualToValue={(a, b) => a?.value === b?.value}
         value={
           filters.order_status
             ? ORDER_STATUSES.find((s) => s.value === filters.order_status) || null

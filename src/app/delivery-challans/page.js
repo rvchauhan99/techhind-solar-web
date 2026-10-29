@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
     IconCircleCheck,
@@ -54,6 +54,7 @@ const CHALLAN_FILTER_KEYS = [
 
 export default function DeliveryChallanListPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user } = useAuth();
     const canReverseChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_REVERSE);
     const canPartialReturnChallan = useRoleAccess(RBAC_CONFIG_KEYS.CHALLAN_PARTIAL_RETURN);
@@ -309,6 +310,33 @@ export default function DeliveryChallanListPage() {
         setSelectedOrderInstallationCompleted(isInstallationCompletedForOrder(row?.order));
         setSelectedIsReversed(!!row?.is_reversed);
     };
+
+    // Deep-link from Stock Ledger / other reports: /delivery-challans?id=
+    useEffect(() => {
+        const idParam = searchParams.get("id");
+        if (!idParam) return;
+        const id = Number(idParam);
+        if (!Number.isFinite(id) || id <= 0) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const response = await challanService.getChallanById(id);
+                const row = response?.result ?? response;
+                if (cancelled) return;
+                if (!row?.id) {
+                    toastError("Delivery challan not found");
+                    return;
+                }
+                await openDetailsForRow(row);
+            } catch {
+                if (!cancelled) toastError("Delivery challan not found");
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- open once per id query
+    }, [searchParams]);
 
     const handleCloseSidebar = () => {
         setSidebarOpen(false);

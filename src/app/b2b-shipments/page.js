@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   IconFileDescription,
@@ -114,6 +114,7 @@ export default function B2bShipmentsPage() {
   };
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const listingState = useListingQueryState({
     defaultLimit: 20,
     filterKeys: COLUMN_FILTER_KEYS,
@@ -174,6 +175,15 @@ export default function B2bShipmentsPage() {
       setLoadingRecord(false);
     }
   }, []);
+
+  // Deep-link from Stock Ledger / other reports: /b2b-shipments?id=
+  useEffect(() => {
+    const idParam = searchParams.get("id");
+    if (!idParam) return;
+    const id = Number(idParam);
+    if (!Number.isFinite(id) || id <= 0) return;
+    handleOpenSidebar(id);
+  }, [searchParams, handleOpenSidebar]);
 
   const handleCloseSidebar = useCallback(() => {
     setSidebarOpen(false);
