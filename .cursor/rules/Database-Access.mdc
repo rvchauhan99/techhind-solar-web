@@ -1,0 +1,31 @@
+---
+description: Strict local database access rule - always use solar_registry for this project
+alwaysApply: true
+---
+
+# Database access (strict)
+
+- ALL testing, debugging, and operations for this project use **only** this database:
+
+  ```
+  DB_HOST=localhost
+  DB_PORT=5432
+  DB_NAME=solar_registry
+  DB_USER=ravatrajsinhchauhan
+  DB_PASS=123456
+  ```
+
+- Never go outside `solar_registry` on the local server. Do not connect to, query, dump, restore, or migrate `solar_demo`, `solar_se`, `solar_rh`, `solar_nx`, `solar-local`, `solar_test`, `solar_clean`, `solar_griwa`, `opscore*`, `quickerpay*`, `payment_reminder`, or `solar_forex`.
+- The web app reads the same data through `http://localhost:5142/api`, which is backed by `solar_registry` — never validate against a different database.
+- Never repoint `.env`, QA scripts, or test runners at another database to "check something". If data appears missing, confirm inside `solar_registry` and report the gap.
+
+## Test credentials (strict)
+
+- Always log in with:
+
+  ```
+  email:    superadmin@user.com
+  password: Admin@1234
+  ```
+
+- Do not create, edit, or log in as other users/roles for local testing.

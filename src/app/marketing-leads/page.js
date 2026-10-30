@@ -13,6 +13,7 @@ import {
   IconLayoutKanban,
   IconList,
   IconHome,
+  IconDownload,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import LeadListFilterPanel from "@/components/common/LeadListFilterPanel";
@@ -20,6 +21,27 @@ import { EMPTY_VALUES, DEFAULT_FILTER_LAST_30_DAYS } from "@/components/common/L
 import ListView from "./ListView";
 import KanbanBoard from "./KanbanBoard";
 import marketingLeadsService from "@/services/marketingLeadsService";
+import { toast } from "sonner";
+
+/** Filter keys persisted in the URL by ListView (useListingQueryState). */
+const LIST_EXPORT_FILTER_KEYS = [
+  "customer_name",
+  "mobile_number",
+  "branch_id",
+  "inquiry_source_id",
+  "status",
+  "priority",
+  "campaign_name",
+  "campaign_id",
+  "created_from",
+  "created_to",
+  "next_follow_up_from",
+  "next_follow_up_to",
+  "not_status",
+  "assigned_to",
+  "product_interest",
+  "lead_segment",
+];
 
 export default function MarketingLeadsPage() {
   const router = useRouter();
@@ -27,6 +49,7 @@ export default function MarketingLeadsPage() {
   const [view, setView] = useState(() => (searchParams.get("view") === "list" ? "list" : "kanban"));
   const [kanbanLeads, setKanbanLeads] = useState([]);
   const [kanbanFilters, setKanbanFilters] = useState(DEFAULT_FILTER_LAST_30_DAYS);
+  const [exporting, setExporting] = useState(false);
   const loadingRef = useRef(false);
 
   const buildApiFilters = useCallback((filters = {}) => {
@@ -85,6 +108,44 @@ export default function MarketingLeadsPage() {
     }
   }, [view]);
 
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      // Kanban filters live in state; list filters are URL params (useListingQueryState).
+      const sourceFilters =
+        view === "list"
+          ? Object.fromEntries(
+              LIST_EXPORT_FILTER_KEYS.map((key) => [key, searchParams.get(key) ?? ""])
+            )
+          : kanbanFilters;
+      const filters = buildApiFilters(sourceFilters);
+      if (view === "list") {
+        const quickSearch = searchParams.get("q");
+        if (quickSearch) filters.q = quickSearch;
+      }
+      const hasStatusFilter = Array.isArray(sourceFilters?.status)
+        ? sourceFilters.status.length > 0
+        : sourceFilters?.status != null && String(sourceFilters.status).trim() !== "";
+      if (!hasStatusFilter && !filters.not_status) {
+        filters.not_status = "junk";
+      }
+      const blob = await marketingLeadsService.exportMarketingLeads(filters);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `marketing-leads-${new Date().toISOString().split("T")[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Export completed");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }, [view, searchParams, kanbanFilters, buildApiFilters]);
+
   return (
     <ProtectedRoute>
       <div className="flex h-full flex-col overflow-hidden">
@@ -118,6 +179,14 @@ export default function MarketingLeadsPage() {
             >
               <IconUserPlus className="mr-2 size-4" />
               Assign Leads
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <IconDownload className="mr-2 size-4" />
+              {exporting ? "Exporting…" : "Export"}
             </Button>
             <Button
               variant="outline"
