@@ -18,6 +18,39 @@ function formatDateTime(value) {
   }
 }
 
+const TRADE_CLASS_STYLES = {
+  purchase: { label: "Purchase", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  sale: { label: "Sale", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  return_in: { label: "Return", cls: "bg-sky-50 text-sky-700 border-sky-200" },
+  production_out: { label: "Production", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  production_in: { label: "Production", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  production_reversal_out: {
+    label: "Prod. reversal",
+    cls: "bg-slate-100 text-slate-600 border-slate-200",
+  },
+  correction: { label: "Correction", cls: "bg-violet-50 text-violet-700 border-violet-200" },
+  transfer: { label: "Transfer", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  opening: { label: "Opening", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  other: { label: "Other", cls: "bg-slate-100 text-slate-600 border-slate-200" },
+};
+
+function TradeBadge({ tradeClass }) {
+  const meta = TRADE_CLASS_STYLES[tradeClass];
+  if (!meta) return null;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-1 py-0 text-[8px] font-medium leading-tight ${meta.cls}`}
+      title={
+        tradeClass === "purchase" || tradeClass === "sale" || tradeClass === "return_in"
+          ? "Counted in trade KPIs"
+          : "Internal movement — excluded from trade KPIs"
+      }
+    >
+      {meta.label}
+    </span>
+  );
+}
+
 function SignedQty({ value, kind }) {
   if (kind !== "movement" || value == null) {
     return <span className="text-slate-400">—</span>;
@@ -73,6 +106,15 @@ export default function StockLedgerTable({ rows = [] }) {
     [pathname, searchParams]
   );
   const [expanded, setExpanded] = useState(() => new Set());
+  const [hideInternal, setHideInternal] = useState(false);
+
+  const internalCount = useMemo(
+    () => rows.filter((r) => r.kind === "movement" && r.is_trade === false).length,
+    [rows]
+  );
+  const visibleRows = hideInternal
+    ? rows.filter((r) => r.kind !== "movement" || r.is_trade !== false)
+    : rows;
 
   const toggle = (key) => {
     setExpanded((prev) => {
@@ -92,19 +134,34 @@ export default function StockLedgerTable({ rows = [] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded border border-slate-200 bg-white">
-      <table className="w-full min-w-[720px] border-collapse text-left text-[11px]">
-        <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-          <tr>
-            <th className="px-2 py-1.5 font-semibold">Date / Time</th>
-            <th className="px-2 py-1.5 font-semibold">Transaction / Party</th>
-            <th className="px-2 py-1.5 font-semibold">Voucher</th>
-            <th className="px-2 py-1.5 font-semibold text-right">Quantity</th>
-            <th className="px-2 py-1.5 font-semibold text-right">Running Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
+    <div className="space-y-1">
+      {internalCount > 0 ? (
+        <div className="flex items-center justify-end gap-1 px-0.5 text-[9px] text-slate-500">
+          <span>
+            {internalCount} internal movement{internalCount === 1 ? "" : "s"} (not trade)
+          </span>
+          <button
+            type="button"
+            className="rounded border border-slate-200 bg-white px-1 py-0 text-[9px] text-slate-600 hover:border-primary/40 hover:text-primary"
+            onClick={() => setHideInternal((v) => !v)}
+          >
+            {hideInternal ? "Show internal" : "Hide internal"}
+          </button>
+        </div>
+      ) : null}
+      <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+        <table className="w-full min-w-[720px] border-collapse text-left text-[11px]">
+          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 py-1.5 font-semibold">Date / Time</th>
+              <th className="px-2 py-1.5 font-semibold">Transaction / Party</th>
+              <th className="px-2 py-1.5 font-semibold">Voucher</th>
+              <th className="px-2 py-1.5 font-semibold text-right">Quantity</th>
+              <th className="px-2 py-1.5 font-semibold text-right">Running Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row, idx) => {
             const key = `${row.kind}-${row.transaction_id || "x"}-${idx}`;
             const hasSerials = Array.isArray(row.serials) && row.serials.length > 0;
             const isOpen = expanded.has(key);
@@ -112,10 +169,13 @@ export default function StockLedgerTable({ rows = [] }) {
               row.kind === "opening" || row.kind === "closing"
                 ? "bg-slate-50 font-semibold"
                 : "hover:bg-slate-50/80";
+            const isInternal = row.kind === "movement" && row.is_trade === false;
 
             return (
               <Fragment key={key}>
-                <tr className={`border-t border-slate-100 ${rowBg}`}>
+                <tr
+                  className={`border-t border-slate-100 ${rowBg} ${isInternal ? "opacity-60" : ""}`}
+                >
                   <td className="px-2 py-1 align-top whitespace-nowrap text-slate-600">
                     {row.kind === "opening" || row.kind === "closing"
                       ? row.transaction_type_label
@@ -142,8 +202,9 @@ export default function StockLedgerTable({ rows = [] }) {
                       <div>
                         {row.kind === "movement" ? (
                           <>
-                            <div className="font-medium text-slate-800">
-                              {row.transaction_type_label || row.transaction_type}
+                            <div className="flex items-center gap-1 font-medium text-slate-800">
+                              <span>{row.transaction_type_label || row.transaction_type}</span>
+                              <TradeBadge tradeClass={row.trade_class} />
                             </div>
                             <div className="text-[10px] text-slate-500">
                               {row.party_name ||
@@ -178,8 +239,9 @@ export default function StockLedgerTable({ rows = [] }) {
               </Fragment>
             );
           })}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import StockLedgerFilters from "./components/StockLedgerFilters";
 import StockLedgerTable from "./components/StockLedgerTable";
 import StockLedgerProductSection from "./components/StockLedgerProductSection";
+import StockLedgerKpis from "./components/StockLedgerKpis";
 import stockLedgerReportService from "@/services/stockLedgerReportService";
 import { TRANSACTION_TYPE_LABELS } from "@/utils/inventoryTransactionLabels";
 import { FLOW_BUCKET_LABELS, STOCK_LEDGER_ROUTE } from "@/utils/stockLedgerLinks";
@@ -258,6 +259,17 @@ function StockLedgerReportInner() {
     }
   };
 
+  // Filters are staged: editing an input does not re-fetch until Apply is pressed.
+  // Flag pending edits so the panel never looks like it refreshed when it did not.
+  const pendingChangeCount = useMemo(() => {
+    let n = 0;
+    for (const key of Object.keys(INITIAL_FILTERS)) {
+      if (String(filters[key] ?? "") !== String(appliedFilters[key] ?? "")) n += 1;
+    }
+    return n;
+  }, [filters, appliedFilters]);
+  const hasPendingChanges = pendingChangeCount > 0;
+
   const chips = useMemo(() => {
     const f = appliedFilters;
     const rf = report?.filters || {};
@@ -345,13 +357,10 @@ function StockLedgerReportInner() {
   const kpis = isMulti
     ? [
         { label: "Products", value: report.totals?.products },
+        { label: "Opening", value: report.totals?.opening_quantity },
         { label: "Period In", value: report.totals?.period_in, cls: "text-emerald-700" },
         { label: "Period Out", value: report.totals?.period_out, cls: "text-red-700" },
-        {
-          label: "Net",
-          value: report.totals?.net,
-          cls: Number(report.totals?.net) >= 0 ? "text-emerald-700" : "text-red-700",
-        },
+        { label: "Closing", value: report.totals?.closing_quantity },
       ]
     : report
       ? [
@@ -437,8 +446,25 @@ function StockLedgerReportInner() {
             >
               <IconRefresh size={10} /> Reset
             </Button>
-            <Button size="sm" onClick={handleApply} className="h-6 text-[10px] gap-1 px-1.5">
-              <IconFilter size={10} /> Apply
+            <Button
+              size="sm"
+              onClick={handleApply}
+              title={
+                hasPendingChanges
+                  ? `${pendingChangeCount} filter change${pendingChangeCount === 1 ? "" : "s"} not applied yet — the report below still shows the previous filters`
+                  : "Apply filters"
+              }
+              className={`h-6 text-[10px] gap-1 px-1.5 ${
+                hasPendingChanges ? "ring-2 ring-amber-400 ring-offset-1" : ""
+              }`}
+            >
+              <IconFilter size={10} />
+              {hasPendingChanges ? "Apply changes" : "Apply"}
+              {hasPendingChanges ? (
+                <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-amber-400 px-0.5 text-[8px] font-bold text-amber-950">
+                  {pendingChangeCount}
+                </span>
+              ) : null}
             </Button>
           </div>
         </div>
@@ -456,6 +482,11 @@ function StockLedgerReportInner() {
                   {chips.length}
                 </Badge>
               )}
+              {hasPendingChanges ? (
+                <span className="text-[9px] font-medium text-amber-600">
+                  · {pendingChangeCount} unapplied
+                </span>
+              ) : null}
             </span>
             {filtersOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
           </button>
@@ -513,6 +544,14 @@ function StockLedgerReportInner() {
             ))}
           </div>
         )}
+
+        {report?.summary ? (
+          <StockLedgerKpis
+            summary={report.summary}
+            dataQuality={report.data_quality}
+            totals={isMulti ? report.totals : null}
+          />
+        ) : null}
 
         {loading ? (
           <div className="flex justify-center py-10">
