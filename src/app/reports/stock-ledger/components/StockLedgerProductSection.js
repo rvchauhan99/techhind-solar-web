@@ -37,6 +37,35 @@ export default function StockLedgerProductSection({ section, open, onToggle, onO
           <Stat label="In" value={`+${section.period_in ?? 0}`} cls="text-emerald-700" />
           <Stat label="Out" value={`-${section.period_out ?? 0}`} cls="text-red-700" />
           <Stat label="Closing" value={section.closing_quantity} />
+          {section.summary ? (
+            <>
+              <span className="text-slate-300">|</span>
+              <Stat
+                label="Purchased"
+                value={section.summary.net_purchased_quantity}
+                cls="text-emerald-700"
+              />
+              <Stat label="Net Sold" value={section.summary.net_sold_quantity} cls="text-amber-700" />
+              <Stat
+                label="Returned"
+                value={section.summary.returned_quantity}
+                cls={Number(section.summary.returned_quantity) ? "text-sky-700" : "text-slate-500"}
+              />
+              {section.summary.return_rate_pct != null ? (
+                <span className="whitespace-nowrap text-slate-400">
+                  {section.summary.return_rate_pct}% back
+                </span>
+              ) : null}
+              {section.data_quality && !section.data_quality.matches ? (
+                <span
+                  className="whitespace-nowrap font-semibold text-red-600"
+                  title={`Ledger closing ${section.data_quality.ledger_closing_quantity} vs stock ${section.data_quality.stock_on_hand_quantity}`}
+                >
+                  ⚠ stock {section.data_quality.stock_on_hand_quantity}
+                </span>
+              ) : null}
+            </>
+          ) : null}
           <button
             type="button"
             onClick={() => onOpenProduct?.(p)}
