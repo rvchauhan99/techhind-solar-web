@@ -3,6 +3,11 @@ import apiClient from "./apiClient";
 export const getMarketingLeads = (params = {}) =>
   apiClient.get("/marketing-leads", { params }).then((r) => r.data);
 
+export const exportMarketingLeads = (params = {}) =>
+  apiClient
+    .get("/marketing-leads/export", { params, responseType: "blob" })
+    .then((r) => r.data);
+
 export const getMarketingLeadById = (id) =>
   apiClient.get(`/marketing-leads/${id}`).then((r) => r.data);
 
@@ -75,6 +80,7 @@ export const assignMarketingLeads = (payload) =>
 
 export default {
   getMarketingLeads,
+  exportMarketingLeads,
   getMarketingLeadById,
   createMarketingLead,
   updateMarketingLead,
