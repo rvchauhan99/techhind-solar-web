@@ -1,0 +1,78 @@
+name: Deploy Web (HRMS → VPS)
+
+on:
+  push:
+    branches: [HRMS]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.mjs"
+      - "postcss.config.mjs"
+      - "jsconfig.json"
+      - "components.json"
+      - "deploy/vps/**"
+      - ".github/workflows/deploy-hrms.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-solar-web-hrms
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy techhind-solar-web to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VULTR_HOST: ${{ vars.VULTR_HOST || '178.92.120.191' }}
+      VULTR_USER: ${{ vars.VULTR_USER || 'root' }}
+      VULTR_HEALTH_URL: ${{ vars.VULTR_HEALTH_URL || 'https://solar.178.92.120.191.sslip.io/auth/login' }}
+      SKIP_ENV_SYNC: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+
+      - name: Add VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${VULTR_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy via deploy.sh
+        run: |
+          set -euo pipefail
+          chmod +x deploy/vps/deploy.sh
+          ./deploy/vps/deploy.sh "${VULTR_USER}@${VULTR_HOST}"
+
+      - name: Public health check
+        run: |
+          set -euo pipefail
+          echo "Health: ${VULTR_HEALTH_URL}"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            CODE="$(curl -sS -o /tmp/solar-web-login.html -w '%{http_code}' --max-time 20 "${VULTR_HEALTH_URL}" || true)"
+            if [[ "$CODE" == "200" ]]; then
+              echo "login HTTP ${CODE}"
+              # Ensure root redirect is not localhost
+              LOC="$(curl -sSI --max-time 20 "https://solar.178.92.120.191.sslip.io/" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2; exit}')"
+              echo "root Location: ${LOC}"
+              if echo "${LOC}" | grep -qi 'localhost\|127\.0\.0\.1'; then
+                echo "FAIL: redirect still points at loopback"
+                exit 1
+              fi
+              exit 0
+            fi
+            echo "Attempt ${i}: HTTP ${CODE}; retrying..."
+            sleep 10
+          done
+          echo "Public health check failed"
+          exit 1
