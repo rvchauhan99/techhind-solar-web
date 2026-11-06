@@ -377,7 +377,7 @@ export default function StockPage() {
   );
 
   const loadWarehouseOptions = useCallback(async (q) => {
-    const res = await companyService.listWarehouses();
+    const res = await companyService.listMyWarehouses();
     const data = res?.result ?? res?.data ?? res ?? [];
     const list = Array.isArray(data) ? data : [];
     const qNorm = (q || "").toLowerCase();

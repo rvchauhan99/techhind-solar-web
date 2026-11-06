@@ -10,6 +10,7 @@ import Checkbox from "@/components/common/Checkbox";
 import { validateE164Phone, validateEmail, normalizeEmail } from "@/utils/validators";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import locationTrackingService from "@/services/locationTrackingService";
+import companyService from "@/services/companyService";
 
 const UserForm = forwardRef(function UserForm({
   defaultValues = null,
@@ -27,6 +28,7 @@ const UserForm = forwardRef(function UserForm({
     role_id: null,
     manager_id: "",
     status: "active",
+    branch_ids: [],
     location_tracking_enabled: false,
     location_tracking_capture_interval_minutes: "",
     location_tracking_sync_interval_minutes: "",
@@ -50,6 +52,7 @@ const UserForm = forwardRef(function UserForm({
     capture_interval_minutes: 5,
     sync_interval_minutes: 10,
   });
+  const [branchOptions, setBranchOptions] = useState([]);
 
   useEffect(() => {
     const applyDefaults = (data) => {
@@ -71,6 +74,14 @@ const UserForm = forwardRef(function UserForm({
             setTenantTrackingEnabled(false);
           })
       );
+
+    companyService
+      .listBranches()
+      .then((res) => {
+        const data = res?.data || res?.result || res || [];
+        setBranchOptions(Array.isArray(data) ? data : []);
+      })
+      .catch(() => setBranchOptions([]));
   }, []);
 
   useEffect(() => {
@@ -78,10 +89,16 @@ const UserForm = forwardRef(function UserForm({
       defaultValues &&
       (defaultValues.id || Object.keys(defaultValues).length)
     ) {
+      const fromIds = Array.isArray(defaultValues.branch_ids)
+        ? defaultValues.branch_ids.map(Number)
+        : Array.isArray(defaultValues.branches)
+          ? defaultValues.branches.map((b) => Number(b.id))
+          : [];
       setFormData({
         ...base,
         ...contactDefaults,
         ...defaultValues,
+        branch_ids: fromIds,
         location_tracking_capture_interval_minutes:
           defaultValues.location_tracking_capture_interval_minutes ?? "",
         location_tracking_sync_interval_minutes:
@@ -89,6 +106,19 @@ const UserForm = forwardRef(function UserForm({
       });
     }
   }, [defaultValues?.id]);
+
+  // Auto-select sole company branch
+  useEffect(() => {
+    if (viewMode) return;
+    if (branchOptions.length !== 1) return;
+    const onlyId = Number(branchOptions[0].id);
+    setFormData((s) => {
+      if (Array.isArray(s.branch_ids) && s.branch_ids.map(Number).includes(onlyId) && s.branch_ids.length === 1) {
+        return s;
+      }
+      return { ...s, branch_ids: [onlyId] };
+    });
+  }, [branchOptions, viewMode]);
 
   const handleChange = (e) => {
     let { name, value } = e.target;
@@ -174,12 +204,22 @@ const UserForm = forwardRef(function UserForm({
       }
     }
 
+    const selectedRole = roles.find((r) => r.id === formData.role_id);
+    const isSuperAdmin =
+      String(selectedRole?.name || "").toLowerCase() === "superadmin";
+    const branchIds = Array.isArray(formData.branch_ids)
+      ? formData.branch_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0)
+      : [];
+    if (!isSuperAdmin && branchOptions.length > 0 && branchIds.length === 0) {
+      validationErrors.branch_ids = "At least one branch is required";
+    }
+
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
-    const payload = { ...formData };
+    const payload = { ...formData, branch_ids: branchIds };
     if (tenantTrackingEnabled) {
       payload.location_tracking_enabled = !!formData.location_tracking_enabled;
       payload.location_tracking_capture_interval_minutes =
@@ -314,6 +354,39 @@ const UserForm = forwardRef(function UserForm({
             onChange={(e, newValue) => handleChange({ target: { name: "manager_id", value: newValue?.id ?? "" } })}
             placeholder="Type to search..."
             disabled={viewMode}
+          />
+
+          <AutocompleteField
+            name="branch_ids"
+            label="Branches"
+            multiple
+            options={branchOptions}
+            getOptionLabel={(b) => b?.name ?? b?.label ?? ""}
+            value={branchOptions.filter((b) =>
+              (formData.branch_ids || []).map(Number).includes(Number(b.id))
+            )}
+            onChange={(e, newValue) =>
+              handleChange({
+                target: {
+                  name: "branch_ids",
+                  value: Array.isArray(newValue) ? newValue.map((b) => b.id) : [],
+                },
+              })
+            }
+            placeholder={
+              branchOptions.length === 1
+                ? "Single branch (auto-selected)"
+                : "Select one or more branches..."
+            }
+            required={!viewMode && branchOptions.length > 0}
+            disabled={viewMode || branchOptions.length === 1}
+            error={!!errors.branch_ids}
+            helperText={
+              errors.branch_ids ||
+              (branchOptions.length === 1
+                ? "Company has one branch — assigned automatically"
+                : undefined)
+            }
           />
 
           <AutocompleteField

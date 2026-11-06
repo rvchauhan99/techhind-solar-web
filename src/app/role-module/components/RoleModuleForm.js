@@ -29,7 +29,10 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
   // Only apply defaults when we have meaningful defaultValues (e.g. edit case).
   useEffect(() => {
     if (defaultValues && (defaultValues.id || Object.keys(defaultValues).length)) {
-      setFormData({ ...base, ...defaultValues });
+      const next = { ...base, ...defaultValues };
+      // Legacy my_branches folded into branch-scoped all
+      if (next.listing_criteria === "my_branches") next.listing_criteria = "all";
+      setFormData(next);
     }
     // only re-run when defaultValues.id changes (or defaultValues reference becomes a real object)
   }, [defaultValues?.id]);
@@ -54,7 +57,9 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
     if (submitting) return;
     try {
       setSubmitting(true);
-      await onSubmit(formData);
+      const criteria =
+        formData.listing_criteria === "my_branches" ? "all" : formData.listing_criteria;
+      await onSubmit({ ...formData, listing_criteria: criteria || "my_team" });
     } finally {
       setSubmitting(false);
     }
@@ -92,9 +97,22 @@ export default function RoleModuleForm({ defaultValues = null, onSubmit, loading
       <AutocompleteField
         name="listing_criteria"
         label="Listing Criteria"
-        options={[{ value: "all", label: "All" }, { value: "my_team", label: "My Team" }]}
+        options={[
+          { value: "all", label: "All" },
+          { value: "my_team", label: "My Team" },
+        ]}
         getOptionLabel={(o) => o?.label ?? o?.value ?? ""}
-        value={formData.listing_criteria ? { value: formData.listing_criteria, label: formData.listing_criteria === "all" ? "All" : "My Team" } : { value: "my_team", label: "My Team" }}
+        value={
+          formData.listing_criteria
+            ? {
+                value: formData.listing_criteria === "my_branches" ? "all" : formData.listing_criteria,
+                label:
+                  formData.listing_criteria === "my_team"
+                    ? "My Team"
+                    : "All",
+              }
+            : { value: "my_team", label: "My Team" }
+        }
         onChange={(e, newValue) => handleChange({ target: { name: "listing_criteria", value: newValue?.value ?? "my_team" } })}
         placeholder="Listing Criteria"
       />

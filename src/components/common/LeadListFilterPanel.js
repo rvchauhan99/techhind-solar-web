@@ -10,6 +10,7 @@ import DateField from "@/components/common/DateField";
 import companyService from "@/services/companyService";
 import mastersService from "@/services/mastersService";
 import MultiSelect from "@/components/common/MultiSelect";
+import { useAuth } from "@/hooks/useAuth";
 
 const FILTER_KEYS = [
   "q",
@@ -106,6 +107,10 @@ export default function LeadListFilterPanel({
   /** Override priority MultiSelect options (e.g. B2B without hot). */
   priorityOptions = DEFAULT_PRIORITY_OPTIONS,
 }) {
+  const { user } = useAuth() || {};
+  const isSuperAdmin =
+    String(user?.role?.name || "").trim().toLowerCase() === "superadmin";
+
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = useCallback(
@@ -130,10 +135,12 @@ export default function LeadListFilterPanel({
   useEffect(() => {
     setLoadingOptions(true);
     Promise.all([
-      companyService.listBranches().then((r) => {
-        const data = r?.result ?? r?.data ?? r;
-        return Array.isArray(data) ? data : [];
-      }),
+      companyService
+        .listBranchesForPicker({ isSuperAdmin })
+        .then((r) => {
+          const data = r?.result ?? r?.data ?? r;
+          return Array.isArray(data) ? data : [];
+        }),
       mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => {
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
@@ -148,7 +155,7 @@ export default function LeadListFilterPanel({
         setSourceOptions([]);
       })
       .finally(() => setLoadingOptions(false));
-  }, []);
+  }, [isSuperAdmin]);
 
   const handleChange = useCallback((key, value) => {
     setLocalValues((prev) => ({ ...prev, [key]: value ?? "" }));

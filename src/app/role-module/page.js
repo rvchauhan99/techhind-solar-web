@@ -182,7 +182,8 @@ export default function RoleModuleListPage() {
         filterType: "select",
         filterKey: "listing_criteria",
         filterOptions: LISTING_CRITERIA_OPTIONS,
-        render: (row) => (row.listing_criteria === "my_team" ? "My Team" : "All"),
+        render: (row) =>
+          row.listing_criteria === "my_team" ? "My Team" : "All",
       },
       {
         field: "actions",

@@ -18,8 +18,21 @@ export const updateBankAccount = (id, payload) =>
 export const deleteBankAccount = (id) =>
   apiClient.delete(`/company/bank-accounts/${id}`).then((r) => r.data);
 
-export const listBranches = () =>
-  apiClient.get("/company/branches").then((r) => r.data);
+export const listBranches = (params = {}) =>
+  apiClient.get("/company/branches", { params }).then((r) => r.data);
+
+/** Branches assigned to the current user (union membership). */
+export const listMyBranches = () =>
+  apiClient.get("/company/branches", { params: { mine: 1 } }).then((r) => r.data);
+
+/**
+ * Branch picker options: full company list for SuperAdmin;
+ * otherwise union of assigned branches (same envelope as list visibility).
+ */
+export const listBranchesForPicker = ({ isSuperAdmin } = {}) => {
+  if (isSuperAdmin) return listBranches();
+  return listMyBranches();
+};
 
 export const getDefaultBranch = () =>
   apiClient.get("/company/branches/default").then((r) => r.data);
@@ -39,9 +52,26 @@ export const getBranchManagers = (branchId) =>
 export const setBranchManagers = (branchId, userIds) =>
   apiClient.put(`/company/branches/${branchId}/managers`, { user_ids: userIds }).then((r) => r.data);
 
-export const listWarehouses = (companyId = null) => {
+export const listWarehouses = (companyId = null, options = {}) => {
   const params = companyId ? { company_id: companyId } : {};
+  if (options.mine) params.mine = 1;
   return apiClient.get("/company/warehouses", { params }).then((r) => r.data);
+};
+
+/** Warehouses under the current user's assigned branches. */
+export const listMyWarehouses = (companyId = null) =>
+  listWarehouses(companyId, { mine: true });
+
+/**
+ * Warehouse picker options: full list for SuperAdmin;
+ * otherwise warehouses under assigned branches.
+ */
+export const listWarehousesForPicker = (
+  companyId = null,
+  { isSuperAdmin } = {}
+) => {
+  if (isSuperAdmin) return listWarehouses(companyId);
+  return listMyWarehouses(companyId);
 };
 
 export const getManagedWarehouses = () =>
@@ -92,6 +122,8 @@ export default {
   updateBankAccount,
   deleteBankAccount,
   listBranches,
+  listMyBranches,
+  listBranchesForPicker,
   getDefaultBranch,
   createBranch,
   updateBranch,
@@ -99,6 +131,8 @@ export default {
   getBranchManagers,
   setBranchManagers,
   listWarehouses,
+  listMyWarehouses,
+  listWarehousesForPicker,
   getManagedWarehouses,
   createWarehouse,
   updateWarehouse,

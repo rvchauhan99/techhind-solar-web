@@ -18,6 +18,7 @@ import productService from "@/services/productService";
 import { formatProductAutocompleteLabel, mapProductRowForOrderFilter } from "@/utils/productAutocompleteLabel";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { ORDER_STAGE_OPTIONS } from "@/components/common/OrderListFilterPanel";
+import { useAuth } from "@/hooks/useAuth";
 
 const FILTER_KEYS = [
   "q",
@@ -65,6 +66,10 @@ export default function OrderListFilterDialog({
   onApply,
   onClear,
 }) {
+  const { user } = useAuth() || {};
+  const isSuperAdmin =
+    String(user?.role?.name || "").trim().toLowerCase() === "superadmin";
+
   const [branchOptions, setBranchOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
   const [userOptions, setUserOptions] = useState([]);
@@ -81,10 +86,12 @@ export default function OrderListFilterDialog({
     if (!open) return;
     setLoadingOptions(true);
     Promise.all([
-      companyService.listBranches().then((r) => {
-        const data = r?.result ?? r?.data ?? r;
-        return Array.isArray(data) ? data : [];
-      }),
+      companyService
+        .listBranchesForPicker({ isSuperAdmin })
+        .then((r) => {
+          const data = r?.result ?? r?.data ?? r;
+          return Array.isArray(data) ? data : [];
+        }),
       mastersService.getReferenceOptions("inquiry_source.model", { visibility: "all" }).then((r) => {
         const data = r?.result ?? r?.data ?? r;
         return Array.isArray(data) ? data : [];
@@ -105,7 +112,7 @@ export default function OrderListFilterDialog({
         setUserOptions([]);
       })
       .finally(() => setLoadingOptions(false));
-  }, [open]);
+  }, [open, isSuperAdmin]);
 
   const handleChange = useCallback((key, value) => {
     setLocalValues((prev) => ({ ...prev, [key]: value ?? "" }));
