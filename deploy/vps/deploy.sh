@@ -17,6 +17,8 @@ echo "==> Remote path: ${APP_ROOT}"
 ssh "${REMOTE}" "mkdir -p ${APP_ROOT}"
 
 echo "==> Rsync web (preserve remote .env* and skip local .next)"
+# Exit 24 = some files vanished mid-transfer (harmless under concurrent deploys).
+set +e
 rsync -az --delete \
   --exclude 'node_modules/' \
   --exclude '.next/' \
@@ -30,6 +32,15 @@ rsync -az --delete \
   --exclude '.cursor/' \
   --exclude '.agents/' \
   "${ROOT}/" "${REMOTE}:${APP_ROOT}/"
+RSYNC_EC=$?
+set -e
+if [[ "${RSYNC_EC}" -ne 0 && "${RSYNC_EC}" -ne 24 ]]; then
+  echo "ERROR: rsync failed with exit ${RSYNC_EC}"
+  exit "${RSYNC_EC}"
+fi
+if [[ "${RSYNC_EC}" -eq 24 ]]; then
+  echo "WARN: rsync exit 24 (vanished files) — continuing"
+fi
 
 if [[ "${SKIP_ENV_SYNC:-0}" == "1" ]]; then
   echo "==> SKIP_ENV_SYNC=1 — remote .env* left unchanged"
