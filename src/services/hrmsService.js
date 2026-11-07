@@ -87,6 +87,29 @@ export const upsertEmployeeLeaveQuota = (employeeId, payload) =>
 export const deleteEmployeeLeaveQuota = (employeeId, quotaId) =>
   apiClient.delete(`/hrms/employees/${employeeId}/leave-quotas/${quotaId}`).then((r) => r.data);
 
+export const listAttendance = (params) =>
+  apiClient.get("/hrms/attendance", { params }).then((r) => r.data);
+
+export const getAttendanceStatus = () =>
+  apiClient.get("/hrms/attendance/status").then((r) => r.data);
+
+export const punchAttendance = (payload) =>
+  apiClient.post("/hrms/attendance/punch", payload).then((r) => r.data);
+
+export const listAttendanceRequests = (params) =>
+  apiClient.get("/hrms/attendance-requests", { params }).then((r) => r.data);
+
+export const createAttendanceRequest = (payload) =>
+  apiClient.post("/hrms/attendance-requests", payload).then((r) => r.data);
+
+export const decideAttendanceRequest = (id, payload) =>
+  apiClient.post(`/hrms/attendance-requests/${id}/decide`, payload).then((r) => r.data);
+
+export const exportAttendanceReport = (params) =>
+  apiClient
+    .get("/hrms/reports/attendance", { params, responseType: "blob" })
+    .then((r) => r.data);
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -117,6 +140,13 @@ const hrmsService = {
   listEmployeeLeaveQuotas,
   upsertEmployeeLeaveQuota,
   deleteEmployeeLeaveQuota,
+  listAttendance,
+  getAttendanceStatus,
+  punchAttendance,
+  listAttendanceRequests,
+  createAttendanceRequest,
+  decideAttendanceRequest,
+  exportAttendanceReport,
 };
 
 export default hrmsService;
