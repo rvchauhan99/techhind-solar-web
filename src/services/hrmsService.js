@@ -48,6 +48,45 @@ export const activateEmployee = (id, payload) =>
 export const deactivateEmployee = (id, payload) =>
   apiClient.post(`/hrms/employees/${id}/deactivate`, payload).then((r) => r.data);
 
+export const listHolidays = (params) =>
+  apiClient.get("/hrms/holidays", { params }).then((r) => r.data);
+
+export const getHoliday = (id) =>
+  apiClient.get(`/hrms/holidays/${id}`).then((r) => r.data);
+
+export const createHoliday = (payload) =>
+  apiClient.post("/hrms/holidays", payload).then((r) => r.data);
+
+export const updateHoliday = (id, payload) =>
+  apiClient.put(`/hrms/holidays/${id}`, payload).then((r) => r.data);
+
+export const deleteHoliday = (id) =>
+  apiClient.delete(`/hrms/holidays/${id}`).then((r) => r.data);
+
+export const listLeaveTypes = (params) =>
+  apiClient.get("/hrms/leave-types", { params }).then((r) => r.data);
+
+export const getLeaveType = (id) =>
+  apiClient.get(`/hrms/leave-types/${id}`).then((r) => r.data);
+
+export const createLeaveType = (payload) =>
+  apiClient.post("/hrms/leave-types", payload).then((r) => r.data);
+
+export const updateLeaveType = (id, payload) =>
+  apiClient.put(`/hrms/leave-types/${id}`, payload).then((r) => r.data);
+
+export const deleteLeaveType = (id) =>
+  apiClient.delete(`/hrms/leave-types/${id}`).then((r) => r.data);
+
+export const listEmployeeLeaveQuotas = (employeeId) =>
+  apiClient.get(`/hrms/employees/${employeeId}/leave-quotas`).then((r) => r.data);
+
+export const upsertEmployeeLeaveQuota = (employeeId, payload) =>
+  apiClient.put(`/hrms/employees/${employeeId}/leave-quotas`, payload).then((r) => r.data);
+
+export const deleteEmployeeLeaveQuota = (employeeId, quotaId) =>
+  apiClient.delete(`/hrms/employees/${employeeId}/leave-quotas/${quotaId}`).then((r) => r.data);
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -65,6 +104,19 @@ const hrmsService = {
   updateEmployee,
   activateEmployee,
   deactivateEmployee,
+  listHolidays,
+  getHoliday,
+  createHoliday,
+  updateHoliday,
+  deleteHoliday,
+  listLeaveTypes,
+  getLeaveType,
+  createLeaveType,
+  updateLeaveType,
+  deleteLeaveType,
+  listEmployeeLeaveQuotas,
+  upsertEmployeeLeaveQuota,
+  deleteEmployeeLeaveQuota,
 };
 
 export default hrmsService;

@@ -7,6 +7,8 @@ const LINKS = [
   { href: "/hrms/employees", label: "Employees" },
   { href: "/hrms/departments", label: "Departments" },
   { href: "/hrms/designations", label: "Designations" },
+  { href: "/hrms/holidays", label: "Holidays" },
+  { href: "/hrms/leave-types", label: "Leave Types" },
 ];
 
 export default function HrmsHubPage() {

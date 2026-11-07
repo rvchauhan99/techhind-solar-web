@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
+import AddEditPageShell from "@/components/common/AddEditPageShell";
+import FormContainer from "@/components/common/FormContainer";
+import FormSection from "@/components/common/FormSection";
+import FormGrid from "@/components/common/FormGrid";
+import FormField from "@/components/common/FormField";
+import CommonInput from "@/components/common/Input";
+import Select, { MenuItem } from "@/components/common/Select";
 import * as hrmsService from "@/services/hrmsService";
 import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
@@ -24,6 +31,9 @@ export default function HrmsEmployeeDetailPage() {
   const [showActivate, setShowActivate] = useState(false);
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [quotas, setQuotas] = useState([]);
+  const [quotaForm, setQuotaForm] = useState({ leave_type_id: "", quarterly_leave: "0" });
   const [activateForm, setActivateForm] = useState({
     name: "",
     email: "",
@@ -32,12 +42,28 @@ export default function HrmsEmployeeDetailPage() {
     branch_ids: [],
   });
 
+  const loadQuotas = async () => {
+    try {
+      const [qRes, tRes] = await Promise.all([
+        hrmsService.listEmployeeLeaveQuotas(id),
+        hrmsService.listLeaveTypes({ limit: 100, status: "active" }),
+      ]);
+      const qPayload = qRes?.result ?? qRes?.data ?? qRes;
+      setQuotas(qPayload?.data || []);
+      const tPayload = tRes?.result ?? tRes?.data ?? tRes;
+      setLeaveTypes(tPayload?.data || []);
+    } catch {
+      setQuotas([]);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     try {
       const res = await hrmsService.getEmployee(id);
       const data = res?.result ?? res?.data ?? res;
       setRow(data);
+      await loadQuotas();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Failed to load");
       router.push("/hrms/employees");
@@ -127,6 +153,42 @@ export default function HrmsEmployeeDetailPage() {
     });
   };
 
+  const onSaveQuota = async (e) => {
+    e.preventDefault();
+    if (!quotaForm.leave_type_id) {
+      toast.error("Select a leave type");
+      return;
+    }
+    setBusy(true);
+    try {
+      await hrmsService.upsertEmployeeLeaveQuota(id, {
+        leave_type_id: Number(quotaForm.leave_type_id),
+        quarterly_leave: Number(quotaForm.quarterly_leave) || 0,
+      });
+      toast.success("Leave quota saved");
+      setQuotaForm({ leave_type_id: "", quarterly_leave: "0" });
+      await loadQuotas();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Quota save failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDeleteQuota = async (quotaId) => {
+    if (!window.confirm("Remove this leave quota?")) return;
+    setBusy(true);
+    try {
+      await hrmsService.deleteEmployeeLeaveQuota(id, quotaId);
+      toast.success("Leave quota removed");
+      await loadQuotas();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Delete failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -137,17 +199,14 @@ export default function HrmsEmployeeDetailPage() {
 
   if (!row) return null;
 
+  const title = `${row.emp_code}${row.user?.name ? ` — ${row.user.name}` : ""}`;
+
   return (
     <ProtectedRoute>
-      <div className="p-3 max-w-3xl space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-lg font-semibold">
-              {row.emp_code}
-              {row.user?.name ? ` — ${row.user.name}` : ""}
-            </h1>
-            <p className="text-xs text-muted-foreground capitalize">Status: {row.status}</p>
-          </div>
+      <AddEditPageShell title={title} listHref="/hrms/employees" listLabel="Employees">
+        <FormContainer>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-xs text-muted-foreground capitalize">Status: {row.status}</p>
           <div className="flex flex-wrap gap-2">
             {perm.can_update && (
               <Button size="sm" variant="outline" asChild>
@@ -169,16 +228,17 @@ export default function HrmsEmployeeDetailPage() {
                 <Link href={`/user-master/edit?id=${row.user_id}`}>Open User</Link>
               </Button>
             )}
-            <Button size="sm" variant="ghost" asChild>
-              <Link href="/hrms/employees">Back</Link>
-            </Button>
           </div>
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 text-sm">
+        <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3">
           <div>
-            <span className="text-muted-foreground">Work email: </span>
+            <span className="text-muted-foreground">Company login email: </span>
             {row.user?.email || "—"}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Personal email: </span>
+            {row.personal_email || "—"}
           </div>
           <div>
             <span className="text-muted-foreground">Mobile: </span>
@@ -220,6 +280,69 @@ export default function HrmsEmployeeDetailPage() {
           </div>
         </div>
 
+        <FormSection title="Leave quotas" className="rounded-md border border-border p-3">
+          <div className="mb-2 space-y-1 text-sm">
+            {quotas.length === 0 && (
+              <p className="text-xs text-muted-foreground">No leave quotas assigned yet.</p>
+            )}
+            {quotas.map((q) => (
+              <div key={q.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-1">
+                <span>
+                  {q.leaveType?.title || `Type #${q.leave_type_id}`} —{" "}
+                  <strong>{q.quarterly_leave}</strong> / quarter
+                </span>
+                {perm.can_update && (
+                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDeleteQuota(q.id)}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {perm.can_update && (
+            <form onSubmit={onSaveQuota} className="space-y-2">
+              <FormGrid cols={2}>
+                <FormField>
+                  <Select
+                    label="Leave type"
+                    name="leave_type_id"
+                    value={quotaForm.leave_type_id || "none"}
+                    onChange={(e) => {
+                      const v = e.target.value === "none" ? "" : e.target.value;
+                      const lt = leaveTypes.find((t) => String(t.id) === String(v));
+                      setQuotaForm({
+                        leave_type_id: v,
+                        quarterly_leave: lt ? String(lt.quarterly_leave ?? "0") : quotaForm.quarterly_leave,
+                      });
+                    }}
+                  >
+                    <MenuItem value="none">Select…</MenuItem>
+                    {leaveTypes.map((t) => (
+                      <MenuItem key={t.id} value={String(t.id)}>
+                        {t.title}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField>
+                  <CommonInput
+                    label="Quarterly allotment"
+                    name="quarterly_leave"
+                    type="number"
+                    value={quotaForm.quarterly_leave}
+                    onChange={(e) =>
+                      setQuotaForm((f) => ({ ...f, quarterly_leave: e.target.value }))
+                    }
+                  />
+                </FormField>
+              </FormGrid>
+              <Button type="submit" size="sm" disabled={busy}>
+                Save quota
+              </Button>
+            </form>
+          )}
+        </FormSection>
+
         {showActivate && (
           <form onSubmit={onActivate} className="rounded-md border border-border p-3 space-y-3">
             <p className="text-sm font-medium">Activate — provision User</p>
@@ -232,7 +355,7 @@ export default function HrmsEmployeeDetailPage() {
                 />
               </div>
               <div className="space-y-1">
-                <Label>Work email *</Label>
+                <Label>Company login email *</Label>
                 <Input
                   type="email"
                   value={activateForm.email}
@@ -287,7 +410,8 @@ export default function HrmsEmployeeDetailPage() {
             </div>
           </form>
         )}
-      </div>
+        </FormContainer>
+      </AddEditPageShell>
     </ProtectedRoute>
   );
 }

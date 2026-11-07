@@ -1,0 +1,15 @@
+---
+description: HRMS web — market/standard analysis; ask before SolarAce-extra enhancements; never ship known issues
+globs: src/app/hrms/**/*,src/services/hrmsService.js
+alwaysApply: false
+---
+
+# HRMS web — same Rule 1b as API
+
+Follow **`techhind-solar-api/.cursor/rules/HRMS-Market-Standard-Enhancements.mdc`** and `docs/hrms/TASK-DELIVERY-GATE.md` §1b:
+
+1. Deep-analyze SolarAce **and** market/standard HRMS for the screen.
+2. Enhancements **not** in SolarAce → **ask the user** before building.
+3. Never forward known bugs/weak UX — fix in TechHind or escalate; no silent Waive on broken touched flows.
+
+UI must still obey **UI-UX-Strict** + delivery-qa web conventions.
