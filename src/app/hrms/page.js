@@ -4,6 +4,7 @@ import Link from "next/link";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 
 const LINKS = [
+  { href: "/hrms/employees", label: "Employees" },
   { href: "/hrms/departments", label: "Departments" },
   { href: "/hrms/designations", label: "Designations" },
 ];

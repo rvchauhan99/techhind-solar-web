@@ -1,0 +1,40 @@
+---
+description: STRICT web UI/UX for TechHind Solar CRM — theme match, global reuse, mobile responsive
+alwaysApply: true
+---
+
+# TechHind Solar Web — UI/UX (STRICT)
+
+Agents historically ship weak one-off UI. **Stop.** Every screen must look and feel like production TechHind SaaS CRM.
+
+## Mandatory skills + rules (read before coding UI)
+
+Do **not** start UI work until these are followed in the same turn:
+
+1. `~/.cursor/skills/techhind-delivery-qa/SKILL.md`
+2. `~/.cursor/skills/techhind-delivery-qa/reference/web-conventions.md`
+3. `~/.cursor/skills/techhind-delivery-qa/reference/web-qa.md`
+4. `~/.cursor/skills/agent360-web-qa/SKILL.md` (+ `playwright-frontend` skill pointer)
+5. Global rules: `techhind-ui-ux-strict.mdc`, `playwright-frontend.mdc`, `build-testing-after-tasks.mdc`
+6. This repo: `Development-Delivery-Standards.mdc` (+ commission UI rule when on commission pages)
+
+Any other custom skill/rule that applies to the open files or product **must** be followed the same way — no skipping because “UI only.”
+
+## Always
+
+1. **Clone sibling screens** — before new JSX, open a nearby list/add/edit (e.g. User Master, Inquiry, `/hrms/departments`) and reuse the same shells and field components.
+2. **Shared kit first** — `@/components/common` (`ListingPageContainer`, `AddEditPageShell`, `FormContainer`, `FormSection`, `FormGrid`, `FormField`, `Input`, `Select`, `DateField`, `PaginatedTable`, `FilterBar`, `ProtectedRoute`, …) and `@/components/ui/*`.
+3. **New UI → global** — if you need a control that does not exist, add it under `src/components/common` (or shared ui), export from the barrel, then use it. No page-private clones.
+4. **Dense + professional + friendly** — tight padding, clear labels above fields, primary Save / secondary Cancel, sonner toasts, confirm deletes/deactivate.
+5. **Mobile responsive by default** — `sm:` grids that stack; no clipped tables without scroll; filters usable on narrow width.
+
+## Forbidden
+
+- Ad-hoc full-page forms with only raw native selects and one-off spacing that ignore `AddEditPageShell` / `FormField`
+- Marketing/hero/card-heavy layouts on CRM modules
+- “Desktop only” or “fix responsive later”
+- Visual divergence from the rest of the CRM for HRMS or any new module
+
+## QA
+
+UI change ⇒ Browser MCP smoke on the focus URL (see delivery + playwright-frontend rules). Assert layout still reads as TechHind CRM, not a prototype.
