@@ -11,7 +11,10 @@ const LINKS = [
   { href: "/hrms/leave-types", label: "Leave Types" },
   { href: "/hrms/attendance", label: "Attendance" },
   { href: "/hrms/attendance-requests", label: "Attendance Requests" },
+  { href: "/hrms/leaves", label: "Leaves" },
   { href: "/hrms/reports/attendance", label: "Attendance Report" },
+  { href: "/hrms/reports/leave", label: "Leave Report" },
+  { href: "/hrms/reports/leave-balance", label: "Leave Balance Report" },
 ];
 
 export default function HrmsHubPage() {

@@ -110,6 +110,46 @@ export const exportAttendanceReport = (params) =>
     .get("/hrms/reports/attendance", { params, responseType: "blob" })
     .then((r) => r.data);
 
+export const listLeaves = (params) =>
+  apiClient.get("/hrms/leaves", { params }).then((r) => r.data);
+
+export const getLeave = (id) =>
+  apiClient.get(`/hrms/leaves/${id}`).then((r) => r.data);
+
+export const applyLeave = (payload) =>
+  apiClient.post("/hrms/leaves", payload).then((r) => r.data);
+
+export const cancelLeave = (id) =>
+  apiClient.post(`/hrms/leaves/${id}/cancel`).then((r) => r.data);
+
+export const decideLeave = (id, payload) =>
+  apiClient.post(`/hrms/leaves/${id}/decide`, payload).then((r) => r.data);
+
+export const getLeaveBalance = (params) =>
+  apiClient.get("/hrms/leaves/balance", { params }).then((r) => r.data);
+
+export const listLeaveReport = (params) =>
+  apiClient.get("/hrms/reports/leave", { params }).then((r) => r.data);
+
+export const exportLeaveReport = (params) =>
+  apiClient
+    .get("/hrms/reports/leave", {
+      params: { ...params, export: "xlsx" },
+      responseType: "blob",
+    })
+    .then((r) => r.data);
+
+export const listLeaveBalanceReport = (params) =>
+  apiClient.get("/hrms/reports/leave-balance", { params }).then((r) => r.data);
+
+export const exportLeaveBalanceReport = (params) =>
+  apiClient
+    .get("/hrms/reports/leave-balance", {
+      params: { ...params, export: "xlsx" },
+      responseType: "blob",
+    })
+    .then((r) => r.data);
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -147,6 +187,16 @@ const hrmsService = {
   createAttendanceRequest,
   decideAttendanceRequest,
   exportAttendanceReport,
+  listLeaves,
+  getLeave,
+  applyLeave,
+  cancelLeave,
+  decideLeave,
+  getLeaveBalance,
+  listLeaveReport,
+  exportLeaveReport,
+  listLeaveBalanceReport,
+  exportLeaveBalanceReport,
 };
 
 export default hrmsService;
