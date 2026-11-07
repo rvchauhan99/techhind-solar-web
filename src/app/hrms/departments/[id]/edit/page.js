@@ -1,0 +1,113 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import ProtectedRoute from "@/components/common/ProtectedRoute";
+import * as hrmsService from "@/services/hrmsService";
+
+export default function HrmsDepartmentEditPage() {
+  const { id } = useParams();
+  const router = useRouter();
+  const [title, setTitle] = useState("");
+  const [status, setStatus] = useState("active");
+  const [headUserId, setHeadUserId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await hrmsService.getDepartment(id);
+        const row = res?.result ?? res?.data ?? res;
+        if (cancelled) return;
+        setTitle(row?.title || "");
+        setStatus(row?.status || "active");
+        setHeadUserId(row?.department_head_user_id != null ? String(row.department_head_user_id) : "");
+      } catch (err) {
+        toast.error(err?.response?.data?.message || "Load failed");
+        router.push("/hrms/departments");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, router]);
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await hrmsService.updateDepartment(id, {
+        title: title.trim(),
+        status,
+        department_head_user_id: headUserId === "" ? null : Number(headUserId),
+      });
+      toast.success("Department updated");
+      router.push("/hrms/departments");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <div className="p-3 text-sm text-muted-foreground">Loading…</div>
+      </ProtectedRoute>
+    );
+  }
+
+  return (
+    <ProtectedRoute>
+      <div className="p-3 max-w-lg space-y-3">
+        <h1 className="text-lg font-semibold">Edit Department</h1>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="space-y-1">
+            <Label>Title *</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
+          </div>
+          <div className="space-y-1">
+            <Label>Status</Label>
+            <select
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label>Department head user id (optional)</Label>
+            <Input
+              value={headUserId}
+              onChange={(e) => setHeadUserId(e.target.value)}
+              placeholder="User id"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => router.back()}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    </ProtectedRoute>
+  );
+}

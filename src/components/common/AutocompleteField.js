@@ -48,6 +48,8 @@ const AutocompleteField = forwardRef(function AutocompleteField(
 ) {
   const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  /** Once true, input shows the typed query; until then an open field keeps showing the selected label. */
+  const [isSearching, setIsSearching] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -336,6 +338,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       const inDropdown = usePortal ? dropdownRef.current?.contains(e.target) : false;
       if (!inContainer && !inDropdown) {
         setInputValue("");
+        setIsSearching(false);
         setOpen(false);
         if (isAsyncMode) initialOptionsLoadedRef.current = false;
       }
@@ -357,9 +360,31 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     } else {
       onChange?.({ target: { value: null } }, option);
       setInputValue("");
+      setIsSearching(false);
       setOpen(false);
       if (isAsyncMode) initialOptionsLoadedRef.current = false;
     }
+  };
+
+  /** When open with a selection, first printable/Backspace starts search without appending to the label. */
+  const beginSearchFromKey = (e) => {
+    if (multiple || isSearching || !displayValue) return false;
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (e.key.length === 1) {
+      e.preventDefault();
+      setIsSearching(true);
+      setInputValue(e.key);
+      setOpen(true);
+      return true;
+    }
+    if (e.key === "Backspace" || e.key === "Delete") {
+      e.preventDefault();
+      setIsSearching(true);
+      setInputValue("");
+      setOpen(true);
+      return true;
+    }
+    return false;
   };
 
   const handleKeyDown = (e) => {
@@ -389,6 +414,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
     } else if (e.key === "Escape") {
       setOpen(false);
       setInputValue("");
+      setIsSearching(false);
     }
   };
 
@@ -526,23 +552,29 @@ const AutocompleteField = forwardRef(function AutocompleteField(
       <div className="relative">
         <Input
           ref={ref}
-          value={open ? inputValue : (defaultResolving ? "" : displayValue)}
+          value={
+            defaultResolving && !open
+              ? ""
+              : open && isSearching
+                ? inputValue
+                : displayValue
+          }
           onChange={(e) => {
+            setIsSearching(true);
             setInputValue(e.target.value);
             setOpen(true);
           }}
           onFocus={() => {
-            // When editing: do not close dropdown — onMouseDown already opened it for re-selection
-            if (isAsyncMode && valueId != null && inputValue === "") {
-              return;
-            }
             setOpen(true);
           }}
           onMouseDown={() => {
             // Allow opening dropdown by click when field has a value (so user can change selection)
-            if (valueId != null && !open && inputValue === "") setOpen(true);
+            if (valueId != null && !open && !isSearching) setOpen(true);
           }}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => {
+            if (beginSearchFromKey(e)) return;
+            handleKeyDown(e);
+          }}
           placeholder={defaultResolving ? "" : placeholder}
           disabled={disabled}
           autoComplete="off"
@@ -561,6 +593,7 @@ const AutocompleteField = forwardRef(function AutocompleteField(
             onClick={(e) => {
               e.stopPropagation();
               setInputValue("");
+              setIsSearching(false);
               setOpen(false);
               selectedOptionCacheRef.current = null;
               if (isAsyncMode) {
