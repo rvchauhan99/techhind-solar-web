@@ -228,6 +228,9 @@ export default function HrmsEmployeeDetailPage() {
                 <Link href={`/user-master/edit?id=${row.user_id}`}>Open User</Link>
               </Button>
             )}
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/hrms/employees/${id}/annexure`}>Annexure</Link>
+            </Button>
           </div>
         </div>
 

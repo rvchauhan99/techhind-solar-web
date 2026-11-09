@@ -150,6 +150,24 @@ export const exportLeaveBalanceReport = (params) =>
     })
     .then((r) => r.data);
 
+export const getEmployeeAnnexure = (employeeId, params) =>
+  apiClient
+    .get(`/hrms/employees/${employeeId}/annexure`, { params })
+    .then((r) => r.data);
+
+export const upsertEmployeeAnnexure = (employeeId, payload) =>
+  apiClient.put(`/hrms/employees/${employeeId}/annexure`, payload).then((r) => r.data);
+
+export const listEmployeeSalaryIncrements = (employeeId) =>
+  apiClient
+    .get(`/hrms/employees/${employeeId}/annexure/increments`)
+    .then((r) => r.data);
+
+export const createEmployeeSalaryIncrement = (employeeId, payload) =>
+  apiClient
+    .post(`/hrms/employees/${employeeId}/annexure/increments`, payload)
+    .then((r) => r.data);
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -197,6 +215,10 @@ const hrmsService = {
   exportLeaveReport,
   listLeaveBalanceReport,
   exportLeaveBalanceReport,
+  getEmployeeAnnexure,
+  upsertEmployeeAnnexure,
+  listEmployeeSalaryIncrements,
+  createEmployeeSalaryIncrement,
 };
 
 export default hrmsService;
