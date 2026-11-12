@@ -110,6 +110,9 @@ export const exportAttendanceReport = (params) =>
     .get("/hrms/reports/attendance", { params, responseType: "blob" })
     .then((r) => r.data);
 
+export const autoCheckoutAttendance = (payload = {}) =>
+  apiClient.post("/hrms/attendance/auto-checkout", payload).then((r) => r.data);
+
 export const listLeaves = (params) =>
   apiClient.get("/hrms/leaves", { params }).then((r) => r.data);
 
@@ -168,6 +171,27 @@ export const createEmployeeSalaryIncrement = (employeeId, payload) =>
     .post(`/hrms/employees/${employeeId}/annexure/increments`, payload)
     .then((r) => r.data);
 
+export const listEmployeeDocuments = (employeeId, params) =>
+  apiClient.get(`/hrms/employees/${employeeId}/documents`, { params }).then((r) => r.data);
+
+export const uploadEmployeeDocument = (employeeId, formData) =>
+  apiClient.post(`/hrms/employees/${employeeId}/documents`, formData).then((r) => r.data);
+
+export const getEmployeeDocumentUrl = (employeeId, docId) =>
+  apiClient.get(`/hrms/employees/${employeeId}/documents/${docId}/url`).then((r) => r.data);
+
+export const deleteEmployeeDocument = (employeeId, docId) =>
+  apiClient.delete(`/hrms/employees/${employeeId}/documents/${docId}`).then((r) => r.data);
+
+export const cloneHolidayYear = (payload) =>
+  apiClient.post("/hrms/holidays/clone-year", payload).then((r) => r.data);
+
+export const bulkCreateHolidays = (payload) =>
+  apiClient.post("/hrms/holidays/bulk", payload).then((r) => r.data);
+
+export const listLeaveTypeHistory = (id) =>
+  apiClient.get(`/hrms/leave-types/${id}/history`).then((r) => r.data);
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -205,6 +229,7 @@ const hrmsService = {
   createAttendanceRequest,
   decideAttendanceRequest,
   exportAttendanceReport,
+  autoCheckoutAttendance,
   listLeaves,
   getLeave,
   applyLeave,
@@ -219,6 +244,13 @@ const hrmsService = {
   upsertEmployeeAnnexure,
   listEmployeeSalaryIncrements,
   createEmployeeSalaryIncrement,
+  listEmployeeDocuments,
+  uploadEmployeeDocument,
+  getEmployeeDocumentUrl,
+  deleteEmployeeDocument,
+  cloneHolidayYear,
+  bulkCreateHolidays,
+  listLeaveTypeHistory,
 };
 
 export default hrmsService;

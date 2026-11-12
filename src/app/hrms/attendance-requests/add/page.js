@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -28,7 +28,7 @@ export default function HrmsAttendanceRequestAddPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!form.reason.trim()) {
-      toast.error("Reason is required");
+      toastErrorFromApi({ message: "Reason is required" }, "Reason is required");
       return;
     }
     setSaving(true);
@@ -38,10 +38,10 @@ export default function HrmsAttendanceRequestAddPage() {
         request_at: form.request_at || new Date().toISOString(),
         reason: form.reason.trim(),
       });
-      toast.success("Request submitted");
+      toastSuccess("Request submitted");
       router.push("/hrms/attendance-requests");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Create failed");
+      toastErrorFromApi(err, "Create failed");
     } finally {
       setSaving(false);
     }
@@ -56,7 +56,11 @@ export default function HrmsAttendanceRequestAddPage() {
       >
         <form onSubmit={onSubmit} className="flex flex-col flex-1 min-h-0">
           <FormContainer>
-            <FormSection title="Correction">
+            <FormSection
+              variant="card"
+              title="Correction request"
+              description="What punch needs correcting, when it should have been, and why"
+            >
               <FormGrid cols={2}>
                 <FormField>
                   <Select

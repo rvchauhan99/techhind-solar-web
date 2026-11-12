@@ -2,22 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
+import AddEditPageShell from "@/components/common/AddEditPageShell";
+import FormContainer, { FormActions } from "@/components/common/FormContainer";
+import FormSection from "@/components/common/FormSection";
+import FormGrid from "@/components/common/FormGrid";
+import FormField from "@/components/common/FormField";
+import Input from "@/components/common/Input";
+import Select, { MenuItem } from "@/components/common/Select";
+import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { unwrap } from "@/lib/apiUnwrap";
 
 export default function HrmsDesignationEditPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [title, setTitle] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [status, setStatus] = useState("active");
-  const [departments, setDepartments] = useState([]);
+  const [form, setForm] = useState({ title: "", department_id: "", status: "active" });
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,14 +34,16 @@ export default function HrmsDesignationEditPage() {
           hrmsService.listDepartments({ limit: 100 }),
         ]);
         if (cancelled) return;
-        const row = desigRes?.result ?? desigRes?.data ?? desigRes;
-        const deptPayload = deptRes?.result ?? deptRes?.data ?? deptRes;
-        setTitle(row?.title || "");
-        setStatus(row?.status || "active");
-        setDepartmentId(row?.department_id != null ? String(row.department_id) : "");
+        const row = unwrap(desigRes);
+        const deptPayload = unwrap(deptRes);
+        setForm({
+          title: row?.title || "",
+          status: row?.status || "active",
+          department_id: row?.department_id != null ? String(row.department_id) : "",
+        });
         setDepartments(deptPayload?.data || []);
       } catch (err) {
-        toast.error(err?.response?.data?.message || "Load failed");
+        toastErrorFromApi(err, "Load failed");
         router.push("/hrms/designations");
       } finally {
         if (!cancelled) setLoading(false);
@@ -46,27 +54,30 @@ export default function HrmsDesignationEditPage() {
     };
   }, [id, router]);
 
+  const setField = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-    if (!departmentId) {
-      toast.error("Department is required");
-      return;
-    }
+    const errs = {};
+    if (!form.title.trim()) errs.title = "Title is required";
+    if (!form.department_id) errs.department_id = "Department is required";
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+
     setSaving(true);
     try {
       await hrmsService.updateDesignation(id, {
-        title: title.trim(),
-        department_id: Number(departmentId),
-        status,
+        title: form.title.trim(),
+        department_id: Number(form.department_id),
+        status: form.status,
       });
-      toast.success("Designation updated");
+      toastSuccess("Designation updated");
       router.push("/hrms/designations");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Update failed");
+      toastErrorFromApi(err, "Update failed");
     } finally {
       setSaving(false);
     }
@@ -75,57 +86,76 @@ export default function HrmsDesignationEditPage() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <div className="p-3 text-sm text-muted-foreground">Loading…</div>
+        <div className="p-4 text-sm text-muted-foreground">Loading…</div>
       </ProtectedRoute>
     );
   }
 
   return (
     <ProtectedRoute>
-      <div className="p-3 max-w-lg space-y-3">
-        <h1 className="text-lg font-semibold">Edit Designation</h1>
-        <form onSubmit={onSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Title *</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
-          </div>
-          <div className="space-y-1">
-            <Label>Department *</Label>
-            <select
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
-              required
+      <AddEditPageShell title="Edit Designation" listHref="/hrms/designations" listLabel="Designations">
+        <form onSubmit={onSubmit} onKeyDown={preventEnterSubmit}>
+          <FormContainer>
+            <FormSection
+              variant="card"
+              title="Designation details"
+              description="Job title and the department it belongs to"
             >
-              <option value="">Select department</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label>Status</Label>
-            <select
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => router.back()}>
-              Cancel
-            </Button>
-          </div>
+              <FormGrid>
+                <FormField>
+                  <Input
+                    label="Title"
+                    name="title"
+                    value={form.title}
+                    onChange={(e) => setField("title", e.target.value)}
+                    error={!!errors.title}
+                    helperText={errors.title}
+                    required
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Department"
+                    name="department_id"
+                    value={form.department_id}
+                    onChange={(e) => setField("department_id", e.target.value)}
+                    error={!!errors.department_id}
+                    helperText={errors.department_id}
+                    required
+                    placeholder="Select department"
+                  >
+                    {departments.map((d) => (
+                      <MenuItem key={d.id} value={String(d.id)}>
+                        {d.title}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Status"
+                    name="status"
+                    value={form.status}
+                    onChange={(e) => setField("status", e.target.value)}
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
+                  </Select>
+                </FormField>
+              </FormGrid>
+            </FormSection>
+
+            <FormActions>
+              <Button type="submit" size="sm" loading={saving}>
+                Save
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => router.back()}>
+                Cancel
+              </Button>
+            </FormActions>
+          </FormContainer>
         </form>
-      </div>
+      </AddEditPageShell>
     </ProtectedRoute>
   );
 }

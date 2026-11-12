@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -10,9 +9,35 @@ import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
+import FormSectionNav from "@/components/common/FormSectionNav";
 import Input from "@/components/common/Input";
 import Checkbox from "@/components/common/Checkbox";
+import StatusBadge from "@/components/common/StatusBadge";
+import { IconCoin, IconBuildingFactory2, IconReceipt2, IconTrendingUp, IconHistory } from "@tabler/icons-react";
+import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+
+const MONEY_FIELDS = [
+  "basic_salary_per_month",
+  "hra_per_month",
+  "conveyance_allow_per_month",
+  "medical_allow_per_month",
+  "other_allow_per_month",
+  "employer_pf_contribution_per_month",
+  "employer_esic_contribution_per_month",
+  "ctc_employer_pf_contribution_per_month",
+  "ctc_employer_esic_contribution_per_month",
+  "pt_per_month",
+  "net_take_home",
+];
+
+const num = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const formatMoney = (v) =>
+  num(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const EMPTY = {
   basic_salary_per_month: "0",
@@ -70,15 +95,14 @@ export default function HrmsEmployeeAnnexurePage() {
         hrmsService.getEmployeeAnnexure(id, { history: 1 }),
         hrmsService.listEmployeeSalaryIncrements(id),
       ]);
-      const emp = empRes?.result ?? empRes?.data ?? empRes;
+      const emp = unwrap(empRes);
       setEmpLabel(`${emp?.emp_code || id}${emp?.user?.name ? ` — ${emp.user.name}` : ""}`);
-      const ann = annRes?.result ?? annRes?.data ?? annRes;
+      const ann = unwrap(annRes);
       setForm(fromRow(ann?.current));
       setHistory(ann?.history || []);
-      const incPayload = incRes?.result ?? incRes?.data ?? incRes;
-      setIncrements(incPayload?.data || []);
+      setIncrements(unwrap(incRes)?.data || []);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load annexure");
+      toastErrorFromApi(err, "Failed to load annexure");
       router.push(`/hrms/employees/${id}`);
     } finally {
       setLoading(false);
@@ -112,10 +136,10 @@ export default function HrmsEmployeeAnnexurePage() {
         pt_per_month: Number(form.pt_per_month),
         net_take_home: Number(form.net_take_home),
       });
-      toast.success("Annexure saved");
+      toastSuccess("Annexure saved");
       await load();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Save failed");
+      toastErrorFromApi(err, "Save failed");
     } finally {
       setSaving(false);
     }
@@ -123,7 +147,7 @@ export default function HrmsEmployeeAnnexurePage() {
 
   const onIncrement = async () => {
     if (!incForm.effective_month || !incForm.salary) {
-      toast.error("Effective month and salary are required");
+      toastErrorFromApi(null, "Effective month and salary are required");
       return;
     }
     setSaving(true);
@@ -132,20 +156,48 @@ export default function HrmsEmployeeAnnexurePage() {
         effective_month: incForm.effective_month,
         salary: Number(incForm.salary),
       });
-      toast.success("Increment applied");
+      toastSuccess("Increment applied — a new annexure version was created");
       setIncForm({ effective_month: "", salary: "" });
       await load();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Increment failed");
+      toastErrorFromApi(err, "Increment failed");
     } finally {
       setSaving(false);
     }
   };
 
+  const totals = useMemo(() => {
+    const earnings =
+      num(form.basic_salary_per_month) +
+      num(form.hra_per_month) +
+      num(form.conveyance_allow_per_month) +
+      num(form.medical_allow_per_month) +
+      num(form.other_allow_per_month);
+    const employer =
+      num(form.employer_pf_contribution_per_month) + num(form.employer_esic_contribution_per_month);
+    const ctcEmployer =
+      num(form.ctc_employer_pf_contribution_per_month) + num(form.ctc_employer_esic_contribution_per_month);
+    return {
+      earnings,
+      employer,
+      ctcEmployer,
+      monthlyCtc: earnings + employer + ctcEmployer,
+      net: num(form.net_take_home),
+    };
+  }, [form]);
+
   if (loading) {
     return (
       <ProtectedRoute>
-        <div className="p-3 text-sm text-muted-foreground">Loading annexure…</div>
+        <div className="p-4 space-y-3">
+          <div className="h-8 w-64 animate-pulse rounded bg-muted" />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-10 animate-pulse rounded-md bg-muted/60" />
+            ))}
+          </div>
+          <div className="h-32 animate-pulse rounded-md bg-muted/40" />
+        </div>
       </ProtectedRoute>
     );
   }
@@ -158,9 +210,26 @@ export default function HrmsEmployeeAnnexurePage() {
         listLabel="Employee"
       >
         <form onSubmit={onSave} className="flex flex-col flex-1 min-h-0">
-          <FormContainer>
-            <FormSection title="Earnings (A)">
-              <FormGrid cols={2}>
+          <FormContainer className="space-y-2">
+            <FormSectionNav
+              sections={[
+                { id: "ann-a", label: "A · Earnings" },
+                { id: "ann-b", label: "B · Employer" },
+                { id: "ann-c", label: "C · CTC" },
+                { id: "ann-increment", label: "Increment" },
+                { id: "ann-history", label: "History" },
+              ]}
+            />
+            <div className="space-y-2">
+            <FormSection
+              variant="card"
+              id="ann-a"
+              step="A"
+              icon={<IconCoin className="size-4" />}
+              title="Earnings"
+              description="Monthly gross components — basic and allowances"
+            >
+              <FormGrid cols={4}>
                 <FormField>
                   <Input
                     label="Basic / month *"
@@ -249,8 +318,15 @@ export default function HrmsEmployeeAnnexurePage() {
               </FormGrid>
             </FormSection>
 
-            <FormSection title="Employer contributions (B)">
-              <FormGrid cols={2}>
+            <FormSection
+              variant="card"
+              id="ann-b"
+              step="B"
+              icon={<IconBuildingFactory2 className="size-4" />}
+              title="Employer contributions"
+              description="What the company pays on top of salary"
+            >
+              <FormGrid cols={4}>
                 <FormField>
                   <Input
                     label="Employer PF / month"
@@ -278,8 +354,15 @@ export default function HrmsEmployeeAnnexurePage() {
               </FormGrid>
             </FormSection>
 
-            <FormSection title="CTC / deductions (C)">
-              <FormGrid cols={2}>
+            <FormSection
+              variant="card"
+              id="ann-c"
+              step="C"
+              icon={<IconReceipt2 className="size-4" />}
+              title="CTC adjustments & take-home"
+              description="PF/ESIC as counted in CTC, professional tax and the net payout"
+            >
+              <FormGrid cols={4}>
                 <FormField>
                   <Input
                     label="CTC Employer PF / month"
@@ -339,10 +422,25 @@ export default function HrmsEmployeeAnnexurePage() {
               </FormGrid>
             </FormSection>
 
-            <FormActions>
-              <Button type="submit" size="sm" disabled={saving}>
-                {saving ? "Saving…" : "Save annexure"}
-              </Button>
+            <FormActions className="sticky bottom-0 flex-wrap items-center gap-2 border-t border-border bg-card/95 backdrop-blur">
+              <div className="mr-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <span className="text-muted-foreground">
+                  A <span className="font-semibold text-foreground">₹ {formatMoney(totals.earnings)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  B <span className="font-semibold text-foreground">₹ {formatMoney(totals.employer)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  C <span className="font-semibold text-foreground">₹ {formatMoney(totals.ctcEmployer)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  CTC{" "}
+                  <span className="font-semibold text-[#00823b]">₹ {formatMoney(totals.monthlyCtc)}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  Net <span className="font-semibold text-foreground">₹ {formatMoney(totals.net)}</span>
+                </span>
+              </div>
               <Button
                 type="button"
                 size="sm"
@@ -351,13 +449,19 @@ export default function HrmsEmployeeAnnexurePage() {
               >
                 Back
               </Button>
+              <Button type="submit" size="sm" disabled={saving}>
+                {saving ? "Saving…" : "Save annexure"}
+              </Button>
             </FormActions>
 
-            <FormSection title="Salary increment">
-              <p className="text-xs text-muted-foreground mb-2">
-                Creates a new annexure version and keeps the previous one as superseded.
-              </p>
-              <FormGrid cols={2}>
+            <FormSection
+              variant="card"
+              id="ann-increment"
+              icon={<IconTrendingUp className="size-4" />}
+              title="Salary increment"
+              description="Creates a new annexure version and keeps the previous one as superseded"
+            >
+              <FormGrid cols={4}>
                 <FormField>
                   <Input
                     label="Effective month (YYYY-MM)"
@@ -386,21 +490,21 @@ export default function HrmsEmployeeAnnexurePage() {
                 </Button>
               </div>
               {increments.length > 0 && (
-                <div className="mt-3 overflow-x-auto text-xs">
+                <div className="mt-3 overflow-x-auto rounded-md border border-border text-xs">
                   <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="py-1 pr-2">Month</th>
-                        <th className="py-1 pr-2">Salary</th>
-                        <th className="py-1 pr-2">Status</th>
+                    <thead className="bg-muted/50">
+                      <tr className="text-left">
+                        <th className="px-2 py-2 font-semibold">Effective month</th>
+                        <th className="px-2 py-2 font-semibold">New salary</th>
+                        <th className="px-2 py-2 font-semibold">Status</th>
                       </tr>
                     </thead>
                     <tbody>
                       {increments.map((r) => (
-                        <tr key={r.id} className="border-b">
-                          <td className="py-1 pr-2">{r.effective_month}</td>
-                          <td className="py-1 pr-2">{r.salary}</td>
-                          <td className="py-1 pr-2 capitalize">{r.status}</td>
+                        <tr key={r.id} className="border-t border-border">
+                          <td className="px-2 py-2">{r.effective_month}</td>
+                          <td className="px-2 py-2">₹ {formatMoney(r.salary)}</td>
+                          <td className="px-2 py-2"><StatusBadge status={r.status} /></td>
                         </tr>
                       ))}
                     </tbody>
@@ -409,35 +513,43 @@ export default function HrmsEmployeeAnnexurePage() {
               )}
             </FormSection>
 
-            <FormSection title="Annexure history">
-              <div className="overflow-x-auto text-xs">
+            <FormSection
+              variant="card"
+              id="ann-history"
+              icon={<IconHistory className="size-4" />}
+              title="Annexure history"
+              description="Superseded versions, newest first"
+            >
+              <div className="overflow-x-auto rounded-md border border-border text-xs">
                 <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="py-1 pr-2">ID</th>
-                      <th className="py-1 pr-2">Basic</th>
-                      <th className="py-1 pr-2">HRA</th>
-                      <th className="py-1 pr-2">Net</th>
-                      <th className="py-1 pr-2">Status</th>
+                  <thead className="bg-muted/50">
+                    <tr className="text-left">
+                      <th className="px-2 py-2 font-semibold">Version</th>
+                      <th className="px-2 py-2 font-semibold">Basic</th>
+                      <th className="px-2 py-2 font-semibold">HRA</th>
+                      <th className="px-2 py-2 font-semibold">Net take-home</th>
+                      <th className="px-2 py-2 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {history.map((r) => (
-                      <tr key={r.id} className="border-b">
-                        <td className="py-1 pr-2">{r.id}</td>
-                        <td className="py-1 pr-2">{r.basic_salary_per_month}</td>
-                        <td className="py-1 pr-2">
-                          {r.hra_per_month}
-                          {r.hra_per_month_manual ? " (M)" : ""}
+                      <tr key={r.id} className="border-t border-border">
+                        <td className="px-2 py-2 font-medium text-foreground">#{r.id}</td>
+                        <td className="px-2 py-2">₹ {formatMoney(r.basic_salary_per_month)}</td>
+                        <td className="px-2 py-2">
+                          ₹ {formatMoney(r.hra_per_month)}
+                          {r.hra_per_month_manual ? (
+                            <span className="ml-1 text-muted-foreground">(manual)</span>
+                          ) : null}
                         </td>
-                        <td className="py-1 pr-2">{r.net_take_home}</td>
-                        <td className="py-1 pr-2 capitalize">{r.status}</td>
+                        <td className="px-2 py-2">₹ {formatMoney(r.net_take_home)}</td>
+                        <td className="px-2 py-2"><StatusBadge status={r.status} /></td>
                       </tr>
                     ))}
                     {!history.length && (
                       <tr>
-                        <td colSpan={5} className="py-2 text-muted-foreground">
-                          No versions yet
+                        <td colSpan={5} className="px-2 py-3 text-muted-foreground">
+                          No versions yet — saving the annexure creates the first version.
                         </td>
                       </tr>
                     )}
@@ -445,6 +557,7 @@ export default function HrmsEmployeeAnnexurePage() {
                 </table>
               </div>
             </FormSection>
+            </div>
           </FormContainer>
         </form>
       </AddEditPageShell>

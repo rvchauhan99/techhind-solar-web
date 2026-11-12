@@ -15,6 +15,7 @@
 - B2B -> `src/app/b2b-clients`, `src/app/b2b-sales-quotes`, `src/app/b2b-sales-orders`, `src/app/b2b-shipments`, `src/app/b2b-invoices`
 - Reports and audit -> `src/app/reports`, `src/app/payment-outstanding`, `src/app/payment-audit`, `src/app/document-audit`
 - Admin -> `src/app/admin`
+- HRMS (gated) -> `src/app/hrms/*` (hidden when gate off; theme per `docs/hrms/replan/01-UI-UX-CONFORMANCE.md`)
 
 ## Notes
 - Use this file as the first navigation map before opening deeper module files.

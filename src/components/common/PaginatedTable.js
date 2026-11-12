@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import DateField from "@/components/common/DateField";
+import TableSkeleton from "@/components/common/TableSkeleton";
 import { TABLE_REFERENCE_STYLES } from "@/utils/dataTableUtils";
 import { FIELD_HEIGHT_CLASS_SMALL } from "@/utils/formConstants";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,6 +75,8 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - getRowClassName(row): optional extra class names per row (e.g. danger highlight)
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
  * - persistScrollbars: when true, table body uses overflow scroll + stable scrollbar gutter (dense lead lists)
+ * - emptyState: React node rendered instead of the default "No records found" row
+ * - loadingRows: number of skeleton rows while loading (default 6)
  */
 export default function PaginatedTable({
   columns = [],
@@ -109,6 +112,8 @@ export default function PaginatedTable({
   compactDensity = false,
   rowDetailsRender = null,
   persistScrollbars = false,
+  emptyState = null,
+  loadingRows = 6,
 }) {
   const hasRowDetails = typeof rowDetailsRender === "function";
   const [expandedRows, setExpandedRows] = React.useState(() => new Set());
@@ -798,13 +803,11 @@ export default function PaginatedTable({
           </thead>
           <tbody className="relative z-0">
             {loading ? (
-              <tr>
-                <td colSpan={columns.length + (hasRowDetails ? 1 : 0)} className="text-center py-6 bg-card">
-                  <div className="flex justify-center">
-                    <div className="size-6 animate-spin rounded-full border-2 border-[#00823b] border-t-transparent" />
-                  </div>
-                </td>
-              </tr>
+              <TableSkeleton
+                rows={loadingRows}
+                columns={columns.length + (hasRowDetails ? 1 : 0)}
+                compact={compactDensity}
+              />
             ) : rows.length > 0 ? (
               rows.map((row) => {
                 const rowKey = getRowKey(row);
@@ -908,8 +911,15 @@ export default function PaginatedTable({
               })
             ) : (
               <tr>
-                <td colSpan={columns.length + (hasRowDetails ? 1 : 0)} className="text-center py-6 text-muted-foreground bg-card">
-                  No records found
+                <td
+                  colSpan={columns.length + (hasRowDetails ? 1 : 0)}
+                  className={
+                    emptyState
+                      ? "bg-card p-0"
+                      : "text-center py-6 text-muted-foreground bg-card"
+                  }
+                >
+                  {emptyState || "No records found"}
                 </td>
               </tr>
             )}

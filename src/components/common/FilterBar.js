@@ -11,19 +11,29 @@ const FILTER_ALL_VALUE = "__all__";
 /**
  * Config-driven filter bar for listing pages. Renders compact controls (Input, DateField, Select)
  * at standard height (h-10). Values and onChange are typically driven by URL state (useListingQueryState).
+ *
+ * @param {boolean} [showLabels] - Render a visible label above each control (UX standard: no unlabeled filters)
  */
 export default function FilterBar({
   filterConfig = [],
   values = {},
   onChange,
   onClear,
+  showLabels = false,
 }) {
   const hasAnyValue = Object.values(values).some(
     (v) => v != null && String(v).trim() !== ""
   );
 
+  const labelNode = (label) =>
+    showLabels && label ? (
+      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+    ) : null;
+
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2 border-b border-border">
+    <div className="flex flex-wrap items-end gap-2 p-2 border-b border-border">
       {filterConfig.map((config) => {
         const { key, label, type, options = [] } = config;
         const value = values[key] ?? "";
@@ -31,6 +41,7 @@ export default function FilterBar({
         if (type === "search") {
           return (
             <div key={key} className="min-w-[200px] flex-1 flex-[1_1_200px]">
+              {labelNode(label)}
               <SearchInput
                 placeholder={label}
                 value={value}
@@ -45,6 +56,7 @@ export default function FilterBar({
         if (type === "date") {
           return (
             <div key={key} className="min-w-[160px] max-w-[200px]">
+              {labelNode(label)}
               <DateField
                 name={key}
                 label=""
@@ -60,6 +72,7 @@ export default function FilterBar({
         if (type === "select") {
           return (
             <div key={key} className="min-w-[160px] max-w-[220px]">
+              {labelNode(label)}
               <Select
                 name={key}
                 label=""
@@ -84,6 +97,7 @@ export default function FilterBar({
 
         return (
           <div key={key} className="min-w-[160px] max-w-[200px]">
+            {labelNode(label)}
             <Input
               name={key}
               label=""

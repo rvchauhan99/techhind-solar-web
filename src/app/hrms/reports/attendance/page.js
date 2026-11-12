@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
@@ -36,9 +36,9 @@ export default function HrmsAttendanceReportPage() {
       a.download = `attendance-${year}-${String(month).padStart(2, "0")}.xlsx`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success("Export downloaded");
+      toastSuccess("Export downloaded");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Export failed");
+      toastErrorFromApi(err, "Export failed");
     } finally {
       setBusy(false);
     }

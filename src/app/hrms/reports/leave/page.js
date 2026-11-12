@@ -1,42 +1,57 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
-import Select, { MenuItem } from "@/components/common/Select";
+import StatusBadge from "@/components/common/StatusBadge";
+import EmptyState from "@/components/common/EmptyState";
+import { IconFileSpreadsheet } from "@tabler/icons-react";
+import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
+const STATUS_OPTIONS = [
+  { value: "approved", label: "Approved" },
+  { value: "pending_l1", label: "Pending L1" },
+  { value: "pending_l2", label: "Pending L2" },
+  { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
+];
+const KIND_OPTIONS = [
+  { value: "false", label: "Planned" },
+  { value: "true", label: "Emergency" },
+];
+
 export default function HrmsLeaveReportPage() {
-  const [status, setStatus] = useState("");
-  const [emergency, setEmergency] = useState("");
+  const [filters, setFilters] = useState({ status: "", emergency: "" });
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const fetcher = useMemo(
-    () => async ({ page, limit }) => {
+    () => async ({ page, limit, q }) => {
       const res = await hrmsService.listLeaveReport({
         page,
         limit,
-        status: status || undefined,
-        is_emergency: emergency === "" ? undefined : emergency === "true",
+        search: q || undefined,
+        status: filters.status || undefined,
+        is_emergency: filters.emergency === "" ? undefined : filters.emergency === "true",
       });
-      const payload = res?.result ?? res?.data ?? res;
+      const payload = unwrap(res);
       const rows = payload?.data || [];
       const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
       return { data: rows, meta };
     },
-    [status, emergency, tableKey]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters, tableKey]
   );
 
   const onExport = async () => {
     setBusy(true);
     try {
       const blob = await hrmsService.exportLeaveReport({
-        status: status || undefined,
-        is_emergency: emergency === "" ? undefined : emergency === "true",
+        status: filters.status || undefined,
+        is_emergency: filters.emergency === "" ? undefined : filters.emergency === "true",
       });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -44,9 +59,9 @@ export default function HrmsLeaveReportPage() {
       a.download = "leave-report.xlsx";
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success("Export downloaded");
+      toastSuccess("Export downloaded — matches the selected filters");
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Export failed");
+      toastErrorFromApi(err, "Export failed");
     } finally {
       setBusy(false);
     }
@@ -58,7 +73,11 @@ export default function HrmsLeaveReportPage() {
         field: "user",
         label: "Employee",
         sortable: false,
-        render: (row) => row.user?.name || row.employee?.emp_code || `User #${row.user_id}`,
+        render: (row) => (
+          <span className="font-medium text-foreground">
+            {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
+          </span>
+        ),
       },
       {
         field: "leaveType",
@@ -79,9 +98,7 @@ export default function HrmsLeaveReportPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        render: (row) => (
-          <span className="text-xs capitalize">{row.status?.replace(/_/g, " ")}</span>
-        ),
+        render: (row) => <StatusBadge status={row.status} />,
       },
     ],
     []
@@ -89,45 +106,41 @@ export default function HrmsLeaveReportPage() {
 
   return (
     <ProtectedRoute>
-      <ListingPageContainer title="Leave Report">
-        <div className="mb-2 flex flex-wrap items-end gap-2">
-          <div className="min-w-[10rem]">
-            <Select
-              label="Status"
-              name="status"
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setTableKey((k) => k + 1);
-              }}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="approved">Approved</MenuItem>
-              <MenuItem value="pending_l1">Pending L1</MenuItem>
-              <MenuItem value="pending_l2">Pending L2</MenuItem>
-              <MenuItem value="rejected">Rejected</MenuItem>
-            </Select>
-          </div>
-          <div className="min-w-[10rem]">
-            <Select
-              label="Planned / Emergency"
-              name="emergency"
-              value={emergency}
-              onChange={(e) => {
-                setEmergency(e.target.value);
-                setTableKey((k) => k + 1);
-              }}
-            >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="false">Planned</MenuItem>
-              <MenuItem value="true">Emergency</MenuItem>
-            </Select>
-          </div>
-          <Button size="sm" disabled={busy} onClick={onExport}>
-            {busy ? "Exporting…" : "Download Excel"}
-          </Button>
-        </div>
-        <PaginatedTable key={tableKey} columns={columns} fetchData={fetcher} pageSize={20} />
+      <ListingPageContainer
+        title="Leave Report"
+        subtitle="Every leave application — the Excel export matches the filters below"
+        exportButtonLabel="Download Excel"
+        onExportClick={onExport}
+        exportLoading={busy}
+        filterConfig={[
+          { key: "status", label: "Status", type: "select", options: STATUS_OPTIONS },
+          { key: "emergency", label: "Planned / Emergency", type: "select", options: KIND_OPTIONS },
+        ]}
+        filterValues={filters}
+        showFilterLabels
+        onFilterChange={(key, value) => {
+          setFilters((f) => ({ ...f, [key]: value }));
+          setTableKey((k) => k + 1);
+        }}
+        onClearFilters={() => {
+          setFilters({ status: "", emergency: "" });
+          setTableKey((k) => k + 1);
+        }}
+      >
+        <PaginatedTable
+          key={tableKey}
+          columns={columns}
+          fetcher={fetcher}
+          showSearch
+          height="70vh"
+          emptyState={
+            <EmptyState
+              icon={IconFileSpreadsheet}
+              title="No leave rows for these filters"
+              description="Clear the status or planned/emergency filter to widen the report."
+            />
+          }
+        />
       </ListingPageContainer>
     </ProtectedRoute>
   );

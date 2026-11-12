@@ -25,6 +25,7 @@ import FilterBar from "@/components/common/FilterBar";
  * @param {Object} [filterValues] - Values for FilterBar (keyed by filter key)
  * @param {function(string, string): void} [onFilterChange] - (key, value) for FilterBar
  * @param {function(): void} [onClearFilters] - Optional clear filters callback
+ * @param {boolean} [showFilterLabels] - Render visible labels above FilterBar controls
  * @param {boolean} [fullWidth] - When true, remove max-width constraint so content uses full screen width
  * @param {React.ReactNode} children - Main content (e.g. PaginatedTable or table + pagination)
  */
@@ -49,6 +50,7 @@ export default function ListingPageContainer({
   filterValues = {},
   onFilterChange,
   onClearFilters,
+  showFilterLabels = false,
   children,
 }) {
   return (
@@ -106,6 +108,7 @@ export default function ListingPageContainer({
           values={filterValues}
           onChange={onFilterChange}
           onClear={onClearFilters}
+          showLabels={showFilterLabels}
         />
       )}
 

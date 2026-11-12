@@ -1,420 +1,590 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { IconUserPlus, IconUserOff, IconExternalLink, IconPencil, IconTrash, IconPlus } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import AddEditPageShell from "@/components/common/AddEditPageShell";
-import FormContainer from "@/components/common/FormContainer";
-import FormSection from "@/components/common/FormSection";
-import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
-import CommonInput from "@/components/common/Input";
+import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import StatusBadge from "@/components/common/StatusBadge";
+import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
-import { useAuth } from "@/hooks/useAuth";
+
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+function Field({ label, value }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-sm text-foreground">{value || "—"}</div>
+    </div>
+  );
+}
+
+function QuickStat({ label, value }) {
+  return (
+    <div className="min-w-[120px] flex-1 rounded-md border border-border bg-muted/30 px-3 py-2">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="truncate text-sm font-semibold text-foreground">{value || "—"}</div>
+    </div>
+  );
+}
+
+const CATEGORY_LABELS = {
+  aadhar_card: "Aadhar Card",
+  pan_card: "PAN Card",
+  bank_detail: "Bank Detail",
+  salary_slip: "Salary Slip",
+  relieving_letter: "Relieving Letter",
+  other: "Other",
+};
 
 export default function HrmsEmployeeDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { modulePermissions, currentModuleId } = useAuth();
-  const perm = modulePermissions?.[currentModuleId] || {};
-  const [row, setRow] = useState(null);
+
+  const [emp, setEmp] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [showActivate, setShowActivate] = useState(false);
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
   const [quotas, setQuotas] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [activateForm, setActivateForm] = useState({ name: "", email: "", mobile_number: "", role_id: "", branch_ids: [] });
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
   const [quotaForm, setQuotaForm] = useState({ leave_type_id: "", quarterly_leave: "0" });
-  const [activateForm, setActivateForm] = useState({
-    name: "",
-    email: "",
-    mobile_number: "",
-    role_id: "",
-    branch_ids: [],
-  });
+  const [savingQuota, setSavingQuota] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [docCategory, setDocCategory] = useState("aadhar_card");
+  const [docFile, setDocFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [docDeleteTarget, setDocDeleteTarget] = useState(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
 
-  const loadQuotas = async () => {
-    try {
-      const [qRes, tRes] = await Promise.all([
-        hrmsService.listEmployeeLeaveQuotas(id),
-        hrmsService.listLeaveTypes({ limit: 100, status: "active" }),
-      ]);
-      const qPayload = qRes?.result ?? qRes?.data ?? qRes;
-      setQuotas(qPayload?.data || []);
-      const tPayload = tRes?.result ?? tRes?.data ?? tRes;
-      setLeaveTypes(tPayload?.data || []);
-    } catch {
-      setQuotas([]);
-    }
-  };
-
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await hrmsService.getEmployee(id);
-      const data = res?.result ?? res?.data ?? res;
-      setRow(data);
-      await loadQuotas();
+      const [empRes, qRes, tRes, docRes] = await Promise.all([
+        hrmsService.getEmployee(id),
+        hrmsService.listEmployeeLeaveQuotas(id).catch(() => null),
+        hrmsService.listLeaveTypes({ limit: 100, status: "active" }).catch(() => null),
+        hrmsService.listEmployeeDocuments(id).catch(() => null),
+      ]);
+      setEmp(unwrap(empRes));
+      setQuotas(unwrap(qRes)?.data || []);
+      setLeaveTypes(unwrap(tRes)?.data || []);
+      setDocuments(unwrap(docRes)?.data || []);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to load");
+      toastErrorFromApi(err, "Failed to load employee");
       router.push("/hrms/employees");
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router]);
+
+  useEffect(() => { if (id) load(); }, [id, load]);
 
   useEffect(() => {
-    if (id) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  useEffect(() => {
-    Promise.all([roleService.listRoleMasters({ page: 1, limit: 200 }), listBranches()])
+    Promise.all([roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null), listBranches().catch(() => null)])
       .then(([roleRes, branchRes]) => {
-        const rolePayload = roleRes?.result ?? roleRes?.data ?? roleRes;
-        const roleRows = rolePayload?.data || rolePayload?.rows || (Array.isArray(rolePayload) ? rolePayload : []);
-        setRoles(roleRows);
-        const defaultRole =
-          roleRows.find((r) => String(r.name || "").toLowerCase() === "user") ||
-          roleRows.find((r) => String(r.name || "").toLowerCase() === "employee");
-        setActivateForm((f) => ({
-          ...f,
-          role_id: defaultRole ? String(defaultRole.id) : f.role_id,
-        }));
-        const bPayload = branchRes?.result ?? branchRes?.data ?? branchRes;
-        setBranches(bPayload?.data || (Array.isArray(bPayload) ? bPayload : []));
-      })
-      .catch(() => {});
+        const rp = unwrap(roleRes);
+        setRoles(rp?.data || rp?.rows || (Array.isArray(rp) ? rp : []));
+        const bp = unwrap(branchRes);
+        setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
+      });
   }, []);
 
-  const openActivate = () => {
-    setActivateForm((f) => ({
-      ...f,
-      name: row?.user?.name || "",
-      email: row?.user?.email || "",
-      mobile_number: row?.user?.mobile_number || "",
-    }));
-    setShowActivate(true);
-  };
-
-  const onActivate = async (e) => {
-    e.preventDefault();
-    if (!activateForm.name.trim() || !activateForm.email.trim()) {
-      toast.error("Name and work email required");
-      return;
-    }
-    setBusy(true);
-    try {
-      await hrmsService.activateEmployee(id, {
-        ...activateForm,
-        role_id: activateForm.role_id || null,
-        branch_ids: activateForm.branch_ids,
-      });
-      toast.success("Employee activated");
-      setShowActivate(false);
-      await load();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Activate failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDeactivate = async () => {
-    if (!window.confirm("Deactivate this employee? Login will be blocked.")) return;
-    setBusy(true);
-    try {
-      await hrmsService.deactivateEmployee(id, {});
-      toast.success("Employee deactivated");
-      await load();
-    } catch (err) {
-      toast.error(err?.response?.data?.message || "Deactivate failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const toggleBranch = (bid) => {
-    const n = Number(bid);
     setActivateForm((f) => {
       const set = new Set((f.branch_ids || []).map(Number));
-      if (set.has(n)) set.delete(n);
-      else set.add(n);
-      return { ...f, branch_ids: [...set] };
+      if (set.has(Number(bid))) set.delete(Number(bid)); else set.add(Number(bid));
+      return { ...f, branch_ids: Array.from(set) };
     });
   };
 
-  const onSaveQuota = async (e) => {
-    e.preventDefault();
-    if (!quotaForm.leave_type_id) {
-      toast.error("Select a leave type");
+  const doActivate = async () => {
+    if (!activateForm.name.trim() || !activateForm.email.trim()) {
+      toastErrorFromApi({ message: "Name and email are required to activate" }, "Missing details");
       return;
     }
-    setBusy(true);
+    setActivating(true);
+    try {
+      await hrmsService.activateEmployee(id, {
+        name: activateForm.name.trim(),
+        email: activateForm.email.trim(),
+        mobile_number: activateForm.mobile_number || null,
+        role_id: activateForm.role_id ? Number(activateForm.role_id) : null,
+        branch_ids: (activateForm.branch_ids || []).map(Number),
+      });
+      toastSuccess("Employee activated");
+      setActivateOpen(false);
+      await load();
+    } catch (err) {
+      toastErrorFromApi(err, "Activation failed");
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  const doDeactivate = async () => {
+    setDeactivating(true);
+    try {
+      await hrmsService.deactivateEmployee(id, {});
+      toastSuccess("Employee deactivated");
+      setDeactivateOpen(false);
+      await load();
+    } catch (err) {
+      toastErrorFromApi(err, "Deactivate failed");
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
+  const saveQuota = async (e) => {
+    e.preventDefault();
+    if (!quotaForm.leave_type_id) return;
+    setSavingQuota(true);
     try {
       await hrmsService.upsertEmployeeLeaveQuota(id, {
         leave_type_id: Number(quotaForm.leave_type_id),
         quarterly_leave: Number(quotaForm.quarterly_leave) || 0,
       });
-      toast.success("Leave quota saved");
+      toastSuccess("Quota saved");
       setQuotaForm({ leave_type_id: "", quarterly_leave: "0" });
-      await loadQuotas();
+      const qRes = await hrmsService.listEmployeeLeaveQuotas(id);
+      setQuotas(unwrap(qRes)?.data || []);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Quota save failed");
+      toastErrorFromApi(err, "Save quota failed");
     } finally {
-      setBusy(false);
+      setSavingQuota(false);
     }
   };
 
-  const onDeleteQuota = async (quotaId) => {
-    if (!window.confirm("Remove this leave quota?")) return;
-    setBusy(true);
+  const deleteQuota = async (quotaId) => {
     try {
       await hrmsService.deleteEmployeeLeaveQuota(id, quotaId);
-      toast.success("Leave quota removed");
-      await loadQuotas();
+      toastSuccess("Quota deleted");
+      const qRes = await hrmsService.listEmployeeLeaveQuotas(id);
+      setQuotas(unwrap(qRes)?.data || []);
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Delete failed");
+      toastErrorFromApi(err, "Delete quota failed");
+    }
+  };
+
+  const uploadDoc = async (e) => {
+    e.preventDefault();
+    if (!docFile) {
+      toastErrorFromApi({ message: "Choose a file first" }, "No file selected");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("document", docFile);
+      fd.append("category", docCategory);
+      await hrmsService.uploadEmployeeDocument(id, fd);
+      toastSuccess("Document uploaded");
+      setDocFile(null);
+      const docRes = await hrmsService.listEmployeeDocuments(id);
+      setDocuments(unwrap(docRes)?.data || []);
+    } catch (err) {
+      toastErrorFromApi(err, "Upload failed");
     } finally {
-      setBusy(false);
+      setUploading(false);
+    }
+  };
+
+  const downloadDoc = async (doc) => {
+    try {
+      const res = await hrmsService.getEmployeeDocumentUrl(id, doc.id);
+      const url = unwrap(res)?.url;
+      if (url) window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toastErrorFromApi(err, "Could not open document");
+    }
+  };
+
+  const deleteDoc = async () => {
+    if (!docDeleteTarget) return;
+    setDeletingDoc(true);
+    try {
+      await hrmsService.deleteEmployeeDocument(id, docDeleteTarget.id);
+      toastSuccess("Document deleted");
+      setDocDeleteTarget(null);
+      const docRes = await hrmsService.listEmployeeDocuments(id);
+      setDocuments(unwrap(docRes)?.data || []);
+    } catch (err) {
+      toastErrorFromApi(err, "Delete failed");
+    } finally {
+      setDeletingDoc(false);
     }
   };
 
   if (loading) {
     return (
       <ProtectedRoute>
-        <div className="p-3 text-sm text-muted-foreground">Loading…</div>
+        <div className="p-4 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="size-14 animate-pulse rounded-full bg-muted" />
+            <div className="space-y-2">
+              <div className="h-5 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-3 w-64 animate-pulse rounded bg-muted" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-16 animate-pulse rounded-md bg-muted/60" />
+            ))}
+          </div>
+          <div className="h-10 w-full animate-pulse rounded-md bg-muted/60" />
+          <div className="h-40 w-full animate-pulse rounded-md bg-muted/40" />
+        </div>
       </ProtectedRoute>
     );
   }
+  if (!emp) return null;
 
-  if (!row) return null;
-
-  const title = `${row.emp_code}${row.user?.name ? ` — ${row.user.name}` : ""}`;
+  const u = emp.user || {};
+  const isActive = emp.status === "active";
+  const isPending = emp.status === "pending";
 
   return (
     <ProtectedRoute>
-      <AddEditPageShell title={title} listHref="/hrms/employees" listLabel="Employees">
-        <FormContainer>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <p className="text-xs text-muted-foreground capitalize">Status: {row.status}</p>
-          <div className="flex flex-wrap gap-2">
-            {perm.can_update && (
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/hrms/employees/${id}/edit`}>Edit</Link>
-              </Button>
-            )}
-            {perm.can_update && row.status !== "active" && (
-              <Button size="sm" onClick={openActivate} disabled={busy}>
-                Activate
-              </Button>
-            )}
-            {perm.can_update && row.status === "active" && (
-              <Button size="sm" variant="destructive" onClick={onDeactivate} disabled={busy}>
-                Deactivate
-              </Button>
-            )}
-            {row.user_id && (
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/user-master/edit?id=${row.user_id}`}>Open User</Link>
-              </Button>
-            )}
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/hrms/employees/${id}/annexure`}>Annexure</Link>
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3">
-          <div>
-            <span className="text-muted-foreground">Company login email: </span>
-            {row.user?.email || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Personal email: </span>
-            {row.personal_email || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Mobile: </span>
-            {row.user?.mobile_number || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Department: </span>
-            {row.department?.title || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Designation: </span>
-            {row.designation?.title || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Joining: </span>
-            {row.joining_date || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">User id: </span>
-            {row.user_id || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Branches: </span>
-            {(row.user?.branches || row.user?.branch_ids || [])
-              .map((b) => (typeof b === "object" ? b.name || b.branch_name || b.id : b))
-              .join(", ") || "—"}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Bank: </span>
-            {row.bank_name || "—"} {row.ac_number ? `(${row.ac_number})` : ""}
-          </div>
-          <div>
-            <span className="text-muted-foreground">Emergency: </span>
-            {row.emergency_name || "—"} {row.emergency_mobile || ""}
-          </div>
-          <div className="sm:col-span-2">
-            <span className="text-muted-foreground">Notes: </span>
-            {row.notes || "—"}
-          </div>
-        </div>
-
-        <FormSection title="Leave quotas" className="rounded-md border border-border p-3">
-          <div className="mb-2 space-y-1 text-sm">
-            {quotas.length === 0 && (
-              <p className="text-xs text-muted-foreground">No leave quotas assigned yet.</p>
-            )}
-            {quotas.map((q) => (
-              <div key={q.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-1">
-                <span>
-                  {q.leaveType?.title || `Type #${q.leave_type_id}`} —{" "}
-                  <strong>{q.quarterly_leave}</strong> / quarter
-                </span>
-                {perm.can_update && (
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDeleteQuota(q.id)}>
-                    Remove
-                  </Button>
-                )}
+      <div className="p-4 space-y-4">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-[#1b365d]/10 text-lg font-semibold text-[#1b365d]">
+                {initials(u.name)}
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-bold text-[#1b365d]">{u.name || emp.emp_code}</h1>
+                  <StatusBadge status={emp.status} />
+                </div>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {emp.emp_code} · {emp.department?.title || "No department"} ·{" "}
+                  {emp.designation?.title || "No designation"}
+                </p>
               </div>
-            ))}
-          </div>
-          {perm.can_update && (
-            <form onSubmit={onSaveQuota} className="space-y-2">
-              <FormGrid cols={2}>
-                <FormField>
-                  <Select
-                    label="Leave type"
-                    name="leave_type_id"
-                    value={quotaForm.leave_type_id || "none"}
-                    onChange={(e) => {
-                      const v = e.target.value === "none" ? "" : e.target.value;
-                      const lt = leaveTypes.find((t) => String(t.id) === String(v));
-                      setQuotaForm({
-                        leave_type_id: v,
-                        quarterly_leave: lt ? String(lt.quarterly_leave ?? "0") : quotaForm.quarterly_leave,
-                      });
-                    }}
-                  >
-                    <MenuItem value="none">Select…</MenuItem>
-                    {leaveTypes.map((t) => (
-                      <MenuItem key={t.id} value={String(t.id)}>
-                        {t.title}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormField>
-                <FormField>
-                  <CommonInput
-                    label="Quarterly allotment"
-                    name="quarterly_leave"
-                    type="number"
-                    value={quotaForm.quarterly_leave}
-                    onChange={(e) =>
-                      setQuotaForm((f) => ({ ...f, quarterly_leave: e.target.value }))
-                    }
-                  />
-                </FormField>
-              </FormGrid>
-              <Button type="submit" size="sm" disabled={busy}>
-                Save quota
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => router.push(`/hrms/employees/${id}/edit`)}>
+                <IconPencil className="h-4 w-4" /> Edit
               </Button>
-            </form>
-          )}
-        </FormSection>
-
-        {showActivate && (
-          <form onSubmit={onActivate} className="rounded-md border border-border p-3 space-y-3">
-            <p className="text-sm font-medium">Activate — provision User</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Name *</Label>
-                <Input
-                  value={activateForm.name}
-                  onChange={(e) => setActivateForm((f) => ({ ...f, name: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Company login email *</Label>
-                <Input
-                  type="email"
-                  value={activateForm.email}
-                  onChange={(e) => setActivateForm((f) => ({ ...f, email: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Mobile</Label>
-                <Input
-                  value={activateForm.mobile_number}
-                  onChange={(e) => setActivateForm((f) => ({ ...f, mobile_number: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Role</Label>
-                <select
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                  value={activateForm.role_id}
-                  onChange={(e) => setActivateForm((f) => ({ ...f, role_id: e.target.value }))}
+              {emp.user_id && (
+                <Button size="sm" variant="outline" onClick={() => router.push(`/user-master/${emp.user_id}`)}>
+                  <IconExternalLink className="h-4 w-4" /> Open User
+                </Button>
+              )}
+              {isPending && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setActivateForm({
+                      name: u.name || "",
+                      email: u.email || "",
+                      mobile_number: u.mobile_number || "",
+                      role_id: u.role_id ? String(u.role_id) : "",
+                      branch_ids: [],
+                    });
+                    setActivateOpen(true);
+                  }}
                 >
-                  <option value="">Default User</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
+                  <IconUserPlus className="h-4 w-4" /> Activate
+                </Button>
+              )}
+              {isActive && (
+                <Button size="sm" variant="destructive" onClick={() => setDeactivateOpen(true)}>
+                  <IconUserOff className="h-4 w-4" /> Deactivate
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <QuickStat label="Joined" value={emp.joining_date} />
+            <QuickStat label="Department" value={emp.department?.title} />
+            <QuickStat label="Designation" value={emp.designation?.title} />
+            <QuickStat label="Reports to" value={emp.managerEmployee?.user?.name} />
+            <QuickStat label="Gross / month" value={emp.current_gross_salary} />
+          </div>
+        </div>
+
+        <Tabs defaultValue="overview">
+          <TabsList>
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="quotas">Leave Quotas</TabsTrigger>
+            <TabsTrigger value="annexure">Annexure</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="documents">Documents</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="p-4 space-y-3">
+                <div className="text-sm font-semibold">Employment</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Emp Code" value={emp.emp_code} />
+                  <Field label="Type" value={emp.employee_type === 2 ? "Intern" : "Full-time"} />
+                  <Field label="Joining Date" value={emp.joining_date} />
+                  <Field label="Probation (months)" value={emp.probation_months} />
+                  <Field label="Resignation Date" value={emp.resignation_date} />
+                  <Field label="Gross Salary" value={emp.current_gross_salary} />
+                  <Field label="Salary Effective" value={emp.salary_effective_month} />
+                  <Field label="Reports To" value={emp.managerEmployee?.user?.name} />
+                </div>
+              </Card>
+              <Card className="p-4 space-y-3">
+                <div className="text-sm font-semibold">Contact & Personal</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Work Email" value={u.email} />
+                  <Field label="Mobile" value={u.mobile_number} />
+                  <Field label="Personal Email" value={emp.personal_email} />
+                  <Field label="Personal Mobile" value={emp.personal_mobile} />
+                  <Field label="Gender" value={emp.gender} />
+                  <Field label="Blood Group" value={u.blood_group} />
+                  <Field label="DOB" value={u.brith_date} />
+                  <Field label="Address" value={u.address} />
+                </div>
+              </Card>
+              <Card className="p-4 space-y-3">
+                <div className="text-sm font-semibold">Statutory & Identity</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="UAN" value={emp.uan_no} />
+                  <Field label="PF No" value={emp.pf_no} />
+                  <Field label="ESIC" value={emp.esic} />
+                  <Field label="Employee ESIC" value={emp.employee_esic} />
+                  <Field label="Aadhar" value={emp.aadhar_no} />
+                  <Field label="PAN" value={emp.pan_no} />
+                  <Field label="SC Applicable" value={emp.sc_applicable ? "Yes" : "No"} />
+                  <Field label="Rules Exemption" value={emp.rules_exemption ? "Yes" : "No"} />
+                </div>
+              </Card>
+              <Card className="p-4 space-y-3">
+                <div className="text-sm font-semibold">Bank & Emergency</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Bank" value={emp.bank_name} />
+                  <Field label="A/C Holder" value={emp.ac_holder_name} />
+                  <Field label="A/C Number" value={emp.ac_number} />
+                  <Field label="IFSC" value={emp.ifsc_code} />
+                  <Field label="Emergency Name" value={emp.emergency_name} />
+                  <Field label="Emergency Mobile" value={emp.emergency_mobile} />
+                  <Field label="Relation" value={emp.emergency_relation} />
+                </div>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="quotas">
+            <Card className="p-4 space-y-4">
+              <div className="text-sm font-semibold">Leave Quotas</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                      <th className="py-2">Leave Type</th>
+                      <th className="py-2">Quarterly Entitlement</th>
+                      <th className="py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotas.length === 0 && (
+                      <tr><td colSpan={3} className="py-3 text-muted-foreground">No quotas yet.</td></tr>
+                    )}
+                    {quotas.map((q) => (
+                      <tr key={q.id} className="border-b border-border/60">
+                        <td className="py-2">{q.leaveType?.title || q.leave_type?.title || q.leave_type_id}</td>
+                        <td className="py-2">{q.quarterly_leave}</td>
+                        <td className="py-2 text-right">
+                          <Button variant="ghost" size="sm" onClick={() => deleteQuota(q.id)}>
+                            <IconTrash className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <form onSubmit={saveQuota} className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[200px]">
+                  <Select label="Leave Type" name="leave_type_id" value={quotaForm.leave_type_id} onChange={(e) => setQuotaForm((f) => ({ ...f, leave_type_id: e.target.value }))} placeholder="Select leave type">
+                    {leaveTypes.map((t) => (<MenuItem key={t.id} value={String(t.id)}>{t.title}</MenuItem>))}
+                  </Select>
+                </div>
+                <div className="w-40">
+                  <Input label="Quarterly" name="quarterly_leave" type="number" value={quotaForm.quarterly_leave} onChange={(e) => setQuotaForm((f) => ({ ...f, quarterly_leave: e.target.value }))} />
+                </div>
+                <Button type="submit" size="sm" loading={savingQuota}><IconPlus className="h-4 w-4" /> Save Quota</Button>
+              </form>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="annexure">
+            <Card className="p-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">Salary Annexure (CTC)</div>
+                <div className="text-xs text-muted-foreground">
+                  Current gross: {emp.current_gross_salary || "—"} · Effective {emp.salary_effective_month || "—"}
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => router.push(`/hrms/employees/${id}/annexure`)}>
+                <IconExternalLink className="h-4 w-4" /> Open Annexure
+              </Button>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="attendance">
+            <Card className="p-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">Attendance</div>
+                <div className="text-xs text-muted-foreground">View attendance records for this employee.</div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => router.push("/hrms/attendance")}>
+                <IconExternalLink className="h-4 w-4" /> Open Attendance
+              </Button>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="documents">
+            <Card className="p-4 space-y-4">
+              <div className="text-sm font-semibold">Documents</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                      <th className="py-2">Category</th>
+                      <th className="py-2">File</th>
+                      <th className="py-2">Size</th>
+                      <th className="py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {documents.length === 0 && (
+                      <tr><td colSpan={4} className="py-3 text-muted-foreground">No documents uploaded.</td></tr>
+                    )}
+                    {documents.map((d) => (
+                      <tr key={d.id} className="border-b border-border/60">
+                        <td className="py-2"><Badge variant="secondary">{CATEGORY_LABELS[d.category] || d.category}</Badge></td>
+                        <td className="py-2">{d.file_name || d.title || "—"}</td>
+                        <td className="py-2">{d.file_size ? `${Math.round(d.file_size / 1024)} KB` : "—"}</td>
+                        <td className="py-2 text-right">
+                          <Button variant="ghost" size="sm" onClick={() => downloadDoc(d)}>
+                            <IconExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDocDeleteTarget(d)}>
+                            <IconTrash className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <form onSubmit={uploadDoc} className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[200px]">
+                  <Select label="Category" name="doc_category" value={docCategory} onChange={(e) => setDocCategory(e.target.value)}>
+                    {Object.entries(CATEGORY_LABELS).map(([v, l]) => (<MenuItem key={v} value={v}>{l}</MenuItem>))}
+                  </Select>
+                </div>
+                <div className="min-w-[220px]">
+                  <label className="mb-1.5 block text-sm font-medium">File</label>
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => setDocFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
+                </div>
+                <Button type="submit" size="sm" loading={uploading}><IconPlus className="h-4 w-4" /> Upload</Button>
+              </form>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        <Dialog open={activateOpen} onOpenChange={setActivateOpen}>
+          <DialogContent>
+            <DialogTitle>Activate Employee — provision login</DialogTitle>
+            <div className="space-y-3 py-2">
+              <FormField><Input label="Name" name="act_name" value={activateForm.name} onChange={(e) => setActivateForm((f) => ({ ...f, name: e.target.value }))} required /></FormField>
+              <FormField><Input label="Login Email" name="act_email" type="email" value={activateForm.email} onChange={(e) => setActivateForm((f) => ({ ...f, email: e.target.value }))} required /></FormField>
+              <FormField><Input label="Mobile" name="act_mobile" value={activateForm.mobile_number} onChange={(e) => setActivateForm((f) => ({ ...f, mobile_number: e.target.value }))} /></FormField>
+              <FormField>
+                <Select label="Role" name="act_role" value={activateForm.role_id} onChange={(e) => setActivateForm((f) => ({ ...f, role_id: e.target.value }))} placeholder="Default User role">
+                  {roles.map((r) => (<MenuItem key={r.id} value={String(r.id)}>{r.name}</MenuItem>))}
+                </Select>
+              </FormField>
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Branches</div>
+                <div className="flex flex-wrap gap-2">
+                  {branches.map((b) => (
+                    <label key={b.id} className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-sm">
+                      <input type="checkbox" checked={(activateForm.branch_ids || []).map(Number).includes(Number(b.id))} onChange={() => toggleBranch(b.id)} />
+                      {b.name || b.branch_name || `Branch ${b.id}`}
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Branches</Label>
-              <div className="flex flex-wrap gap-2">
-                {branches.map((b) => (
-                  <label key={b.id} className="flex items-center gap-1 text-sm border rounded px-2 py-1">
-                    <input
-                      type="checkbox"
-                      checked={activateForm.branch_ids.map(Number).includes(Number(b.id))}
-                      onChange={() => toggleBranch(b.id)}
-                    />
-                    {b.name || b.branch_name || `Branch ${b.id}`}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={busy}>
-                Confirm activate
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={() => setShowActivate(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
-        </FormContainer>
-      </AddEditPageShell>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setActivateOpen(false)} disabled={activating}>Cancel</Button>
+              <Button size="sm" loading={activating} onClick={doActivate}>Activate</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Deactivate employee</AlertDialogTitle>
+              <AlertDialogDescription>
+                Deactivate {u.name || emp.emp_code}? Their login will be blocked.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deactivating}>Cancel</AlertDialogCancel>
+              <AlertDialogAction size="sm" variant="destructive" loading={deactivating} onClick={doDeactivate}>
+                Deactivate
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!docDeleteTarget} onOpenChange={(open) => !open && setDocDeleteTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete document</AlertDialogTitle>
+              <AlertDialogDescription>
+                Delete &quot;{docDeleteTarget?.file_name || docDeleteTarget?.title}&quot;? This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingDoc}>Cancel</AlertDialogCancel>
+              <AlertDialogAction size="sm" variant="destructive" loading={deletingDoc} onClick={deleteDoc}>
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </ProtectedRoute>
   );
 }
+
+
+
+
