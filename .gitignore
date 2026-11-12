@@ -39,6 +39,14 @@ playwright-report/
 test-results/
 e2e/artifacts/
 
+# Local agentic HRMS QA scratch (env-only; do not commit)
+e2e/hrms-*-agentic.mjs
+e2e/hrms-console-check.mjs
+e2e/hrms-ux-audit.mjs
+e2e/hrms-pages-qa.mjs
+e2e/hrms-form-shots.mjs
+e2e/hrms-doc-agentic.mjs
+
 # macOS
 .DS_Store
 **/.DS_Store
