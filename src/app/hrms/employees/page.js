@@ -10,6 +10,7 @@ import {
   IconCircleCheck,
   IconClockHour4,
   IconUserOff,
+  IconDownload,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -19,6 +20,7 @@ import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
 const MODULE_KEY = "hrms_employees";
@@ -50,6 +52,7 @@ export default function HrmsEmployeesPage() {
 
   const [tableKey, setTableKey] = useState(0);
   const [filters, setFilters] = useState({ status: "", department_id: "" });
+  const [exporting, setExporting] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [counts, setCounts] = useState({ total: null, active: null, pending: null, disabled: null });
   const [countsLoading, setCountsLoading] = useState(true);
@@ -93,6 +96,27 @@ export default function HrmsEmployeesPage() {
     () => departments.map((d) => ({ value: String(d.id), label: d.title })),
     [departments]
   );
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await hrmsService.exportEmployees({
+        status: filters.status || undefined,
+        department_id: filters.department_id || undefined,
+      });
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "employees.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toastSuccess("Export downloaded — matches the selected filters");
+    } catch (err) {
+      toastErrorFromApi(err, "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetcher = useMemo(
     () => async ({ page, limit, q }) => {
@@ -174,6 +198,11 @@ export default function HrmsEmployeesPage() {
         subtitle="Employee master — HR profile and login"
         addButtonLabel={perm.can_create ? "Add Employee" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/employees/add") : undefined}
+        actions={
+          <Button size="sm" variant="outline" onClick={handleExport} loading={exporting}>
+            <IconDownload className="size-4" /> Export
+          </Button>
+        }
         filterConfig={[
           {
             key: "status",

@@ -20,6 +20,10 @@ const MAP = {
   reverted: ["navy", "Reverted"],
   skipped: ["secondary", "Skipped"],
   submitted: ["accent", "Submitted"],
+  // Plan 07 — penalty + compensatory
+  issued: ["navy", "Issued"],
+  waived: ["secondary", "Waived"],
+  compensated: ["success", "Compensated"],
   IN: ["success", "In"],
   OUT: ["secondary", "Out"],
   BREAK_IN: ["accent", "Break in"],

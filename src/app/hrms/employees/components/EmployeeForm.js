@@ -23,10 +23,12 @@ import {
   IconPhoneCall,
   IconSchool,
   IconNotes,
+  IconMapPin,
 } from "@tabler/icons-react";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { getReferenceOptions } from "@/services/mastersService";
 import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -36,6 +38,7 @@ const SECTION_NAV = [
   { id: "emp-org", label: "Organisation" },
   { id: "emp-employment", label: "Employment" },
   { id: "emp-personal", label: "Personal" },
+  { id: "emp-location", label: "Location" },
   { id: "emp-statutory", label: "Statutory" },
   { id: "emp-bank", label: "Bank" },
   { id: "emp-emergency", label: "Emergency" },
@@ -47,7 +50,7 @@ const EMPTY = {
   password: "", role_id: "", branch_ids: [], department_id: "", designation_id: "", manager_employee_id: "",
   joining_date: "", designation_date: "", probation_months: "", probation_end_date: "", resignation_date: "",
   current_gross_salary: "", salary_effective_month: "", gender: "", personal_email: "", personal_mobile: "",
-  brith_date: "", blood_group: "", address: "", notes: "", college_name: "", college_course: "",
+  brith_date: "", blood_group: "", address: "", state_id: "", city_id: "", profile_image: "", notes: "", college_name: "", college_course: "",
   intern_duration: "", stipend: "", uan_no: "", pf_no: "", esic: "", employee_esic: "", sc_applicable: false,
   aadhar_no: "", name_as_per_aadhar: "", pan_no: "", bank_name: "", ac_holder_name: "", ac_number: "",
   ifsc_code: "", branch_name: "", rules_exemption: false, emergency_name: "", emergency_mobile: "", emergency_relation: "",
@@ -65,6 +68,8 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [stateOptions, setStateOptions] = useState([]);
+  const [cityOptions, setCityOptions] = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -72,7 +77,9 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
       roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null),
       listBranches().catch(() => null),
       hrmsService.listEmployees({ limit: 200 }).catch(() => null),
-    ]).then(([deptRes, roleRes, branchRes, empRes]) => {
+      getReferenceOptions("state.model").catch(() => null),
+      getReferenceOptions("city.model").catch(() => null),
+    ]).then(([deptRes, roleRes, branchRes, empRes, stateRes, cityRes]) => {
       const d = unwrap(deptRes);
       setDepartments(d?.data || []);
       const rp = unwrap(roleRes);
@@ -81,6 +88,8 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
       setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
       const ep = unwrap(empRes);
       setEmployees(ep?.data || []);
+      setStateOptions(unwrap(stateRes)?.result || unwrap(stateRes) || []);
+      setCityOptions(unwrap(cityRes)?.result || unwrap(cityRes) || []);
     });
   }, []);
 
@@ -177,6 +186,8 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
       brith_date: form.brith_date || null,
       blood_group: form.blood_group || null,
       address: form.address || null,
+      state_id: toNum(form.state_id),
+      city_id: toNum(form.city_id),
     };
     if (mode === "add") {
       payload.status = form.status;
@@ -342,7 +353,64 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
             <FormField><Input label="Blood Group" name="blood_group" value={form.blood_group} onChange={(e) => setField("blood_group", e.target.value)} /></FormField>
             <FormField><Input label="Personal Email" name="personal_email" type="email" value={form.personal_email} onChange={(e) => setField("personal_email", e.target.value)} /></FormField>
             <FormField><Input label="Personal Mobile" name="personal_mobile" value={form.personal_mobile} onChange={(e) => setField("personal_mobile", e.target.value)} /></FormField>
-            <FormField className="md:col-span-2 lg:col-span-3"><Input label="Address" name="address" value={form.address} onChange={(e) => setField("address", e.target.value)} /></FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection
+          variant="card"
+          id="emp-location"
+          step={5}
+          icon={<IconMapPin className="size-4" />}
+          title="Location & address"
+          description="State and city come from the masters so reports and payroll group correctly"
+          collapsible
+          defaultOpen
+        >
+          <FormGrid cols={4}>
+            <FormField>
+              <Select
+                label="State"
+                name="state_id"
+                value={form.state_id}
+                onChange={(e) => {
+                  setField("state_id", e.target.value);
+                  setField("city_id", "");
+                }}
+                placeholder="Select state"
+              >
+                {stateOptions.map((s) => (
+                  <MenuItem key={s.id} value={String(s.id)}>
+                    {s.label || s.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormField>
+            <FormField>
+              <Select
+                label="City"
+                name="city_id"
+                value={form.city_id}
+                onChange={(e) => setField("city_id", e.target.value)}
+                placeholder={form.state_id ? "Select city" : "Select state first"}
+                disabled={!form.state_id}
+              >
+                {cityOptions
+                  .filter((c) => !form.state_id || String(c.state_id) === String(form.state_id))
+                  .map((c) => (
+                    <MenuItem key={c.id} value={String(c.id)}>
+                      {c.label || c.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormField>
+            <FormField className="md:col-span-2">
+              <Input
+                label="Address"
+                name="address"
+                value={form.address}
+                onChange={(e) => setField("address", e.target.value)}
+              />
+            </FormField>
           </FormGrid>
         </FormSection>
 

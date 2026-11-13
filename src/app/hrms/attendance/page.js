@@ -12,6 +12,7 @@ import {
   IconLogout,
   IconCoffee,
   IconArrowBackUp,
+  IconCalendarStats,
 } from "@tabler/icons-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -208,6 +209,78 @@ export default function HrmsAttendancePage() {
     []
   );
 
+  const summaryColumns = useMemo(
+    () => [
+      {
+        field: "employee_name",
+        label: "Employee",
+        sortable: false,
+        render: (row) => (
+          <div className="flex flex-col">
+            <span className="font-medium text-foreground">{row.employee_name}</span>
+            {row.emp_code && (
+              <span className="text-xs text-muted-foreground">{row.emp_code}</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        field: "department_title",
+        label: "Department",
+        sortable: false,
+        render: (row) => <span>{row.department_title || "—"}</span>,
+      },
+      { field: "present_days", label: "Present", sortable: true },
+      { field: "half_days", label: "Half days", sortable: true },
+      { field: "late_marks", label: "Late marks", sortable: true },
+      { field: "holiday_attendance", label: "Holiday", sortable: true },
+      {
+        field: "open_punches",
+        label: "Open punches",
+        sortable: true,
+        render: (row) =>
+          row.open_punches > 0 ? (
+            <span className="font-medium text-destructive">{row.open_punches}</span>
+          ) : (
+            <span className="text-muted-foreground">0</span>
+          ),
+      },
+      {
+        field: "working_hours",
+        label: "Working hours",
+        sortable: true,
+        render: (row) => <span className="tabular-nums">{row.working_hours}</span>,
+      },
+    ],
+    []
+  );
+
+  const summaryFetcher = useMemo(
+    () =>
+      async ({ page, limit }) => {
+        const res = await hrmsService.getAttendanceMonthlySummary({
+          year: Number(year),
+          month: Number(month),
+        });
+        const payload = unwrap(res);
+        const rows = payload?.data || [];
+        const take = Math.min(100, Math.max(1, Number(limit) || 20));
+        const pageNum = Math.max(1, Number(page) || 1);
+        const start = (pageNum - 1) * take;
+        return {
+          data: rows.slice(start, start + take),
+          meta: {
+            total: rows.length,
+            page: pageNum,
+            pages: Math.ceil(rows.length / take) || 1,
+            limit: take,
+          },
+        };
+      },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [year, month, tableKey]
+  );
+
   return (
     <ProtectedRoute>
       <ListingPageContainer
@@ -332,6 +405,29 @@ export default function HrmsAttendancePage() {
             />
           }
         />
+
+        <div className="mt-6">
+          <div className="mb-2 flex items-end justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Monthly totals by employee</h3>
+              <p className="text-xs text-muted-foreground">
+                Present, half days, late marks, holiday attendance and open punches for the selected month
+              </p>
+            </div>
+          </div>
+          <PaginatedTable
+            columns={summaryColumns}
+            fetcher={summaryFetcher}
+            height="40vh"
+            emptyState={
+              <EmptyState
+                icon={IconCalendarStats}
+                title="No attendance totals for this month"
+                description="Totals appear once punches are recorded for the selected month."
+              />
+            }
+          />
+        </div>
 
         <AlertDialog open={autoOpen} onOpenChange={setAutoOpen}>
           <AlertDialogContent>

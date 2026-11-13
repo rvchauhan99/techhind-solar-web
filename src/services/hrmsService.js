@@ -48,6 +48,63 @@ export const activateEmployee = (id, payload) =>
 export const deactivateEmployee = (id, payload) =>
   apiClient.post(`/hrms/employees/${id}/deactivate`, payload).then((r) => r.data);
 
+export const exportEmployees = (params) =>
+  apiClient
+    .get("/hrms/employees/export", { params, responseType: "blob" })
+    .then((r) => r.data);
+
+export const getEmployeeProfileImageUrl = (id) =>
+  apiClient.get(`/hrms/employees/${id}/profile-image/url`).then((r) => r.data);
+
+export const uploadEmployeeProfileImage = (id, file) => {
+  const form = new FormData();
+  form.append("image", file);
+  return apiClient.post(`/hrms/employees/${id}/profile-image`, form).then((r) => r.data);
+};
+
+export const removeEmployeeProfileImage = (id) =>
+  apiClient.delete(`/hrms/employees/${id}/profile-image`).then((r) => r.data);
+
+export const getAttendanceMonthlySummary = (params) =>
+  apiClient.get("/hrms/attendance/summary", { params }).then((r) => r.data);
+
+// ---- Plan 08: Payroll ----
+
+export const listPayrollReports = (params) =>
+  apiClient.get("/hrms/payroll", { params }).then((r) => r.data);
+
+export const getPayrollReport = (id) =>
+  apiClient.get(`/hrms/payroll/${id}`).then((r) => r.data);
+
+export const runPayroll = (payload) =>
+  apiClient.post("/hrms/payroll/runs", payload).then((r) => r.data);
+
+export const listPayrollRuns = (params) =>
+  apiClient.get("/hrms/payroll/runs", { params }).then((r) => r.data);
+
+export const listPayrollFlags = (params) =>
+  apiClient.get("/hrms/payroll/flags", { params }).then((r) => r.data);
+
+export const generatePayrollFlags = (payload) =>
+  apiClient.post("/hrms/payroll/flags/generate", payload).then((r) => r.data);
+
+export const downloadSalarySlip = (id) =>
+  apiClient.get(`/hrms/payroll/${id}/slip`, { responseType: "blob" }).then((r) => r.data);
+
+export const ackSalarySlip = (id) =>
+  apiClient.post(`/hrms/payroll/${id}/ack`).then((r) => r.data);
+
+export const raiseSalaryQuery = (id, payload) =>
+  apiClient.post(`/hrms/payroll/${id}/query`, payload).then((r) => r.data);
+
+export const solveSalaryQuery = (id, payload) =>
+  apiClient.post(`/hrms/payroll/${id}/solve`, payload).then((r) => r.data);
+
+export const exportPayoutReport = (params) =>
+  apiClient
+    .get("/hrms/reports/payout", { params, responseType: "blob" })
+    .then((r) => r.data);
+
 export const listHolidays = (params) =>
   apiClient.get("/hrms/holidays", { params }).then((r) => r.data);
 
@@ -192,6 +249,92 @@ export const bulkCreateHolidays = (payload) =>
 export const listLeaveTypeHistory = (id) =>
   apiClient.get(`/hrms/leave-types/${id}/history`).then((r) => r.data);
 
+// ---- Plan 07: Penalty + Compensatory ----
+
+export const listPenalties = (params) =>
+  apiClient.get("/hrms/penalties", { params }).then((r) => r.data);
+
+export const getPenalty = (id) =>
+  apiClient.get(`/hrms/penalties/${id}`).then((r) => r.data);
+
+export const createPenalty = (payload) =>
+  apiClient.post("/hrms/penalties", payload).then((r) => r.data);
+
+export const updatePenalty = (id, payload) =>
+  apiClient.put(`/hrms/penalties/${id}`, payload).then((r) => r.data);
+
+export const deletePenalty = (id) =>
+  apiClient.delete(`/hrms/penalties/${id}`).then((r) => r.data);
+
+export const listPenaltyIssues = (params) =>
+  apiClient.get("/hrms/penalty-issues", { params }).then((r) => r.data);
+
+export const getPenaltyIssue = (id) =>
+  apiClient.get(`/hrms/penalty-issues/${id}`).then((r) => r.data);
+
+export const createPenaltyIssue = (payload) =>
+  apiClient.post("/hrms/penalty-issues", payload).then((r) => r.data);
+
+export const updatePenaltyIssue = (id, payload) =>
+  apiClient.put(`/hrms/penalty-issues/${id}`, payload).then((r) => r.data);
+
+export const setPenaltyIssueStatus = (id, status) =>
+  apiClient.patch(`/hrms/penalty-issues/${id}/status`, { status }).then((r) => r.data);
+
+export const exportPenaltyIssuesPath = (params) => {
+  const qs = new URLSearchParams(
+    Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  ).toString();
+  return `/hrms/penalty-issues/export${qs ? `?${qs}` : ""}`;
+};
+
+export const exportPenaltyIssues = (params) =>
+  apiClient
+    .get(exportPenaltyIssuesPath(params), { responseType: "blob" })
+    .then((r) => r.data);
+
+export const listCompensatory = (params) =>
+  apiClient.get("/hrms/compensatory", { params }).then((r) => r.data);
+
+export const getCompensatory = (id) =>
+  apiClient.get(`/hrms/compensatory/${id}`).then((r) => r.data);
+
+export const createCompensatory = (payload) =>
+  apiClient.post("/hrms/compensatory", payload).then((r) => r.data);
+
+export const decideCompensatory = (id, payload) =>
+  apiClient.post(`/hrms/compensatory/${id}/decide`, payload).then((r) => r.data);
+
+export const getCompensatoryReport = (params) =>
+  apiClient.get("/hrms/reports/compensatory", { params }).then((r) => r.data);
+
+export const exportCompensatoryReportPath = (params) => {
+  const qs = new URLSearchParams(
+    Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  ).toString();
+  return `/hrms/reports/compensatory/export${qs ? `?${qs}` : ""}`;
+};
+
+export const exportCompensatoryReport = (params) =>
+  apiClient
+    .get(exportCompensatoryReportPath(params), { responseType: "blob" })
+    .then((r) => r.data);
+
+export const downloadExport = (path, filename) =>
+  apiClient
+    .get(path, { responseType: "blob" })
+    .then((r) => {
+      const url = window.URL.createObjectURL(new Blob([r.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    });
+
+
 const hrmsService = {
   listDepartments,
   getDepartment,
@@ -209,6 +352,22 @@ const hrmsService = {
   updateEmployee,
   activateEmployee,
   deactivateEmployee,
+  exportEmployees,
+  getEmployeeProfileImageUrl,
+  uploadEmployeeProfileImage,
+  removeEmployeeProfileImage,
+  getAttendanceMonthlySummary,
+  listPayrollReports,
+  getPayrollReport,
+  runPayroll,
+  listPayrollRuns,
+  listPayrollFlags,
+  generatePayrollFlags,
+  downloadSalarySlip,
+  ackSalarySlip,
+  raiseSalaryQuery,
+  solveSalaryQuery,
+  exportPayoutReport,
   listHolidays,
   getHoliday,
   createHoliday,
@@ -251,6 +410,26 @@ const hrmsService = {
   cloneHolidayYear,
   bulkCreateHolidays,
   listLeaveTypeHistory,
+  listPenalties,
+  getPenalty,
+  createPenalty,
+  updatePenalty,
+  deletePenalty,
+  listPenaltyIssues,
+  getPenaltyIssue,
+  createPenaltyIssue,
+  updatePenaltyIssue,
+  setPenaltyIssueStatus,
+  exportPenaltyIssuesPath,
+  exportPenaltyIssues,
+  listCompensatory,
+  getCompensatory,
+  createCompensatory,
+  decideCompensatory,
+  getCompensatoryReport,
+  exportCompensatoryReportPath,
+  exportCompensatoryReport,
+  downloadExport,
 };
 
 export default hrmsService;
