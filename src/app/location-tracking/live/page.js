@@ -157,7 +157,13 @@ function LiveContent() {
         <LocationTrackingMap
           markers={mapMarkers}
           focusUserId={focusUserId}
-          emptyMessage={loading ? "Loading…" : "No users with position in current filter"}
+          emptyMessage={
+            loading
+              ? "Loading…"
+              : filtered.some((u) => u.on_duty && (u.status === "no_fix" || u.status === "no_data"))
+                ? "On duty with no GPS fix yet — users are listed on the right (No fix). Pins appear after the next capture."
+                : "No users with position in current filter"
+          }
         />
 
         <div className="flex flex-col min-h-0 rounded border border-border bg-card">
@@ -276,6 +282,10 @@ function LiveContent() {
                             >
                               Google
                             </button>
+                          ) : u.on_duty ? (
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              Waiting
+                            </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
