@@ -11,11 +11,12 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { IconUserPlus, IconUserOff, IconExternalLink, IconPencil, IconTrash, IconPlus } from "@tabler/icons-react";
+import { IconUserPlus, IconUserOff, IconExternalLink, IconPencil, IconTrash, IconPlus, IconMail } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import HtmlTemplateField from "@/components/common/HtmlTemplateField";
 import StatusBadge from "@/components/common/StatusBadge";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -79,20 +80,33 @@ export default function HrmsEmployeeDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [docDeleteTarget, setDocDeleteTarget] = useState(null);
   const [deletingDoc, setDeletingDoc] = useState(false);
+  const [letters, setLetters] = useState([]);
+  const [letterTypes, setLetterTypes] = useState([]);
+  const [letterType, setLetterType] = useState("welcome_letter");
+  const [letterTerms, setLetterTerms] = useState("");
+  const [generatingLetter, setGeneratingLetter] = useState(false);
+  const [savingTerms, setSavingTerms] = useState(false);
+  const [sendingLetterId, setSendingLetterId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [empRes, qRes, tRes, docRes] = await Promise.all([
+      const [empRes, qRes, tRes, docRes, lettersRes, metaRes] = await Promise.all([
         hrmsService.getEmployee(id),
         hrmsService.listEmployeeLeaveQuotas(id).catch(() => null),
         hrmsService.listLeaveTypes({ limit: 100, status: "active" }).catch(() => null),
         hrmsService.listEmployeeDocuments(id).catch(() => null),
+        hrmsService.listEmployeeLetters(id).catch(() => null),
+        hrmsService.getLetterTemplateMeta().catch(() => null),
       ]);
       setEmp(unwrap(empRes));
       setQuotas(unwrap(qRes)?.data || []);
       setLeaveTypes(unwrap(tRes)?.data || []);
       setDocuments(unwrap(docRes)?.data || []);
+      setLetters(unwrap(lettersRes)?.data || []);
+      const types = unwrap(metaRes)?.types || [];
+      setLetterTypes(types);
+      setLetterType((prev) => (types.some((t) => t.value === prev) ? prev : types[0]?.value || "welcome_letter"));
     } catch (err) {
       toastErrorFromApi(err, "Failed to load employee");
       router.push("/hrms/employees");
@@ -239,6 +253,86 @@ export default function HrmsEmployeeDetailPage() {
     }
   };
 
+  const refreshLetters = async () => {
+    const lettersRes = await hrmsService.listEmployeeLetters(id);
+    setLetters(unwrap(lettersRes)?.data || []);
+  };
+
+  const loadTermsForType = async (type) => {
+    try {
+      const res = await hrmsService.getEmployeeLetterContents(id, type);
+      setLetterTerms(unwrap(res)?.content || "");
+    } catch {
+      setLetterTerms("");
+    }
+  };
+
+  const saveLetterTerms = async () => {
+    setSavingTerms(true);
+    try {
+      await hrmsService.upsertEmployeeLetterContents(id, letterType, { content: letterTerms });
+      toastSuccess("Letter terms saved");
+    } catch (err) {
+      toastErrorFromApi(err, "Save terms failed");
+    } finally {
+      setSavingTerms(false);
+    }
+  };
+
+  const generateLetter = async () => {
+    setGeneratingLetter(true);
+    try {
+      if (letterType === "offer_letter" || letterType === "offer_letter_trainee") {
+        if (String(letterTerms || "").trim()) {
+          await hrmsService.upsertEmployeeLetterContents(id, letterType, { content: letterTerms });
+        }
+      }
+      await hrmsService.generateEmployeeLetter(id, { letter_type: letterType });
+      toastSuccess("Letter generated");
+      await refreshLetters();
+    } catch (err) {
+      toastErrorFromApi(err, "Generate failed");
+    } finally {
+      setGeneratingLetter(false);
+    }
+  };
+
+  const openLetterPdf = async (letter) => {
+    try {
+      const res = await hrmsService.getEmployeeLetterPdfUrl(id, letter.id);
+      const url = unwrap(res)?.url;
+      if (url) window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toastErrorFromApi(err, "Could not open PDF");
+    }
+  };
+
+  const sendLetter = async (letter) => {
+    setSendingLetterId(letter.id);
+    try {
+      await hrmsService.sendEmployeeLetter(id, letter.id);
+      toastSuccess("Letter emailed");
+      await refreshLetters();
+    } catch (err) {
+      toastErrorFromApi(err, "Send failed");
+    } finally {
+      setSendingLetterId(null);
+    }
+  };
+
+  const uploadSignedLetter = async (letter, file) => {
+    if (!file) return;
+    try {
+      const fd = new FormData();
+      fd.append("document", file);
+      await hrmsService.uploadEmployeeLetterSigned(id, letter.id, fd);
+      toastSuccess("Signed document uploaded");
+      await refreshLetters();
+    } catch (err) {
+      toastErrorFromApi(err, "Signed upload failed");
+    }
+  };
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -337,6 +431,7 @@ export default function HrmsEmployeeDetailPage() {
             <TabsTrigger value="annexure">Annexure</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="letters">Letters</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -512,6 +607,117 @@ export default function HrmsEmployeeDetailPage() {
                 </div>
                 <Button type="submit" size="sm" loading={uploading}><IconPlus className="h-4 w-4" /> Upload</Button>
               </form>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="letters">
+            <Card className="p-4 space-y-4">
+              <div>
+                <div className="text-sm font-semibold">Letters</div>
+                <div className="text-xs text-muted-foreground">
+                  Generate from active templates, open PDF, email, or upload a signed copy.
+                </div>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="min-w-[220px]">
+                  <Select
+                    label="Letter type"
+                    name="letter_type"
+                    value={letterType}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setLetterType(v);
+                      loadTermsForType(v);
+                    }}
+                  >
+                    {(letterTypes.length
+                      ? letterTypes
+                      : [{ value: "welcome_letter", label: "Welcome Letter" }]
+                    ).map((t) => (
+                      <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+                    ))}
+                  </Select>
+                </div>
+                <Button size="sm" loading={generatingLetter} onClick={generateLetter}>
+                  <IconPlus className="h-4 w-4" /> Generate
+                </Button>
+              </div>
+              {(letterType === "offer_letter" || letterType === "offer_letter_trainee") && (
+                <div className="space-y-2">
+                  <HtmlTemplateField
+                    name="letter_terms"
+                    label="Offer terms ({terms})"
+                    value={letterTerms}
+                    onChange={(e) => setLetterTerms(e.target.value)}
+                    placeholders={{ "{terms}": "Terms block inserted into offer template" }}
+                    minRows={6}
+                  />
+                  <Button size="sm" variant="outline" loading={savingTerms} onClick={saveLetterTerms}>
+                    Save terms
+                  </Button>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                      <th className="py-2">Type</th>
+                      <th className="py-2">Title</th>
+                      <th className="py-2">Email</th>
+                      <th className="py-2">Signed</th>
+                      <th className="py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {letters.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-3 text-muted-foreground">No letters generated yet.</td>
+                      </tr>
+                    )}
+                    {letters.map((letter) => (
+                      <tr key={letter.id} className="border-b border-border/60">
+                        <td className="py-2">{letter.letter_type_label || letter.letter_type}</td>
+                        <td className="py-2">{letter.title}</td>
+                        <td className="py-2">
+                          <Badge variant={letter.email_sent_status === "Yes" ? "default" : "secondary"}>
+                            {letter.email_sent_status || "No"}
+                          </Badge>
+                        </td>
+                        <td className="py-2">{letter.signed_document_key ? "Yes" : "—"}</td>
+                        <td className="py-2 text-right space-x-1">
+                          <Button variant="ghost" size="sm" onClick={() => openLetterPdf(letter)} title="Open PDF">
+                            <IconExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            loading={sendingLetterId === letter.id}
+                            onClick={() => sendLetter(letter)}
+                            title="Send email"
+                          >
+                            <IconMail className="h-4 w-4" />
+                          </Button>
+                          <label className="inline-flex cursor-pointer items-center">
+                            <input
+                              type="file"
+                              accept=".pdf,.png,.jpg,.jpeg"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                e.target.value = "";
+                                uploadSignedLetter(letter, f);
+                              }}
+                            />
+                            <span className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted">
+                              Signed
+                            </span>
+                          </label>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </Card>
           </TabsContent>
         </Tabs>

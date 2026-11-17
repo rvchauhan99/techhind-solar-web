@@ -11,6 +11,7 @@ import {
   IconReceiptRefund,
   IconDownload,
   IconFileInvoice,
+  IconCashBanknote,
 } from "@tabler/icons-react";
 import {
   AlertDialog,
@@ -301,7 +302,7 @@ export default function HrmsPayrollPage() {
           initialSortOrder="desc"
           emptyState={
             <EmptyState
-              icon={IconPayments}
+              icon={IconCashBanknote}
               title="No payroll for this month"
               description="Run payroll to calculate salaries from attendance, leave, annexure and penalties."
               actionLabel={perm.can_create ? "Run payroll" : undefined}

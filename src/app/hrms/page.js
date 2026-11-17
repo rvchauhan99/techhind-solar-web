@@ -14,9 +14,20 @@ import * as hrmsService from "@/services/hrmsService";
 
 const GROUPS = [
   { title: "People", keys: ["hrms_employees", "hrms_departments", "hrms_designations"] },
+  { title: "Hiring", keys: ["hrms_positions", "hrms_candidates", "hrms_interviews"] },
   { title: "Time & Attendance", keys: ["hrms_attendance", "hrms_attendance_requests"] },
-  { title: "Leave", keys: ["hrms_leaves", "hrms_holidays", "hrms_leave_types", "hrms_compensatory"] },
+  {
+    title: "Leave",
+    keys: [
+      "hrms_leaves",
+      "hrms_holidays",
+      "hrms_leave_types",
+      "hrms_compensatory",
+      "hrms_leave_balance_approvals",
+    ],
+  },
   { title: "Payroll", keys: ["hrms_annexure", "hrms_penalties", "hrms_penalty_issues", "hrms_payroll"] },
+  { title: "Communications", keys: ["hrms_letter_templates", "hrms_policies", "hrms_announcements"] },
   {
     title: "Reports",
     keys: [
@@ -33,12 +44,19 @@ const DESCRIPTIONS = {
   hrms_employees: "Employee master, profiles and status",
   hrms_departments: "Departments and department heads",
   hrms_designations: "Job titles mapped to departments",
+  hrms_positions: "Open hiring roles by branch",
+  hrms_candidates: "Applicants linked to open positions",
+  hrms_interviews: "Schedule interview rounds for candidates",
   hrms_attendance: "Punch records and monthly attendance",
   hrms_attendance_requests: "Correction requests with L1 → L2 approval",
   hrms_leaves: "Leave applications and approvals",
   hrms_holidays: "Company holiday calendar",
   hrms_leave_types: "Leave types and quarterly entitlement",
   hrms_compensatory: "Comp-off earned for holiday or weekend work",
+  hrms_leave_balance_approvals: "Confirm or dispute FY leave balance",
+  hrms_letter_templates: "HR letter templates with placeholders",
+  hrms_policies: "Company policy PDF library",
+  hrms_announcements: "Department-targeted company announcements",
   hrms_annexure: "Salary structure and increments",
   hrms_penalties: "Penalty types and standard amounts",
   hrms_penalty_issues: "Monthly penalties deducted in payroll",
@@ -102,11 +120,18 @@ export default function HrmsHubPage() {
     const sections = GROUPS.map((g) => {
       const items = g.keys.map((k) => byKey.get(k)).filter(Boolean);
       items.forEach((m) => used.add(m.key));
+      // Keep Communications even with zero module tiles so My Announcements can show
+      if (g.title === "Communications") return { title: g.title, items };
       return { title: g.title, items };
-    }).filter((s) => s.items.length > 0);
+    }).filter((s) => s.title === "Communications" || s.items.length > 0);
+    // Drop empty Communications only when HRMS has no modules at all
+    const filtered =
+      tiles.length === 0
+        ? sections.filter((s) => s.items.length > 0)
+        : sections;
     const rest = tiles.filter((t) => !used.has(t.key));
-    if (rest.length) sections.push({ title: "More", items: rest });
-    return sections;
+    if (rest.length) filtered.push({ title: "More", items: rest });
+    return filtered;
   }, [tiles]);
 
   return (
@@ -131,6 +156,33 @@ export default function HrmsHubPage() {
                 {section.title}
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {section.title === "Communications" ? (
+                  <Card
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push("/hrms/announcements/feed")}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push("/hrms/announcements/feed");
+                      }
+                    }}
+                    className="group cursor-pointer p-4 transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="rounded-md bg-primary/10 p-2 text-primary">
+                        <IconCircle className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">My Announcements</div>
+                        <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          Active items for your department
+                        </div>
+                      </div>
+                      <IconChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    </div>
+                  </Card>
+                ) : null}
                 {section.items.map((m) => {
                   const Icon = getIcon(m.icon) || IconCircle;
                   const count = counts[m.key];

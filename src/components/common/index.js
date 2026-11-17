@@ -42,6 +42,7 @@ export { SerialStatusChip, SerialPartialSaveStrip, SerialMismatchFixLink } from 
 export { default as Select, MenuItem } from "./Select";
 export { default as TableLayout } from "./TableLayout";
 export { default as Textarea } from "./Textarea";
+export { default as HtmlTemplateField } from "./HtmlTemplateField";
 export { default as StatusBadge } from "./StatusBadge";
 export { default as EmptyState } from "./EmptyState";
 export { default as StatCard } from "./StatCard";

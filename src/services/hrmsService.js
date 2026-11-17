@@ -188,6 +188,33 @@ export const decideLeave = (id, payload) =>
 export const getLeaveBalance = (params) =>
   apiClient.get("/hrms/leaves/balance", { params }).then((r) => r.data);
 
+export const getLeaveBalanceAckMe = (params) =>
+  apiClient.get("/hrms/leave-balance-acknowledgements/me", { params }).then((r) => r.data);
+
+export const listLeaveBalanceAcks = (params) =>
+  apiClient.get("/hrms/leave-balance-acknowledgements", { params }).then((r) => r.data);
+
+export const createLeaveBalanceAck = (payload) =>
+  apiClient.post("/hrms/leave-balance-acknowledgements", payload).then((r) => r.data);
+
+export const getLetterTemplateMeta = () =>
+  apiClient.get("/hrms/letter-templates/meta").then((r) => r.data);
+
+export const listLetterTemplates = (params) =>
+  apiClient.get("/hrms/letter-templates", { params }).then((r) => r.data);
+
+export const getLetterTemplate = (id) =>
+  apiClient.get(`/hrms/letter-templates/${id}`).then((r) => r.data);
+
+export const createLetterTemplate = (payload) =>
+  apiClient.post("/hrms/letter-templates", payload).then((r) => r.data);
+
+export const updateLetterTemplate = (id, payload) =>
+  apiClient.put(`/hrms/letter-templates/${id}`, payload).then((r) => r.data);
+
+export const deleteLetterTemplate = (id) =>
+  apiClient.delete(`/hrms/letter-templates/${id}`).then((r) => r.data);
+
 export const listLeaveReport = (params) =>
   apiClient.get("/hrms/reports/leave", { params }).then((r) => r.data);
 
@@ -239,6 +266,138 @@ export const getEmployeeDocumentUrl = (employeeId, docId) =>
 
 export const deleteEmployeeDocument = (employeeId, docId) =>
   apiClient.delete(`/hrms/employees/${employeeId}/documents/${docId}`).then((r) => r.data);
+
+export const listEmployeeLetters = (employeeId) =>
+  apiClient.get(`/hrms/employees/${employeeId}/letters`).then((r) => r.data);
+
+export const generateEmployeeLetter = (employeeId, payload) =>
+  apiClient.post(`/hrms/employees/${employeeId}/letters/generate`, payload).then((r) => r.data);
+
+export const getEmployeeLetterPdfUrl = (employeeId, letterId) =>
+  apiClient.get(`/hrms/employees/${employeeId}/letters/${letterId}/pdf`).then((r) => r.data);
+
+export const sendEmployeeLetter = (employeeId, letterId) =>
+  apiClient.post(`/hrms/employees/${employeeId}/letters/${letterId}/send`).then((r) => r.data);
+
+export const uploadEmployeeLetterSigned = (employeeId, letterId, formData) =>
+  apiClient
+    .post(`/hrms/employees/${employeeId}/letters/${letterId}/signed-document`, formData)
+    .then((r) => r.data);
+
+export const getEmployeeLetterContents = (employeeId, letterType) =>
+  apiClient
+    .get(`/hrms/employees/${employeeId}/letter-contents/${letterType}`)
+    .then((r) => r.data);
+
+export const upsertEmployeeLetterContents = (employeeId, letterType, payload) =>
+  apiClient
+    .put(`/hrms/employees/${employeeId}/letter-contents/${letterType}`, payload)
+    .then((r) => r.data);
+
+export const getPolicyMeta = () =>
+  apiClient.get("/hrms/policies/meta").then((r) => r.data);
+
+export const listPolicies = (params) =>
+  apiClient.get("/hrms/policies", { params }).then((r) => r.data);
+
+export const getPolicy = (id) =>
+  apiClient.get(`/hrms/policies/${id}`).then((r) => r.data);
+
+export const createPolicy = (formData) =>
+  apiClient.post("/hrms/policies", formData).then((r) => r.data);
+
+export const updatePolicy = (id, formData) =>
+  apiClient.put(`/hrms/policies/${id}`, formData).then((r) => r.data);
+
+export const deletePolicy = (id) =>
+  apiClient.delete(`/hrms/policies/${id}`).then((r) => r.data);
+
+export const getPolicyUrl = (id) =>
+  apiClient.get(`/hrms/policies/${id}/url`).then((r) => r.data);
+
+export const getAnnouncementMeta = () =>
+  apiClient.get("/hrms/announcements/meta").then((r) => r.data);
+
+export const listAnnouncements = (params) =>
+  apiClient.get("/hrms/announcements", { params }).then((r) => r.data);
+
+export const getAnnouncement = (id) =>
+  apiClient.get(`/hrms/announcements/${id}`).then((r) => r.data);
+
+export const createAnnouncement = (payload) =>
+  apiClient.post("/hrms/announcements", payload).then((r) => r.data);
+
+export const updateAnnouncement = (id, payload) =>
+  apiClient.put(`/hrms/announcements/${id}`, payload).then((r) => r.data);
+
+export const deleteAnnouncement = (id) =>
+  apiClient.delete(`/hrms/announcements/${id}`).then((r) => r.data);
+
+export const getMyAnnouncements = () =>
+  apiClient.get("/hrms/announcements/me").then((r) => r.data);
+
+export const getPositionMeta = () =>
+  apiClient.get("/hrms/positions/meta").then((r) => r.data);
+
+export const listPositions = (params) =>
+  apiClient.get("/hrms/positions", { params }).then((r) => r.data);
+
+export const getPosition = (id) =>
+  apiClient.get(`/hrms/positions/${id}`).then((r) => r.data);
+
+export const createPosition = (payload) =>
+  apiClient.post("/hrms/positions", payload).then((r) => r.data);
+
+export const updatePosition = (id, payload) =>
+  apiClient.put(`/hrms/positions/${id}`, payload).then((r) => r.data);
+
+export const deletePosition = (id) =>
+  apiClient.delete(`/hrms/positions/${id}`).then((r) => r.data);
+
+export const getCandidateMeta = () =>
+  apiClient.get("/hrms/candidates/meta").then((r) => r.data);
+
+export const listCandidates = (params) =>
+  apiClient.get("/hrms/candidates", { params }).then((r) => r.data);
+
+export const getCandidate = (id) =>
+  apiClient.get(`/hrms/candidates/${id}`).then((r) => r.data);
+
+export const createCandidate = (payload) =>
+  apiClient.post("/hrms/candidates", payload).then((r) => r.data);
+
+export const updateCandidate = (id, payload) =>
+  apiClient.put(`/hrms/candidates/${id}`, payload).then((r) => r.data);
+
+export const patchCandidateStage = (id, payload) =>
+  apiClient.patch(`/hrms/candidates/${id}/stage`, payload).then((r) => r.data);
+
+export const deleteCandidate = (id) =>
+  apiClient.delete(`/hrms/candidates/${id}`).then((r) => r.data);
+
+export const getInterviewMeta = () =>
+  apiClient.get("/hrms/interviews/meta").then((r) => r.data);
+
+export const listInterviews = (params) =>
+  apiClient.get("/hrms/interviews", { params }).then((r) => r.data);
+
+export const getInterview = (id) =>
+  apiClient.get(`/hrms/interviews/${id}`).then((r) => r.data);
+
+export const createInterview = (payload) =>
+  apiClient.post("/hrms/interviews", payload).then((r) => r.data);
+
+export const updateInterview = (id, payload) =>
+  apiClient.put(`/hrms/interviews/${id}`, payload).then((r) => r.data);
+
+export const cancelInterview = (id) =>
+  apiClient.patch(`/hrms/interviews/${id}/cancel`).then((r) => r.data);
+
+export const evaluateInterview = (id, payload) =>
+  apiClient.post(`/hrms/interviews/${id}/evaluate`, payload).then((r) => r.data);
+
+export const deleteInterview = (id) =>
+  apiClient.delete(`/hrms/interviews/${id}`).then((r) => r.data);
 
 export const cloneHolidayYear = (payload) =>
   apiClient.post("/hrms/holidays/clone-year", payload).then((r) => r.data);
@@ -395,6 +554,15 @@ const hrmsService = {
   cancelLeave,
   decideLeave,
   getLeaveBalance,
+  getLeaveBalanceAckMe,
+  listLeaveBalanceAcks,
+  createLeaveBalanceAck,
+  getLetterTemplateMeta,
+  listLetterTemplates,
+  getLetterTemplate,
+  createLetterTemplate,
+  updateLetterTemplate,
+  deleteLetterTemplate,
   listLeaveReport,
   exportLeaveReport,
   listLeaveBalanceReport,
@@ -407,6 +575,48 @@ const hrmsService = {
   uploadEmployeeDocument,
   getEmployeeDocumentUrl,
   deleteEmployeeDocument,
+  listEmployeeLetters,
+  generateEmployeeLetter,
+  getEmployeeLetterPdfUrl,
+  sendEmployeeLetter,
+  uploadEmployeeLetterSigned,
+  getEmployeeLetterContents,
+  upsertEmployeeLetterContents,
+  getPolicyMeta,
+  listPolicies,
+  getPolicy,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+  getPolicyUrl,
+  getAnnouncementMeta,
+  listAnnouncements,
+  getAnnouncement,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+  getMyAnnouncements,
+  getPositionMeta,
+  listPositions,
+  getPosition,
+  createPosition,
+  updatePosition,
+  deletePosition,
+  getCandidateMeta,
+  listCandidates,
+  getCandidate,
+  createCandidate,
+  updateCandidate,
+  patchCandidateStage,
+  deleteCandidate,
+  getInterviewMeta,
+  listInterviews,
+  getInterview,
+  createInterview,
+  updateInterview,
+  cancelInterview,
+  evaluateInterview,
+  deleteInterview,
   cloneHolidayYear,
   bulkCreateHolidays,
   listLeaveTypeHistory,
