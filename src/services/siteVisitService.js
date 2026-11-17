@@ -1,3 +1,4 @@
+import { SITE_VISIT_UPLOAD_TIMEOUT_MS, formatSiteVisitUploadError } from '@/lib/siteVisitMedia';
 import apiClient from './apiClient';
 
 // Get roof types from API
@@ -165,9 +166,20 @@ export const create = (payload, files = {}) => {
     formData.append('other_images_videos', files.other_images_videos);
   }
 
-  return apiClient.post('/site-visit/create', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then((r) => r.data);
+  return apiClient
+    .post('/site-visit/create', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: SITE_VISIT_UPLOAD_TIMEOUT_MS,
+    })
+    .then((r) => r.data)
+    .catch((error) => {
+      const message = formatSiteVisitUploadError(error);
+      const err = new Error(message);
+      err.response = error.response;
+      err.code = error.code;
+      err.original = error;
+      throw err;
+    });
 };
 
 /** Update Pending/Rescheduled site visit (JSON body; no file upload). */

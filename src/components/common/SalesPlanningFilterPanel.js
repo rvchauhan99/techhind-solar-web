@@ -135,7 +135,6 @@ export default function SalesPlanningFilterPanel({
 
   const [localValues, setLocalValues] = useState(() => normalizeLocalValues(values));
   const [pipelineReasonOptions, setPipelineReasonOptions] = useState([]);
-  const [clients, setClients] = useState([]);
   const [quickSearch, setQuickSearch] = useState(() => values?.q ?? "");
   const [isSearching, setIsSearching] = useState(false);
   const debounceTimerRef = useRef(null);
@@ -168,14 +167,6 @@ export default function SalesPlanningFilterPanel({
         setPipelineReasonOptions(reasons.map((r) => ({ value: r, label: r })));
       })
       .catch(() => setPipelineReasonOptions([]));
-
-    b2bClientService
-      .getB2bClients({ limit: 200 })
-      .then((res) => {
-        const rows = res?.result?.rows ?? res?.result?.data ?? res?.rows ?? [];
-        setClients(Array.isArray(rows) ? rows : []);
-      })
-      .catch(() => setClients([]));
   }, []);
 
   const handleChange = useCallback((key, value) => {
@@ -350,17 +341,18 @@ export default function SalesPlanningFilterPanel({
             <div className="lg:col-span-2">
               <AutocompleteField
                 label="Client"
-                options={clients}
+                placeholder="Search by code or name..."
+                asyncLoadOptions={(q) =>
+                  b2bClientService.loadB2bClientOptions(q, { is_active: undefined, limit: 50 })
+                }
+                resolveOptionById={b2bClientService.resolveB2bClientById}
                 getOptionLabel={(c) =>
                   c
                     ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() ||
                       String(c?.id ?? "")
                     : ""
                 }
-                value={
-                  clients.find((c) => String(c.id) === String(localValues.client_id)) ||
-                  (localValues.client_id ? { id: localValues.client_id } : null)
-                }
+                value={localValues.client_id ? { id: localValues.client_id } : null}
                 onChange={(e, newValue) => {
                   handleChange("client_id", newValue?.id ?? "");
                   handleChange("client_name", "");

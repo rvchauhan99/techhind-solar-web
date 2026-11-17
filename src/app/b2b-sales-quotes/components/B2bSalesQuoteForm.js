@@ -86,7 +86,6 @@ export default function B2bSalesQuoteForm({
     const [itemErrors, setItemErrors] = useState({});
     const [currentItem, setCurrentItem] = useState(emptyCurrentItem());
 
-    const [clients, setClients] = useState([]);
     const [shipTos, setShipTos] = useState([]);
     const [clientDetails, setClientDetails] = useState(null);
     const [companyState, setCompanyState] = useState("");
@@ -96,29 +95,21 @@ export default function B2bSalesQuoteForm({
     const [uploadedFiles, setUploadedFiles] = useState([]);
     const fileInputRef = useRef(null);
 
-    // Load clients on mount
+    // Load company profile for GST/state (clients load via async AutocompleteField)
     useEffect(() => {
         setLoadingOptions(true);
-        Promise.all([
-            b2bClientService
-                .getB2bClients({ limit: 500, is_active: true })
-                .then((res) => {
-                    const r = res?.result ?? res;
-                    setClients(r?.data ?? []);
-                })
-                .catch(() => { }),
-            companyService
-                .getCompanyProfile()
-                .then((res) => {
-                    const c = res?.result ?? res;
-                    setCompanyState(String(c?.state || "").trim());
-                    setCompanyGstin(String(c?.gstin || "").trim());
-                })
-                .catch(() => {
-                    setCompanyState("");
-                    setCompanyGstin("");
-                }),
-        ]).finally(() => setLoadingOptions(false));
+        companyService
+            .getCompanyProfile()
+            .then((res) => {
+                const c = res?.result ?? res;
+                setCompanyState(String(c?.state || "").trim());
+                setCompanyGstin(String(c?.gstin || "").trim());
+            })
+            .catch(() => {
+                setCompanyState("");
+                setCompanyGstin("");
+            })
+            .finally(() => setLoadingOptions(false));
     }, []);
 
     // Load default Terms & Conditions masters for new quotes (not editing)
@@ -534,9 +525,11 @@ export default function B2bSalesQuoteForm({
                                 <div className="lg:col-span-2">
                                     <AutocompleteField
                                         label="Client *"
-                                        options={clients}
+                                        placeholder="Search by code or name..."
+                                        asyncLoadOptions={b2bClientService.loadB2bClientOptions}
+                                        resolveOptionById={b2bClientService.resolveB2bClientById}
                                         getOptionLabel={(c) => (c ? `${c.client_code ?? ""} – ${c.client_name ?? ""}`.trim() || String(c?.id ?? "") : "")}
-                                        value={clients.find((c) => c.id === parseInt(formData.client_id)) || (formData.client_id ? { id: formData.client_id } : null)}
+                                        value={formData.client_id ? { id: formData.client_id } : null}
                                         onChange={(e, newValue) => handleChange({ target: { name: "client_id", value: newValue?.id ?? "" } })}
                                         required
                                         error={!!errors.client_id}

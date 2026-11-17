@@ -2,6 +2,8 @@
 
 Straight test guide for web (office) + mobile (field). No IT / server setup.
 
+**Release pack (16 Nov 2026):** Duty continues after app logout, Live Waiting / No fix for on-duty users, and history across logout — run [BA_LOCATION_TRACKING_DUTY_CONTINUATION_LIVE_UAT.md](./BA_LOCATION_TRACKING_DUTY_CONTINUATION_LIVE_UAT.md) first for those checks, then use this guide for the full module.
+
 ---
 
 ## 1. What it does
@@ -118,7 +120,7 @@ Mark Pass / Fail / Blocked.
 | LT-13 | Capture upload + Stop flush | Capture ticks drain queue when online; Stop → depth **0** |
 | LT-14 | Location denied | Start fails / no useful Live pin |
 | LT-14a | My Timesheet | Matches Active / clock-out |
-| LT-14b | Logout on duty | Server session closed |
+| LT-14b | Logout on duty | App returns to login; **duty stays Active**; tracking continues until **End Duty** or office **Force punch out** (see duty-continuation UAT pack) |
 
 ### Device binding
 
