@@ -40,8 +40,9 @@ export function middleware(request) {
   const { pathname } = request.nextUrl;
   const isAuthRoute = pathname.startsWith("/auth");
   const isVerifyRoute = pathname.startsWith("/verify");
+  const isCareersRoute = pathname.startsWith("/careers");
 
-  if (isAuthRoute || isVerifyRoute) return NextResponse.next();
+  if (isAuthRoute || isVerifyRoute || isCareersRoute) return NextResponse.next();
 
   if (pathname === "/") {
     return NextResponse.redirect(`${getPublicOrigin(request)}/auth/login`);

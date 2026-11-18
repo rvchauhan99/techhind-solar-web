@@ -183,7 +183,7 @@ function TimesheetContent() {
   return (
     <ListingPageContainer
       title="Timesheet"
-      subtitle="Duty clock-in to clock-out · GPS coverage"
+      subtitle="Punch In/Out = HRMS punch when HRMS is on · GPS coverage"
       fullWidth
       actions={
         <div className="flex items-center gap-1.5">

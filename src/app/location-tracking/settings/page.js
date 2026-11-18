@@ -143,13 +143,13 @@ function SettingsContent() {
           <div className="mt-2 pt-2 border-t border-border space-y-1.5">
             <Checkbox
               name="duty_gate_enabled"
-              label="Duty gate on mobile (consent + Start duty prompts)"
+              label="Punch gate on mobile (consent + Punch In prompts)"
               checked={!!form.duty_gate_enabled}
               onChange={(e) => setField("duty_gate_enabled", e.target.checked)}
             />
             <Input
               name="stale_session_hours"
-              label="Auto-close stale open duty sessions (hours)"
+              label="Auto-close stale open punch sessions (hours)"
               type="number"
               value={form.stale_session_hours}
               onChange={(e) => setField("stale_session_hours", e.target.value)}

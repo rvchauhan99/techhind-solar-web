@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
@@ -12,16 +13,24 @@ import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
+import DateField from "@/components/common/DateField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import roleService from "@/services/roleMasterService";
+import { listBranches } from "@/services/companyService";
 
 export default function HrmsCandidateEditPage() {
   const { id } = useParams();
   const router = useRouter();
   const [positions, setPositions] = useState([]);
   const [stages, setStages] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [candidate, setCandidate] = useState(null);
   const [form, setForm] = useState({
     position_id: "",
     first_name: "",
@@ -32,24 +41,51 @@ export default function HrmsCandidateEditPage() {
     notes: "",
     stage: "1",
   });
+  const [onboardForm, setOnboardForm] = useState({
+    emp_code: "",
+    department_id: "",
+    designation_id: "",
+    joining_date: "",
+    role_id: "",
+    branch_ids: [],
+  });
   const [errors, setErrors] = useState({});
+  const [onboardErrors, setOnboardErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
+
+  const canOnboard =
+    candidate &&
+    !candidate.is_onboarded &&
+    !candidate.employee_id &&
+    Number(candidate.stage) >= 7 &&
+    Number(candidate.stage) !== 0;
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [metaRes, rowRes] = await Promise.all([
+        const [metaRes, rowRes, deptRes, roleRes, branchRes] = await Promise.all([
           hrmsService.getCandidateMeta(),
           hrmsService.getCandidate(id),
+          hrmsService.listDepartments({ limit: 100, status: "active" }).catch(() => null),
+          roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null),
+          listBranches().catch(() => null),
         ]);
         if (cancelled) return;
         const meta = unwrap(metaRes) || {};
         setPositions(meta.positions || []);
         setStages(meta.stages || []);
+        const d = unwrap(deptRes);
+        setDepartments(d?.data || []);
+        const rp = unwrap(roleRes);
+        setRoles(rp?.data || rp?.rows || (Array.isArray(rp) ? rp : []));
+        const bp = unwrap(branchRes);
+        setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
         const row = unwrap(rowRes) || {};
+        setCandidate(row);
         setForm({
           position_id: row.position_id != null ? String(row.position_id) : "",
           first_name: row.first_name || "",
@@ -72,9 +108,41 @@ export default function HrmsCandidateEditPage() {
     };
   }, [id, router]);
 
+  useEffect(() => {
+    if (!onboardForm.department_id) {
+      setDesignations([]);
+      return;
+    }
+    hrmsService
+      .listDesignations({
+        department_id: onboardForm.department_id,
+        limit: 100,
+        status: "active",
+      })
+      .then((res) => setDesignations(unwrap(res)?.data || []))
+      .catch(() => setDesignations([]));
+  }, [onboardForm.department_id]);
+
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
+  };
+
+  const setOnboardField = (key, value) => {
+    setOnboardForm((f) => ({ ...f, [key]: value }));
+    if (onboardErrors[key]) setOnboardErrors((p) => ({ ...p, [key]: undefined }));
+  };
+
+  const toggleBranch = (branchId) => {
+    setOnboardForm((f) => {
+      const set = new Set((f.branch_ids || []).map(Number));
+      if (set.has(Number(branchId))) set.delete(Number(branchId));
+      else set.add(Number(branchId));
+      return { ...f, branch_ids: Array.from(set) };
+    });
+    if (onboardErrors.branch_ids) {
+      setOnboardErrors((p) => ({ ...p, branch_ids: undefined }));
+    }
   };
 
   const onSubmit = async (e) => {
@@ -90,7 +158,7 @@ export default function HrmsCandidateEditPage() {
 
     setSaving(true);
     try {
-      await hrmsService.updateCandidate(id, {
+      const res = await hrmsService.updateCandidate(id, {
         position_id: Number(form.position_id),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
@@ -100,6 +168,8 @@ export default function HrmsCandidateEditPage() {
         notes: form.notes.trim() || null,
         stage: Number(form.stage),
       });
+      const row = unwrap(res) || {};
+      setCandidate(row);
       toastSuccess("Candidate updated");
       router.push("/hrms/candidates");
     } catch (err) {
@@ -114,12 +184,46 @@ export default function HrmsCandidateEditPage() {
     try {
       const res = await hrmsService.patchCandidateStage(id, { reject: true });
       const row = unwrap(res) || {};
+      setCandidate(row);
       setForm((f) => ({ ...f, stage: String(row.stage ?? 0) }));
       toastSuccess("Candidate rejected");
     } catch (err) {
       toastErrorFromApi(err, "Reject failed");
     } finally {
       setRejecting(false);
+    }
+  };
+
+  const onOnboard = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!onboardForm.emp_code.trim()) errs.emp_code = "Employee code is required";
+    if (!onboardForm.department_id) errs.department_id = "Department is required";
+    if (!onboardForm.designation_id) errs.designation_id = "Designation is required";
+    if (!onboardForm.joining_date) errs.joining_date = "Joining date is required";
+    if (!(onboardForm.branch_ids || []).length) errs.branch_ids = "Select at least one branch";
+    setOnboardErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    setOnboarding(true);
+    try {
+      const payload = {
+        emp_code: onboardForm.emp_code.trim(),
+        department_id: Number(onboardForm.department_id),
+        designation_id: Number(onboardForm.designation_id),
+        joining_date: onboardForm.joining_date,
+        branch_ids: (onboardForm.branch_ids || []).map(Number),
+      };
+      if (onboardForm.role_id) payload.role_id = Number(onboardForm.role_id);
+      const res = await hrmsService.onboardCandidate(id, payload);
+      const row = unwrap(res) || {};
+      setCandidate(row);
+      setForm((f) => ({ ...f, stage: String(row.stage ?? 10) }));
+      toastSuccess("Candidate onboarded");
+    } catch (err) {
+      toastErrorFromApi(err, "Onboard failed");
+    } finally {
+      setOnboarding(false);
     }
   };
 
@@ -140,6 +244,14 @@ export default function HrmsCandidateEditPage() {
         >
           <FormContainer>
             <FormSection variant="card" title="Candidate">
+              {candidate?.is_onboarded ? (
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="success">Onboarded</Badge>
+                  <span className="text-muted-foreground">
+                    Employee {candidate.employee_emp_code || candidate.employee?.emp_code || candidate.employee_id}
+                  </span>
+                </div>
+              ) : null}
               <FormGrid>
                 <FormField>
                   <Select
@@ -165,6 +277,7 @@ export default function HrmsCandidateEditPage() {
                     name="stage"
                     value={form.stage}
                     onChange={(e) => setField("stage", e.target.value)}
+                    disabled={!!candidate?.is_onboarded}
                   >
                     {stages.map((s) => (
                       <MenuItem key={s.value} value={String(s.value)}>
@@ -245,17 +358,135 @@ export default function HrmsCandidateEditPage() {
                 type="button"
                 variant="destructive"
                 loading={rejecting}
-                disabled={Number(form.stage) === 0}
+                disabled={Number(form.stage) === 0 || !!candidate?.is_onboarded}
                 onClick={onReject}
               >
                 Reject
               </Button>
-              <Button type="submit" loading={saving}>
+              <Button type="submit" loading={saving} disabled={!!candidate?.is_onboarded}>
                 Save
               </Button>
             </FormActions>
           </FormContainer>
         </form>
+
+        {canOnboard ? (
+          <form
+            onSubmit={onOnboard}
+            onKeyDown={preventEnterSubmit}
+            className={loading ? "hidden" : "mt-4"}
+          >
+            <FormContainer>
+              <FormSection variant="card" title="Onboard to employee">
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Creates an active employee and login from this Selected candidate.
+                </p>
+                <FormGrid>
+                  <FormField>
+                    <Input
+                      label="Employee code"
+                      name="emp_code"
+                      value={onboardForm.emp_code}
+                      onChange={(e) => setOnboardField("emp_code", e.target.value)}
+                      error={!!onboardErrors.emp_code}
+                      helperText={onboardErrors.emp_code}
+                      required
+                    />
+                  </FormField>
+                  <FormField>
+                    <Select
+                      label="Department"
+                      name="department_id"
+                      value={onboardForm.department_id}
+                      onChange={(e) => {
+                        setOnboardField("department_id", e.target.value);
+                        setOnboardField("designation_id", "");
+                      }}
+                      error={!!onboardErrors.department_id}
+                      helperText={onboardErrors.department_id}
+                      required
+                    >
+                      <MenuItem value="">Select department</MenuItem>
+                      {departments.map((d) => (
+                        <MenuItem key={d.id} value={String(d.id)}>
+                          {d.title || d.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField>
+                    <Select
+                      label="Designation"
+                      name="designation_id"
+                      value={onboardForm.designation_id}
+                      onChange={(e) => setOnboardField("designation_id", e.target.value)}
+                      error={!!onboardErrors.designation_id}
+                      helperText={onboardErrors.designation_id}
+                      required
+                      disabled={!onboardForm.department_id}
+                    >
+                      <MenuItem value="">Select designation</MenuItem>
+                      {designations.map((d) => (
+                        <MenuItem key={d.id} value={String(d.id)}>
+                          {d.title || d.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField>
+                    <DateField
+                      label="Joining date"
+                      name="joining_date"
+                      value={onboardForm.joining_date}
+                      onChange={(e) => setOnboardField("joining_date", e.target.value)}
+                      error={!!onboardErrors.joining_date}
+                      helperText={onboardErrors.joining_date}
+                      required
+                    />
+                  </FormField>
+                  <FormField>
+                    <Select
+                      label="Role (optional)"
+                      name="role_id"
+                      value={onboardForm.role_id}
+                      onChange={(e) => setOnboardField("role_id", e.target.value)}
+                    >
+                      <MenuItem value="">Default role</MenuItem>
+                      {roles.map((r) => (
+                        <MenuItem key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormField>
+                </FormGrid>
+                <div className="mt-3">
+                  <p className="mb-2 text-sm font-medium">Branches</p>
+                  {onboardErrors.branch_ids ? (
+                    <p className="mb-2 text-sm text-destructive">{onboardErrors.branch_ids}</p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-3">
+                    {branches.map((b) => (
+                      <label key={b.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={(onboardForm.branch_ids || []).map(Number).includes(Number(b.id))}
+                          onChange={() => toggleBranch(b.id)}
+                        />
+                        {b.name || b.title || `Branch ${b.id}`}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </FormSection>
+              <FormActions>
+                <Button type="submit" loading={onboarding}>
+                  Submit onboard
+                </Button>
+              </FormActions>
+            </FormContainer>
+          </form>
+        ) : null}
       </AddEditPageShell>
     </ProtectedRoute>
   );

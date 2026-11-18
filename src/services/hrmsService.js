@@ -375,11 +375,19 @@ export const patchCandidateStage = (id, payload) =>
 export const deleteCandidate = (id) =>
   apiClient.delete(`/hrms/candidates/${id}`).then((r) => r.data);
 
+export const onboardCandidate = (id, payload) =>
+  apiClient.post(`/hrms/candidates/${id}/onboard`, payload).then((r) => r.data);
+
 export const getInterviewMeta = () =>
   apiClient.get("/hrms/interviews/meta").then((r) => r.data);
 
 export const listInterviews = (params) =>
   apiClient.get("/hrms/interviews", { params }).then((r) => r.data);
+
+export const exportInterviews = (params) =>
+  apiClient
+    .get("/hrms/interviews/export", { params, responseType: "blob" })
+    .then((r) => r.data);
 
 export const getInterview = (id) =>
   apiClient.get(`/hrms/interviews/${id}`).then((r) => r.data);
@@ -609,8 +617,10 @@ const hrmsService = {
   updateCandidate,
   patchCandidateStage,
   deleteCandidate,
+  onboardCandidate,
   getInterviewMeta,
   listInterviews,
+  exportInterviews,
   getInterview,
   createInterview,
   updateInterview,

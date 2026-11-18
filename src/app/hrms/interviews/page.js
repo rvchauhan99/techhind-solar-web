@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { IconPencil, IconTrash, IconCalendarEvent } from "@tabler/icons-react";
+import { IconPencil, IconTrash, IconCalendarEvent, IconDownload } from "@tabler/icons-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +60,7 @@ export default function HrmsInterviewsPage() {
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     hrmsService
@@ -114,6 +115,27 @@ export default function HrmsInterviewsPage() {
       toastErrorFromApi(err, "Delete failed");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const blob = await hrmsService.exportInterviews({
+        round: filters.round || undefined,
+        status: filters.status || undefined,
+      });
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "interviews.xlsx";
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toastSuccess("Export downloaded — matches the selected filters");
+    } catch (err) {
+      toastErrorFromApi(err, "Export failed");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -212,6 +234,11 @@ export default function HrmsInterviewsPage() {
         subtitle="Schedule interview rounds for candidates"
         addButtonLabel={perm.can_create ? "Schedule interview" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/interviews/add") : undefined}
+        actions={
+          <Button size="sm" variant="outline" onClick={handleExport} loading={exporting}>
+            <IconDownload className="size-4" /> Export
+          </Button>
+        }
         filterConfig={[
           { key: "round", label: "Round", type: "select", options: roundOptions },
           { key: "status", label: "Status", type: "select", options: statusOptions },

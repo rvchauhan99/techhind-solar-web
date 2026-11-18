@@ -139,6 +139,19 @@ export default function HrmsCandidatesPage() {
         ),
       },
       {
+        field: "onboarded",
+        label: "Onboarded",
+        sortable: false,
+        render: (row) =>
+          row.is_onboarded ? (
+            <Badge variant="success">
+              {row.employee_emp_code || row.employee?.emp_code || "Yes"}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
+      },
+      {
         field: "actions",
         label: "Actions",
         sortable: false,

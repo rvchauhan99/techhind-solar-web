@@ -43,8 +43,9 @@ export default function AuthProvider({ children }) {
       const isAuthRoute = pathname?.startsWith("/auth");
       const isAdminRoute = pathname?.startsWith("/admin");
       const isVerifyRoute = pathname?.startsWith("/verify");
+      const isCareersRoute = pathname?.startsWith("/careers");
 
-      if (isVerifyRoute) {
+      if (isVerifyRoute || isCareersRoute) {
         setUser(null);
         setLoading(false);
         return;

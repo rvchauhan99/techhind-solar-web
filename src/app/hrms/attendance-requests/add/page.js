@@ -69,8 +69,8 @@ export default function HrmsAttendanceRequestAddPage() {
                     value={form.request_type}
                     onChange={(e) => setField("request_type", e.target.value)}
                   >
-                    <MenuItem value="check_in">Check in</MenuItem>
-                    <MenuItem value="check_out">Check out</MenuItem>
+                    <MenuItem value="check_in">Punch in</MenuItem>
+                    <MenuItem value="check_out">Punch out</MenuItem>
                     <MenuItem value="break_in">Break in</MenuItem>
                     <MenuItem value="break_out">Break out</MenuItem>
                   </Select>

@@ -177,8 +177,8 @@ export default function HrmsAttendanceRequestsPage() {
             label: "Type",
             type: "select",
             options: [
-              { value: "check_in", label: "Check in" },
-              { value: "check_out", label: "Check out" },
+              { value: "check_in", label: "Punch in" },
+              { value: "check_out", label: "Punch out" },
               { value: "break_in", label: "Break in" },
               { value: "break_out", label: "Break out" },
             ],

@@ -190,8 +190,8 @@ export default function HrmsAttendancePage() {
           </div>
         ),
       },
-      { field: "check_in_at", label: "Check in", sortable: true, render: (row) => (row.check_in_at ? new Date(row.check_in_at).toLocaleString() : "—") },
-      { field: "check_out_at", label: "Check out", sortable: false, render: (row) => (row.check_out_at ? new Date(row.check_out_at).toLocaleString() : <span className="text-xs font-semibold text-[#f37021]">Still open</span>) },
+      { field: "check_in_at", label: "Punch in", sortable: true, render: (row) => (row.check_in_at ? new Date(row.check_in_at).toLocaleString() : "—") },
+      { field: "check_out_at", label: "Punch out", sortable: false, render: (row) => (row.check_out_at ? new Date(row.check_out_at).toLocaleString() : <span className="text-xs font-semibold text-[#f37021]">Still open</span>) },
       { field: "status", label: "Status", sortable: false, render: (row) => <StatusBadge status={row.status} /> },
       {
         field: "flags",
@@ -285,7 +285,7 @@ export default function HrmsAttendancePage() {
     <ProtectedRoute>
       <ListingPageContainer
         title="Attendance"
-        subtitle="Punch records for the month — record your punch or review the register"
+        subtitle="Punch records for the month — Punch In/Out is the same clock as mobile when tracking is on"
         actions={
           <div className="flex items-center gap-1.5">
             <Button size="sm" variant="outline" onClick={onExport} loading={exporting}>
@@ -342,7 +342,7 @@ export default function HrmsAttendancePage() {
             label="Open punches"
             value={counts.open ?? "—"}
             accentColor="#f37021"
-            subLabel="Not checked out yet"
+            subLabel="Not punched out yet"
             loading={countsLoading}
           />
           <StatCard
@@ -368,19 +368,19 @@ export default function HrmsAttendancePage() {
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {myStatus?.attendance?.check_in_at
-                    ? `Checked in at ${new Date(myStatus.attendance.check_in_at).toLocaleString()}`
+                    ? `Punched in at ${new Date(myStatus.attendance.check_in_at).toLocaleString()} (same clock as mobile Punch In/Out)`
                     : myStatus?.open
                       ? "You have an open punch for today."
-                      : "You are not checked in right now."}
+                      : "You are not punched in right now. Field staff use Punch In/Out on mobile — same clock."}
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" disabled={punching} onClick={() => onPunch("IN")}>
-                <IconLogin className="h-4 w-4" /> Check in
+                <IconLogin className="h-4 w-4" /> Punch In
               </Button>
               <Button size="sm" variant="outline" disabled={punching} onClick={() => onPunch("OUT")}>
-                <IconLogout className="h-4 w-4" /> Check out
+                <IconLogout className="h-4 w-4" /> Punch Out
               </Button>
               <Button size="sm" variant="outline" disabled={punching} onClick={() => onPunch("BREAK_IN")}>
                 <IconCoffee className="h-4 w-4" /> Break in
