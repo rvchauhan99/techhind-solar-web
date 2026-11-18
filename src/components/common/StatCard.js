@@ -25,6 +25,7 @@ export default function StatCard({
     valueColor,
     subLabel,
     loading = false,
+    compact = false,
 }) {
     const trendIcon =
         trend?.direction === "up" ? (
@@ -41,6 +42,64 @@ export default function StatCard({
             : trend?.direction === "down"
                 ? "text-red-500 bg-red-50"
                 : "text-slate-500 bg-slate-100";
+
+    /** Compact: single-row KPI chip (~44px) for list-page headers. subLabel becomes a tooltip. */
+    if (compact) {
+        return (
+            <div
+                onClick={onClick}
+                title={subLabel || undefined}
+                className={[
+                    "relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border border-border bg-card pl-3 pr-3 shadow-sm",
+                    onClick
+                        ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                        : "",
+                ].join(" ")}
+            >
+                <div
+                    className="absolute bottom-0 left-0 top-0 w-[3px] rounded-l-lg"
+                    style={{ backgroundColor: accentColor }}
+                />
+                {icon && (
+                    <div
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md [&_svg]:size-3.5"
+                        style={{ backgroundColor: `${accentColor}18`, color: accentColor }}
+                    >
+                        {loading ? (
+                            <span className="block h-3.5 w-3.5 animate-pulse rounded bg-muted" />
+                        ) : (
+                            icon
+                        )}
+                    </div>
+                )}
+                <span className="text-[10px] font-semibold uppercase leading-none tracking-wide text-muted-foreground">
+                    {loading ? (
+                        <span className="inline-block h-2.5 w-16 animate-pulse rounded bg-muted" />
+                    ) : (
+                        label
+                    )}
+                </span>
+                <span
+                    className="ml-auto text-base font-bold leading-none tabular-nums"
+                    style={{ color: valueColor ?? "inherit" }}
+                >
+                    {loading ? (
+                        <span className="inline-block h-4 w-8 animate-pulse rounded bg-muted" />
+                    ) : (
+                        value ?? "—"
+                    )}
+                </span>
+                {trend && !loading ? (
+                    <span
+                        className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${trendColorClass}`}
+                    >
+                        {trendIcon}
+                        {trend.label}
+                    </span>
+                ) : null}
+            </div>
+        );
+    }
 
     return (
         <div

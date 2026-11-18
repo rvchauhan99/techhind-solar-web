@@ -8,6 +8,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import {
   IconArrowsExchange,
   IconClock,
@@ -25,6 +26,7 @@ const FY_CURRENT = (() => {
 
 export default function HrmsCompensatoryReportPage() {
   const [filters, setFilters] = useState({ fy_year: String(FY_CURRENT), status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState({ rows: null, totalDays: null });
@@ -196,8 +198,9 @@ export default function HrmsCompensatoryReportPage() {
           setTableKey((k) => k + 1);
         }}
       >
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
+            compact
             icon={<IconArrowsExchange size={16} />}
             label="Rows"
             value={summary.rows ?? "—"}
@@ -206,6 +209,7 @@ export default function HrmsCompensatoryReportPage() {
             loading={summaryLoading}
           />
           <StatCard
+            compact
             icon={<IconClock size={16} />}
             label="Total days"
             value={summary.totalDays ?? "—"}
@@ -214,6 +218,7 @@ export default function HrmsCompensatoryReportPage() {
             loading={summaryLoading}
           />
           <StatCard
+            compact
             icon={<IconCalendarStats size={16} />}
             label="Financial year"
             value={fyOptions.find((o) => o.value === filters.fy_year)?.label || "—"}
@@ -222,11 +227,23 @@ export default function HrmsCompensatoryReportPage() {
           />
         </div>
 
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+
+            </>
+          }
+
           key={tableKey}
+
+          onTotalChange={setListTotal}
           columns={columns}
           fetcher={fetcher}
-          height="58vh"
+          height="100%"
           initialSortBy="worked_date"
           initialSortOrder="desc"
           emptyState={
@@ -237,6 +254,7 @@ export default function HrmsCompensatoryReportPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

@@ -6,6 +6,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import { IconFileSpreadsheet } from "@tabler/icons-react";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -25,6 +26,7 @@ const KIND_OPTIONS = [
 
 export default function HrmsLeaveReportPage() {
   const [filters, setFilters] = useState({ status: "", emergency: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -92,12 +94,18 @@ export default function HrmsLeaveReportPage() {
         field: "is_emergency",
         label: "Kind",
         sortable: false,
+        filterType: "select",
+        filterKey: "emergency",
+        filterOptions: KIND_OPTIONS,
         render: (row) => (row.is_emergency ? "Emergency" : "Planned"),
       },
       {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
     ],
@@ -127,12 +135,25 @@ export default function HrmsLeaveReportPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="70vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconFileSpreadsheet}
@@ -141,6 +162,7 @@ export default function HrmsLeaveReportPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

@@ -76,6 +76,7 @@ const getConfiguredColumnWidth = (column, fallbackWidth) => {
  * - Controlled mode: pass page (1-based), limit, q, sortBy, sortOrder + onPageChange(0-based), onRowsPerPageChange, onQChange, onSortChange
  * - persistScrollbars: when true, table body uses overflow scroll + stable scrollbar gutter (dense lead lists)
  * - emptyState: React node rendered instead of the default "No records found" row
+ * - toolbar: optional React node rendered at the right end of the search toolbar row
  * - loadingRows: number of skeleton rows while loading (default 6)
  */
 export default function PaginatedTable({
@@ -84,6 +85,7 @@ export default function PaginatedTable({
   initialPage = 1,
   initialLimit = 10,
   showSearch = true,
+  toolbar = null,
   moduleKey = null,
   height = "75vh",
   initialSortBy = null,
@@ -489,14 +491,23 @@ export default function PaginatedTable({
       className="flex flex-col w-full max-w-full overflow-hidden rounded-lg border border-border bg-card shadow-sm"
       style={{ height }}
     >
-      {showSearch && (
-        <div className="shrink-0 p-1.5">
-          <SearchInput
-            placeholder="Search"
-            value={qDisplay}
-            onChange={(e) => setQDisplay(e.target.value)}
-            fullWidth
-          />
+      {(showSearch || toolbar) && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border p-1.5">
+          {showSearch && (
+            <div className="w-full max-w-[300px]">
+              <SearchInput
+                placeholder="Search"
+                value={qDisplay}
+                onChange={(e) => setQDisplay(e.target.value)}
+                size="small"
+              />
+            </div>
+          )}
+          {toolbar ? (
+            <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+              {toolbar}
+            </div>
+          ) : null}
         </div>
       )}
 

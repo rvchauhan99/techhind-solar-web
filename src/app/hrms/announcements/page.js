@@ -19,6 +19,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -41,6 +42,7 @@ export default function HrmsAnnouncementsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
   const [filters, setFilters] = useState({ status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -105,6 +107,9 @@ export default function HrmsAnnouncementsPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -163,12 +168,25 @@ export default function HrmsAnnouncementsPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="56vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconSpeakerphone}
@@ -179,6 +197,7 @@ export default function HrmsAnnouncementsPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
           <AlertDialogContent>

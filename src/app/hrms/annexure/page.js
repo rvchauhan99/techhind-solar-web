@@ -9,6 +9,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
@@ -45,6 +46,7 @@ export default function HrmsAnnexureLandingPage() {
 
   const [tableKey, setTableKey] = useState(0);
   const [filters, setFilters] = useState({ status: "active", department_id: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
@@ -105,6 +107,13 @@ export default function HrmsAnnexureLandingPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: [
+          { value: "pending", label: "Pending" },
+          { value: "active", label: "Active" },
+          { value: "disabled", label: "Disabled" },
+        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -172,12 +181,25 @@ export default function HrmsAnnexureLandingPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="62vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconReceipt}
@@ -194,6 +216,7 @@ export default function HrmsAnnexureLandingPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

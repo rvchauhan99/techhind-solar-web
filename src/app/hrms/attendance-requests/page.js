@@ -14,6 +14,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import Input from "@/components/common/Input";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -28,6 +29,7 @@ export default function HrmsAttendanceRequestsPage() {
 
   const [tableKey, setTableKey] = useState(0);
   const [filters, setFilters] = useState({ status: "", request_type: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [note, setNote] = useState("");
   const [deciding, setDeciding] = useState(false);
@@ -110,12 +112,38 @@ export default function HrmsAttendanceRequestsPage() {
           </span>
         ),
       },
-      { field: "request_type", label: "Type", sortable: false, render: (row) => String(row.request_type || "").replace(/_/g, " ") },
+      {
+        field: "request_type",
+        label: "Type",
+        sortable: false,
+        filterType: "select",
+        filterKey: "request_type",
+        filterOptions: [
+          { value: "check_in", label: "Punch in" },
+          { value: "check_out", label: "Punch out" },
+          { value: "break_in", label: "Break in" },
+          { value: "break_out", label: "Break out" },
+        ],
+        render: (row) => String(row.request_type || "").replace(/_/g, " "),
+      },
       { field: "request_at", label: "Requested at", sortable: false, render: (row) => (row.request_at ? new Date(row.request_at).toLocaleString() : "—") },
       { field: "reason", label: "Reason", sortable: false, render: (row) => <span className="text-xs line-clamp-2">{row.reason}</span> },
       { field: "l1", label: "Manager (L1)", sortable: false, render: (row) => (row.level1_status ? <StatusBadge status={row.level1_status} /> : <span className="text-xs text-muted-foreground">—</span>) },
       { field: "l2", label: "HR (L2)", sortable: false, render: (row) => (row.level2_status ? <StatusBadge status={row.level2_status} /> : <span className="text-xs text-muted-foreground">—</span>) },
-      { field: "status", label: "Status", sortable: false, render: (row) => <StatusBadge status={row.status} /> },
+      {
+        field: "status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: [
+          { value: "pending_l1", label: "Pending L1" },
+          { value: "pending_l2", label: "Pending L2" },
+          { value: "approved", label: "Approved" },
+          { value: "rejected", label: "Rejected" },
+        ],
+        render: (row) => <StatusBadge status={row.status} />,
+      },
       {
         field: "actions",
         label: "Actions",
@@ -160,43 +188,10 @@ export default function HrmsAttendanceRequestsPage() {
         subtitle="Correction requests — the reporting manager approves first (L1), then HR (L2)"
         addButtonLabel="New request"
         onAddClick={() => router.push("/hrms/attendance-requests/add")}
-        filterConfig={[
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "pending_l1", label: "Pending L1" },
-              { value: "pending_l2", label: "Pending L2" },
-              { value: "approved", label: "Approved" },
-              { value: "rejected", label: "Rejected" },
-            ],
-          },
-          {
-            key: "request_type",
-            label: "Type",
-            type: "select",
-            options: [
-              { value: "check_in", label: "Punch in" },
-              { value: "check_out", label: "Punch out" },
-              { value: "break_in", label: "Break in" },
-              { value: "break_out", label: "Break out" },
-            ],
-          },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "", request_type: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
+            compact
             icon={<IconUserCheck size={16} />}
             label="Pending your approval (L1)"
             value={counts.l1 ?? "—"}
@@ -205,6 +200,7 @@ export default function HrmsAttendanceRequestsPage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconClockExclamation size={16} />}
             label="Pending HR (L2)"
             value={counts.l2 ?? "—"}
@@ -213,6 +209,7 @@ export default function HrmsAttendanceRequestsPage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconCircleCheck size={16} />}
             label="Approved"
             value={counts.approved ?? "—"}
@@ -222,12 +219,29 @@ export default function HrmsAttendanceRequestsPage() {
           />
         </div>
 
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount
+                total={listTotal}
+                context={filters.status || filters.request_type ? "matching filters" : undefined}
+              />
+            </>
+          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="56vh"
+          height="100%"
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           emptyState={
             <EmptyState
               icon={IconClockExclamation}
@@ -242,6 +256,7 @@ export default function HrmsAttendanceRequestsPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={!!decisionTarget} onOpenChange={(open) => !open && setDecisionTarget(null)}>
           <AlertDialogContent>

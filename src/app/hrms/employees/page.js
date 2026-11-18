@@ -11,6 +11,7 @@ import {
   IconClockHour4,
   IconUserOff,
   IconDownload,
+  IconFilterOff,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -18,12 +19,19 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
+import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
 const MODULE_KEY = "hrms_employees";
+const STATUS_OPTIONS = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "disabled", label: "Disabled" },
+];
 
 function initials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -50,8 +58,8 @@ export default function HrmsEmployeesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
 
-  const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "", department_id: "" });
+  const list = useListTableState({ filters: { status: "", department_id: "" } });
+  const [listTotal, setListTotal] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [counts, setCounts] = useState({ total: null, active: null, pending: null, disabled: null });
@@ -101,8 +109,8 @@ export default function HrmsEmployeesPage() {
     setExporting(true);
     try {
       const blob = await hrmsService.exportEmployees({
-        status: filters.status || undefined,
-        department_id: filters.department_id || undefined,
+        status: list.filters.status || undefined,
+        department_id: list.filters.department_id || undefined,
       });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
@@ -118,23 +126,19 @@ export default function HrmsEmployeesPage() {
     }
   };
 
-  const fetcher = useMemo(
-    () => async ({ page, limit, q }) => {
-      const res = await hrmsService.listEmployees({
-        page,
-        limit,
-        search: q || undefined,
-        status: filters.status || undefined,
-        department_id: filters.department_id || undefined,
-      });
-      const payload = unwrap(res);
-      const rows = payload?.data || [];
-      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
-      return { data: rows, meta };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
-  );
+  const fetcher = useCallback(async (params) => {
+    const res = await hrmsService.listEmployees({
+      page: params.page,
+      limit: params.limit,
+      search: params.q || undefined,
+      status: params.status || undefined,
+      department_id: params.department_id || undefined,
+    });
+    const payload = unwrap(res);
+    const rows = payload?.data || [];
+    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+    return { data: rows, meta };
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -149,6 +153,9 @@ export default function HrmsEmployeesPage() {
         field: "department",
         label: "Department",
         sortable: false,
+        filterType: "select",
+        filterKey: "department_id",
+        filterOptions: deptOptions,
         render: (row) => row.department?.title || <span className="text-muted-foreground">—</span>,
       },
       {
@@ -157,7 +164,15 @@ export default function HrmsEmployeesPage() {
         sortable: false,
         render: (row) => row.designation?.title || <span className="text-muted-foreground">—</span>,
       },
-      { field: "status", label: "Status", sortable: false, render: (row) => <StatusBadge status={row.status} /> },
+      {
+        field: "status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
+        render: (row) => <StatusBadge status={row.status} />,
+      },
       {
         field: "actions",
         label: "Actions",
@@ -188,7 +203,7 @@ export default function HrmsEmployeesPage() {
         ),
       },
     ],
-    [perm.can_update, router]
+    [perm.can_update, router, deptOptions]
   );
 
   return (
@@ -203,32 +218,10 @@ export default function HrmsEmployeesPage() {
             <IconDownload className="size-4" /> Export
           </Button>
         }
-        filterConfig={[
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "pending", label: "Pending" },
-              { value: "active", label: "Active" },
-              { value: "disabled", label: "Disabled" },
-            ],
-          },
-          { key: "department_id", label: "Department", type: "select", options: deptOptions },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "", department_id: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
-        <div className="mb-2 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="mb-1.5 grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4">
           <StatCard
+            compact
             icon={<IconUsers size={16} />}
             label="Employees"
             value={counts.total ?? "—"}
@@ -237,6 +230,7 @@ export default function HrmsEmployeesPage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconCircleCheck size={16} />}
             label="Active"
             value={counts.active ?? "—"}
@@ -245,6 +239,7 @@ export default function HrmsEmployeesPage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconClockHour4 size={16} />}
             label="Pending"
             value={counts.pending ?? "—"}
@@ -253,6 +248,7 @@ export default function HrmsEmployeesPage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconUserOff size={16} />}
             label="Disabled"
             value={counts.disabled ?? "—"}
@@ -262,26 +258,58 @@ export default function HrmsEmployeesPage() {
           />
         </div>
 
-        <PaginatedTable
-          key={tableKey}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch
-          height="58vh"
-          emptyState={
-            <EmptyState
-              icon={IconUsers}
-              title={filters.status || filters.department_id ? "No employees match these filters" : "No employees yet"}
-              description={
-                filters.status || filters.department_id
-                  ? "Try clearing the filters to see the full employee list."
-                  : "Add your first employee to start tracking attendance, leave and payroll."
-              }
-              actionLabel={perm.can_create ? "Add Employee" : undefined}
-              onAction={perm.can_create ? () => router.push("/hrms/employees/add") : undefined}
-            />
-          }
-        />
+        <div className="flex min-h-[320px] flex-1 flex-col">
+          <PaginatedTable
+            columns={columns}
+            fetcher={fetcher}
+            showSearch
+            height="100%"
+            toolbar={
+              <>
+                <ListCount
+                  total={listTotal}
+                  context={list.activeFilterCount ? "matching filters" : undefined}
+                />
+                {list.activeFilterCount > 0 ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => list.clearFilters()}
+                  >
+                    <IconFilterOff className="size-3.5" /> Clear filters
+                  </Button>
+                ) : null}
+              </>
+            }
+            onTotalChange={setListTotal}
+            columnFilterValues={list.filters}
+            onColumnFilterChange={list.setFilter}
+            filterParams={list.filters}
+            page={list.page}
+            limit={list.limit}
+            q={list.q}
+            sortBy={list.sortBy}
+            sortOrder={list.sortOrder}
+            onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
+            onRowsPerPageChange={list.setLimit}
+            onQChange={list.setQ}
+            onSortChange={list.setSort}
+            emptyState={
+              <EmptyState
+                icon={IconUsers}
+                title={list.activeFilterCount ? "No employees match these filters" : "No employees yet"}
+                description={
+                  list.activeFilterCount
+                    ? "Try clearing the filters to see the full employee list."
+                    : "Add your first employee to start tracking attendance, leave and payroll."
+                }
+                actionLabel={perm.can_create ? "Add Employee" : undefined}
+                onAction={perm.can_create ? () => router.push("/hrms/employees/add") : undefined}
+              />
+            }
+          />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

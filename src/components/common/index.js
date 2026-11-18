@@ -46,4 +46,5 @@ export { default as HtmlTemplateField } from "./HtmlTemplateField";
 export { default as StatusBadge } from "./StatusBadge";
 export { default as EmptyState } from "./EmptyState";
 export { default as StatCard } from "./StatCard";
+export { default as ListCount } from "./ListCount";
 export { default as TableSkeleton } from "./TableSkeleton";

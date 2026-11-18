@@ -24,6 +24,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { useAuth } from "@/hooks/useAuth";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -47,6 +48,7 @@ export default function HrmsAttendancePage() {
   const [month, setMonth] = useState(String(NOW.getMonth() + 1));
   const [status, setStatus] = useState("");
   const [tableKey, setTableKey] = useState(0);
+  const [listTotal, setListTotal] = useState(null);
   const [myStatus, setMyStatus] = useState(null);
   const [punching, setPunching] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -192,7 +194,20 @@ export default function HrmsAttendancePage() {
       },
       { field: "check_in_at", label: "Punch in", sortable: true, render: (row) => (row.check_in_at ? new Date(row.check_in_at).toLocaleString() : "—") },
       { field: "check_out_at", label: "Punch out", sortable: false, render: (row) => (row.check_out_at ? new Date(row.check_out_at).toLocaleString() : <span className="text-xs font-semibold text-[#f37021]">Still open</span>) },
-      { field: "status", label: "Status", sortable: false, render: (row) => <StatusBadge status={row.status} /> },
+      {
+        field: "status",
+        label: "Status",
+        sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: [
+          { value: "IN", label: "IN" },
+          { value: "OUT", label: "OUT" },
+          { value: "BREAK_IN", label: "Break in" },
+          { value: "BREAK_OUT", label: "Break out" },
+        ],
+        render: (row) => <StatusBadge status={row.status} />,
+      },
       {
         field: "flags",
         label: "Flags",
@@ -299,21 +314,15 @@ export default function HrmsAttendancePage() {
           </div>
         }
         filterConfig={[
-          { key: "year", label: "Year", type: "select", options: yearOptions },
-          { key: "month", label: "Month", type: "select", options: monthOptions },
           {
-            key: "status",
-            label: "Status",
+            key: "year",
+            label: "Year",
             type: "select",
-            options: [
-              { value: "IN", label: "IN" },
-              { value: "OUT", label: "OUT" },
-              { value: "BREAK_IN", label: "Break in" },
-              { value: "BREAK_OUT", label: "Break out" },
-            ],
+            options: yearOptions,
           },
+          { key: "month", label: "Month", type: "select", options: monthOptions },
         ]}
-        filterValues={{ year, month, status }}
+        filterValues={{ year, month }}
         showFilterLabels
         onFilterChange={(key, value) => {
           if (key === "year") setYear(value || String(NOW.getFullYear()));
@@ -328,8 +337,9 @@ export default function HrmsAttendancePage() {
           setTableKey((k) => k + 1);
         }}
       >
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
+            compact
             icon={<IconUsers size={16} />}
             label="Present today"
             value={counts.present ?? "—"}
@@ -338,6 +348,7 @@ export default function HrmsAttendancePage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconFingerprint size={16} />}
             label="Open punches"
             value={counts.open ?? "—"}
@@ -346,6 +357,7 @@ export default function HrmsAttendancePage() {
             loading={countsLoading}
           />
           <StatCard
+            compact
             icon={<IconClockExclamation size={16} />}
             label="Pending corrections"
             value={counts.pending ?? "—"}
@@ -392,11 +404,28 @@ export default function HrmsAttendancePage() {
           </div>
         </div>
 
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={status ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
-          height="50vh"
+          showSearch={false}
+          height="100%"
+          onTotalChange={setListTotal}
+          columnFilterValues={{ status }}
+          onColumnFilterChange={(key, value) => {
+            if (key === "status") {
+              setStatus(value);
+              setTableKey((k) => k + 1);
+            }
+          }}
+          filterParams={{ status }}
           emptyState={
             <EmptyState
               icon={IconFingerprint}
@@ -405,8 +434,9 @@ export default function HrmsAttendancePage() {
             />
           }
         />
+        </div>
 
-        <div className="mt-6">
+        <div className="mt-6 shrink-0">
           <div className="mb-2 flex items-end justify-between">
             <div>
               <h3 className="text-sm font-semibold text-foreground">Monthly totals by employee</h3>

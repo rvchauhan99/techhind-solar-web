@@ -27,6 +27,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import Textarea from "@/components/common/Textarea";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -41,6 +42,7 @@ export default function HrmsCompensatoryPage() {
 
   const [tableKey, setTableKey] = useState(0);
   const [filters, setFilters] = useState({ status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [decision, setDecision] = useState(null); // { row, action: "approve" | "reject" }
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -139,6 +141,13 @@ export default function HrmsCompensatoryPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: [
+          { value: "pending", label: "Pending" },
+          { value: "approved", label: "Approved" },
+          { value: "rejected", label: "Rejected" },
+        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -217,8 +226,9 @@ export default function HrmsCompensatoryPage() {
           setTableKey((k) => k + 1);
         }}
       >
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
+            compact
             icon={<IconClock size={16} />}
             label="Pending approval"
             value={summary.pending ?? "—"}
@@ -226,6 +236,7 @@ export default function HrmsCompensatoryPage() {
             subLabel="Awaiting a decision"
           />
           <StatCard
+            compact
             icon={<IconCircleCheck size={16} />}
             label="Days credited"
             value={summary.approvedDays ?? "—"}
@@ -233,6 +244,7 @@ export default function HrmsCompensatoryPage() {
             subLabel="Approved comp-off days"
           />
           <StatCard
+            compact
             icon={<IconArrowsExchange size={16} />}
             label="Filter"
             value={filters.status || "All"}
@@ -241,11 +253,29 @@ export default function HrmsCompensatoryPage() {
           />
         </div>
 
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+
+            </>
+          }
+
           key={tableKey}
+
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          height="58vh"
+          height="100%"
           initialSortBy="worked_date"
           initialSortOrder="desc"
           emptyState={
@@ -258,6 +288,7 @@ export default function HrmsCompensatoryPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={!!decision} onOpenChange={(open) => !open && setDecision(null)}>
           <AlertDialogContent>

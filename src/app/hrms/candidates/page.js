@@ -19,6 +19,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -38,6 +39,7 @@ export default function HrmsCandidatesPage() {
   const perm = useModulePermission(MODULE_KEY);
   const [meta, setMeta] = useState({ positions: [], stages: [] });
   const [filters, setFilters] = useState({ position_id: "", stage: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -126,12 +128,18 @@ export default function HrmsCandidatesPage() {
         field: "position",
         label: "Position",
         sortable: false,
+        filterType: "select",
+        filterKey: "position_id",
+        filterOptions: positionOptions,
         render: (row) => row.position_title || row.position?.title || "—",
       },
       {
         field: "stage",
         label: "Stage",
         sortable: false,
+        filterType: "select",
+        filterKey: "stage",
+        filterOptions: stageOptions,
         render: (row) => (
           <Badge variant={stageBadgeVariant(row.stage)}>
             {row.stage_label || `Stage ${row.stage}`}
@@ -183,7 +191,7 @@ export default function HrmsCandidatesPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router]
+    [perm.can_update, perm.can_delete, router, positionOptions, stageOptions]
   );
 
   return (
@@ -208,12 +216,25 @@ export default function HrmsCandidatesPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="56vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconUsers}
@@ -224,6 +245,7 @@ export default function HrmsCandidatesPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
           <AlertDialogContent>

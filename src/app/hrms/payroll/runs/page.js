@@ -9,12 +9,14 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
 
 export default function PayrollRunsPage() {
   const router = useRouter();
   const [filters, setFilters] = useState({ status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
 
   const columns = useMemo(
@@ -24,6 +26,14 @@ export default function PayrollRunsPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: [
+          { value: "completed", label: "Completed" },
+          { value: "failed", label: "Failed" },
+          { value: "running", label: "Running" },
+          { value: "queued", label: "Queued" },
+        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       { field: "trigger", label: "Trigger", sortable: false },
@@ -103,11 +113,24 @@ export default function PayrollRunsPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          height="60vh"
+          height="100%"
           initialSortBy="id"
           initialSortOrder="desc"
           emptyState={
@@ -118,6 +141,7 @@ export default function PayrollRunsPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

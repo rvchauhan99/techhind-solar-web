@@ -7,6 +7,7 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
@@ -28,6 +29,7 @@ export default function HrmsLeaveBalanceApprovalsPage() {
   useModulePermission(MODULE_KEY);
   const fyDefault = String(currentFyYear());
   const [filters, setFilters] = useState({ fy_year: fyDefault, status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
 
   const fyOptions = useMemo(() => {
@@ -83,6 +85,9 @@ export default function HrmsLeaveBalanceApprovalsPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
         render: (row) => (
           <StatusBadge
             status={row.status === "approved" ? "approved" : "rejected"}
@@ -129,12 +134,25 @@ export default function HrmsLeaveBalanceApprovalsPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch={false}
-          height="56vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconClipboardCheck}
@@ -143,6 +161,7 @@ export default function HrmsLeaveBalanceApprovalsPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );

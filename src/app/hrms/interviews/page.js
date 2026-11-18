@@ -19,6 +19,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -57,6 +58,7 @@ export default function HrmsInterviewsPage() {
   const perm = useModulePermission(MODULE_KEY);
   const [meta, setMeta] = useState({ rounds: [], statuses: [] });
   const [filters, setFilters] = useState({ round: "", status: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -177,6 +179,9 @@ export default function HrmsInterviewsPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: statusOptions,
         render: (row) => (
           <Badge variant={statusVariant(row.status)}>{row.status_label || row.status}</Badge>
         ),
@@ -254,12 +259,25 @@ export default function HrmsInterviewsPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch
-          height="56vh"
+          height="100%"
           emptyState={
             <EmptyState
               icon={IconCalendarEvent}
@@ -270,6 +288,7 @@ export default function HrmsInterviewsPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
           <AlertDialogContent>

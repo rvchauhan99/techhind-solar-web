@@ -29,6 +29,7 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -55,6 +56,7 @@ export default function HrmsPayrollPage() {
   const perm = useModulePermission(MODULE_KEY);
   const months = useMemo(monthOptions, []);
   const [filters, setFilters] = useState({ month: months[0].value, is_acknowledged: "" });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [summary, setSummary] = useState({ employees: null, totalNet: null, totalDeductions: null });
   const [runOpen, setRunOpen] = useState(false);
@@ -187,6 +189,12 @@ export default function HrmsPayrollPage() {
         field: "is_acknowledged",
         label: "Ack",
         sortable: false,
+        filterType: "select",
+        filterKey: "is_acknowledged",
+        filterOptions: [
+          { value: "true", label: "Acknowledged" },
+          { value: "false", label: "Pending" },
+        ],
         render: (row) => (
           <StatusBadge
             status={row.is_acknowledged ? "approved" : "pending"}
@@ -269,8 +277,9 @@ export default function HrmsPayrollPage() {
           setTableKey((k) => k + 1);
         }}
       >
-        <div className="mb-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
+            compact
             icon={<IconUsers size={16} />}
             label="Employees in run"
             value={summary.employees ?? "—"}
@@ -278,6 +287,7 @@ export default function HrmsPayrollPage() {
             subLabel={filters.month}
           />
           <StatCard
+            compact
             icon={<IconCash size={16} />}
             label="Total net pay"
             value={summary.totalNet == null ? "—" : money(summary.totalNet)}
@@ -285,6 +295,7 @@ export default function HrmsPayrollPage() {
             subLabel="After deductions"
           />
           <StatCard
+            compact
             icon={<IconWallet size={16} />}
             label="Total deductions"
             value={summary.totalDeductions == null ? "—" : money(summary.totalDeductions)}
@@ -293,11 +304,29 @@ export default function HrmsPayrollPage() {
           />
         </div>
 
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+
+            </>
+          }
+
           key={tableKey}
+
+          onTotalChange={setListTotal}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          height="58vh"
+          height="100%"
           initialSortBy="net_amount"
           initialSortOrder="desc"
           emptyState={
@@ -310,6 +339,7 @@ export default function HrmsPayrollPage() {
             />
           }
         />
+        </div>
 
         <AlertDialog open={runOpen} onOpenChange={setRunOpen}>
           <AlertDialogContent>

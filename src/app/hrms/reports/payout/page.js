@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
@@ -28,6 +29,7 @@ function monthOptions() {
 export default function PayoutReportPage() {
   const months = useMemo(monthOptions, []);
   const [filters, setFilters] = useState({ month: months[0].value });
+  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
 
@@ -134,11 +136,18 @@ export default function PayoutReportPage() {
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
+          toolbar={
+            <>
+              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
+            </>
+          }
           key={tableKey}
+          onTotalChange={setListTotal}
           columns={columns}
           fetcher={fetcher}
-          height="60vh"
+          height="100%"
           initialSortBy="net_amount"
           initialSortOrder="desc"
           emptyState={
@@ -149,6 +158,7 @@ export default function PayoutReportPage() {
             />
           }
         />
+        </div>
       </ListingPageContainer>
     </ProtectedRoute>
   );
