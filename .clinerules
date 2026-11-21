@@ -19,5 +19,8 @@ After completing **any** change in this repo — **before marking the task done*
 
 Sequence: **Fixes → Improvements → New**. Append-only; never rewrite past day files.
 
+## /stocks changes
+- Every `/stocks` (iStock Dashboard / Stock Qty) change must be appended to the same-day `techhind-solar-api/docs/changes/YYYY-MM-DD.md` and the index line updated before marking the task Done.
+
 ## Definition of done
 No task is complete without the day file + index line updated in `techhind-solar-api/docs/`.

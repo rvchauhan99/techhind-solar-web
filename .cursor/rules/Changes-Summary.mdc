@@ -1,15 +1,15 @@
 ---
-description: Client change notes — write only to techhind-solar-api/docs (never in this repo)
+description: HARD GATE — client day log in API docs only, screen-wise with point counts
 alwaysApply: true
 ---
 
-# Client changes summary (mandatory)
+# Client changes summary (HARD GATE)
 
-Do **not** create `docs/CHANGES_SUMMARY.md` or `docs/changes/` in this web repo.
+**Do not mark Done without this.**
 
-After any completed change, update **only**:
+Update **only**:
 
 - `techhind-solar-api/docs/changes/YYYY-MM-DD.md`
 - `techhind-solar-api/docs/CHANGES_SUMMARY.md`
 
-Same rules as API: one date file for the product, client-simple words, Fixes → Improvements → New, no FE/BE split.
+Same turn as the fix. **By screen/module**, numbered points, recount day total + table. Client-simple words. Never create change logs in this web repo.
