@@ -15,7 +15,10 @@ import * as hrmsService from "@/services/hrmsService";
 const GROUPS = [
   { title: "People", keys: ["hrms_employees", "hrms_departments", "hrms_designations"] },
   { title: "Hiring", keys: ["hrms_positions", "hrms_candidates", "hrms_interviews"] },
-  { title: "Time & Attendance", keys: ["hrms_attendance", "hrms_attendance_requests"] },
+  {
+    title: "Time & Attendance",
+    keys: ["hrms_attendance", "hrms_attendance_requests", "hrms_attendance_settings"],
+  },
   {
     title: "Leave",
     keys: [
@@ -49,6 +52,7 @@ const DESCRIPTIONS = {
   hrms_interviews: "Schedule interview rounds for candidates",
   hrms_attendance: "Punch records and monthly attendance",
   hrms_attendance_requests: "Correction requests with L1 → L2 approval",
+  hrms_attendance_settings: "Shift, late penalty, week-off and visibility policy",
   hrms_leaves: "Leave applications and approvals",
   hrms_holidays: "Company holiday calendar",
   hrms_leave_types: "Leave types and quarterly entitlement",

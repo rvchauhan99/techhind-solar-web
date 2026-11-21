@@ -68,6 +68,21 @@ export const removeEmployeeProfileImage = (id) =>
 export const getAttendanceMonthlySummary = (params) =>
   apiClient.get("/hrms/attendance/summary", { params }).then((r) => r.data);
 
+export const getAttendanceTodaySummary = () =>
+  apiClient.get("/hrms/attendance/today-summary").then((r) => r.data);
+
+export const getAttendanceSettings = () =>
+  apiClient.get("/hrms/attendance-settings").then((r) => r.data);
+
+export const getAttendanceSettingsMeta = () =>
+  apiClient.get("/hrms/attendance-settings/meta").then((r) => r.data);
+
+export const updateAttendanceSettings = (payload) =>
+  apiClient.put("/hrms/attendance-settings", payload).then((r) => r.data);
+
+export const resetAttendanceSettings = () =>
+  apiClient.post("/hrms/attendance-settings/reset").then((r) => r.data);
+
 // ---- Plan 08: Payroll ----
 
 export const listPayrollReports = (params) =>
@@ -162,9 +177,12 @@ export const createAttendanceRequest = (payload) =>
 export const decideAttendanceRequest = (id, payload) =>
   apiClient.post(`/hrms/attendance-requests/${id}/decide`, payload).then((r) => r.data);
 
+export const listAttendanceReport = (params) =>
+  apiClient.get("/hrms/reports/attendance", { params }).then((r) => r.data);
+
 export const exportAttendanceReport = (params) =>
   apiClient
-    .get("/hrms/reports/attendance", { params, responseType: "blob" })
+    .get("/hrms/reports/attendance/export", { params, responseType: "blob" })
     .then((r) => r.data);
 
 export const autoCheckoutAttendance = (payload = {}) =>
@@ -363,6 +381,9 @@ export const listCandidates = (params) =>
 export const getCandidate = (id) =>
   apiClient.get(`/hrms/candidates/${id}`).then((r) => r.data);
 
+export const listCandidateActivities = (id, params) =>
+  apiClient.get(`/hrms/candidates/${id}/activities`, { params }).then((r) => r.data);
+
 export const createCandidate = (payload) =>
   apiClient.post("/hrms/candidates", payload).then((r) => r.data);
 
@@ -524,6 +545,11 @@ const hrmsService = {
   uploadEmployeeProfileImage,
   removeEmployeeProfileImage,
   getAttendanceMonthlySummary,
+  getAttendanceTodaySummary,
+  getAttendanceSettings,
+  getAttendanceSettingsMeta,
+  updateAttendanceSettings,
+  resetAttendanceSettings,
   listPayrollReports,
   getPayrollReport,
   runPayroll,
@@ -554,6 +580,7 @@ const hrmsService = {
   listAttendanceRequests,
   createAttendanceRequest,
   decideAttendanceRequest,
+  listAttendanceReport,
   exportAttendanceReport,
   autoCheckoutAttendance,
   listLeaves,
@@ -613,6 +640,7 @@ const hrmsService = {
   getCandidateMeta,
   listCandidates,
   getCandidate,
+  listCandidateActivities,
   createCandidate,
   updateCandidate,
   patchCandidateStage,

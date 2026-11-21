@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import AddEditPageShell from "@/components/common/AddEditPageShell";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
@@ -54,6 +64,9 @@ export default function HrmsCandidateEditPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
   const [onboarding, setOnboarding] = useState(false);
 
   const canOnboard =
@@ -180,12 +193,20 @@ export default function HrmsCandidateEditPage() {
   };
 
   const onReject = async () => {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setRejectError("A reason is required to reject a candidate");
+      return;
+    }
     setRejecting(true);
     try {
-      const res = await hrmsService.patchCandidateStage(id, { reject: true });
+      const res = await hrmsService.patchCandidateStage(id, { reject: true, reason });
       const row = unwrap(res) || {};
       setCandidate(row);
       setForm((f) => ({ ...f, stage: String(row.stage ?? 0) }));
+      setRejectOpen(false);
+      setRejectReason("");
+      setRejectError("");
       toastSuccess("Candidate rejected");
     } catch (err) {
       toastErrorFromApi(err, "Reject failed");
@@ -226,6 +247,17 @@ export default function HrmsCandidateEditPage() {
       setOnboarding(false);
     }
   };
+
+  // Manual edits may move forward (and skip) but never backwards; offer/joined
+  // are action-only, so keep them out of the dropdown.
+  const currentStage = Number(candidate?.stage ?? form.stage ?? 1);
+  const stageOptions = stages.filter((s) => {
+    const value = Number(s.value);
+    if (value === currentStage) return true;
+    if (value < currentStage) return false;
+    if (value === 8 || value === 9 || value === 10) return false;
+    return true;
+  });
 
   return (
     <ProtectedRoute>
@@ -279,7 +311,7 @@ export default function HrmsCandidateEditPage() {
                     onChange={(e) => setField("stage", e.target.value)}
                     disabled={!!candidate?.is_onboarded}
                   >
-                    {stages.map((s) => (
+                    {stageOptions.map((s) => (
                       <MenuItem key={s.value} value={String(s.value)}>
                         {s.label}
                       </MenuItem>
@@ -359,7 +391,7 @@ export default function HrmsCandidateEditPage() {
                 variant="destructive"
                 loading={rejecting}
                 disabled={Number(form.stage) === 0 || !!candidate?.is_onboarded}
-                onClick={onReject}
+                onClick={() => setRejectOpen(true)}
               >
                 Reject
               </Button>
@@ -487,6 +519,48 @@ export default function HrmsCandidateEditPage() {
             </FormContainer>
           </form>
         ) : null}
+        <AlertDialog
+          open={rejectOpen}
+          onOpenChange={(open) => {
+            setRejectOpen(open);
+            if (!open) setRejectError("");
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reject candidate?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Rejection is final for this candidate. Add a reason so the timeline stays auditable.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+              <Textarea
+                label="Rejection reason"
+                name="reject_reason"
+                value={rejectReason}
+                onChange={(e) => {
+                  setRejectReason(e.target.value);
+                  if (rejectError) setRejectError("");
+                }}
+                rows={3}
+                error={!!rejectError}
+                helperText={rejectError}
+                required
+              />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={rejecting}>Back</AlertDialogCancel>
+              <AlertDialogAction
+                size="sm"
+                variant="destructive"
+                loading={rejecting}
+                onClick={onReject}
+              >
+                Reject
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </AddEditPageShell>
     </ProtectedRoute>
   );

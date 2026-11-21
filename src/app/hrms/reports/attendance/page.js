@@ -1,42 +1,315 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  IconDownload,
+  IconUsers,
+  IconUserCheck,
+  IconClockExclamation,
+  IconCalendarStats,
+  IconCalendarOff,
+  IconFileSpreadsheet,
+} from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
-import AddEditPageShell from "@/components/common/AddEditPageShell";
-import FormContainer, { FormActions } from "@/components/common/FormContainer";
-import FormSection from "@/components/common/FormSection";
-import FormGrid from "@/components/common/FormGrid";
-import FormField from "@/components/common/FormField";
-import Select, { MenuItem } from "@/components/common/Select";
+import ListingPageContainer from "@/components/common/ListingPageContainer";
+import PaginatedTable from "@/components/common/PaginatedTable";
+import StatCard from "@/components/common/StatCard";
+import StatusBadge from "@/components/common/StatusBadge";
+import EmptyState from "@/components/common/EmptyState";
+import ListCount from "@/components/common/ListCount";
+import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
-export default function HrmsAttendanceReportPage() {
-  const now = new Date();
-  const [year, setYear] = useState(String(now.getFullYear()));
-  const [month, setMonth] = useState(String(now.getMonth() + 1));
-  const [busy, setBusy] = useState(false);
+const NOW = new Date();
 
-  const years = useMemo(() => {
-    const y = now.getFullYear();
-    return [y - 1, y, y + 1].map(String);
-  }, [now]);
+const TYPE_OPTIONS = [
+  { value: "present", label: "Present" },
+  { value: "late", label: "Late mark" },
+  { value: "half_day", label: "Half day" },
+  { value: "absent", label: "Absent" },
+  { value: "leave", label: "On leave" },
+  { value: "lwp", label: "LWP" },
+  { value: "holiday", label: "Holiday" },
+  { value: "week_off", label: "Week off" },
+  { value: "mis_punch", label: "Mis punch" },
+];
+
+const TYPE_LABELS = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]));
+
+const timeOf = (value) => {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+};
+
+export default function HrmsAttendanceReportPage() {
+  const [year, setYear] = useState(String(NOW.getFullYear()));
+  const [month, setMonth] = useState(String(NOW.getMonth() + 1));
+  const [departmentId, setDepartmentId] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [attendanceType, setAttendanceType] = useState("");
+  const [search, setSearch] = useState("");
+  const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [tableKey, setTableKey] = useState(0);
+  const [listTotal, setListTotal] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  const filters = useMemo(
+    () => ({
+      year: Number(year),
+      month: Number(month),
+      department_id: departmentId || undefined,
+      employee_id: employeeId || undefined,
+      attendance_type: attendanceType || undefined,
+      q: search.trim() || undefined,
+    }),
+    [year, month, departmentId, employeeId, attendanceType, search]
+  );
+
+  const yearOptions = useMemo(
+    () =>
+      [NOW.getFullYear() - 1, NOW.getFullYear(), NOW.getFullYear() + 1].map((y) => ({
+        value: String(y),
+        label: String(y),
+      })),
+    []
+  );
+  const monthOptions = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) => ({
+        value: String(i + 1),
+        label: new Date(2000, i, 1).toLocaleString("en", { month: "short" }),
+      })),
+    []
+  );
+  const departmentOptions = useMemo(
+    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
+    [departments]
+  );
+  const employeeOptions = useMemo(
+    () =>
+      employees
+        .filter((e) => (departmentId ? String(e.department_id) === String(departmentId) : true))
+        .map((e) => ({
+          value: String(e.id),
+          label: `${e.user?.name || e.name || e.emp_code || `Employee #${e.id}`}${
+            e.emp_code ? ` (${e.emp_code})` : ""
+          }`,
+        })),
+    [employees, departmentId]
+  );
+
+  useEffect(() => {
+    let active = true;
+    const loadAll = async (fetchPage, pageCap) => {
+      const rows = [];
+      let page = 1;
+      for (;;) {
+        const payload = unwrap(await fetchPage({ page, limit: 100 }));
+        rows.push(...(payload?.data || []));
+        const pages = Number(payload?.meta?.pages || 1);
+        if (page >= pages || page >= pageCap) break;
+        page += 1;
+      }
+      return rows;
+    };
+    (async () => {
+      try {
+        const [deptRows, empRows] = await Promise.all([
+          loadAll((params) => hrmsService.listDepartments(params), 5),
+          loadAll((params) => hrmsService.listEmployees(params), 10),
+        ]);
+        if (!active) return;
+        setDepartments(deptRows);
+        setEmployees(empRows);
+      } catch {
+        // Filters are optional; the report still loads without them.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    try {
+      const res = await hrmsService.listAttendanceReport(filters);
+      setSummary(unwrap(res)?.summary || null);
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
+
+  const summaryFetcher = useMemo(
+    () =>
+      async ({ page, limit }) => {
+        const res = await hrmsService.listAttendanceReport(filters);
+        const payload = unwrap(res);
+        const rows = payload?.data || [];
+        const take = Math.min(100, Math.max(1, Number(limit) || 20));
+        const pageNum = Math.max(1, Number(page) || 1);
+        const start = (pageNum - 1) * take;
+        return {
+          data: rows.slice(start, start + take),
+          meta: {
+            total: rows.length,
+            page: pageNum,
+            pages: Math.ceil(rows.length / take) || 1,
+            limit: take,
+          },
+        };
+      },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters, tableKey]
+  );
+
+  const detailFetcher = useMemo(
+    () =>
+      async ({ page, limit }) => {
+        const take = Math.min(100, Math.max(1, Number(limit) || 20));
+        const pageNum = Math.max(1, Number(page) || 1);
+        const res = await hrmsService.listAttendanceReport({
+          ...filters,
+          detail_page: pageNum,
+          detail_limit: take,
+        });
+        const payload = unwrap(res);
+        const meta = payload?.detail_meta || {};
+        return {
+          data: payload?.detail || [],
+          meta: {
+            total: Number(meta.total || 0),
+            page: Number(meta.page || pageNum),
+            pages: Number(meta.pages || 1),
+            limit: Number(meta.limit || take),
+          },
+        };
+      },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters, tableKey]
+  );
+  const summaryColumns = useMemo(
+    () => [
+      {
+        field: "employee_name",
+        label: "Employee",
+        sortable: false,
+        render: (row) => (
+          <div className="flex flex-col">
+            <span className="font-medium text-foreground">{row.employee_name}</span>
+            {row.emp_code ? (
+              <span className="text-xs text-muted-foreground">{row.emp_code}</span>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        field: "department_title",
+        label: "Department",
+        sortable: false,
+        render: (row) => <span>{row.department_title || "—"}</span>,
+      },
+      { field: "present_days", label: "Present", sortable: false },
+      { field: "week_off_days", label: "Week off", sortable: false },
+      { field: "holiday_days", label: "Holiday", sortable: false },
+      { field: "late_marks", label: "Late", sortable: false },
+      { field: "half_days", label: "Half", sortable: false },
+      { field: "absent_days", label: "Absent", sortable: false },
+      { field: "leave_days", label: "Leave", sortable: false },
+      { field: "lwp_days", label: "LWP", sortable: false },
+      {
+        field: "working_hours",
+        label: "Hours",
+        sortable: false,
+        render: (row) => (
+          <span className="tabular-nums">{Number(row.working_hours || 0).toFixed(2)}</span>
+        ),
+      },
+    ],
+    []
+  );
+
+  const detailColumns = useMemo(
+    () => [
+      {
+        field: "employee_name",
+        label: "Employee",
+        sortable: false,
+        render: (row) => (
+          <div className="flex flex-col">
+            <span className="font-medium text-foreground">{row.employee_name}</span>
+            {row.emp_code ? (
+              <span className="text-xs text-muted-foreground">{row.emp_code}</span>
+            ) : null}
+          </div>
+        ),
+      },
+      { field: "date", label: "Date", sortable: false },
+      {
+        field: "attendance_type",
+        label: "Type",
+        sortable: false,
+        render: (row) => (
+          <StatusBadge
+            status={row.attendance_type}
+            label={TYPE_LABELS[row.attendance_type] || row.attendance_type}
+          />
+        ),
+      },
+      {
+        field: "check_in_at",
+        label: "In",
+        sortable: false,
+        render: (row) => <span>{timeOf(row.check_in_at)}</span>,
+      },
+      {
+        field: "check_out_at",
+        label: "Out",
+        sortable: false,
+        render: (row) => <span>{timeOf(row.check_out_at)}</span>,
+      },
+      {
+        field: "working_hours",
+        label: "Hours",
+        sortable: false,
+        render: (row) => (
+          <span className="tabular-nums">{Number(row.working_hours || 0).toFixed(2)}</span>
+        ),
+      },
+      {
+        field: "leave_type",
+        label: "Leave type",
+        sortable: false,
+        render: (row) => <span>{row.leave_type || "—"}</span>,
+      },
+    ],
+    []
+  );
 
   const onExport = async () => {
     setBusy(true);
     try {
-      const blob = await hrmsService.exportAttendanceReport({
-        year: Number(year),
-        month: Number(month),
-      });
-      const url = window.URL.createObjectURL(blob);
+      const blob = await hrmsService.exportAttendanceReport(filters);
+      const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `attendance-${year}-${String(month).padStart(2, "0")}.xlsx`;
+      a.download = `attendance-report-${year}-${String(month).padStart(2, "0")}.xlsx`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toastSuccess("Export downloaded");
+      toastSuccess("Export downloaded — matches the selected filters");
     } catch (err) {
       toastErrorFromApi(err, "Export failed");
     } finally {
@@ -44,42 +317,159 @@ export default function HrmsAttendanceReportPage() {
     }
   };
 
+  const hasFilters = Boolean(departmentId || employeeId || attendanceType || search.trim());
   return (
     <ProtectedRoute>
-      <AddEditPageShell title="Attendance Report" listHref="/hrms" listLabel="HRMS">
-        <FormContainer>
-          <FormSection title="Month export">
-            <p className="text-xs text-muted-foreground mb-2">
-              Excel includes a Holiday column using the company holiday calendar.
+      <ListingPageContainer
+        title="Attendance Report"
+        subtitle="Monthly employee-wise attendance — present, leave, late, half-day, holiday, absence and working-hour totals"
+        actions={
+          <Button size="sm" variant="outline" onClick={onExport} loading={busy}>
+            <IconDownload className="size-4" /> Export
+          </Button>
+        }
+        filterConfig={[
+          { key: "year", label: "Year", type: "select", options: yearOptions },
+          { key: "month", label: "Month", type: "select", options: monthOptions },
+          { key: "department_id", label: "Department", type: "select", options: departmentOptions },
+          { key: "employee_id", label: "Employee", type: "select", options: employeeOptions },
+          { key: "attendance_type", label: "Attendance type", type: "select", options: TYPE_OPTIONS },
+          { key: "q", label: "Search employee or code", type: "search" },
+        ]}
+        filterValues={{
+          year,
+          month,
+          department_id: departmentId,
+          employee_id: employeeId,
+          attendance_type: attendanceType,
+          q: search,
+        }}
+        showFilterLabels
+        onFilterChange={(key, value) => {
+          if (key === "year") setYear(value);
+          else if (key === "month") setMonth(value);
+          else if (key === "department_id") {
+            setDepartmentId(value);
+            setEmployeeId("");
+          } else if (key === "employee_id") setEmployeeId(value);
+          else if (key === "attendance_type") setAttendanceType(value);
+          else if (key === "q") setSearch(value);
+          setTableKey((k) => k + 1);
+        }}
+        onClearFilters={() => {
+          setYear(String(NOW.getFullYear()));
+          setMonth(String(NOW.getMonth() + 1));
+          setDepartmentId("");
+          setEmployeeId("");
+          setAttendanceType("");
+          setSearch("");
+          setTableKey((k) => k + 1);
+        }}
+      >
+        <div className="mb-1.5 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <StatCard
+            compact
+            icon={<IconUsers size={16} />}
+            label="Employees"
+            value={summary?.employees ?? "—"}
+            accentColor="#1b365d"
+            subLabel="Matching filters"
+            loading={summaryLoading}
+          />
+          <StatCard
+            compact
+            icon={<IconUserCheck size={16} />}
+            label="Present days"
+            value={summary?.present_days ?? "—"}
+            accentColor="#00823b"
+            subLabel="Worked days"
+            loading={summaryLoading}
+          />
+          <StatCard
+            compact
+            icon={<IconClockExclamation size={16} />}
+            label="Late marks"
+            value={summary?.late_marks ?? "—"}
+            accentColor="#f37021"
+            subLabel="After shift grace"
+            loading={summaryLoading}
+          />
+          <StatCard
+            compact
+            icon={<IconCalendarStats size={16} />}
+            label="Half days"
+            value={summary?.half_days ?? "—"}
+            accentColor="#7c3aed"
+            subLabel="Short / half-day leave"
+            loading={summaryLoading}
+          />
+          <StatCard
+            compact
+            icon={<IconCalendarOff size={16} />}
+            label="Absent days"
+            value={summary?.absent_days ?? "—"}
+            accentColor="#dc2626"
+            subLabel="No punch, no leave"
+            loading={summaryLoading}
+          />
+          <StatCard
+            compact
+            icon={<IconFileSpreadsheet size={16} />}
+            label="Working hours"
+            value={summary ? Number(summary.working_hours || 0).toFixed(2) : "—"}
+            accentColor="#0891b2"
+            subLabel="Net of breaks"
+            loading={summaryLoading}
+          />
+        </div>
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
+          <PaginatedTable
+            toolbar={
+              <ListCount total={listTotal} context={hasFilters ? "matching filters" : undefined} />
+            }
+            key={`summary-${tableKey}`}
+            onTotalChange={setListTotal}
+            columns={summaryColumns}
+            fetcher={summaryFetcher}
+            height="100%"
+            initialSortBy="employee_name"
+            initialSortOrder="asc"
+            emptyState={
+              <EmptyState
+                icon={IconUsers}
+                title="No attendance rows"
+                description="No employees or punches match the selected month and filters."
+              />
+            }
+          />
+        </div>
+
+        <div className="mt-6 shrink-0">
+          <div className="mb-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              Daily punch &amp; exception detail
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Punch days plus absent, leave and LWP days for the selected month (the export matches
+              these filters).
             </p>
-            <FormGrid cols={2}>
-              <FormField>
-                <Select label="Year" name="year" value={year} onChange={(e) => setYear(e.target.value)}>
-                  {years.map((y) => (
-                    <MenuItem key={y} value={y}>
-                      {y}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField>
-                <Select label="Month" name="month" value={month} onChange={(e) => setMonth(e.target.value)}>
-                  {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
-                    <MenuItem key={m} value={m}>
-                      {m}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormField>
-            </FormGrid>
-          </FormSection>
-          <FormActions>
-            <Button size="sm" disabled={busy} onClick={onExport}>
-              {busy ? "Exporting…" : "Download Excel"}
-            </Button>
-          </FormActions>
-        </FormContainer>
-      </AddEditPageShell>
+          </div>
+          <PaginatedTable
+            key={`detail-${tableKey}`}
+            columns={detailColumns}
+            fetcher={detailFetcher}
+            height="40vh"
+            emptyState={
+              <EmptyState
+                icon={IconFileSpreadsheet}
+                title="No daily rows"
+                description="No punches or exceptions for the selected filters."
+              />
+            }
+          />
+        </div>
+      </ListingPageContainer>
     </ProtectedRoute>
   );
 }

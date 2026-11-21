@@ -34,7 +34,6 @@ import * as hrmsService from "@/services/hrmsService";
 
 const MODULE_KEY = "hrms_attendance";
 const NOW = new Date();
-const TODAY = new Date().toISOString().slice(0, 10);
 
 export default function HrmsAttendancePage() {
   const perm = useModulePermission(MODULE_KEY);
@@ -54,25 +53,26 @@ export default function HrmsAttendancePage() {
   const [exporting, setExporting] = useState(false);
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoBusy, setAutoBusy] = useState(false);
-  const [counts, setCounts] = useState({ present: null, open: null, pending: null });
+  const [counts, setCounts] = useState({ present: null, open: null, pending: null, scope: null });
   const [countsLoading, setCountsLoading] = useState(true);
+  const [listScope, setListScope] = useState(null);
+
+  const canExport = (isSuperAdmin || listScope === "all" || listScope === "team") && perm.can_read;
 
   const loadCounts = useCallback(async () => {
     setCountsLoading(true);
     try {
-      const [present, open, pendingL1, pendingL2] = await Promise.all([
-        hrmsService.listAttendance({ from: TODAY, to: TODAY, limit: 1 }),
-        hrmsService.listAttendance({ open: 1, limit: 1 }),
-        hrmsService.listAttendanceRequests({ status: "pending_l1", limit: 1 }),
-        hrmsService.listAttendanceRequests({ status: "pending_l2", limit: 1 }),
-      ]);
+      const res = await hrmsService.getAttendanceTodaySummary();
+      const payload = unwrap(res) || {};
       setCounts({
-        present: unwrap(present)?.meta?.total ?? 0,
-        open: unwrap(open)?.meta?.total ?? 0,
-        pending: (unwrap(pendingL1)?.meta?.total ?? 0) + (unwrap(pendingL2)?.meta?.total ?? 0),
+        present: payload.present ?? 0,
+        open: payload.open ?? 0,
+        pending: payload.pending ?? 0,
+        scope: payload.scope || null,
       });
+      if (payload.scope) setListScope(payload.scope);
     } catch {
-      setCounts({ present: null, open: null, pending: null });
+      setCounts({ present: null, open: null, pending: null, scope: null });
     } finally {
       setCountsLoading(false);
     }
@@ -135,6 +135,7 @@ export default function HrmsAttendancePage() {
       const payload = unwrap(res);
       const rows = payload?.data || [];
       const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
+      if (meta.scope) setListScope(meta.scope);
       return { data: rows, meta };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -303,9 +304,11 @@ export default function HrmsAttendancePage() {
         subtitle="Punch records for the month — Punch In/Out is the same clock as mobile when tracking is on"
         actions={
           <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="outline" onClick={onExport} loading={exporting}>
-              <IconDownload className="size-4" /> Export
-            </Button>
+            {canExport && (
+              <Button size="sm" variant="outline" onClick={onExport} loading={exporting}>
+                <IconDownload className="size-4" /> Export
+              </Button>
+            )}
             {isSuperAdmin && perm.can_update && (
               <Button size="sm" variant="outline" onClick={() => setAutoOpen(true)}>
                 <IconClockCheck className="size-4" /> Auto check-out
@@ -344,7 +347,7 @@ export default function HrmsAttendancePage() {
             label="Present today"
             value={counts.present ?? "—"}
             accentColor="#00823b"
-            subLabel="Punches recorded today"
+            subLabel="Distinct employees punched today"
             loading={countsLoading}
           />
           <StatCard
@@ -353,7 +356,7 @@ export default function HrmsAttendancePage() {
             label="Open punches"
             value={counts.open ?? "—"}
             accentColor="#f37021"
-            subLabel="Not punched out yet"
+            subLabel="Not punched out yet (today)"
             loading={countsLoading}
           />
           <StatCard
@@ -379,16 +382,22 @@ export default function HrmsAttendancePage() {
                   <StatusBadge status={myStatus?.status || (myStatus?.open ? "IN" : "OUT")} />
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {myStatus?.attendance?.check_in_at
-                    ? `Punched in at ${new Date(myStatus.attendance.check_in_at).toLocaleString()} (same clock as mobile Punch In/Out)`
-                    : myStatus?.open
-                      ? "You have an open punch for today."
-                      : "You are not punched in right now. Field staff use Punch In/Out on mobile — same clock."}
+                  {myStatus?.already_punched_today && !myStatus?.open
+                    ? "Already punched today — one shift per day."
+                    : myStatus?.attendance?.check_in_at
+                      ? `Punched in at ${new Date(myStatus.attendance.check_in_at).toLocaleString()} (same clock as mobile Punch In/Out)`
+                      : myStatus?.open
+                        ? "You have an open punch for today."
+                        : "You are not punched in right now. Field staff use Punch In/Out on mobile — same clock."}
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={punching} onClick={() => onPunch("IN")}>
+              <Button
+                size="sm"
+                disabled={punching || Boolean(myStatus?.already_punched_today && !myStatus?.open)}
+                onClick={() => onPunch("IN")}
+              >
                 <IconLogin className="h-4 w-4" /> Punch In
               </Button>
               <Button size="sm" variant="outline" disabled={punching} onClick={() => onPunch("OUT")}>
@@ -403,7 +412,6 @@ export default function HrmsAttendancePage() {
             </div>
           </div>
         </div>
-
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
@@ -441,7 +449,7 @@ export default function HrmsAttendancePage() {
             <div>
               <h3 className="text-sm font-semibold text-foreground">Monthly totals by employee</h3>
               <p className="text-xs text-muted-foreground">
-                Present, half days, late marks, holiday attendance and open punches for the selected month
+                Present, half days, late marks, holiday attendance and open punches for the selected month (distinct days)
               </p>
             </div>
           </div>
