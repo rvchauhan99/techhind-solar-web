@@ -1,31 +1,15 @@
 ---
-description: Client-facing date-wise change notes — one file per day in solar-api docs (not FE/BE split)
+description: Client change notes — write only to techhind-solar-api/docs (never in this repo)
 alwaysApply: true
 ---
 
-# Changes summary (client notes — mandatory)
+# Client changes summary (mandatory)
 
-After completing **any** change — **before marking Done** — update the **client** day file.
+Do **not** create `docs/CHANGES_SUMMARY.md` or `docs/changes/` in this web repo.
 
-## One place only (not in this web repo)
+After any completed change, update **only**:
 
-| Path | Role |
-|------|------|
-| `techhind-solar-api/docs/changes/YYYY-MM-DD.md` | **Only** day file |
-| `techhind-solar-api/docs/CHANGES_SUMMARY.md` | Index (newest first) |
+- `techhind-solar-api/docs/changes/YYYY-MM-DD.md`
+- `techhind-solar-api/docs/CHANGES_SUMMARY.md`
 
-Do **not** keep a separate web/FE changes log. Front-end and back-end do not matter for this document.
-
-## Audience = Client
-
-- Simple words; functional outcome only.
-- **No** file paths, code, routes, or “frontend/backend” wording.
-
-## Format
-
-```markdown
-## Fixes | Improvements | New
-- **Short title** — what the user gains or what was fixed.
-```
-
-Sequence: **Fixes → Improvements → New**.
+Same rules as API: one date file for the product, client-simple words, Fixes → Improvements → New, no FE/BE split.
