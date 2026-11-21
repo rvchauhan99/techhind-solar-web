@@ -25,6 +25,12 @@
   - New standards or constraints -> update this `rules.md`.
 - Keep context edits concise and section-scoped.
 
+## Changes Summary Policy (Mandatory)
+- After completing every change, enhancement, bug fix, or issue, record it in a date-wise file: `docs/changes/YYYY-MM-DD.md` (create/append) and link that date in the index `docs/CHANGES_SUMMARY.md`.
+- Keep one short line per entry: **title** — what changed + why/impact + affected file(s); newest dates first in the index; append-only (never rewrite past date files).
+- Keep it short and sweet. See `.cursor/rules/Changes-Summary.mdc`.
+- Cross-repo work: log in the repo where the file changed and reference the other repo's date file.
+
 ## Task Startup Protocol
 1. Read `ai-context/architecture.md`, `ai-context/modules.md`, `ai-context/flows.md`, and `ai-context/rules.md`.
 2. Identify impacted frontend module and route(s).
