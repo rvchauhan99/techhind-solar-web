@@ -38,6 +38,13 @@ import SubstituteProductPicker from "@/components/common/SubstituteProductPicker
 /** Number of days after planner completion during which the planner remains editable. */
 const PLANNER_EDITABLE_DAYS = 100;
 
+/** Usable warehouse last-purchase rate (same rules as cost preview / save MANUAL_FALLBACK). */
+const hasUsableLastPurchasePrice = (price) =>
+    !!price &&
+    !price.missing_price &&
+    Number.isFinite(Number(price.unit_price_excluding_gst)) &&
+    Number(price.unit_price_excluding_gst) > 0;
+
 const normalizeProductTypeName = (s) => (s || "").toLowerCase().trim().replace(/\s+/g, "_");
 
 const productTypeNameToBarKey = (normalized) => {
@@ -327,11 +334,9 @@ function computePlannerCostPreviewFromInputs({
         const baselinePlannedQty = qtyNum(line.baseline_planned_qty ?? line.quantity);
         const qtyDelta = editedPlannedQty - baselinePlannedQty;
         const gstMode = adjustment.gst_mode || "INCLUDING_GST";
-        const price = purchasePriceByProductId[line.product_id] || null;
+        const price = purchasePriceByProductId[Number(line.product_id)] || null;
         const gstRate = Number(price?.gst_rate) || 0;
-        const hasPriceFromPo = !price?.missing_price &&
-            Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
-            Number(price?.unit_price_excluding_gst) > 0;
+        const hasPriceFromPo = hasUsableLastPurchasePrice(price);
         const manualExclRaw = Number(adjustment?.manual_unit_price_excluding_gst);
         const manualInclRaw = Number(adjustment?.manual_unit_price_including_gst);
         const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
@@ -376,11 +381,9 @@ function computePlannerCostPreviewFromInputs({
     const removedLines = (removedLineAdjustments || []).map((line) => {
         const qtyDelta = qtyNum(line.qtyDelta);
         const gstMode = line.gstMode || "INCLUDING_GST";
-        const price = purchasePriceByProductId[line.product_id] || null;
+        const price = purchasePriceByProductId[Number(line.product_id)] || null;
         const gstRate = Number(price?.gst_rate) || 0;
-        const hasPriceFromPo = !price?.missing_price &&
-            Number.isFinite(Number(price?.unit_price_excluding_gst)) &&
-            Number(price?.unit_price_excluding_gst) > 0;
+        const hasPriceFromPo = hasUsableLastPurchasePrice(price);
         const manualExclRaw = Number(line?.manual_unit_price_excluding_gst);
         const manualInclRaw = Number(line?.manual_unit_price_including_gst);
         const hasManualExcl = Number.isFinite(manualExclRaw) && manualExclRaw > 0;
@@ -843,15 +846,18 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                         planner_added: !!(planForSave || []).find((bp) => bp.__rowKey === line.rowKey)?.planner_added,
                     },
                 }));
-            const hasMissingManualPrice = costAdjustments.some((line) =>
-                line.price_source === "MANUAL_FALLBACK" &&
-                (!Number.isFinite(Number(line.manual_unit_price_excluding_gst)) ||
-                    Number(line.manual_unit_price_excluding_gst) <= 0 ||
-                    !Number.isFinite(Number(line.manual_unit_price_including_gst)) ||
-                    Number(line.manual_unit_price_including_gst) <= 0)
-            );
+            const hasMissingManualPrice = costAdjustments.some((line) => {
+                if (line.price_source !== "MANUAL_FALLBACK") return false;
+                const exclOk =
+                    Number.isFinite(Number(line.manual_unit_price_excluding_gst)) &&
+                    Number(line.manual_unit_price_excluding_gst) > 0;
+                const inclOk =
+                    Number.isFinite(Number(line.manual_unit_price_including_gst)) &&
+                    Number(line.manual_unit_price_including_gst) > 0;
+                return !exclOk && !inclOk;
+            });
             if (hasMissingManualPrice) {
-                setError("Enter manual unit price (Excl/Incl GST) for rows where latest purchase price is not available.");
+                setError("Enter manual unit price (Excl or Incl GST) for rows where latest purchase price is not available.");
                 setSubmitting(false);
                 return;
             }
@@ -1079,6 +1085,21 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
             return;
         }
         let cancelled = false;
+        const seedMissingPriceMap = (productIds) => {
+            const next = {};
+            (productIds || []).forEach((id) => {
+                const productId = Number(id);
+                if (!Number.isFinite(productId) || productId <= 0) return;
+                next[productId] = {
+                    product_id: productId,
+                    missing_price: true,
+                    unit_price_excluding_gst: null,
+                    unit_price_including_gst: null,
+                    gst_rate: 0,
+                };
+            });
+            return next;
+        };
         const run = async () => {
             setLoadingPrices(true);
             try {
@@ -1087,15 +1108,19 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                 });
                 const data = res?.result ?? res?.data ?? res ?? [];
                 if (cancelled) return;
-                const next = {};
+                const next = seedMissingPriceMap(uniqueProductIds);
                 (Array.isArray(data) ? data : []).forEach((row) => {
-                    next[row.product_id] = row;
+                    const productId = Number(row?.product_id);
+                    if (!Number.isFinite(productId) || productId <= 0) return;
+                    const normalized = { ...row, product_id: productId };
+                    normalized.missing_price = !hasUsableLastPurchasePrice(normalized);
+                    next[productId] = normalized;
                 });
                 setPurchasePriceByProductId(next);
             } catch (err) {
                 if (!cancelled) {
                     console.error("Failed to fetch latest purchase prices:", err);
-                    setPurchasePriceByProductId({});
+                    setPurchasePriceByProductId(seedMissingPriceMap(uniqueProductIds));
                 }
             } finally {
                 if (!cancelled) setLoadingPrices(false);
@@ -1774,9 +1799,9 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                 const isFullyShipped = Number(pendingQty) <= 0;
                                                 const canRemove = !isPlannerLocked && !isReadOnly && shippedQty === 0;
                                                 const adjustment = adjustmentByRow[line.__rowKey] || { gst_mode: "INCLUDING_GST" };
-                                                const latestPrice = purchasePriceByProductId[line.product_id];
+                                                const latestPrice = purchasePriceByProductId[Number(line.product_id)];
                                                 const gstRate = Number(latestPrice?.gst_rate) || 0;
-                                                const isMissingLatestPrice = !!latestPrice?.missing_price;
+                                                const isMissingLatestPrice = !hasUsableLastPurchasePrice(latestPrice);
                                                 const manualExcl = Number(adjustment?.manual_unit_price_excluding_gst);
                                                 const manualIncl = Number(adjustment?.manual_unit_price_including_gst);
                                                 const hasManualExcl = Number.isFinite(manualExcl) && manualExcl > 0;
@@ -1898,22 +1923,29 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                         </td>
                                                         <td className="p-2 text-right align-middle">
                                                             {!canEditRow ? "—" : isMissingLatestPrice ? (
-                                                                <input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    step="0.01"
-                                                                    value={adjustment?.manual_unit_price_excluding_gst ?? ""}
-                                                                    onChange={(e) =>
-                                                                        handleManualRateInput(
-                                                                            line.__rowKey,
-                                                                            "manual_unit_price_excluding_gst",
-                                                                            e.target.value,
-                                                                            gstRate
-                                                                        )
-                                                                    }
-                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
-                                                                    className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
-                                                                />
+                                                                <div className="flex flex-col items-end gap-0.5">
+                                                                    <input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        step="0.01"
+                                                                        value={adjustment?.manual_unit_price_excluding_gst ?? ""}
+                                                                        onChange={(e) =>
+                                                                            handleManualRateInput(
+                                                                                line.__rowKey,
+                                                                                "manual_unit_price_excluding_gst",
+                                                                                e.target.value,
+                                                                                gstRate
+                                                                            )
+                                                                        }
+                                                                        disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked}
+                                                                        placeholder="Rate"
+                                                                        title="Last purchase not found — enter rate"
+                                                                        className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
+                                                                    />
+                                                                    <span className="text-[10px] leading-tight text-amber-700 max-w-[7rem] text-right">
+                                                                        Last purchase not found — enter rate
+                                                                    </span>
+                                                                </div>
                                                             ) : (
                                                                 unitExcl.toFixed(2)
                                                             )}
@@ -1933,7 +1965,9 @@ export default function Planner({ orderId, orderData, onSuccess, amendMode = fal
                                                                             gstRate
                                                                         )
                                                                     }
-                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked || adjQty === 0}
+                                                                    disabled={isPlannerLocked || isReadOnly || isBomEditingBlocked}
+                                                                    placeholder="Rate"
+                                                                    title="Last purchase not found — enter rate"
                                                                     className="w-20 text-right border border-input rounded px-1 py-0.5 bg-background"
                                                                 />
                                                             ) : (
