@@ -5,6 +5,7 @@
 
 # Test and coverage artifacts
 coverage/
+e2e/
 **/*.test.js
 **/*.spec.js
 **/__tests__/
