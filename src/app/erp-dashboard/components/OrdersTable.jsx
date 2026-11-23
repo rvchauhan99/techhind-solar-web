@@ -22,26 +22,69 @@ const formatStageLabel = (key) => {
 };
 
 const getDeliveryBadgeColor = (status) => {
-    if (status === "Complete") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (status === "Partial") return "bg-amber-50 text-amber-700 border-amber-200";
-    return "bg-red-50 text-red-700 border-red-200";
+    const s = String(status || "").toLowerCase();
+    if (s === "complete" || s === "completed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    if (s === "partial") return "bg-amber-50 text-amber-700 border-amber-200";
+    return "bg-slate-100 text-slate-600 border-slate-200";
+};
+
+const formatDeliveryStatus = (value) => {
+    const s = String(value || "").trim().toLowerCase();
+    if (!s) return "Pending";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+const formatDate = (value) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("en-IN");
 };
 
 const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 25, 50, 100];
+
+function SortableTh({ label, column, sortBy, sortOrder, onSort, align = "left" }) {
+    const active = sortBy === column;
+    return (
+        <th
+            onClick={() => onSort(column)}
+            className={[
+                "px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-700",
+                align === "right" ? "text-right" : "text-left",
+            ].join(" ")}
+        >
+            <span className={`inline-flex items-center gap-1 ${align === "right" ? "w-full justify-end" : ""}`}>
+                {label}
+                <span className={`text-[10px] ${active ? "text-slate-700" : "text-slate-300"}`}>
+                    {active ? (sortOrder === "ASC" ? "▲" : "▼") : "⇅"}
+                </span>
+            </span>
+        </th>
+    );
+}
 
 export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboardApiBase }) {
     const [orders, setOrders] = useState([]);
     const [meta, setMeta] = useState({ page: 1, limit: PAGE_SIZE, total: 0, pages: 0 });
     const [loading, setLoading] = useState(false);
+    const [limit, setLimit] = useState(PAGE_SIZE);
+    const [sortBy, setSortBy] = useState("id");
+    const [sortOrder, setSortOrder] = useState("DESC");
 
-    const loadOrders = (page = 1) => {
+    const loadOrders = (page = 1, overrides = {}) => {
+        const activeLimit = overrides.limit ?? limit;
+        const activeSortBy = overrides.sortBy ?? sortBy;
+        const activeSortOrder = overrides.sortOrder ?? sortOrder;
         setLoading(true);
         ordersDashboardService
             .getOrdersDashboardOrders(
                 {
                     ...filters,
                     page,
-                    limit: meta.limit,
+                    limit: activeLimit,
+                    sortBy: activeSortBy,
+                    sortOrder: activeSortOrder,
                 },
                 dashboardApiBase
             )
@@ -52,9 +95,9 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
                 setOrders(rows);
                 setMeta({
                     page: m.page || page,
-                    limit: m.limit || meta.limit,
-                    total: m.total || rows.length,
-                    pages: m.pages || 1,
+                    limit: m.limit || activeLimit,
+                    total: m.total ?? rows.length,
+                    pages: m.pages ?? 1,
                 });
             })
             .catch(() => {
@@ -70,12 +113,33 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [JSON.stringify(filters), dashboardApiBase]);
 
+    const handleSort = (column) => {
+        const nextSortOrder = sortBy === column && sortOrder === "ASC" ? "DESC" : "ASC";
+        setSortBy(column);
+        setSortOrder(nextSortOrder);
+        setMeta((prev) => ({ ...prev, page: 1 }));
+        loadOrders(1, { sortBy: column, sortOrder: nextSortOrder });
+    };
+
+    const handlePageSizeChange = (value) => {
+        const nextLimit = Number(value) || PAGE_SIZE;
+        setLimit(nextLimit);
+        setMeta((prev) => ({ ...prev, page: 1, limit: nextLimit }));
+        loadOrders(1, { limit: nextLimit });
+    };
+
+    const goToPage = (nextPage) => {
+        if (nextPage < 1 || nextPage > (meta.pages || 1) || nextPage === meta.page) return;
+        setMeta((prev) => ({ ...prev, page: nextPage }));
+        loadOrders(nextPage);
+    };
+
     const handleExport = async () => {
         try {
             const params = {
                 ...filters,
-                page: meta.page,
-                limit: meta.limit,
+                sortBy,
+                sortOrder,
             };
             const blob = await ordersDashboardService.exportOrders(params);
             const url = window.URL.createObjectURL(new Blob([blob]));
@@ -127,27 +191,25 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
                         <Loader />
                     </div>
                 )}
-                <table className="w-full text-left border-collapse min-w-[1000px]">
+                <table className="w-full text-left border-collapse min-w-[1150px]">
                     <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                         <tr>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order No</th>
+                            <SortableTh label="Order No" column="order_number" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
                             <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Branch</th>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Capacity</th>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Project Cost</th>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Current Stage</th>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Delivery</th>
-                            <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Due Date</th>
+                            <SortableTh label="Capacity" column="capacity" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="right" />
+                            <SortableTh label="Project Cost" column="project_cost" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} align="right" />
+                            <SortableTh label="Current Stage" column="current_stage_key" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                            <SortableTh label="Delivery" column="delivery_status" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                            <SortableTh label="Order Date" column="order_date" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
+                            <SortableTh label="Last Action Date" column="updated_at" sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort} />
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
                         {(orders || []).map((order) => {
                             const stageLabel = order.current_stage_key || "—";
                             const displayStageLabel = formatStageLabel(order.current_stage_key) || "—";
-                            const deliveryStatus =
-                                (order.delivery_status || "").charAt(0).toUpperCase() +
-                                (order.delivery_status || "").slice(1);
-                            const dueDate = order.estimate_due_date || order.order_date || null;
+                            const deliveryStatus = formatDeliveryStatus(order.delivery_status);
 
                             return (
                             <tr
@@ -185,38 +247,59 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
                                     <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full border uppercase tracking-wide ${getDeliveryBadgeColor(deliveryStatus)}`}>
-                                        {deliveryStatus || "Pending"}
+                                        {deliveryStatus}
                                     </span>
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap">
-                                    <div className="text-sm text-slate-600">
-                                        {dueDate
-                                            ? new Date(dueDate).toLocaleDateString("en-IN")
-                                            : "—"}
-                                    </div>
+                                    <div className="text-sm text-slate-600">{formatDate(order.order_date)}</div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                    <div className="text-sm text-slate-600">{formatDate(order.updated_at)}</div>
                                 </td>
                             </tr>
                             );
                         })}
+                        {!loading && (orders || []).length === 0 && (
+                            <tr>
+                                <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">
+                                    No orders found for the selected filters.
+                                </td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
 
             {/* Pagination Footer */}
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between mt-auto">
-                <span className="text-sm text-slate-500">
-                    {meta.total === 0
-                        ? "0 of 0 entries"
-                        : `Showing ${(meta.page - 1) * meta.limit + 1} to ${Math.min(
-                              meta.page * meta.limit,
-                              meta.total
-                          )} of ${meta.total} entries`}
-                </span>
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3 flex-wrap mt-auto">
+                <div className="flex items-center gap-3 text-sm text-slate-500">
+                    <label className="flex items-center gap-1.5">
+                        <span>Show</span>
+                        <select
+                            value={limit}
+                            onChange={(e) => handlePageSizeChange(e.target.value)}
+                            className="border border-slate-200 rounded-md bg-white px-2 py-1 text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                            {PAGE_SIZE_OPTIONS.map((n) => (
+                                <option key={n} value={n}>{n}</option>
+                            ))}
+                        </select>
+                        <span>entries</span>
+                    </label>
+                    <span className="hidden sm:inline">
+                        {meta.total === 0
+                            ? "0 of 0 entries"
+                            : `Showing ${(meta.page - 1) * meta.limit + 1} to ${Math.min(
+                                  meta.page * meta.limit,
+                                  meta.total
+                              )} of ${meta.total} entries`}
+                    </span>
+                </div>
                 <div className="flex gap-1">
                     <button
                         className="px-3 py-1 text-sm border border-slate-200 rounded-md bg-white text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
                         disabled={meta.page <= 1}
-                        onClick={() => meta.page > 1 && loadOrders(meta.page - 1)}
+                        onClick={() => goToPage(meta.page - 1)}
                     >
                         Prev
                     </button>
@@ -225,8 +308,8 @@ export default function OrdersTable({ filters, onRowClick, onOpenFilter, dashboa
                     </button>
                     <button
                         className="px-3 py-1 text-sm border border-slate-200 rounded-md bg-white text-slate-600 disabled:text-slate-400 disabled:cursor-not-allowed"
-                        disabled={meta.page >= meta.pages}
-                        onClick={() => meta.page < meta.pages && loadOrders(meta.page + 1)}
+                        disabled={meta.page >= (meta.pages || 1)}
+                        onClick={() => goToPage(meta.page + 1)}
                     >
                         Next
                     </button>

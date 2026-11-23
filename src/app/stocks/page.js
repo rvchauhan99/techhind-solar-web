@@ -55,6 +55,8 @@ const COLUMN_FILTER_KEYS = [
   "product_id",
   "product_type_id",
   "product_make_id",
+  "inverter_type_id",
+  "inverter_phase_id",
   "warehouse_id",
   "quantity_on_hand",
   "quantity_on_hand_op",
@@ -111,6 +113,8 @@ const FILTER_LABELS = {
   product_id: "Product",
   product_type_id: "Product Type",
   product_make_id: "Product Make",
+  inverter_type_id: "Inverter Type",
+  inverter_phase_id: "Inverter Phase",
   warehouse_id: "Warehouse",
   tracking_type: "Tracking",
   low_stock: "Less Stock",
@@ -149,6 +153,8 @@ export default function StockPage() {
   const [selectedProductName, setSelectedProductName] = useState("");
   const [selectedWarehouseName, setSelectedWarehouseName] = useState("");
   const [productMakeOptions, setProductMakeOptions] = useState([]);
+  const [inverterTypeOptions, setInverterTypeOptions] = useState([]);
+  const [inverterPhaseOptions, setInverterPhaseOptions] = useState([]);
   const [reservedDetailsOpen, setReservedDetailsOpen] = useState(false);
   const [reservedDetailsLoading, setReservedDetailsLoading] = useState(false);
   const [reservedDetailsExporting, setReservedDetailsExporting] = useState(false);
@@ -156,8 +162,8 @@ export default function StockPage() {
   const [reservedDetailsContext, setReservedDetailsContext] = useState(null);
 
   useEffect(() => {
-    mastersService
-      .getReferenceOptions("product_type.model", { visibility: "all" })
+    stockService
+      .getAvailableProductTypes()
       .then((res) => {
         const data = res?.result || res?.data || res || [];
         const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
@@ -175,6 +181,28 @@ export default function StockPage() {
         setProductMakeOptions(options);
       })
       .catch(() => setProductMakeOptions([]));
+  }, []);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("inverter_type.model", { visibility: "all" })
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
+        setInverterTypeOptions(options);
+      })
+      .catch(() => setInverterTypeOptions([]));
+  }, []);
+
+  useEffect(() => {
+    mastersService
+      .getReferenceOptions("inverter_phase.model", { visibility: "all" })
+      .then((res) => {
+        const data = res?.result || res?.data || res || [];
+        const options = Array.isArray(data) ? data.map((t) => ({ value: String(t.id), label: t.name || String(t.id) })) : [];
+        setInverterPhaseOptions(options);
+      })
+      .catch(() => setInverterPhaseOptions([]));
   }, []);
 
   const filterParams = useMemo(() => {
@@ -321,6 +349,17 @@ export default function StockPage() {
     return map;
   }, [productTypeOptions]);
 
+  const loadProductTypeOptions = useCallback(
+    async (q) => {
+      const qNorm = (q || "").toLowerCase();
+      const filtered = qNorm
+        ? productTypeOptions.filter((t) => String(t.label || "").toLowerCase().includes(qNorm))
+        : productTypeOptions;
+      return filtered.slice(0, 50).map((t) => ({ id: t.value, name: t.label }));
+    },
+    [productTypeOptions]
+  );
+
   const productMakeById = useMemo(() => {
     const map = new Map();
     productMakeOptions.forEach((item) => {
@@ -329,9 +368,30 @@ export default function StockPage() {
     return map;
   }, [productMakeOptions]);
 
+  const inverterTypeById = useMemo(() => {
+    const map = new Map();
+    inverterTypeOptions.forEach((item) => {
+      map.set(String(item.value), item.label);
+    });
+    return map;
+  }, [inverterTypeOptions]);
+
+  const inverterPhaseById = useMemo(() => {
+    const map = new Map();
+    inverterPhaseOptions.forEach((item) => {
+      map.set(String(item.value), item.label);
+    });
+    return map;
+  }, [inverterPhaseOptions]);
+
   const selectedProductTypeName = useMemo(
     () => productTypeById.get(String(filters.product_type_id || "")) || "",
     [productTypeById, filters.product_type_id]
+  );
+
+  const isInverterTypeSelected = useMemo(
+    () => String(selectedProductTypeName || "").trim().toLowerCase() === "inverter",
+    [selectedProductTypeName]
   );
 
   const setProductTypeFilter = useCallback(
@@ -345,6 +405,8 @@ export default function StockPage() {
             product_type_id: normalized,
             product_make_id: "",
             product_id: "",
+            inverter_type_id: "",
+            inverter_phase_id: "",
           },
           true,
           false
@@ -409,6 +471,8 @@ export default function StockPage() {
           let displayValue = String(value);
           if (key === "product_type_id") displayValue = productTypeById.get(String(value)) || String(value);
           if (key === "product_make_id") displayValue = productMakeById.get(String(value)) || String(value);
+          if (key === "inverter_type_id") displayValue = inverterTypeById.get(String(value)) || String(value);
+          if (key === "inverter_phase_id") displayValue = inverterPhaseById.get(String(value)) || String(value);
           if (key === "product_id") displayValue = selectedProductName || `Product #${value}`;
           if (key === "warehouse_id") displayValue = selectedWarehouseName || `Warehouse #${value}`;
           if (key === "tracking_type") displayValue = TRACKING_OPTIONS.find((o) => o.value === value)?.label || String(value);
@@ -419,7 +483,7 @@ export default function StockPage() {
             value: displayValue,
           };
         }),
-    [filters, productTypeById, productMakeById, selectedProductName, selectedWarehouseName]
+    [filters, productTypeById, productMakeById, inverterTypeById, inverterPhaseById, selectedProductName, selectedWarehouseName]
   );
 
   const resetAllFilters = useCallback(() => {
@@ -674,6 +738,8 @@ export default function StockPage() {
         product_id: p.product_id || undefined,
         product_type_id: p.product_type_id || undefined,
         product_make_id: p.product_make_id || undefined,
+        inverter_type_id: p.inverter_type_id || undefined,
+        inverter_phase_id: p.inverter_phase_id || undefined,
         quantity_on_hand: p.quantity_on_hand || undefined,
         quantity_on_hand_op: p.quantity_on_hand_op || undefined,
         quantity_on_hand_to: p.quantity_on_hand_to || undefined,
@@ -715,16 +781,21 @@ export default function StockPage() {
     totals.total_on_hand,
     totals.total_reserved
   );
+  const productTypeSummaryRows = useMemo(
+    () => (summary?.by_product_type || []).filter((row) => toNum(row.total_on_hand) > 0),
+    [summary]
+  );
+
   const productTypeChartData = useMemo(
     () =>
-      (summary?.by_product_type || []).slice(0, 8).map((row) => ({
+      productTypeSummaryRows.slice(0, 8).map((row) => ({
         name: row.product_type_name || "Uncategorized",
         on_hand: toNum(row.total_on_hand),
         available: toNum(row.total_available),
         value_excl: toNum(row.total_value_excl_gst),
         value_incl: toNum(row.total_value_incl_gst),
       })),
-    [summary]
+    [productTypeSummaryRows]
   );
 
   const warehouseChartData = useMemo(
@@ -824,6 +895,50 @@ export default function StockPage() {
               onChange={(e) => setFilter("low_stock", e.target.checked ? "true" : "")}
               className="w-auto"
             />
+            {isInverterTypeSelected && (
+              <>
+                <div className="w-full sm:w-40">
+                  <AutocompleteField
+                    usePortal
+                    name="inverter_type_id"
+                    label="Inverter Type"
+                    size="small"
+                    options={inverterTypeOptions.map((o) => ({ id: o.value, name: o.label }))}
+                    getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                    value={
+                      filters.inverter_type_id
+                        ? {
+                            id: filters.inverter_type_id,
+                            name: inverterTypeById.get(String(filters.inverter_type_id)) || String(filters.inverter_type_id),
+                          }
+                        : null
+                    }
+                    onChange={(e, v) => setFilter("inverter_type_id", v?.id ?? v?.value ?? "")}
+                    placeholder="All Inverter Types"
+                  />
+                </div>
+                <div className="w-full sm:w-40">
+                  <AutocompleteField
+                    usePortal
+                    name="inverter_phase_id"
+                    label="Inverter Phase"
+                    size="small"
+                    options={inverterPhaseOptions.map((o) => ({ id: o.value, name: o.label }))}
+                    getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
+                    value={
+                      filters.inverter_phase_id
+                        ? {
+                            id: filters.inverter_phase_id,
+                            name: inverterPhaseById.get(String(filters.inverter_phase_id)) || String(filters.inverter_phase_id),
+                          }
+                        : null
+                    }
+                    onChange={(e, v) => setFilter("inverter_phase_id", v?.id ?? v?.value ?? "")}
+                    placeholder="All Inverter Phases"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <Card className="rounded-xl border border-border bg-card overflow-visible">
@@ -844,7 +959,7 @@ export default function StockPage() {
                   name="product_type_id"
                   label="Product Type"
                   size="small"
-                  asyncLoadOptions={(q) => getReferenceOptionsForFilter("product_type.model", { q, limit: 20 })}
+                  asyncLoadOptions={loadProductTypeOptions}
                   referenceModel="product_type.model"
                   getOptionLabel={(o) => o?.name ?? o?.label ?? ""}
                   value={
@@ -1238,7 +1353,7 @@ export default function StockPage() {
             </button>
             {summaryExpanded && (
               <div className="border-t border-border/50">
-                {(summary.by_product_type || []).length === 0 ? (
+                {productTypeSummaryRows.length === 0 ? (
                   <div className="p-2 text-xs text-muted-foreground">No summary rows found for selected filters.</div>
                 ) : (
                   <div className="max-h-64 overflow-auto scrollbar-thin">
@@ -1252,7 +1367,7 @@ export default function StockPage() {
                       {!qtyOnly && <div className="col-span-2 text-right">Value (Incl)</div>}
                       <div className="col-span-1 text-right">Health</div>
                     </div>
-                    {(summary.by_product_type || []).map((row) => {
+                    {productTypeSummaryRows.map((row) => {
                       const isActive = String(filters.product_type_id || "") === String(row.product_type_id || "");
                       return (
                         <div
