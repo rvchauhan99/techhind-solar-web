@@ -27,3 +27,8 @@
 1. User navigates report routes for delivery, payments, and inventory visibility.
 2. Notification context and floating widget provide cross-module event updates.
 3. Audit-oriented pages expose payment/document tracking details.
+
+## Product Master Flow
+1. The product form loads product types plus reference masters (panel technology, inverter type, inverter phase).
+2. Picking a type shows its sub-fields: Panel -> Panel Type + Product Technology; Inverter -> Inverter Type + Inverter Phase (both required).
+3. Values save into `properties.<type>` and prefill on edit; the product list shows the standard columns only.
