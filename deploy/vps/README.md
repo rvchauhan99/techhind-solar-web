@@ -1,8 +1,8 @@
 # TechHind Solar Web — VPS deploy (HRMS)
 
-**Scope:** Next.js on AIC Cloud VPS `178.92.120.191`, PM2 process `techhind-solar-web` → `127.0.0.1:3000`.
+**Scope:** Next.js on Proxmox LXC `135.125.222.22` (SSH port **20130**), PM2 process `techhind-solar-web` → `127.0.0.1:3000`.
 
-Public host: `https://solar.178.92.120.191.sslip.io/` (Caddy already configured).
+Public host: `https://hrms.ladat.in/` (Caddy on LXC `:80`, TLS on Proxmox host).
 
 App path: `/opt/techhind-solar/web/`
 
@@ -11,8 +11,8 @@ App path: `/opt/techhind-solar/web/`
 `/opt/techhind-solar/web/.env.production` (and optional `.env.local`):
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=https://api-solar.178.92.120.191.sslip.io/api
-NEXT_PUBLIC_SITE_URL=https://solar.178.92.120.191.sslip.io
+NEXT_PUBLIC_API_BASE_URL=https://hrms.ladat.in/api
+NEXT_PUBLIC_SITE_URL=https://hrms.ladat.in
 ```
 
 `npm run build` runs **on the VPS** so these values are baked into the client bundle.
@@ -21,7 +21,7 @@ NEXT_PUBLIC_SITE_URL=https://solar.178.92.120.191.sslip.io
 
 ```bash
 chmod +x deploy/vps/deploy.sh
-SKIP_ENV_SYNC=1 ./deploy/vps/deploy.sh root@178.92.120.191
+SKIP_ENV_SYNC=1 VULTR_SSH_PORT=20130 ./deploy/vps/deploy.sh root@135.125.222.22
 ```
 
 CI always sets `SKIP_ENV_SYNC=1` so remote `.env*` is never overwritten.
@@ -34,7 +34,7 @@ Workflow: [`.github/workflows/deploy-hrms.yml`](../../.github/workflows/deploy-h
 
 ### One-time: SSH deploy key
 
-Same key as the API repo (or a dedicated Solar key). Public half on `root@178.92.120.191` `authorized_keys`.
+Same key as the API repo. Public half on `root@135.125.222.22:20130` `authorized_keys`.
 
 ### GitHub repo secrets / variables
 
@@ -42,21 +42,19 @@ Repo → **Settings → Secrets and variables → Actions** (`rvchauhan99/techhi
 
 | Name | Type | Notes |
 |------|------|--------|
-| `VULTR_SSH_PRIVATE_KEY` | **Secret** (required) | Private half authorized for `root@178.92.120.191` |
-| `VULTR_HOST` | Variable (optional) | Defaults to `178.92.120.191` |
+| `VULTR_SSH_PRIVATE_KEY` | **Secret** (required) | Private half authorized for `root@135.125.222.22:20130` |
+| `VULTR_HOST` | Variable (optional) | Defaults to `135.125.222.22` |
+| `VULTR_SSH_PORT` | Variable (optional) | Defaults to `20130` |
 | `VULTR_USER` | Variable (optional) | Defaults to `root` |
-| `VULTR_HEALTH_URL` | Variable (optional) | Defaults to `https://solar.178.92.120.191.sslip.io/auth/login` |
+| `VULTR_HEALTH_URL` | Variable (optional) | Defaults to `https://hrms.ladat.in/auth/login` |
 
 Do **not** put `NEXT_PUBLIC_*` in Actions — they stay on the VPS.
 
 ### Verify
 
 ```bash
-curl -sSI https://solar.178.92.120.191.sslip.io/
-# Location: https://solar.178.92.120.191.sslip.io/auth/login  (not localhost)
-
-curl -sSI https://solar.178.92.120.191.sslip.io/auth/login
-# HTTP/2 200
+ssh -p 20130 root@135.125.222.22 'curl -sSI http://127.0.0.1:3000/'
+curl -sSI https://hrms.ladat.in/auth/login
 ```
 
 ## Safety

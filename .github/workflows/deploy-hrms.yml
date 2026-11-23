@@ -29,9 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VULTR_HOST: ${{ vars.VULTR_HOST || '178.92.120.191' }}
+      VULTR_HOST: ${{ vars.VULTR_HOST || '135.125.222.22' }}
       VULTR_USER: ${{ vars.VULTR_USER || 'root' }}
-      VULTR_HEALTH_URL: ${{ vars.VULTR_HEALTH_URL || 'https://solar.178.92.120.191.sslip.io/auth/login' }}
+      VULTR_SSH_PORT: ${{ vars.VULTR_SSH_PORT || '20130' }}
+      VULTR_HEALTH_URL: ${{ vars.VULTR_HEALTH_URL || 'https://hrms.ladat.in/auth/login' }}
       SKIP_ENV_SYNC: "1"
 
     steps:
@@ -46,33 +47,52 @@ jobs:
       - name: Add VPS host key
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${VULTR_HOST}" >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -p "${VULTR_SSH_PORT}" -H "${VULTR_HOST}" >> ~/.ssh/known_hosts
+          cat >> ~/.ssh/config <<EOF
+          Host ${VULTR_HOST}
+            HostName ${VULTR_HOST}
+            Port ${VULTR_SSH_PORT}
+            User ${VULTR_USER}
+            StrictHostKeyChecking accept-new
+          EOF
+          # Flatten accidental leading spaces from YAML indent in heredoc
+          sed -i 's/^[[:space:]]\+//' ~/.ssh/config
+          chmod 600 ~/.ssh/config
 
       - name: Deploy via deploy.sh
         run: |
           set -euo pipefail
           chmod +x deploy/vps/deploy.sh
+          export VULTR_SSH_PORT
           ./deploy/vps/deploy.sh "${VULTR_USER}@${VULTR_HOST}"
 
-      - name: Public health check
+      - name: Health check (local on VPS + public)
         run: |
           set -euo pipefail
-          echo "Health: ${VULTR_HEALTH_URL}"
+          echo "==> Local web health via SSH"
           for i in 1 2 3 4 5 6 7 8 9 10; do
-            CODE="$(curl -sS -o /tmp/solar-web-login.html -w '%{http_code}' --max-time 20 "${VULTR_HEALTH_URL}" || true)"
+            CODE="$(ssh -p "${VULTR_SSH_PORT}" "${VULTR_USER}@${VULTR_HOST}" "curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -L http://127.0.0.1:3000/auth/login" || true)"
             if [[ "$CODE" == "200" ]]; then
-              echo "login HTTP ${CODE}"
-              # Ensure root redirect is not localhost
-              LOC="$(curl -sSI --max-time 20 "https://solar.178.92.120.191.sslip.io/" | tr -d '\r' | awk 'tolower($1)=="location:"{print $2; exit}')"
+              echo "local login HTTP ${CODE}"
+              LOC="$(ssh -p "${VULTR_SSH_PORT}" "${VULTR_USER}@${VULTR_HOST}" 'curl -sSI --max-time 10 http://127.0.0.1:3000/' | tr -d '\r' | awk 'tolower($1)=="location:"{print $2; exit}')"
               echo "root Location: ${LOC}"
               if echo "${LOC}" | grep -qi 'localhost\|127\.0\.0\.1'; then
                 echo "FAIL: redirect still points at loopback"
                 exit 1
               fi
-              exit 0
+              break
             fi
-            echo "Attempt ${i}: HTTP ${CODE}; retrying..."
-            sleep 10
+            echo "Attempt ${i}: local HTTP ${CODE}; retrying..."
+            sleep 5
+            if [[ "$i" == "10" ]]; then
+              echo "Local health check failed"
+              exit 1
+            fi
           done
-          echo "Public health check failed"
-          exit 1
+          echo "Public Health: ${VULTR_HEALTH_URL}"
+          PUB="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "${VULTR_HEALTH_URL}" || true)"
+          echo "Public HTTP ${PUB}"
+          if [[ "$PUB" != "200" ]]; then
+            echo "WARN: public health not 200 yet (DNS/TLS cutover). Local check passed — deploy OK."
+          fi
