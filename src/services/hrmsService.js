@@ -378,6 +378,33 @@ export const getCandidateMeta = () =>
 export const listCandidates = (params) =>
   apiClient.get("/hrms/candidates", { params }).then((r) => r.data);
 
+export const getCandidatePipelineSummary = () =>
+  apiClient.get("/hrms/candidates/pipeline-summary").then((r) => r.data);
+
+export const getCandidateFormLink = (params) =>
+  apiClient.get("/hrms/candidates/form-link", { params }).then((r) => r.data);
+
+export const downloadCandidateImportTemplate = () =>
+  apiClient
+    .get("/hrms/candidates/import/template", { responseType: "blob" })
+    .then((r) => r.data);
+
+export const importCandidatesFile = (file) => {
+  const form = new FormData();
+  form.append("file", file);
+  return apiClient
+    .post("/hrms/candidates/import", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const patchCandidateEval = (id, payload) =>
+  apiClient.patch(`/hrms/candidates/${id}/eval`, payload).then((r) => r.data);
+
+export const patchCandidateOfferLetter = (id, payload) =>
+  apiClient.patch(`/hrms/candidates/${id}/offer-letter`, payload).then((r) => r.data);
+
 export const getCandidate = (id) =>
   apiClient.get(`/hrms/candidates/${id}`).then((r) => r.data);
 
@@ -398,6 +425,19 @@ export const deleteCandidate = (id) =>
 
 export const onboardCandidate = (id, payload) =>
   apiClient.post(`/hrms/candidates/${id}/onboard`, payload).then((r) => r.data);
+
+export const uploadCandidateResume = (id, file) => {
+  const form = new FormData();
+  form.append("resume", file);
+  return apiClient
+    .post(`/hrms/candidates/${id}/resume`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    .then((r) => r.data);
+};
+
+export const acceptCandidateOffer = (id, payload = {}) =>
+  apiClient.post(`/hrms/candidates/${id}/accept-offer`, payload).then((r) => r.data);
 
 export const getInterviewMeta = () =>
   apiClient.get("/hrms/interviews/meta").then((r) => r.data);
@@ -639,13 +679,21 @@ const hrmsService = {
   deletePosition,
   getCandidateMeta,
   listCandidates,
+  getCandidatePipelineSummary,
+  getCandidateFormLink,
+  downloadCandidateImportTemplate,
+  importCandidatesFile,
   getCandidate,
   listCandidateActivities,
   createCandidate,
   updateCandidate,
   patchCandidateStage,
+  patchCandidateEval,
+  patchCandidateOfferLetter,
   deleteCandidate,
   onboardCandidate,
+  uploadCandidateResume,
+  acceptCandidateOffer,
   getInterviewMeta,
   listInterviews,
   exportInterviews,

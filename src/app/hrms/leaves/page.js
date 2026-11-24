@@ -22,7 +22,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import Input from "@/components/common/Input";
 import Textarea from "@/components/common/Textarea";
 import useModulePermission from "@/hooks/useModulePermission";
@@ -65,9 +64,15 @@ function formatBalanceSummary(balancePayload) {
 export default function HrmsLeavesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const [filters, setFilters] = useState({ status: "", emergency: "", leave_type_id: "", from: "", to: "" });
+  const [filters, setFilters] = useState({
+    status: "",
+    emergency: "",
+    leave_type_id: "",
+    from: "",
+    to: "",
+    search: "",
+  });
   const [tableKey, setTableKey] = useState(0);
-  const [listTotal, setListTotal] = useState(null);
   const [leaveTypes, setLeaveTypes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [actionTarget, setActionTarget] = useState(null);
@@ -166,7 +171,7 @@ export default function HrmsLeavesPage() {
       const res = await hrmsService.listLeaves({
         page: params.page,
         limit: params.limit,
-        search: params.q || undefined,
+        search: params.search || params.q || undefined,
         status: params.status || undefined,
         leave_type_id: params.leave_type_id || undefined,
         from: params.from || undefined,
@@ -218,6 +223,9 @@ export default function HrmsLeavesPage() {
         field: "user",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "search",
+        defaultFilterOperator: "contains",
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
@@ -426,30 +434,11 @@ export default function HrmsLeavesPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={hasActiveFilters ? "matching filters" : undefined} />
-              {hasActiveFilters ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  onClick={() => {
-                    setFilters({ status: "", emergency: "", leave_type_id: "", from: "", to: "" });
-                    setTableKey((k) => k + 1);
-                  }}
-                >
-                  <IconFilterOff className="size-3.5" /> Clear filters
-                </Button>
-              ) : null}
-            </>
-          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));

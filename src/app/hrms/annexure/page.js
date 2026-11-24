@@ -9,7 +9,6 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
@@ -45,8 +44,7 @@ export default function HrmsAnnexureLandingPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "active", department_id: "" });
-  const [listTotal, setListTotal] = useState(null);
+  const [filters, setFilters] = useState({ status: "active", department_id: "", q: "" });
   const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
@@ -70,7 +68,7 @@ export default function HrmsAnnexureLandingPage() {
       const res = await hrmsService.listEmployees({
         page,
         limit,
-        search: q || undefined,
+        search: filters.q || q || undefined,
         status: filters.status || undefined,
         department_id: filters.department_id || undefined,
       });
@@ -89,12 +87,18 @@ export default function HrmsAnnexureLandingPage() {
         field: "name",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "q",
+        defaultFilterOperator: "contains",
         render: (row) => <EmployeeCell row={row} />,
       },
       {
         field: "department",
         label: "Department",
         sortable: false,
+        filterType: "select",
+        filterKey: "department_id",
+        filterOptions: deptOptions,
         render: (row) => row.department?.title || <span className="text-muted-foreground">—</span>,
       },
       {
@@ -137,7 +141,7 @@ export default function HrmsAnnexureLandingPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router]
+    [router, deptOptions]
   );
 
   if (!perm.can_read) {
@@ -157,39 +161,10 @@ export default function HrmsAnnexureLandingPage() {
       <ListingPageContainer
         title="Annexure"
         subtitle="Select an employee to view or edit salary CTC breakup and increments"
-        filterConfig={[
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "pending", label: "Pending" },
-              { value: "active", label: "Active" },
-              { value: "disabled", label: "Disabled" },
-            ],
-          },
-          { key: "department_id", label: "Department", type: "select", options: deptOptions },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "active", department_id: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -198,7 +173,7 @@ export default function HrmsAnnexureLandingPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
           emptyState={
             <EmptyState

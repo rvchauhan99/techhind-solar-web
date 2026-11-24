@@ -27,7 +27,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import Textarea from "@/components/common/Textarea";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -41,8 +40,7 @@ export default function HrmsCompensatoryPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "" });
-  const [listTotal, setListTotal] = useState(null);
+  const [filters, setFilters] = useState({ status: "", search: "" });
   const [decision, setDecision] = useState(null); // { row, action: "approve" | "reject" }
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -64,11 +62,12 @@ export default function HrmsCompensatoryPage() {
 
   const fetcher = useMemo(
     () =>
-      async ({ page, limit }) => {
+      async ({ page, limit, search, q }) => {
         const res = await hrmsService.listCompensatory({
           page,
           limit,
           status: filters.status || undefined,
+          search: filters.search || search || q || undefined,
         });
         const payload = unwrap(res);
         const rows = payload?.data || [];
@@ -114,6 +113,9 @@ export default function HrmsCompensatoryPage() {
         field: "employee_name",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "search",
+        defaultFilterOperator: "contains",
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name || "—"}</span>
@@ -203,30 +205,8 @@ export default function HrmsCompensatoryPage() {
             </Button>
           ) : null
         }
-        filterConfig={[
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "pending", label: "Pending" },
-              { value: "approved", label: "Approved" },
-              { value: "rejected", label: "Rejected" },
-            ],
-          },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
-        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2">
           <StatCard
             compact
             icon={<IconClock size={16} />}
@@ -243,30 +223,13 @@ export default function HrmsCompensatoryPage() {
             accentColor="#00823b"
             subLabel="Approved comp-off days"
           />
-          <StatCard
-            compact
-            icon={<IconArrowsExchange size={16} />}
-            label="Filter"
-            value={filters.status || "All"}
-            accentColor="#1b365d"
-            subLabel="Current status filter"
-          />
         </div>
 
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-
-            </>
-          }
 
           key={tableKey}
-
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -275,6 +238,7 @@ export default function HrmsCompensatoryPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
+          showSearch={false}
           height="100%"
           initialSortBy="worked_date"
           initialSortOrder="desc"

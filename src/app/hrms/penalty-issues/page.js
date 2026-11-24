@@ -27,7 +27,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import Loader from "@/components/common/Loader";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -51,7 +50,6 @@ export default function HrmsPenaltyIssuesPage() {
 
   const [tableKey, setTableKey] = useState(0);
   const [filters, setFilters] = useState({ month: THIS_MONTH, status: "", employee_id: "", penalty_id: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [penalties, setPenalties] = useState([]);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -221,6 +219,16 @@ export default function HrmsPenaltyIssuesPage() {
     }
   };
 
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleString("en", { month: "short", year: "numeric" });
+      return { value, label };
+    });
+  }, []);
+
   const columns = useMemo(
     () => [
       {
@@ -248,7 +256,14 @@ export default function HrmsPenaltyIssuesPage() {
         filterOptions: penaltyFilterOptions,
         render: (row) => <span>{row.penalty_title || "—"}</span>,
       },
-      { field: "penalty_month", label: "Month", sortable: true },
+      {
+        field: "penalty_month",
+        label: "Month",
+        sortable: true,
+        filterType: "select",
+        filterKey: "month",
+        filterOptions: monthOptions,
+      },
       {
         field: "amount",
         label: "Amount",
@@ -307,34 +322,7 @@ export default function HrmsPenaltyIssuesPage() {
         ),
       },
     ],
-    [perm.can_update, employeeFilterOptions, penaltyFilterOptions, handleOpenEditModal]
-  );
-
-  const monthOptions = useMemo(() => {
-    const now = new Date();
-    // Previous 12 months, newest first — the months payroll actually uses.
-    return Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleString("en", { month: "short", year: "numeric" });
-      return { value, label };
-    });
-  }, []);
-
-  const filterConfig = useMemo(
-    () => [
-      { key: "month", label: "Month", type: "select", options: monthOptions },
-      {
-        key: "status",
-        label: "Status",
-        type: "select",
-        options: [
-          { value: "active", label: "Active" },
-          { value: "cancelled", label: "Cancelled" },
-        ],
-      },
-    ],
-    [monthOptions]
+    [perm.can_update, employeeFilterOptions, penaltyFilterOptions, handleOpenEditModal, monthOptions]
   );
 
   return (
@@ -354,17 +342,6 @@ export default function HrmsPenaltyIssuesPage() {
             )}
           </div>
         }
-        filterConfig={filterConfig}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ month: THIS_MONTH, status: "", employee_id: "", penalty_id: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
@@ -396,13 +373,7 @@ export default function HrmsPenaltyIssuesPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -411,6 +382,7 @@ export default function HrmsPenaltyIssuesPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
+          showSearch={false}
           height="100%"
           initialSortBy="penalty_month"
           initialSortOrder="desc"

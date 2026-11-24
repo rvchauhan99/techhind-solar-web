@@ -19,7 +19,6 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -58,7 +57,6 @@ export default function HrmsInterviewsPage() {
   const perm = useModulePermission(MODULE_KEY);
   const [meta, setMeta] = useState({ rounds: [], statuses: [] });
   const [filters, setFilters] = useState({ round: "", status: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -161,6 +159,9 @@ export default function HrmsInterviewsPage() {
         field: "round",
         label: "Round",
         sortable: false,
+        filterType: "select",
+        filterKey: "round",
+        filterOptions: roundOptions,
         render: (row) => row.round_label || `R${row.round}`,
       },
       {
@@ -229,7 +230,7 @@ export default function HrmsInterviewsPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router]
+    [perm.can_update, perm.can_delete, router, roundOptions, statusOptions]
   );
 
   return (
@@ -244,30 +245,10 @@ export default function HrmsInterviewsPage() {
             <IconDownload className="size-4" /> Export
           </Button>
         }
-        filterConfig={[
-          { key: "round", label: "Round", type: "select", options: roundOptions },
-          { key: "status", label: "Status", type: "select", options: statusOptions },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ round: "", status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -276,7 +257,7 @@ export default function HrmsInterviewsPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
           emptyState={
             <EmptyState

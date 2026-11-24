@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { IconPencil, IconTrash, IconBriefcase } from "@tabler/icons-react";
@@ -19,8 +19,8 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
+import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
@@ -32,32 +32,64 @@ const STATUS_OPTIONS = [
   { value: "inactive", label: "Inactive" },
 ];
 
+function formatUpdatedAt(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function HrmsPositionsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const [filters, setFilters] = useState({ status: "" });
-  const [listTotal, setListTotal] = useState(null);
+  const list = useListTableState({ filters: { status: "", title: "", branch_id: "" } });
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [branches, setBranches] = useState([]);
 
-  const fetcher = useMemo(
+  useEffect(() => {
+    hrmsService
+      .getPositionMeta()
+      .then((res) => setBranches(unwrap(res)?.branches || []))
+      .catch(() => setBranches([]));
+  }, []);
+
+  const branchOptions = useMemo(
     () =>
-      async ({ page, limit, q }) => {
-        const res = await hrmsService.listPositions({
-          page,
-          limit,
-          search: q || undefined,
-          status: filters.status || undefined,
-        });
-        const payload = unwrap(res);
-        const rows = payload?.data || [];
-        const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
-        return { data: rows, meta };
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+      (branches || []).map((b) => ({
+        value: String(b.id ?? b.value),
+        label: b.name || b.label || `Branch #${b.id}`,
+      })),
+    [branches]
   );
+
+  const fetcher = useCallback(async (params) => {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.max(1, Number(params.limit) || 20);
+    const res = await hrmsService.listPositions({
+      page,
+      limit,
+      search: params.title || params.q || undefined,
+      search_op: params.title_op || undefined,
+      status: params.status || undefined,
+      branch_id: params.branch_id || undefined,
+    });
+    const payload = unwrap(res);
+    const rows = payload?.data || [];
+    const meta = payload?.meta || { total: rows.length, page, pages: 1, limit };
+    const data = rows.map((row, i) => ({
+      ...row,
+      _sr: (page - 1) * limit + i + 1,
+    }));
+    return { data, meta };
+  }, []);
 
   const onDelete = async () => {
     if (!deleteTarget) return;
@@ -77,15 +109,27 @@ export default function HrmsPositionsPage() {
   const columns = useMemo(
     () => [
       {
-        field: "title",
-        label: "Title",
+        field: "_sr",
+        label: "Sr.No.",
         sortable: false,
+        render: (row) => row._sr ?? "—",
+      },
+      {
+        field: "title",
+        label: "Position",
+        sortable: false,
+        filterType: "text",
+        filterKey: "title",
+        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
         field: "branches",
-        label: "Branches",
+        label: "Branch",
         sortable: false,
+        filterType: "select",
+        filterKey: "branch_id",
+        filterOptions: branchOptions,
         render: (row) =>
           (row.branch_titles || []).length ? row.branch_titles.join(", ") : "—",
       },
@@ -97,6 +141,18 @@ export default function HrmsPositionsPage() {
         filterKey: "status",
         filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
+      },
+      {
+        field: "updated_by_name",
+        label: "Updated By",
+        sortable: false,
+        render: (row) => row.updated_by_name || "—",
+      },
+      {
+        field: "updated_at",
+        label: "Updated Date & Time",
+        sortable: false,
+        render: (row) => formatUpdatedAt(row.updated_at || row.created_at),
       },
       {
         field: "actions",
@@ -130,7 +186,7 @@ export default function HrmsPositionsPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router]
+    [perm.can_update, perm.can_delete, router, branchOptions]
   );
 
   return (
@@ -140,47 +196,40 @@ export default function HrmsPositionsPage() {
         subtitle="Hiring roles with branch targeting"
         addButtonLabel={perm.can_create ? "Add position" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/positions/add") : undefined}
-        filterConfig={[{ key: "status", label: "Status", type: "select", options: STATUS_OPTIONS }]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
-          key={tableKey}
-          onTotalChange={setListTotal}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch
-          height="100%"
-          emptyState={
-            <EmptyState
-              icon={IconBriefcase}
-              title="No open positions"
-              description="Create a position and assign one or more branches."
-              actionLabel={perm.can_create ? "Add position" : undefined}
-              onAction={perm.can_create ? () => router.push("/hrms/positions/add") : undefined}
-            />
-          }
-        />
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            columnFilterValues={list.filters}
+            onColumnFilterChange={list.setFilter}
+            filterParams={list.filters}
+            page={list.page}
+            limit={list.limit}
+            q={list.q}
+            sortBy={list.sortBy}
+            sortOrder={list.sortOrder}
+            onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
+            onRowsPerPageChange={list.setLimit}
+            onQChange={list.setQ}
+            onSortChange={list.setSort}
+            emptyState={
+              <EmptyState
+                icon={IconBriefcase}
+                title={list.activeFilterCount ? "No positions match this filter" : "No open positions"}
+                description={
+                  list.activeFilterCount
+                    ? "Try clearing the filters to see all positions."
+                    : "Create a position and assign one or more branches."
+                }
+                actionLabel={perm.can_create ? "Add position" : undefined}
+                onAction={perm.can_create ? () => router.push("/hrms/positions/add") : undefined}
+              />
+            }
+          />
         </div>
 
         <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

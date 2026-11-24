@@ -24,7 +24,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import Loader from "@/components/common/Loader";
 import Input from "@/components/common/Input";
 import useModulePermission from "@/hooks/useModulePermission";
@@ -53,7 +52,6 @@ export default function HrmsHolidaysPage() {
     sortBy: "holiday_date",
     sortOrder: "asc",
   });
-  const [listTotal, setListTotal] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
@@ -357,22 +355,11 @@ export default function HrmsHolidaysPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={list.activeFilterCount ? "matching filters" : undefined} />
-              {list.activeFilterCount > 0 ? (
-                <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => list.clearFilters()}>
-                  <IconFilterOff className="size-3.5" /> Clear filters
-                </Button>
-              ) : null}
-            </>
-          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
-          onTotalChange={setListTotal}
           columnFilterValues={list.filters}
           onColumnFilterChange={list.setFilter}
           filterParams={list.filters}

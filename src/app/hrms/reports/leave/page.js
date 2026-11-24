@@ -6,7 +6,6 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import { IconFileSpreadsheet } from "@tabler/icons-react";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -25,23 +24,25 @@ const KIND_OPTIONS = [
 ];
 
 export default function HrmsLeaveReportPage() {
-  const [filters, setFilters] = useState({ status: "", emergency: "" });
-  const [listTotal, setListTotal] = useState(null);
+  const [filters, setFilters] = useState({ status: "", emergency: "", search: "" });
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
 
   const fetcher = useMemo(
-    () => async ({ page, limit, q }) => {
+    () => async (params) => {
       const res = await hrmsService.listLeaveReport({
-        page,
-        limit,
-        search: q || undefined,
-        status: filters.status || undefined,
-        is_emergency: filters.emergency === "" ? undefined : filters.emergency === "true",
+        page: params.page,
+        limit: params.limit,
+        search: params.search || params.q || undefined,
+        status: params.status || undefined,
+        is_emergency:
+          params.emergency == null || params.emergency === ""
+            ? undefined
+            : params.emergency === "true",
       });
       const payload = unwrap(res);
       const rows = payload?.data || [];
-      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
       return { data: rows, meta };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,6 +53,7 @@ export default function HrmsLeaveReportPage() {
     setBusy(true);
     try {
       const blob = await hrmsService.exportLeaveReport({
+        search: filters.search || undefined,
         status: filters.status || undefined,
         is_emergency: filters.emergency === "" ? undefined : filters.emergency === "true",
       });
@@ -75,6 +77,9 @@ export default function HrmsLeaveReportPage() {
         field: "user",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "search",
+        defaultFilterOperator: "contains",
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
@@ -120,30 +125,10 @@ export default function HrmsLeaveReportPage() {
         exportButtonLabel="Download Excel"
         onExportClick={onExport}
         exportLoading={busy}
-        filterConfig={[
-          { key: "status", label: "Status", type: "select", options: STATUS_OPTIONS },
-          { key: "emergency", label: "Planned / Emergency", type: "select", options: KIND_OPTIONS },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "", emergency: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -152,7 +137,7 @@ export default function HrmsLeaveReportPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
           emptyState={
             <EmptyState

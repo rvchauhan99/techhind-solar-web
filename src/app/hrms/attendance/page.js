@@ -24,7 +24,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { useAuth } from "@/hooks/useAuth";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -47,7 +46,6 @@ export default function HrmsAttendancePage() {
   const [month, setMonth] = useState(String(NOW.getMonth() + 1));
   const [status, setStatus] = useState("");
   const [tableKey, setTableKey] = useState(0);
-  const [listTotal, setListTotal] = useState(null);
   const [myStatus, setMyStatus] = useState(null);
   const [punching, setPunching] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -415,17 +413,11 @@ export default function HrmsAttendancePage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={status ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
           showSearch={false}
           height="100%"
-          onTotalChange={setListTotal}
           columnFilterValues={{ status }}
           onColumnFilterChange={(key, value) => {
             if (key === "status") {

@@ -7,7 +7,6 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
@@ -29,7 +28,6 @@ export default function HrmsLeaveBalanceApprovalsPage() {
   useModulePermission(MODULE_KEY);
   const fyDefault = String(currentFyYear());
   const [filters, setFilters] = useState({ fy_year: fyDefault, status: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
 
   const fyOptions = useMemo(() => {
@@ -76,6 +74,9 @@ export default function HrmsLeaveBalanceApprovalsPage() {
         field: "fy_year",
         label: "FY",
         sortable: false,
+        filterType: "select",
+        filterKey: "fy_year",
+        filterOptions: fyOptions,
         render: (row) =>
           row.fy_year
             ? `FY ${row.fy_year}-${String(row.fy_year + 1).slice(-2)}`
@@ -111,7 +112,7 @@ export default function HrmsLeaveBalanceApprovalsPage() {
           row.decided_at ? new Date(row.decided_at).toLocaleString("en-IN") : "—",
       },
     ],
-    []
+    [fyOptions]
   );
 
   return (
@@ -119,30 +120,10 @@ export default function HrmsLeaveBalanceApprovalsPage() {
       <ListingPageContainer
         title="Leave balance approvals"
         subtitle="Employee confirmations and disputes of financial-year leave balance"
-        filterConfig={[
-          { key: "fy_year", label: "Financial year", type: "select", options: fyOptions },
-          { key: "status", label: "Status", type: "select", options: STATUS_OPTIONS },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ fy_year: fyDefault, status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));

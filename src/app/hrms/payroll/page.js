@@ -29,7 +29,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -56,7 +55,6 @@ export default function HrmsPayrollPage() {
   const perm = useModulePermission(MODULE_KEY);
   const months = useMemo(monthOptions, []);
   const [filters, setFilters] = useState({ month: months[0].value, is_acknowledged: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [summary, setSummary] = useState({ employees: null, totalNet: null, totalDeductions: null });
   const [runOpen, setRunOpen] = useState(false);
@@ -152,6 +150,18 @@ export default function HrmsPayrollPage() {
   const columns = useMemo(
     () => [
       {
+        field: "salary_month",
+        label: "Month",
+        sortable: true,
+        filterType: "select",
+        filterKey: "month",
+        filterOptions: months,
+        render: (row) =>
+          row.salary_month
+            ? new Date(`${row.salary_month}-01`).toLocaleString("en", { month: "short", year: "numeric" })
+            : "—",
+      },
+      {
         field: "employee_name",
         label: "Employee",
         sortable: false,
@@ -231,7 +241,7 @@ export default function HrmsPayrollPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router]
+    [router, months]
   );
 
   return (
@@ -254,28 +264,6 @@ export default function HrmsPayrollPage() {
             )}
           </div>
         }
-        filterConfig={[
-          { key: "month", label: "Month", type: "select", options: months },
-          {
-            key: "is_acknowledged",
-            label: "Acknowledged",
-            type: "select",
-            options: [
-              { value: "true", label: "Acknowledged" },
-              { value: "false", label: "Pending" },
-            ],
-          },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ month: months[0].value, is_acknowledged: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
@@ -307,17 +295,8 @@ export default function HrmsPayrollPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-
-            </>
-          }
 
           key={tableKey}
-
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -326,6 +305,7 @@ export default function HrmsPayrollPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
+          showSearch={false}
           height="100%"
           initialSortBy="net_amount"
           initialSortOrder="desc"

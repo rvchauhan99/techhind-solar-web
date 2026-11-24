@@ -9,14 +9,12 @@ import ListingPageContainer from "@/components/common/ListingPageContainer";
 import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
 
 export default function PayrollRunsPage() {
   const router = useRouter();
   const [filters, setFilters] = useState({ status: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
 
   const columns = useMemo(
@@ -89,39 +87,10 @@ export default function PayrollRunsPage() {
             <IconArrowLeft className="size-4" /> Back to payroll
           </Button>
         }
-        filterConfig={[
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "completed", label: "Completed" },
-              { value: "failed", label: "Failed" },
-              { value: "running", label: "Running" },
-              { value: "queued", label: "Queued" },
-            ],
-          },
-        ]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-            </>
-          }
           key={tableKey}
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
@@ -130,6 +99,7 @@ export default function PayrollRunsPage() {
           filterParams={filters}
           columns={columns}
           fetcher={fetcher}
+          showSearch={false}
           height="100%"
           initialSortBy="id"
           initialSortOrder="desc"

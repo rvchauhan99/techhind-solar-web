@@ -14,7 +14,10 @@ import * as hrmsService from "@/services/hrmsService";
 
 const GROUPS = [
   { title: "People", keys: ["hrms_employees", "hrms_departments", "hrms_designations"] },
-  { title: "Hiring", keys: ["hrms_positions", "hrms_candidates", "hrms_interviews"] },
+  {
+    title: "Recruitment (links)",
+    keys: ["hrms_recruitment", "hrms_positions", "hrms_candidates"],
+  },
   {
     title: "Time & Attendance",
     keys: ["hrms_attendance", "hrms_attendance_requests", "hrms_attendance_settings"],
@@ -47,8 +50,9 @@ const DESCRIPTIONS = {
   hrms_employees: "Employee master, profiles and status",
   hrms_departments: "Departments and department heads",
   hrms_designations: "Job titles mapped to departments",
-  hrms_positions: "Open hiring roles by branch",
-  hrms_candidates: "Applicants linked to open positions",
+  hrms_recruitment: "Recruitment hub — positions, pipeline, interviews",
+  hrms_positions: "Open hiring roles",
+  hrms_candidates: "Candidate pipeline with screening and evaluation",
   hrms_interviews: "Schedule interview rounds for candidates",
   hrms_attendance: "Punch records and monthly attendance",
   hrms_attendance_requests: "Correction requests with L1 → L2 approval",
@@ -83,10 +87,24 @@ export default function HrmsHubPage() {
   const { user } = useAuth();
   const [counts, setCounts] = useState({});
 
-  const tiles = useMemo(
-    () => ((user?.modules || []).find((m) => m.key === "hrms")?.submodules || []).filter((m) => m?.route),
-    [user?.modules]
-  );
+  const tiles = useMemo(() => {
+    const root = (user?.modules || []).find((m) => m.key === "hrms");
+    const out = [];
+    const walk = (nodes) => {
+      for (const n of nodes || []) {
+        if (n?.route) out.push(n);
+        if (Array.isArray(n?.submodules) && n.submodules.length) walk(n.submodules);
+      }
+    };
+    walk(root?.submodules || []);
+    // de-dupe by key
+    const seen = new Set();
+    return out.filter((m) => {
+      if (!m?.key || seen.has(m.key)) return false;
+      seen.add(m.key);
+      return true;
+    });
+  }, [user?.modules]);
   const tilesKey = tiles.map((t) => t.key).join(",");
 
   useEffect(() => {

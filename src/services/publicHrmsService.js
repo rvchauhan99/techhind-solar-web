@@ -72,3 +72,24 @@ export async function submitPublicApplication(payload) {
   });
   return parseResponse(res);
 }
+
+export async function getPublicInterviewForm(token) {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/public/hrms/interview-form/${encodeURIComponent(token)}`, {
+    method: "GET",
+    headers: tenantHeaders(),
+    cache: "no-store",
+  });
+  return parseResponse(res);
+}
+
+export async function submitPublicInterviewForm(token, payload) {
+  const base = getApiBaseUrl();
+  const res = await fetch(`${base}/public/hrms/interview-form/${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: tenantHeaders({ json: true }),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  return parseResponse(res);
+}

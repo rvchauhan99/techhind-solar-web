@@ -12,14 +12,50 @@ import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
+import DateTimeField from "@/components/common/DateTimeField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
-import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
+import { toastSuccess, toastErrorFromApi, toastInfo } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+
+function extractFromResumeText(text) {
+  const out = {};
+  if (!text) return out;
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (email) out.email = email[0];
+  const mobile = text.match(/(?:\+91[\s-]?)?[6-9]\d{9}/);
+  if (mobile) out.mobile = mobile[0].replace(/\D/g, "").slice(-10);
+  const nameLine = text
+    .split(/\n/)
+    .map((l) => l.trim())
+    .find((l) => l && l.length < 60 && /^[A-Za-z][A-Za-z .'-]+$/.test(l));
+  if (nameLine) {
+    const parts = nameLine.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      out.first_name = parts[0];
+      out.last_name = parts.slice(1).join(" ");
+    }
+  }
+  return out;
+}
+
+async function readResumeAutofill(file) {
+  const name = String(file.name || "").toLowerCase();
+  if (name.endsWith(".txt") || file.type.startsWith("text/")) {
+    const text = await file.text();
+    return extractFromResumeText(text);
+  }
+  // Best-effort: read binary as latin1 and regex email/phone (works for many PDFs)
+  const buf = await file.arrayBuffer();
+  const text = new TextDecoder("latin1").decode(buf);
+  return extractFromResumeText(text);
+}
 
 export default function HrmsCandidateAddPage() {
   const router = useRouter();
   const [positions, setPositions] = useState([]);
+  const [interviewers, setInterviewers] = useState([]);
+  const [resumeFile, setResumeFile] = useState(null);
   const [form, setForm] = useState({
     position_id: "",
     first_name: "",
@@ -28,6 +64,9 @@ export default function HrmsCandidateAddPage() {
     mobile: "",
     reference: "",
     notes: "",
+    interview_datetime: "",
+    taken_by: "",
+    job_desc_snapshot: "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -37,11 +76,50 @@ export default function HrmsCandidateAddPage() {
       .getCandidateMeta()
       .then((res) => setPositions(unwrap(res)?.positions || []))
       .catch(() => setPositions([]));
+    hrmsService
+      .listEmployees({ page: 1, limit: 200, status: "active" })
+      .then((res) => {
+        const payload = unwrap(res);
+        setInterviewers(payload?.data || []);
+      })
+      .catch(() => setInterviewers([]));
   }, []);
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
+  };
+
+  const onPositionChange = (positionId) => {
+    setField("position_id", positionId);
+    const pos = positions.find((p) => String(p.id ?? p.value) === String(positionId));
+    if (pos?.job_description) setField("job_desc_snapshot", pos.job_description);
+  };
+
+  const onResumePick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toastInfo("Resume must be 2MB or smaller");
+      return;
+    }
+    setResumeFile(file);
+    try {
+      const filled = await readResumeAutofill(file);
+      setForm((f) => ({
+        ...f,
+        first_name: filled.first_name || f.first_name,
+        last_name: filled.last_name || f.last_name,
+        email: filled.email || f.email,
+        mobile: filled.mobile || f.mobile,
+      }));
+      if (filled.email || filled.mobile || filled.first_name) {
+        toastInfo("Resume fields auto-filled where detected");
+      }
+    } catch (_) {
+      /* ignore OCR failures */
+    }
   };
 
   const onSubmit = async (e) => {
@@ -52,22 +130,35 @@ export default function HrmsCandidateAddPage() {
     if (!form.last_name.trim()) errs.last_name = "Last name is required";
     if (!form.email.trim()) errs.email = "Email is required";
     if (!form.mobile.trim()) errs.mobile = "Mobile is required";
+    else if (!/^\d{10}$/.test(form.mobile.trim())) errs.mobile = "Mobile must be 10 digits";
+    if (!form.reference.trim()) errs.reference = "Reference is required";
+    if (!resumeFile) errs.resume = "Resume is required";
+    if (!form.interview_datetime) errs.interview_datetime = "Interview date & time is required";
+    if (!form.taken_by) errs.taken_by = "First interviewer is required";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     setSaving(true);
     try {
-      await hrmsService.createCandidate({
+      const createdRes = await hrmsService.createCandidate({
         position_id: Number(form.position_id),
         first_name: form.first_name.trim(),
         last_name: form.last_name.trim(),
         email: form.email.trim(),
         mobile: form.mobile.trim(),
-        reference: form.reference.trim() || null,
+        reference: form.reference.trim(),
         notes: form.notes.trim() || null,
+        interview_datetime: form.interview_datetime || null,
+        taken_by: form.taken_by ? Number(form.taken_by) : null,
+        job_desc_snapshot: form.job_desc_snapshot.trim() || null,
       });
+      const created = unwrap(createdRes) || createdRes;
+      const id = created?.id || created?.result?.id;
+      if (id && resumeFile) {
+        await hrmsService.uploadCandidateResume(id, resumeFile);
+      }
       toastSuccess("Candidate created");
-      router.push("/hrms/candidates");
+      router.push(id ? `/hrms/candidates/${id}` : "/hrms/candidates");
     } catch (err) {
       toastErrorFromApi(err, "Create failed");
     } finally {
@@ -83,7 +174,7 @@ export default function HrmsCandidateAddPage() {
             <FormSection
               variant="card"
               title="Candidate"
-              description="Linked to an active open position. Stage starts at Applied."
+              description="Linked to an active open position. Stage starts at Applied. Invite email is sent on create."
             >
               <FormGrid>
                 <FormField>
@@ -91,7 +182,7 @@ export default function HrmsCandidateAddPage() {
                     label="Position"
                     name="position_id"
                     value={form.position_id}
-                    onChange={(e) => setField("position_id", e.target.value)}
+                    onChange={(e) => onPositionChange(e.target.value)}
                     error={!!errors.position_id}
                     helperText={errors.position_id}
                     required
@@ -106,10 +197,21 @@ export default function HrmsCandidateAddPage() {
                 </FormField>
                 <FormField>
                   <Input
+                    label="Reference Portal/By"
+                    name="reference"
+                    value={form.reference}
+                    onChange={(e) => setField("reference", e.target.value)}
+                    error={!!errors.reference}
+                    helperText={errors.reference}
+                    required
+                  />
+                </FormField>
+                <FormField>
+                  <Input
                     label="First name"
                     name="first_name"
                     value={form.first_name}
-                    onChange={(e) => setField("first_name", e.target.value)}
+                    onChange={(e) => setField("first_name", e.target.value.replace(/[^A-Za-z .'-]/g, ""))}
                     error={!!errors.first_name}
                     helperText={errors.first_name}
                     required
@@ -120,7 +222,7 @@ export default function HrmsCandidateAddPage() {
                     label="Last name"
                     name="last_name"
                     value={form.last_name}
-                    onChange={(e) => setField("last_name", e.target.value)}
+                    onChange={(e) => setField("last_name", e.target.value.replace(/[^A-Za-z .'-]/g, ""))}
                     error={!!errors.last_name}
                     helperText={errors.last_name}
                     required
@@ -143,30 +245,79 @@ export default function HrmsCandidateAddPage() {
                     label="Mobile"
                     name="mobile"
                     value={form.mobile}
-                    onChange={(e) => setField("mobile", e.target.value)}
+                    onChange={(e) => setField("mobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
                     error={!!errors.mobile}
                     helperText={errors.mobile}
                     required
                   />
                 </FormField>
                 <FormField>
-                  <Input
-                    label="Reference"
-                    name="reference"
-                    value={form.reference}
-                    onChange={(e) => setField("reference", e.target.value)}
+                  <DateTimeField
+                    label="Interview Date and Time"
+                    name="interview_datetime"
+                    value={form.interview_datetime}
+                    onChange={(v) => setField("interview_datetime", v)}
+                    error={!!errors.interview_datetime}
+                    helperText={errors.interview_datetime}
+                    required
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="First Interview By"
+                    name="taken_by"
+                    value={form.taken_by}
+                    onChange={(e) => setField("taken_by", e.target.value)}
+                    error={!!errors.taken_by}
+                    helperText={errors.taken_by}
+                    required
+                  >
+                    <MenuItem value="">Select interviewer</MenuItem>
+                    {interviewers.map((u) => (
+                      <MenuItem key={u.id} value={String(u.user_id || u.id)}>
+                        {u.name || u.full_name || u.emp_code || `Employee #${u.id}`}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-foreground">
+                    Upload Resume <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf"
+                    className="block w-full text-sm"
+                    onChange={onResumePick}
+                  />
+                  {resumeFile ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{resumeFile.name}</p>
+                  ) : null}
+                  {errors.resume ? (
+                    <p className="mt-1 text-xs text-destructive">{errors.resume}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">PDF/DOC/DOCX, max 2MB</p>
+                  )}
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Job Description"
+                    name="job_desc_snapshot"
+                    value={form.job_desc_snapshot}
+                    onChange={(e) => setField("job_desc_snapshot", e.target.value)}
+                    rows={3}
+                  />
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Notes"
+                    name="notes"
+                    value={form.notes}
+                    onChange={(e) => setField("notes", e.target.value)}
+                    rows={2}
                   />
                 </FormField>
               </FormGrid>
-              <FormField className="mt-3">
-                <Textarea
-                  label="Notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={(e) => setField("notes", e.target.value)}
-                  rows={3}
-                />
-              </FormField>
             </FormSection>
             <FormActions>
               <Button type="button" variant="outline" onClick={() => router.push("/hrms/candidates")}>

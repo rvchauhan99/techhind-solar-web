@@ -17,7 +17,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
@@ -55,7 +54,6 @@ export default function HrmsAttendanceReportPage() {
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [tableKey, setTableKey] = useState(0);
-  const [listTotal, setListTotal] = useState(null);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
@@ -201,12 +199,35 @@ export default function HrmsAttendanceReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [filters, tableKey]
   );
+  const columnFilterValues = useMemo(
+    () => ({
+      q: search,
+      department_id: departmentId,
+      employee_id: employeeId,
+      attendance_type: attendanceType,
+    }),
+    [search, departmentId, employeeId, attendanceType]
+  );
+
+  const onColumnFilterChange = useCallback((key, value) => {
+    if (key === "department_id") {
+      setDepartmentId(value || "");
+      setEmployeeId("");
+    } else if (key === "employee_id") setEmployeeId(value || "");
+    else if (key === "attendance_type") setAttendanceType(value || "");
+    else if (key === "q") setSearch(value || "");
+    setTableKey((k) => k + 1);
+  }, []);
+
   const summaryColumns = useMemo(
     () => [
       {
         field: "employee_name",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "q",
+        defaultFilterOperator: "contains",
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name}</span>
@@ -220,6 +241,9 @@ export default function HrmsAttendanceReportPage() {
         field: "department_title",
         label: "Department",
         sortable: false,
+        filterType: "select",
+        filterKey: "department_id",
+        filterOptions: departmentOptions,
         render: (row) => <span>{row.department_title || "—"}</span>,
       },
       { field: "present_days", label: "Present", sortable: false },
@@ -239,7 +263,7 @@ export default function HrmsAttendanceReportPage() {
         ),
       },
     ],
-    []
+    [departmentOptions]
   );
 
   const detailColumns = useMemo(
@@ -248,6 +272,9 @@ export default function HrmsAttendanceReportPage() {
         field: "employee_name",
         label: "Employee",
         sortable: false,
+        filterType: "select",
+        filterKey: "employee_id",
+        filterOptions: employeeOptions,
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name}</span>
@@ -262,6 +289,9 @@ export default function HrmsAttendanceReportPage() {
         field: "attendance_type",
         label: "Type",
         sortable: false,
+        filterType: "select",
+        filterKey: "attendance_type",
+        filterOptions: TYPE_OPTIONS,
         render: (row) => (
           <StatusBadge
             status={row.attendance_type}
@@ -296,7 +326,7 @@ export default function HrmsAttendanceReportPage() {
         render: (row) => <span>{row.leave_type || "—"}</span>,
       },
     ],
-    []
+    [employeeOptions]
   );
 
   const onExport = async () => {
@@ -331,38 +361,17 @@ export default function HrmsAttendanceReportPage() {
         filterConfig={[
           { key: "year", label: "Year", type: "select", options: yearOptions },
           { key: "month", label: "Month", type: "select", options: monthOptions },
-          { key: "department_id", label: "Department", type: "select", options: departmentOptions },
-          { key: "employee_id", label: "Employee", type: "select", options: employeeOptions },
-          { key: "attendance_type", label: "Attendance type", type: "select", options: TYPE_OPTIONS },
-          { key: "q", label: "Search employee or code", type: "search" },
         ]}
-        filterValues={{
-          year,
-          month,
-          department_id: departmentId,
-          employee_id: employeeId,
-          attendance_type: attendanceType,
-          q: search,
-        }}
+        filterValues={{ year, month }}
         showFilterLabels
         onFilterChange={(key, value) => {
-          if (key === "year") setYear(value);
-          else if (key === "month") setMonth(value);
-          else if (key === "department_id") {
-            setDepartmentId(value);
-            setEmployeeId("");
-          } else if (key === "employee_id") setEmployeeId(value);
-          else if (key === "attendance_type") setAttendanceType(value);
-          else if (key === "q") setSearch(value);
+          if (key === "year") setYear(value || String(NOW.getFullYear()));
+          else if (key === "month") setMonth(value || String(NOW.getMonth() + 1));
           setTableKey((k) => k + 1);
         }}
         onClearFilters={() => {
           setYear(String(NOW.getFullYear()));
           setMonth(String(NOW.getMonth() + 1));
-          setDepartmentId("");
-          setEmployeeId("");
-          setAttendanceType("");
-          setSearch("");
           setTableKey((k) => k + 1);
         }}
       >
@@ -425,14 +434,14 @@ export default function HrmsAttendanceReportPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
-            toolbar={
-              <ListCount total={listTotal} context={hasFilters ? "matching filters" : undefined} />
-            }
             key={`summary-${tableKey}`}
-            onTotalChange={setListTotal}
             columns={summaryColumns}
             fetcher={summaryFetcher}
+            showSearch={false}
             height="100%"
+            columnFilterValues={columnFilterValues}
+            onColumnFilterChange={onColumnFilterChange}
+            filterParams={columnFilterValues}
             initialSortBy="employee_name"
             initialSortOrder="asc"
             emptyState={
@@ -459,7 +468,11 @@ export default function HrmsAttendanceReportPage() {
             key={`detail-${tableKey}`}
             columns={detailColumns}
             fetcher={detailFetcher}
+            showSearch={false}
             height="40vh"
+            columnFilterValues={columnFilterValues}
+            onColumnFilterChange={onColumnFilterChange}
+            filterParams={columnFilterValues}
             emptyState={
               <EmptyState
                 icon={IconFileSpreadsheet}

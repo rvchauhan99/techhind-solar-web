@@ -11,7 +11,6 @@ import {
   IconClockHour4,
   IconUserOff,
   IconDownload,
-  IconFilterOff,
 } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -19,7 +18,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import useModulePermission from "@/hooks/useModulePermission";
 import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -58,10 +56,12 @@ export default function HrmsEmployeesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
 
-  const list = useListTableState({ filters: { status: "", department_id: "" } });
-  const [listTotal, setListTotal] = useState(null);
+  const list = useListTableState({
+    filters: { status: "", department_id: "", designation_id: "", name: "" },
+  });
   const [exporting, setExporting] = useState(false);
   const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState([]);
   const [counts, setCounts] = useState({ total: null, active: null, pending: null, disabled: null });
   const [countsLoading, setCountsLoading] = useState(true);
 
@@ -100,9 +100,23 @@ export default function HrmsEmployeesPage() {
       .catch(() => setDepartments([]));
   }, []);
 
+  useEffect(() => {
+    hrmsService
+      .listDesignations({ limit: 200, status: "active" })
+      .then((res) => {
+        setDesignations(unwrap(res)?.data || []);
+      })
+      .catch(() => setDesignations([]));
+  }, []);
+
   const deptOptions = useMemo(
     () => departments.map((d) => ({ value: String(d.id), label: d.title })),
     [departments]
+  );
+
+  const designationOptions = useMemo(
+    () => designations.map((d) => ({ value: String(d.id), label: d.title })),
+    [designations]
   );
 
   const handleExport = async () => {
@@ -111,6 +125,7 @@ export default function HrmsEmployeesPage() {
       const blob = await hrmsService.exportEmployees({
         status: list.filters.status || undefined,
         department_id: list.filters.department_id || undefined,
+        designation_id: list.filters.designation_id || undefined,
       });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
@@ -130,9 +145,11 @@ export default function HrmsEmployeesPage() {
     const res = await hrmsService.listEmployees({
       page: params.page,
       limit: params.limit,
-      search: params.q || undefined,
+      search: params.name || params.q || undefined,
+      search_op: params.name_op || undefined,
       status: params.status || undefined,
       department_id: params.department_id || undefined,
+      designation_id: params.designation_id || undefined,
     });
     const payload = unwrap(res);
     const rows = payload?.data || [];
@@ -142,7 +159,15 @@ export default function HrmsEmployeesPage() {
 
   const columns = useMemo(
     () => [
-      { field: "name", label: "Employee", sortable: false, render: (row) => <EmployeeCell row={row} /> },
+      {
+        field: "name",
+        label: "Employee",
+        sortable: false,
+        filterType: "text",
+        filterKey: "name",
+        defaultFilterOperator: "contains",
+        render: (row) => <EmployeeCell row={row} />,
+      },
       {
         field: "email",
         label: "Work Email",
@@ -162,6 +187,9 @@ export default function HrmsEmployeesPage() {
         field: "designation",
         label: "Designation",
         sortable: false,
+        filterType: "select",
+        filterKey: "designation_id",
+        filterOptions: designationOptions,
         render: (row) => row.designation?.title || <span className="text-muted-foreground">—</span>,
       },
       {
@@ -203,7 +231,7 @@ export default function HrmsEmployeesPage() {
         ),
       },
     ],
-    [perm.can_update, router, deptOptions]
+    [perm.can_update, router, deptOptions, designationOptions]
   );
 
   return (
@@ -262,27 +290,8 @@ export default function HrmsEmployeesPage() {
           <PaginatedTable
             columns={columns}
             fetcher={fetcher}
-            showSearch
+            showSearch={false}
             height="100%"
-            toolbar={
-              <>
-                <ListCount
-                  total={listTotal}
-                  context={list.activeFilterCount ? "matching filters" : undefined}
-                />
-                {list.activeFilterCount > 0 ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 gap-1 text-xs"
-                    onClick={() => list.clearFilters()}
-                  >
-                    <IconFilterOff className="size-3.5" /> Clear filters
-                  </Button>
-                ) : null}
-              </>
-            }
-            onTotalChange={setListTotal}
             columnFilterValues={list.filters}
             onColumnFilterChange={list.setFilter}
             filterParams={list.filters}

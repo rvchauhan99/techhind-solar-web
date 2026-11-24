@@ -26,6 +26,7 @@ export default function StatCard({
     subLabel,
     loading = false,
     compact = false,
+    active = false,
 }) {
     const trendIcon =
         trend?.direction === "up" ? (
@@ -48,9 +49,12 @@ export default function StatCard({
         return (
             <div
                 onClick={onClick}
+                role={onClick ? "button" : undefined}
+                aria-pressed={onClick ? !!active : undefined}
                 title={subLabel || undefined}
                 className={[
-                    "relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border border-border bg-card pl-3 pr-3 shadow-sm",
+                    "relative flex h-11 items-center gap-2 overflow-hidden rounded-lg border bg-card pl-3 pr-3 shadow-sm",
+                    active ? "border-primary ring-1 ring-primary/40 shadow-md" : "border-border",
                     onClick
                         ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
                         : "",
@@ -104,8 +108,11 @@ export default function StatCard({
     return (
         <div
             onClick={onClick}
+            role={onClick ? "button" : undefined}
+            aria-pressed={onClick ? !!active : undefined}
             className={[
-                "relative overflow-hidden rounded-xl border border-border bg-card shadow-sm flex flex-col h-full",
+                "relative overflow-hidden rounded-xl border bg-card shadow-sm flex flex-col h-full",
+                active ? "border-primary ring-1 ring-primary/40 shadow-md" : "border-border",
                 onClick ? "cursor-pointer transition-all duration-200 hover:shadow-md hover:-translate-y-0.5" : "",
             ].join(" ")}
         >

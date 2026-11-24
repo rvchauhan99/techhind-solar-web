@@ -50,7 +50,50 @@ export default function HrmsCandidateEditPage() {
     reference: "",
     notes: "",
     stage: "1",
+    date_of_birth: "",
+    gender: "",
+    marital_status: "",
+    address: "",
+    state: "",
+    city: "",
+    education: "",
+    experience: "",
+    current_designation: "",
+    current_ctc: "",
+    expected_ctc: "",
+    in_hand_salary: "",
+    joining_date: "",
+    salary: "",
+    meet_link: "",
+    offer_letter_url: "",
+    manager_feedback: "",
+    describe_yourself: "",
+    same_field: "",
+    experience_in_field: "",
+    job_responsibilities: "",
+    why_this_job: "",
+    previous_job_status: "",
+    days_left: "",
+    gap_months: "",
+    join_timeline: "",
+    notice_period_days: "",
+    relocation: "",
+    solar_experience: "",
+    currently_working: "",
+    ready_for_travel: "",
+    own_vehicle: "",
+    aptitude_mark: "",
+    aptitude_upload_url: "",
+    practical_upload_url: "",
+    practical_comments_others: "",
+    practical_comments_admin: "",
+    policy_understanding: "",
+    probation_understanding: "",
+    notice_understanding: "",
+    time_rules_understanding: "",
   });
+  const [activities, setActivities] = useState([]);
+  const [evalBusy, setEvalBusy] = useState(null);
   const [onboardForm, setOnboardForm] = useState({
     emp_code: "",
     department_id: "",
@@ -99,7 +142,8 @@ export default function HrmsCandidateEditPage() {
         setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
         const row = unwrap(rowRes) || {};
         setCandidate(row);
-        setForm({
+        setForm((f) => ({
+          ...f,
           position_id: row.position_id != null ? String(row.position_id) : "",
           first_name: row.first_name || "",
           last_name: row.last_name || "",
@@ -108,7 +152,55 @@ export default function HrmsCandidateEditPage() {
           reference: row.reference || "",
           notes: row.notes || "",
           stage: row.stage != null ? String(row.stage) : "1",
-        });
+          date_of_birth: row.date_of_birth || "",
+          gender: row.gender || "",
+          marital_status: row.marital_status || "",
+          address: row.address || "",
+          state: row.state || "",
+          city: row.city || "",
+          education: row.education || "",
+          experience: row.experience || "",
+          current_designation: row.current_designation || "",
+          current_ctc: row.current_ctc != null ? String(row.current_ctc) : "",
+          expected_ctc: row.expected_ctc != null ? String(row.expected_ctc) : "",
+          in_hand_salary: row.in_hand_salary != null ? String(row.in_hand_salary) : "",
+          joining_date: row.joining_date || "",
+          salary: row.salary != null ? String(row.salary) : "",
+          meet_link: row.meet_link || "",
+          offer_letter_url: row.offer_letter_url || "",
+          manager_feedback: row.manager_feedback || "",
+          describe_yourself: row.describe_yourself || "",
+          same_field: row.same_field || "",
+          experience_in_field: row.experience_in_field || "",
+          job_responsibilities: row.job_responsibilities || "",
+          why_this_job: row.why_this_job || "",
+          previous_job_status: row.previous_job_status || "",
+          days_left: row.days_left != null ? String(row.days_left) : "",
+          gap_months: row.gap_months != null ? String(row.gap_months) : "",
+          join_timeline: row.join_timeline || "",
+          notice_period_days: row.notice_period_days != null ? String(row.notice_period_days) : "",
+          relocation: row.relocation || "",
+          solar_experience: row.solar_experience || "",
+          currently_working: row.currently_working || "",
+          ready_for_travel: row.ready_for_travel || "",
+          own_vehicle: row.own_vehicle || "",
+          aptitude_mark: row.aptitude_mark != null ? String(row.aptitude_mark) : "",
+          aptitude_upload_url: row.aptitude_upload_url || "",
+          practical_upload_url: row.practical_upload_url || "",
+          practical_comments_others: row.practical_comments_others || "",
+          practical_comments_admin: row.practical_comments_admin || "",
+          policy_understanding: row.policy_understanding || "",
+          probation_understanding: row.probation_understanding || "",
+          notice_understanding: row.notice_understanding || "",
+          time_rules_understanding: row.time_rules_understanding || "",
+        }));
+        hrmsService
+          .listCandidateActivities(id, { limit: 30 })
+          .then((actRes) => {
+            const payload = unwrap(actRes);
+            setActivities(payload?.data || payload?.rows || (Array.isArray(payload) ? payload : []));
+          })
+          .catch(() => setActivities([]));
       } catch (err) {
         toastErrorFromApi(err, "Failed to load candidate");
         router.push("/hrms/candidates");
@@ -180,11 +272,22 @@ export default function HrmsCandidateEditPage() {
         reference: form.reference.trim() || null,
         notes: form.notes.trim() || null,
         stage: Number(form.stage),
+        date_of_birth: form.date_of_birth || null,
+        gender: form.gender || null,
+        address: form.address.trim() || null,
+        education: form.education.trim() || null,
+        experience: form.experience.trim() || null,
+        current_ctc: form.current_ctc !== "" ? Number(form.current_ctc) : null,
+        expected_ctc: form.expected_ctc !== "" ? Number(form.expected_ctc) : null,
+        joining_date: form.joining_date || null,
+        salary: form.salary !== "" ? Number(form.salary) : null,
+        meet_link: form.meet_link.trim() || null,
+        offer_letter_url: form.offer_letter_url.trim() || null,
+        manager_feedback: form.manager_feedback.trim() || null,
       });
       const row = unwrap(res) || {};
       setCandidate(row);
       toastSuccess("Candidate updated");
-      router.push("/hrms/candidates");
     } catch (err) {
       toastErrorFromApi(err, "Update failed");
     } finally {
@@ -261,7 +364,11 @@ export default function HrmsCandidateEditPage() {
 
   return (
     <ProtectedRoute>
-      <AddEditPageShell title="Edit candidate" listHref="/hrms/candidates" listLabel="Candidates">
+      <AddEditPageShell
+        title="Edit candidate"
+        listHref={`/hrms/candidates/${id}`}
+        listLabel="Dashboard"
+      >
         {loading ? (
           <div className="space-y-2 p-2">
             {[1, 2, 3].map((i) => (
@@ -382,6 +489,709 @@ export default function HrmsCandidateEditPage() {
                 />
               </FormField>
             </FormSection>
+
+            <FormSection variant="card" title="Personal Info">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Status: {candidate?.personal_info_status || "pending"}
+              </p>
+              <FormGrid>
+                <FormField>
+                  <DateField
+                    label="Date of birth"
+                    name="date_of_birth"
+                    value={form.date_of_birth}
+                    onChange={(e) => setField("date_of_birth", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Gender"
+                    value={form.gender}
+                    onChange={(e) => setField("gender", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="male">Male</MenuItem>
+                    <MenuItem value="female">Female</MenuItem>
+                    <MenuItem value="other">Other</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Marital Status"
+                    value={form.marital_status}
+                    onChange={(e) => setField("marital_status", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="married">Married</MenuItem>
+                    <MenuItem value="unmarried">Unmarried</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Input
+                    label="State"
+                    value={form.state}
+                    onChange={(e) => setField("state", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="City"
+                    value={form.city}
+                    onChange={(e) => setField("city", e.target.value)}
+                  />
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Address"
+                    value={form.address}
+                    onChange={(e) => setField("address", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Textarea
+                    label="Education Qualification"
+                    value={form.education}
+                    onChange={(e) => setField("education", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Textarea
+                    label="Work Experience"
+                    value={form.experience}
+                    onChange={(e) => setField("experience", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Current Designation"
+                    value={form.current_designation}
+                    onChange={(e) => setField("current_designation", e.target.value)}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={evalBusy === "personal-pass"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("personal-pass");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "personal",
+                        status: "pass",
+                        date_of_birth: form.date_of_birth || null,
+                        gender: form.gender || null,
+                        marital_status: form.marital_status || null,
+                        address: form.address || null,
+                        state: form.state || null,
+                        city: form.city || null,
+                        education: form.education || null,
+                        experience: form.experience || null,
+                        current_designation: form.current_designation || null,
+                      });
+                      setCandidate(unwrap(res));
+                      toastSuccess("Personal info marked Pass");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Pass
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  loading={evalBusy === "personal-fail"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("personal-fail");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "personal",
+                        status: "fail",
+                      });
+                      setCandidate(unwrap(res));
+                      toastSuccess("Personal info marked Fail");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Fail
+                </Button>
+              </div>
+            </FormSection>
+
+            <FormSection variant="card" title="HR Details">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Status: {candidate?.hr_status || "pending"}
+              </p>
+              <FormGrid>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Describe yourself"
+                    value={form.describe_yourself}
+                    onChange={(e) => setField("describe_yourself", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Same field as applied?"
+                    value={form.same_field}
+                    onChange={(e) => setField("same_field", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                    <MenuItem value="no">No</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Experience in this field"
+                    value={form.experience_in_field}
+                    onChange={(e) => setField("experience_in_field", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="0-1">0 - 1 Year</MenuItem>
+                    <MenuItem value="1-3">1 - 3 Year</MenuItem>
+                    <MenuItem value="3-5">3 - 5 Year</MenuItem>
+                    <MenuItem value="5+">5+ Year</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Current job responsibilities"
+                    value={form.job_responsibilities}
+                    onChange={(e) => setField("job_responsibilities", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Textarea
+                    label="Why do you want this job?"
+                    value={form.why_this_job}
+                    onChange={(e) => setField("why_this_job", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Previous job status"
+                    value={form.previous_job_status}
+                    onChange={(e) => setField("previous_job_status", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Days left / notice"
+                    value={form.days_left}
+                    onChange={(e) => setField("days_left", e.target.value.replace(/\D/g, ""))}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Gap months"
+                    value={form.gap_months}
+                    onChange={(e) => setField("gap_months", e.target.value.replace(/\D/g, ""))}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Current CTC"
+                    value={form.current_ctc}
+                    onChange={(e) => setField("current_ctc", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Expected CTC"
+                    value={form.expected_ctc}
+                    onChange={(e) => setField("expected_ctc", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Month In Hand Salary"
+                    value={form.in_hand_salary}
+                    onChange={(e) => setField("in_hand_salary", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Join timeline"
+                    value={form.join_timeline}
+                    onChange={(e) => setField("join_timeline", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="immediate">Immediate</MenuItem>
+                    <MenuItem value="15_days">15 days</MenuItem>
+                    <MenuItem value="1_month">1 month</MenuItem>
+                    <MenuItem value="2_month">2 month</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Notice Period (days)"
+                    value={form.notice_period_days}
+                    onChange={(e) => setField("notice_period_days", e.target.value.replace(/\D/g, ""))}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Relocation"
+                    value={form.relocation}
+                    onChange={(e) => setField("relocation", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Meet link"
+                    value={form.meet_link}
+                    onChange={(e) => setField("meet_link", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Textarea
+                    label="Manager feedback"
+                    value={form.manager_feedback}
+                    onChange={(e) => setField("manager_feedback", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={evalBusy === "hr-pass"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("hr-pass");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "hr",
+                        status: "pass",
+                        current_ctc: form.current_ctc !== "" ? Number(form.current_ctc) : null,
+                        expected_ctc: form.expected_ctc !== "" ? Number(form.expected_ctc) : null,
+                        in_hand_salary: form.in_hand_salary !== "" ? Number(form.in_hand_salary) : null,
+                        meet_link: form.meet_link || null,
+                        manager_feedback: form.manager_feedback || null,
+                        manager_feedback_status: "pass",
+                        describe_yourself: form.describe_yourself || null,
+                        same_field: form.same_field || null,
+                        experience_in_field: form.experience_in_field || null,
+                        job_responsibilities: form.job_responsibilities || null,
+                        why_this_job: form.why_this_job || null,
+                        previous_job_status: form.previous_job_status || null,
+                        days_left: form.days_left !== "" ? Number(form.days_left) : null,
+                        gap_months: form.gap_months !== "" ? Number(form.gap_months) : null,
+                        join_timeline: form.join_timeline || null,
+                        notice_period_days:
+                          form.notice_period_days !== "" ? Number(form.notice_period_days) : null,
+                        relocation: form.relocation || null,
+                      });
+                      setCandidate(unwrap(res));
+                      toastSuccess("HR details marked Pass");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Pass
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  loading={evalBusy === "hr-fail"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("hr-fail");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "hr",
+                        status: "fail",
+                        manager_feedback_status: "fail",
+                      });
+                      setCandidate(unwrap(res));
+                      toastSuccess("HR details marked Fail");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Fail
+                </Button>
+              </div>
+            </FormSection>
+
+            <FormSection variant="card" title="Aptitude">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Status: {candidate?.aptitude_status || "pending"}
+              </p>
+              <FormGrid>
+                <FormField>
+                  <Input
+                    label="Mark"
+                    value={form.aptitude_mark}
+                    onChange={(e) => setField("aptitude_mark", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Upload URL"
+                    value={form.aptitude_upload_url}
+                    onChange={(e) => setField("aptitude_upload_url", e.target.value)}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {["pass", "fail", "hold"].map((st) => (
+                  <Button
+                    key={st}
+                    type="button"
+                    size="sm"
+                    variant={st === "fail" ? "destructive" : "outline"}
+                    loading={evalBusy === `apt-${st}`}
+                    disabled={!!candidate?.is_onboarded}
+                    onClick={async () => {
+                      setEvalBusy(`apt-${st}`);
+                      try {
+                        const res = await hrmsService.patchCandidateEval(id, {
+                          section: "aptitude",
+                          status: st,
+                          aptitude_mark: form.aptitude_mark !== "" ? Number(form.aptitude_mark) : null,
+                          aptitude_upload_url: form.aptitude_upload_url || null,
+                        });
+                        setCandidate(unwrap(res));
+                        toastSuccess(`Aptitude: ${st}`);
+                      } catch (err) {
+                        toastErrorFromApi(err, "Eval failed");
+                      } finally {
+                        setEvalBusy(null);
+                      }
+                    }}
+                  >
+                    {st === "pass" ? "Pass" : st === "fail" ? "Fail" : "Hold"}
+                  </Button>
+                ))}
+              </div>
+            </FormSection>
+
+            <FormSection variant="card" title="Practical">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Status: {candidate?.practical_status || "pending"}
+              </p>
+              <FormGrid>
+                <FormField className="sm:col-span-2">
+                  <Input
+                    label="Upload documents URL"
+                    value={form.practical_upload_url}
+                    onChange={(e) => setField("practical_upload_url", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Textarea
+                    label="Comments by other employees"
+                    value={form.practical_comments_others}
+                    onChange={(e) => setField("practical_comments_others", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+                <FormField>
+                  <Textarea
+                    label="Comments by admin"
+                    value={form.practical_comments_admin}
+                    onChange={(e) => setField("practical_comments_admin", e.target.value)}
+                    rows={2}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {["pass", "fail", "hold"].map((st) => (
+                  <Button
+                    key={st}
+                    type="button"
+                    size="sm"
+                    variant={st === "fail" ? "destructive" : "outline"}
+                    loading={evalBusy === `prac-${st}`}
+                    disabled={!!candidate?.is_onboarded}
+                    onClick={async () => {
+                      setEvalBusy(`prac-${st}`);
+                      try {
+                        const res = await hrmsService.patchCandidateEval(id, {
+                          section: "practical",
+                          status: st,
+                          practical_upload_url: form.practical_upload_url || null,
+                          practical_comments_others: form.practical_comments_others || null,
+                          practical_comments_admin: form.practical_comments_admin || null,
+                        });
+                        setCandidate(unwrap(res));
+                        toastSuccess(`Practical: ${st}`);
+                      } catch (err) {
+                        toastErrorFromApi(err, "Eval failed");
+                      } finally {
+                        setEvalBusy(null);
+                      }
+                    }}
+                  >
+                    {st === "pass" ? "Pass" : st === "fail" ? "Fail" : "Hold"}
+                  </Button>
+                ))}
+              </div>
+            </FormSection>
+
+            <FormSection variant="card" title="Final">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Status: {candidate?.final_status || "pending"}
+              </p>
+              <FormGrid>
+                <FormField>
+                  <DateField
+                    label="Joining date"
+                    name="joining_date_final"
+                    value={form.joining_date}
+                    onChange={(e) => setField("joining_date", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Input
+                    label="Offer salary"
+                    value={form.salary}
+                    onChange={(e) => setField("salary", e.target.value)}
+                  />
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Policy understanding"
+                    value={form.policy_understanding}
+                    onChange={(e) => setField("policy_understanding", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                    <MenuItem value="no">No</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Probation understanding"
+                    value={form.probation_understanding}
+                    onChange={(e) => setField("probation_understanding", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                    <MenuItem value="no">No</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Notice period understanding"
+                    value={form.notice_understanding}
+                    onChange={(e) => setField("notice_understanding", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                    <MenuItem value="no">No</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField>
+                  <Select
+                    label="Time & rules understanding"
+                    value={form.time_rules_understanding}
+                    onChange={(e) => setField("time_rules_understanding", e.target.value)}
+                  >
+                    <MenuItem value="">Select</MenuItem>
+                    <MenuItem value="yes">Yes</MenuItem>
+                    <MenuItem value="no">No</MenuItem>
+                  </Select>
+                </FormField>
+                <FormField className="sm:col-span-2">
+                  <Input
+                    label="Offer letter URL"
+                    value={form.offer_letter_url}
+                    onChange={(e) => setField("offer_letter_url", e.target.value)}
+                  />
+                </FormField>
+              </FormGrid>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={evalBusy === "final-short"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("final-short");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "final",
+                        status: "shortlisted",
+                        joining_date: form.joining_date || null,
+                        salary: form.salary !== "" ? Number(form.salary) : null,
+                        offer_letter_url: form.offer_letter_url || null,
+                      });
+                      const row = unwrap(res);
+                      setCandidate(row);
+                      if (row?.stage != null) setForm((f) => ({ ...f, stage: String(row.stage) }));
+                      toastSuccess("Final: shortlisted / selected");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Shortlisted
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={evalBusy === "final-hold"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("final-hold");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "final",
+                        status: "hold",
+                      });
+                      setCandidate(unwrap(res));
+                      toastSuccess("Final: on hold");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Hold
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  loading={evalBusy === "final-rej"}
+                  disabled={!!candidate?.is_onboarded}
+                  onClick={async () => {
+                    setEvalBusy("final-rej");
+                    try {
+                      const res = await hrmsService.patchCandidateEval(id, {
+                        section: "final",
+                        status: "rejected",
+                        reason: "Final evaluation rejected",
+                      });
+                      const row = unwrap(res);
+                      setCandidate(row);
+                      if (row?.stage != null) setForm((f) => ({ ...f, stage: String(row.stage) }));
+                      toastSuccess("Final: rejected");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Eval failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Rejected
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  loading={evalBusy === "offer"}
+                  disabled={!!candidate?.is_onboarded || !form.offer_letter_url.trim()}
+                  onClick={async () => {
+                    setEvalBusy("offer");
+                    try {
+                      const res = await hrmsService.patchCandidateOfferLetter(id, {
+                        offer_letter_url: form.offer_letter_url.trim(),
+                      });
+                      const row = unwrap(res);
+                      setCandidate(row);
+                      if (row?.stage != null) setForm((f) => ({ ...f, stage: String(row.stage) }));
+                      toastSuccess("Offer letter saved");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Offer update failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Save offer letter
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  loading={evalBusy === "accept-offer"}
+                  disabled={!!candidate?.is_onboarded || Number(candidate?.stage) < 8}
+                  onClick={async () => {
+                    setEvalBusy("accept-offer");
+                    try {
+                      const res = await hrmsService.acceptCandidateOffer(id, {
+                        reason: "Offer accepted by candidate",
+                      });
+                      const row = unwrap(res);
+                      setCandidate(row);
+                      if (row?.stage != null) setForm((f) => ({ ...f, stage: String(row.stage) }));
+                      toastSuccess("Offer accepted");
+                    } catch (err) {
+                      toastErrorFromApi(err, "Accept offer failed");
+                    } finally {
+                      setEvalBusy(null);
+                    }
+                  }}
+                >
+                  Accept offer
+                </Button>
+              </div>
+            </FormSection>
+
+            <FormSection variant="card" title="Activity timeline">
+              {activities.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No activity yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {activities.map((a) => (
+                    <li
+                      key={a.id || `${a.action}-${a.created_at}`}
+                      className="rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="font-medium capitalize">
+                        {String(a.action || "").replace(/_/g, " ")}
+                        {a.field ? ` · ${a.field}` : ""}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {a.from != null || a.to != null
+                          ? `${a.from ?? "—"} → ${a.to ?? "—"}`
+                          : a.reason || ""}
+                        {a.created_at
+                          ? ` · ${new Date(a.created_at).toLocaleString("en-IN")}`
+                          : ""}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </FormSection>
+
             <FormActions>
               <Button type="button" variant="outline" onClick={() => router.push("/hrms/candidates")}>
                 Cancel

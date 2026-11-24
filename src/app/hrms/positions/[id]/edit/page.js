@@ -12,7 +12,7 @@ import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Checkbox from "@/components/common/Checkbox";
-import HtmlTemplateField from "@/components/common/HtmlTemplateField";
+import Textarea from "@/components/common/Textarea";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -165,13 +165,13 @@ export default function HrmsPositionEditPage() {
               </FormField>
 
               <FormField className="mt-3">
-                <HtmlTemplateField
+                <Textarea
                   name="job_description"
                   label="Job description"
                   value={form.job_description}
                   onChange={(e) => setField("job_description", e.target.value)}
-                  placeholders={{}}
-                  minRows={8}
+                  rows={6}
+                  placeholder="Enter job description"
                 />
               </FormField>
             </FormSection>

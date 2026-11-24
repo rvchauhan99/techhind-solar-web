@@ -11,7 +11,6 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Select, { MenuItem } from "@/components/common/Select";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import { IconScale } from "@tabler/icons-react";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -133,14 +132,7 @@ export default function HrmsLeaveBalanceReportPage() {
               Refresh
             </Button>
           </FormActions>
-          <div className="mt-3 mb-1.5 flex items-center justify-between gap-2">
-            <ListCount
-              total={loading ? null : rows.length}
-              labelOne="employee"
-              labelMany="employees"
-            />
-          </div>
-          <div className="overflow-x-auto rounded-md border border-border">
+          <div className="mt-3 overflow-x-auto rounded-md border border-border">
             <table className="w-full border-collapse text-xs">
               <thead className="bg-muted/50">
                 <tr className="text-left">

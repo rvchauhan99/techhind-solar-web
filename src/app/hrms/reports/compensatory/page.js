@@ -8,7 +8,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import {
   IconArrowsExchange,
   IconClock,
@@ -24,9 +23,14 @@ const FY_CURRENT = (() => {
   return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
 })();
 
+const STATUS_OPTIONS = [
+  { value: "approved", label: "Approved" },
+  { value: "pending", label: "Pending" },
+  { value: "rejected", label: "Rejected" },
+];
+
 export default function HrmsCompensatoryReportPage() {
   const [filters, setFilters] = useState({ fy_year: String(FY_CURRENT), status: "" });
-  const [listTotal, setListTotal] = useState(null);
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState({ rows: null, totalDays: null });
@@ -63,17 +67,17 @@ export default function HrmsCompensatoryReportPage() {
 
   const fetcher = useMemo(
     () =>
-      async ({ page, limit }) => {
+      async (params) => {
         const res = await hrmsService.getCompensatoryReport({
-          fy_year: filters.fy_year || undefined,
-          status: filters.status || undefined,
+          fy_year: params.fy_year || undefined,
+          status: params.status || undefined,
         });
         const payload = unwrap(res);
         const rows = payload?.data || [];
         // The report endpoint is not paginated server-side; page locally so the
         // shared table contract (data + meta) still holds.
-        const take = Math.min(100, Math.max(1, Number(limit) || 20));
-        const pageNum = Math.max(1, Number(page) || 1);
+        const take = Math.min(100, Math.max(1, Number(params.limit) || 20));
+        const pageNum = Math.max(1, Number(params.page) || 1);
         const start = (pageNum - 1) * take;
         return {
           data: rows.slice(start, start + take),
@@ -150,6 +154,9 @@ export default function HrmsCompensatoryReportPage() {
         field: "status",
         label: "Status",
         sortable: false,
+        filterType: "select",
+        filterKey: "status",
+        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -174,19 +181,7 @@ export default function HrmsCompensatoryReportPage() {
             <IconDownload className="size-4" /> Export
           </Button>
         }
-        filterConfig={[
-          { key: "fy_year", label: "Financial year", type: "select", options: fyOptions },
-          {
-            key: "status",
-            label: "Status",
-            type: "select",
-            options: [
-              { value: "approved", label: "Approved" },
-              { value: "pending", label: "Pending" },
-              { value: "rejected", label: "Rejected" },
-            ],
-          },
-        ]}
+        filterConfig={[{ key: "fy_year", label: "Financial year", type: "select", options: fyOptions }]}
         filterValues={filters}
         showFilterLabels
         onFilterChange={(key, value) => {
@@ -230,19 +225,16 @@ export default function HrmsCompensatoryReportPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-
-              <ListCount total={listTotal} context={Object.values(filters).some((v) => v != null && String(v).trim() !== "") ? "matching filters" : undefined} />
-
-            </>
-          }
-
           key={tableKey}
-
-          onTotalChange={setListTotal}
           columns={columns}
           fetcher={fetcher}
+          showSearch={false}
+          columnFilterValues={filters}
+          onColumnFilterChange={(key, value) => {
+            setFilters((f) => ({ ...f, [key]: value }));
+            setTableKey((k) => k + 1);
+          }}
+          filterParams={filters}
           height="100%"
           initialSortBy="worked_date"
           initialSortOrder="desc"

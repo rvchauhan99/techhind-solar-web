@@ -14,7 +14,6 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
-import ListCount from "@/components/common/ListCount";
 import Input from "@/components/common/Input";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
@@ -28,8 +27,7 @@ export default function HrmsAttendanceRequestsPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "", request_type: "" });
-  const [listTotal, setListTotal] = useState(null);
+  const [filters, setFilters] = useState({ status: "", request_type: "", search: "" });
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [note, setNote] = useState("");
   const [deciding, setDeciding] = useState(false);
@@ -61,13 +59,13 @@ export default function HrmsAttendanceRequestsPage() {
   }, [loadCounts]);
 
   const fetcher = useMemo(
-    () => async ({ page, limit, q }) => {
+    () => async ({ page, limit, q, search }) => {
       const res = await hrmsService.listAttendanceRequests({
         page,
         limit,
         status: filters.status || undefined,
         request_type: filters.request_type || undefined,
-        search: q || undefined,
+        search: filters.search || search || q || undefined,
       });
       const payload = unwrap(res);
       const rows = payload?.data || [];
@@ -106,6 +104,9 @@ export default function HrmsAttendanceRequestsPage() {
         field: "user",
         label: "Employee",
         sortable: false,
+        filterType: "text",
+        filterKey: "search",
+        defaultFilterOperator: "contains",
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
@@ -222,20 +223,11 @@ export default function HrmsAttendanceRequestsPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
-          toolbar={
-            <>
-              <ListCount
-                total={listTotal}
-                context={filters.status || filters.request_type ? "matching filters" : undefined}
-              />
-            </>
-          }
           key={tableKey}
           columns={columns}
           fetcher={fetcher}
-          showSearch
+          showSearch={false}
           height="100%"
-          onTotalChange={setListTotal}
           columnFilterValues={filters}
           onColumnFilterChange={(key, value) => {
             setFilters((f) => ({ ...f, [key]: value }));
