@@ -439,6 +439,15 @@ export const uploadCandidateResume = (id, file) => {
 export const acceptCandidateOffer = (id, payload = {}) =>
   apiClient.post(`/hrms/candidates/${id}/accept-offer`, payload).then((r) => r.data);
 
+export const generateCandidateOfferLetter = (id, payload = {}) =>
+  apiClient.post(`/hrms/candidates/${id}/offer-letter/generate`, payload).then((r) => r.data);
+
+export const getCandidateOnboardingChecklist = (id) =>
+  apiClient.get(`/hrms/candidates/${id}/onboarding-checklist`).then((r) => r.data);
+
+export const patchCandidateOnboardingChecklist = (id, payload) =>
+  apiClient.patch(`/hrms/candidates/${id}/onboarding-checklist`, payload).then((r) => r.data);
+
 export const getInterviewMeta = () =>
   apiClient.get("/hrms/interviews/meta").then((r) => r.data);
 
@@ -694,6 +703,9 @@ const hrmsService = {
   onboardCandidate,
   uploadCandidateResume,
   acceptCandidateOffer,
+  generateCandidateOfferLetter,
+  getCandidateOnboardingChecklist,
+  patchCandidateOnboardingChecklist,
   getInterviewMeta,
   listInterviews,
   exportInterviews,

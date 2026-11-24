@@ -26,6 +26,7 @@ export default function CareersPage() {
     reference: "",
     notes: "",
   });
+  const [resumeFile, setResumeFile] = useState(null);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -81,22 +82,27 @@ export default function CareersPage() {
     if (!form.last_name.trim()) errs.last_name = "Last name is required";
     if (!form.email.trim()) errs.email = "Email is required";
     if (!form.mobile.trim()) errs.mobile = "Mobile is required";
+    if (!resumeFile) errs.resume = "Resume is required (PDF/DOC/DOCX, max 2MB)";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     setSubmitting(true);
     setSubmitError("");
     try {
-      const res = await submitPublicApplication({
-        position_id: Number(form.position_id),
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
-        email: form.email.trim(),
-        mobile: form.mobile.trim(),
-        reference: form.reference.trim() || null,
-        notes: form.notes.trim() || null,
-      });
+      const res = await submitPublicApplication(
+        {
+          position_id: Number(form.position_id),
+          first_name: form.first_name.trim(),
+          last_name: form.last_name.trim(),
+          email: form.email.trim(),
+          mobile: form.mobile.trim(),
+          reference: form.reference.trim() || null,
+          notes: form.notes.trim() || null,
+        },
+        resumeFile
+      );
       setSuccess(res?.result || res);
+      setResumeFile(null);
       setForm((f) => ({
         ...f,
         first_name: "",
@@ -314,6 +320,27 @@ export default function CareersPage() {
                     value={form.notes}
                     onChange={(e) => setField("notes", e.target.value)}
                   />
+                </label>
+
+                <label className="block text-sm sm:col-span-2">
+                  <span className="font-medium">
+                    Resume <span className="text-red-600">*</span>
+                  </span>
+                  <input
+                    className={fieldClass}
+                    type="file"
+                    name="resume"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) => {
+                      setResumeFile(e.target.files?.[0] || null);
+                      if (errors.resume) setErrors((p) => ({ ...p, resume: undefined }));
+                    }}
+                    required
+                  />
+                  <span className="mt-1 block text-xs text-slate-500">PDF, DOC or DOCX · max 2MB</span>
+                  {errors.resume ? (
+                    <span className="mt-1 block text-xs text-red-600">{errors.resume}</span>
+                  ) : null}
                 </label>
 
                 <div className="sm:col-span-2">

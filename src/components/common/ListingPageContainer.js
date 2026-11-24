@@ -61,7 +61,17 @@ export default function ListingPageContainer({
           {subtitle ? <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p> : null}
         </div>
         <div className="flex items-center gap-1.5">
-          {actions ?? (
+          {actions != null ? (
+            <>
+              {actions}
+              {onAddClick && addButtonLabel ? (
+                <Button onClick={onAddClick} size="sm" className="gap-1">
+                  <IconPlus className="size-4" />
+                  {addButtonLabel}
+                </Button>
+              ) : null}
+            </>
+          ) : (
             <>
               {onSecondaryClick && secondaryButtonLabel && (
                 <Button onClick={onSecondaryClick} size="sm" variant="outline" className="gap-1">

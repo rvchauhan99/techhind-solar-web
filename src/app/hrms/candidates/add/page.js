@@ -133,8 +133,6 @@ export default function HrmsCandidateAddPage() {
     else if (!/^\d{10}$/.test(form.mobile.trim())) errs.mobile = "Mobile must be 10 digits";
     if (!form.reference.trim()) errs.reference = "Reference is required";
     if (!resumeFile) errs.resume = "Resume is required";
-    if (!form.interview_datetime) errs.interview_datetime = "Interview date & time is required";
-    if (!form.taken_by) errs.taken_by = "First interviewer is required";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -259,7 +257,6 @@ export default function HrmsCandidateAddPage() {
                     onChange={(v) => setField("interview_datetime", v)}
                     error={!!errors.interview_datetime}
                     helperText={errors.interview_datetime}
-                    required
                   />
                 </FormField>
                 <FormField>
@@ -270,7 +267,6 @@ export default function HrmsCandidateAddPage() {
                     onChange={(e) => setField("taken_by", e.target.value)}
                     error={!!errors.taken_by}
                     helperText={errors.taken_by}
-                    required
                   >
                     <MenuItem value="">Select interviewer</MenuItem>
                     {interviewers.map((u) => (

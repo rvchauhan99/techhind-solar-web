@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +25,21 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import DateField from "@/components/common/DateField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
+
+function todayYmd() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function HrmsCandidateEditPage() {
   const { id } = useParams();
@@ -98,7 +108,7 @@ export default function HrmsCandidateEditPage() {
     emp_code: "",
     department_id: "",
     designation_id: "",
-    joining_date: "",
+    joining_date: todayYmd(),
     role_id: "",
     branch_ids: [],
   });
@@ -116,8 +126,32 @@ export default function HrmsCandidateEditPage() {
     candidate &&
     !candidate.is_onboarded &&
     !candidate.employee_id &&
-    Number(candidate.stage) >= 7 &&
+    Number(candidate.stage) >= 8 &&
     Number(candidate.stage) !== 0;
+
+  const departmentOptions = useMemo(
+    () =>
+      (departments || []).map((d) => ({
+        value: String(d.id),
+        label: d.title || d.name || `Department #${d.id}`,
+      })),
+    [departments]
+  );
+  const designationOptions = useMemo(
+    () =>
+      (designations || []).map((d) => ({
+        value: String(d.id),
+        label: d.title || d.name || `Designation #${d.id}`,
+      })),
+    [designations]
+  );
+  const onboardedEmployeeHref = useMemo(() => {
+    const eid =
+      candidate?.employee_id != null && candidate.employee_id !== ""
+        ? Number(candidate.employee_id)
+        : null;
+    return eid && Number.isFinite(eid) ? `/hrms/employees/${eid}` : null;
+  }, [candidate?.employee_id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,6 +378,12 @@ export default function HrmsCandidateEditPage() {
       setCandidate(row);
       setForm((f) => ({ ...f, stage: String(row.stage ?? 10) }));
       toastSuccess("Candidate onboarded");
+      const eid = row.employee_id != null ? Number(row.employee_id) : null;
+      if (eid && Number.isFinite(eid)) {
+        router.push(`/hrms/employees/${eid}`);
+        return;
+      }
+      router.push(`/hrms/candidates/${id}`);
     } catch (err) {
       toastErrorFromApi(err, "Onboard failed");
     } finally {
@@ -387,8 +427,16 @@ export default function HrmsCandidateEditPage() {
                 <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
                   <Badge variant="success">Onboarded</Badge>
                   <span className="text-muted-foreground">
-                    Employee {candidate.employee_emp_code || candidate.employee?.emp_code || candidate.employee_id}
+                    Employee{" "}
+                    {candidate.employee_emp_code ||
+                      candidate.employee?.emp_code ||
+                      candidate.employee_id}
                   </span>
+                  {onboardedEmployeeHref ? (
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <Link href={onboardedEmployeeHref}>View employee</Link>
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
               <FormGrid>
@@ -1221,7 +1269,8 @@ export default function HrmsCandidateEditPage() {
             <FormContainer>
               <FormSection variant="card" title="Onboard to employee">
                 <p className="mb-3 text-sm text-muted-foreground">
-                  Creates an active employee and login from this Selected candidate.
+                  Creates an active employee and login. Requires stage Offer Released (8+) and a
+                  complete onboarding checklist.
                 </p>
                 <FormGrid>
                   <FormField>
@@ -1236,44 +1285,42 @@ export default function HrmsCandidateEditPage() {
                     />
                   </FormField>
                   <FormField>
-                    <Select
+                    <AutocompleteField
                       label="Department"
                       name="department_id"
-                      value={onboardForm.department_id}
-                      onChange={(e) => {
-                        setOnboardField("department_id", e.target.value);
+                      placeholder="Search department…"
+                      options={departmentOptions}
+                      getOptionLabel={(o) => o?.label ?? ""}
+                      value={onboardForm.department_id || null}
+                      onChange={(_e, opt) => {
+                        setOnboardField("department_id", opt?.value ?? "");
                         setOnboardField("designation_id", "");
                       }}
                       error={!!onboardErrors.department_id}
                       helperText={onboardErrors.department_id}
                       required
-                    >
-                      <MenuItem value="">Select department</MenuItem>
-                      {departments.map((d) => (
-                        <MenuItem key={d.id} value={String(d.id)}>
-                          {d.title || d.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
+                    />
                   </FormField>
                   <FormField>
-                    <Select
+                    <AutocompleteField
                       label="Designation"
                       name="designation_id"
-                      value={onboardForm.designation_id}
-                      onChange={(e) => setOnboardField("designation_id", e.target.value)}
+                      placeholder={
+                        onboardForm.department_id
+                          ? "Search designation…"
+                          : "Select department first"
+                      }
+                      options={designationOptions}
+                      getOptionLabel={(o) => o?.label ?? ""}
+                      value={onboardForm.designation_id || null}
+                      onChange={(_e, opt) =>
+                        setOnboardField("designation_id", opt?.value ?? "")
+                      }
                       error={!!onboardErrors.designation_id}
                       helperText={onboardErrors.designation_id}
                       required
                       disabled={!onboardForm.department_id}
-                    >
-                      <MenuItem value="">Select designation</MenuItem>
-                      {designations.map((d) => (
-                        <MenuItem key={d.id} value={String(d.id)}>
-                          {d.title || d.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
+                    />
                   </FormField>
                   <FormField>
                     <DateField
@@ -1282,7 +1329,10 @@ export default function HrmsCandidateEditPage() {
                       value={onboardForm.joining_date}
                       onChange={(e) => setOnboardField("joining_date", e.target.value)}
                       error={!!onboardErrors.joining_date}
-                      helperText={onboardErrors.joining_date}
+                      helperText={
+                        onboardErrors.joining_date ||
+                        "Pick from calendar (preferred) or type DD/MM/YYYY"
+                      }
                       required
                     />
                   </FormField>

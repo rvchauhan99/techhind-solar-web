@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,6 +45,8 @@ const TABS = [
   { key: "hr", label: "HR Details" },
   { key: "final", label: "Final" },
 ];
+
+const PIPELINE_KPI_VALUES = new Set(["total", "screening", "interview", "selected", "rejected"]);
 
 const KPI_CARDS = [
   {
@@ -103,7 +105,7 @@ function candidateDisplayName(row) {
   return [row?.first_name, row?.last_name].filter(Boolean).join(" ") || "Candidate";
 }
 
-function buildWhatsAppUrl(row) {
+function buildWhatsAppUrl(row, formUrl) {
   const mobile = String(row?.mobile || "").replace(/\D/g, "");
   if (!mobile) return null;
   const phone = mobile.length === 10 ? `91${mobile}` : mobile;
@@ -114,16 +116,35 @@ function buildWhatsAppUrl(row) {
     const when = formatInterviewDt(row.interview_date);
     text = `Hi ${name}, your interview for ${position} is scheduled${when !== "—" ? ` on ${when}` : ""}. Please confirm.`;
   } else {
-    const formHint = row?.form_access_token
-      ? ` Please fill the interview form using your invite link.`
-      : ` Please fill the interview form when you receive the link.`;
-    text = `Hi ${name}, thank you for applying for ${position}.${formHint}`;
+    const linkPart = formUrl
+      ? ` Please complete the interview form: ${formUrl}`
+      : ` Please complete the interview form when you receive the link.`;
+    text = `Hi ${name}, thank you for applying for ${position}.${linkPart}`;
   }
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
-export default function HrmsCandidatesPage() {
+function boardColumnDefs(stageMeta) {
+  const byValue = new Map(
+    (stageMeta || []).map((s) => [Number(s.value), s.label || `Stage ${s.value}`])
+  );
+  const cols = [];
+  for (let v = 1; v <= 10; v += 1) {
+    cols.push({
+      value: v,
+      label: byValue.get(v) || `Stage ${v}`,
+    });
+  }
+  cols.push({
+    value: 0,
+    label: byValue.get(0) || "Rejected",
+  });
+  return cols;
+}
+
+function HrmsCandidatesPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const perm = useModulePermission(MODULE_KEY);
   const fileRef = useRef(null);
   const [meta, setMeta] = useState({ positions: [], stages: [] });
@@ -136,10 +157,14 @@ export default function HrmsCandidatesPage() {
     search: "",
     pipeline_kpi: "total",
   });
+  const [viewMode, setViewMode] = useState("list");
+  const [boardRows, setBoardRows] = useState([]);
+  const [boardLoading, setBoardLoading] = useState(false);
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [urlKpiSynced, setUrlKpiSynced] = useState(false);
 
   const refreshSummary = useCallback(() => {
     setSummaryLoading(true);
@@ -164,6 +189,59 @@ export default function HrmsCandidatesPage() {
     refreshSummary();
   }, [refreshSummary]);
 
+  useEffect(() => {
+    const kpi = searchParams.get("pipeline_kpi");
+    if (kpi && PIPELINE_KPI_VALUES.has(kpi)) {
+      setFilters((f) => ({ ...f, pipeline_kpi: kpi }));
+      setTableKey((k) => k + 1);
+    }
+    setUrlKpiSynced(true);
+  }, [searchParams]);
+
+  const syncPipelineKpiUrl = useCallback(
+    (key) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (!key || key === "total") {
+        params.delete("pipeline_kpi");
+      } else {
+        params.set("pipeline_kpi", key);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `/hrms/candidates?${qs}` : "/hrms/candidates", { scroll: false });
+    },
+    [router, searchParams]
+  );
+
+  const boardColumns = useMemo(() => boardColumnDefs(meta.stages), [meta.stages]);
+
+  const loadBoard = useCallback(() => {
+    setBoardLoading(true);
+    hrmsService
+      .listCandidates({
+        page: 1,
+        limit: 100,
+        search: filters.search || undefined,
+        position_id: filters.position_id || undefined,
+        stage: filters.stage !== "" ? filters.stage : undefined,
+        tab: filters.tab || "all",
+        pipeline_kpi:
+          filters.pipeline_kpi && filters.pipeline_kpi !== "total"
+            ? filters.pipeline_kpi
+            : undefined,
+      })
+      .then((res) => {
+        const payload = unwrap(res);
+        setBoardRows(payload?.data || []);
+      })
+      .catch(() => setBoardRows([]))
+      .finally(() => setBoardLoading(false));
+  }, [filters]);
+
+  useEffect(() => {
+    if (viewMode !== "board" || !urlKpiSynced) return;
+    loadBoard();
+  }, [viewMode, urlKpiSynced, loadBoard, tableKey]);
+
   const positionOptions = useMemo(
     () => (meta.positions || []).map((p) => ({ value: String(p.id ?? p.value), label: p.title || p.label })),
     [meta.positions]
@@ -176,6 +254,7 @@ export default function HrmsCandidatesPage() {
   const applyKpiFilter = (key) => {
     setFilters((f) => {
       const nextKey = f.pipeline_kpi === key && key !== "total" ? "total" : key;
+      syncPipelineKpiUrl(nextKey);
       return {
         ...f,
         pipeline_kpi: nextKey,
@@ -184,6 +263,17 @@ export default function HrmsCandidatesPage() {
     });
     setTableKey((k) => k + 1);
   };
+
+  const boardByStage = useMemo(() => {
+    const map = Object.fromEntries(boardColumns.map((c) => [c.value, []]));
+    for (const row of boardRows) {
+      const stage = Number(row.stage);
+      const key = Number.isFinite(stage) ? stage : 1;
+      if (map[key]) map[key].push(row);
+      else if (map[1]) map[1].push(row);
+    }
+    return map;
+  }, [boardRows, boardColumns]);
 
   const fetcher = useMemo(
     () =>
@@ -275,8 +365,30 @@ export default function HrmsCandidatesPage() {
     }
   };
 
-  const openWhatsApp = (row) => {
-    const url = buildWhatsAppUrl(row);
+  const openWhatsApp = async (row) => {
+    const mobile = String(row?.mobile || "").replace(/\D/g, "");
+    if (!mobile) {
+      toastInfo("Mobile number missing");
+      return;
+    }
+    let formUrl = null;
+    if (!row?.is_form_filled) {
+      if (row?.form_access_token) {
+        formUrl = `${window.location.origin}/careers/interview-form?token=${encodeURIComponent(row.form_access_token)}`;
+      } else {
+        try {
+          const res = await hrmsService.getCandidateFormLink({
+            candidate_id: row.id,
+            site_url: window.location.origin,
+          });
+          const payload = unwrap(res) || {};
+          formUrl = payload.url || "";
+        } catch (err) {
+          toastErrorFromApi(err, "Could not load form link");
+        }
+      }
+    }
+    const url = buildWhatsAppUrl(row, formUrl);
     if (!url) {
       toastInfo("Mobile number missing");
       return;
@@ -426,7 +538,7 @@ export default function HrmsCandidatesPage() {
         onSampleCsvClick={perm.can_create ? downloadTemplate : undefined}
         importButtonLabel={perm.can_create ? (importing ? "Uploading…" : "Upload Excel") : undefined}
         onImportClick={perm.can_create ? () => fileRef.current?.click() : undefined}
-        addButtonLabel={perm.can_create ? "Add" : undefined}
+        addButtonLabel={perm.can_create ? "Add Candidate" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/candidates/add") : undefined}
       >
         <input
@@ -456,24 +568,99 @@ export default function HrmsCandidatesPage() {
           })}
         </div>
 
-        <div className="mb-2 flex flex-wrap gap-1">
-          {TABS.map((t) => (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1">
+            {TABS.map((t) => (
+              <Button
+                key={t.key}
+                type="button"
+                size="sm"
+                variant={filters.tab === t.key ? "default" : "outline"}
+                className="h-8"
+                onClick={() => {
+                  setFilters((f) => ({ ...f, tab: t.key }));
+                  setTableKey((k) => k + 1);
+                }}
+              >
+                {t.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-1">
             <Button
-              key={t.key}
               type="button"
               size="sm"
-              variant={filters.tab === t.key ? "default" : "outline"}
+              variant={viewMode === "list" ? "default" : "outline"}
               className="h-8"
-              onClick={() => {
-                setFilters((f) => ({ ...f, tab: t.key }));
-                setTableKey((k) => k + 1);
-              }}
+              onClick={() => setViewMode("list")}
             >
-              {t.label}
+              List
             </Button>
-          ))}
+            <Button
+              type="button"
+              size="sm"
+              variant={viewMode === "board" ? "default" : "outline"}
+              className="h-8"
+              onClick={() => setViewMode("board")}
+            >
+              Board
+            </Button>
+          </div>
         </div>
 
+        {viewMode === "board" ? (
+          <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden">
+            {boardLoading ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Loading board…
+              </div>
+            ) : (
+              <div className="flex flex-1 gap-2 overflow-x-auto pb-2">
+                {boardColumns.map((col) => {
+                  const cards = boardByStage[col.value] || [];
+                  return (
+                    <div
+                      key={col.value}
+                      className="flex w-[200px] shrink-0 flex-col rounded-md border bg-muted/20"
+                    >
+                      <div className="border-b px-2 py-1.5 text-xs font-semibold text-foreground">
+                        {col.label}
+                        <span className="ml-1 font-normal text-muted-foreground">({cards.length})</span>
+                      </div>
+                      <div className="flex max-h-[calc(100vh-22rem)] flex-col gap-1.5 overflow-y-auto p-1.5">
+                        {cards.length === 0 ? (
+                          <p className="px-1 py-2 text-[11px] text-muted-foreground">No candidates</p>
+                        ) : (
+                          cards.map((row) => (
+                            <button
+                              key={row.id}
+                              type="button"
+                              className="rounded-md border bg-background p-2 text-left shadow-sm transition-colors hover:bg-muted/50"
+                              onClick={() => router.push(`/hrms/candidates/${row.id}`)}
+                            >
+                              <p className="text-xs font-medium leading-tight text-foreground">
+                                {candidateDisplayName(row)}
+                              </p>
+                              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                                {row.position_title || row.position?.title || "—"}
+                              </p>
+                              <Badge
+                                variant={stageBadgeVariant(row.stage)}
+                                className="mt-1.5 h-5 px-1.5 text-[10px]"
+                              >
+                                {row.stage_label || row.status_label || `Stage ${row.stage}`}
+                              </Badge>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
             key={`${tableKey}-${filters.pipeline_kpi}-${filters.tab}-${filters.stage}-${filters.position_id}-${filters.search}`}
@@ -502,6 +689,7 @@ export default function HrmsCandidatesPage() {
             }
           />
         </div>
+        )}
 
         <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
           <AlertDialogContent>
@@ -521,5 +709,17 @@ export default function HrmsCandidatesPage() {
         </AlertDialog>
       </ListingPageContainer>
     </ProtectedRoute>
+  );
+}
+
+export default function HrmsCandidatesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-4 text-sm text-muted-foreground">Loading candidate pipeline…</div>
+      }
+    >
+      <HrmsCandidatesPageContent />
+    </Suspense>
   );
 }

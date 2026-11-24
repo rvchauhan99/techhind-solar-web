@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -27,6 +27,7 @@ export default function InterviewAddForm() {
   const [modes, setModes] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [panelIds, setPanelIds] = useState([]);
+  const [panelSearch, setPanelSearch] = useState("");
   const [form, setForm] = useState({
     candidate_id: prefCandidateId,
     round: "1",
@@ -69,6 +70,25 @@ export default function InterviewAddForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefCandidateId]);
 
+  const filteredEmployees = useMemo(() => {
+    const q = panelSearch.trim().toLowerCase();
+    if (!q) return employees;
+    return employees.filter((emp) => {
+      const hay = [
+        emp.name,
+        emp.full_name,
+        emp.emp_code,
+        emp.email,
+        emp.department_name,
+        emp.designation_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [employees, panelSearch]);
+
   const togglePanel = (emp) => {
     const id = String(emp.id);
     setPanelIds((prev) => {
@@ -104,6 +124,7 @@ export default function InterviewAddForm() {
         mode: form.mode,
         duration_minutes: mins,
         panel: form.panel.trim() || null,
+        panel_member_ids: panelIds.length ? panelIds.map(Number) : null,
         notes: form.notes.trim() || null,
       });
       toastSuccess("Interview scheduled");
@@ -206,27 +227,42 @@ export default function InterviewAddForm() {
                   <div className="text-xs font-medium text-foreground mb-1">
                     Interview Panel <span className="text-destructive">*</span>
                   </div>
+                  <Input
+                    name="panel_search"
+                    placeholder="Search employees by name or code…"
+                    value={panelSearch}
+                    onChange={(e) => setPanelSearch(e.target.value)}
+                    className="mb-2"
+                  />
                   <div className="max-h-36 overflow-y-auto rounded-md border p-2 grid gap-1 sm:grid-cols-2">
-                    {employees.map((emp) => {
-                      const id = String(emp.id);
-                      const checked = panelIds.includes(id);
-                      return (
-                        <label key={id} className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => togglePanel(emp)}
-                          />
-                          <span>{emp.name || emp.full_name || emp.emp_code || `#${emp.id}`}</span>
-                        </label>
-                      );
-                    })}
+                    {filteredEmployees.length === 0 ? (
+                      <p className="col-span-full text-xs text-muted-foreground px-1 py-2">
+                        No employees match “{panelSearch.trim()}”.
+                      </p>
+                    ) : (
+                      filteredEmployees.map((emp) => {
+                        const id = String(emp.id);
+                        const checked = panelIds.includes(id);
+                        return (
+                          <label key={id} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => togglePanel(emp)}
+                            />
+                            <span>
+                              {emp.name || emp.full_name || emp.emp_code || `#${emp.id}`}
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
                   {errors.panel ? (
                     <p className="mt-1 text-xs text-destructive">{errors.panel}</p>
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Selected: {form.panel || "none"}
+                      Selected ({panelIds.length}): {form.panel || "none"}
                     </p>
                   )}
                 </FormField>

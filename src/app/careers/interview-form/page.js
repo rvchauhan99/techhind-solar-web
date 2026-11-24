@@ -5,7 +5,38 @@ import { useSearchParams } from "next/navigation";
 import {
   getPublicInterviewForm,
   submitPublicInterviewForm,
+  uploadPublicInterviewResume,
 } from "@/services/publicHrmsService";
+
+const REQUIRED_TEXT = new Set([
+  "first_name",
+  "last_name",
+  "email",
+  "mobile",
+  "date_of_birth",
+  "gender",
+  "marital_status",
+  "state",
+  "city",
+  "education",
+  "experience",
+  "solar_experience",
+  "expected_ctc",
+  "in_hand_salary",
+  "join_timeline",
+  "notice_period_days",
+  "address",
+  "describe_yourself",
+  "why_this_job",
+]);
+
+const REQUIRED_SELECT = new Set([
+  "same_field",
+  "currently_working",
+  "ready_for_travel",
+  "own_vehicle",
+  "experience_in_field",
+]);
 
 function InterviewFormInner() {
   const search = useSearchParams();
@@ -14,6 +45,8 @@ function InterviewFormInner() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [positionTitle, setPositionTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [form, setForm] = useState({
@@ -113,15 +146,48 @@ function InterviewFormInner() {
     };
   }, [token]);
 
-  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const setField = (key, value) => {
+    setForm((f) => ({ ...f, [key]: value }));
+    if (fieldErrors[key]) setFieldErrors((p) => ({ ...p, [key]: undefined }));
+  };
+
+  const validateForm = () => {
+    const errs = {};
+    for (const key of REQUIRED_TEXT) {
+      if (!String(form[key] ?? "").trim()) errs[key] = "Required";
+    }
+    for (const key of REQUIRED_SELECT) {
+      if (!String(form[key] ?? "").trim()) errs[key] = "Required";
+    }
+    const mobile = String(form.mobile || "").replace(/\D/g, "");
+    if (mobile.length !== 10) errs.mobile = "Enter 10-digit mobile";
+    if (!form.resume_url?.trim() && !resumeFile) {
+      errs.resume = "Resume file is required";
+    }
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
+    if (!validateForm()) {
+      setError("Please fix the highlighted fields.");
+      return;
+    }
+    setSubmitting(true);
     try {
+      let resumeUrl = form.resume_url?.trim() || "";
+      if (!resumeUrl && resumeFile) {
+        const uploadRes = await uploadPublicInterviewResume(token, resumeFile);
+        const uploaded = uploadRes?.result || uploadRes?.data || uploadRes || {};
+        resumeUrl = uploaded.resume_url || "";
+        if (!resumeUrl) throw new Error("Resume upload did not return a URL");
+        setForm((f) => ({ ...f, resume_url: resumeUrl }));
+      }
       await submitPublicInterviewForm(token, {
         ...form,
+        resume_url: resumeUrl,
         current_ctc: form.current_ctc !== "" ? Number(form.current_ctc) : null,
         expected_ctc: form.expected_ctc !== "" ? Number(form.expected_ctc) : null,
         in_hand_salary: form.in_hand_salary !== "" ? Number(form.in_hand_salary) : null,
@@ -195,24 +261,48 @@ function InterviewFormInner() {
           ["previous_job_status", "Status at previous job", false],
           ["days_left", "How many days left?", false],
           ["gap_months", "Gap in months", false],
-          ["resume_url", "Resume URL", true],
         ].map(([key, label, required]) => (
           <label key={key} className="grid gap-1 text-xs font-medium">
             {label}
             {required ? <span className="text-destructive"> *</span> : null}
             <input
-              className="h-9 rounded-md border px-2 text-sm"
+              className={`h-9 rounded-md border px-2 text-sm ${fieldErrors[key] ? "border-destructive" : ""}`}
               value={form[key]}
               onChange={(e) => setField(key, e.target.value)}
               required={required}
             />
+            {fieldErrors[key] ? (
+              <span className="text-[11px] text-destructive">{fieldErrors[key]}</span>
+            ) : null}
           </label>
         ))}
+        <label className="grid gap-1 text-xs font-medium">
+          Resume (PDF / DOC)
+          {!form.resume_url ? <span className="text-destructive"> *</span> : null}
+          {form.resume_url ? (
+            <p className="text-[11px] text-muted-foreground">
+              On file — upload a new file to replace.
+            </p>
+          ) : null}
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className={`text-sm ${fieldErrors.resume ? "text-destructive" : ""}`}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setResumeFile(file);
+              if (fieldErrors.resume) setFieldErrors((p) => ({ ...p, resume: undefined }));
+            }}
+          />
+          {fieldErrors.resume ? (
+            <span className="text-[11px] text-destructive">{fieldErrors.resume}</span>
+          ) : null}
+        </label>
         {yesNo.map(([key, label]) => (
           <label key={key} className="grid gap-1 text-xs font-medium">
             {label} <span className="text-destructive">*</span>
             <select
-              className="h-9 rounded-md border px-2 text-sm"
+              className={`h-9 rounded-md border px-2 text-sm ${fieldErrors[key] ? "border-destructive" : ""}`}
               value={form[key]}
               onChange={(e) => setField(key, e.target.value)}
               required
@@ -221,12 +311,15 @@ function InterviewFormInner() {
               <option value="yes">Yes</option>
               <option value="no">No</option>
             </select>
+            {fieldErrors[key] ? (
+              <span className="text-[11px] text-destructive">{fieldErrors[key]}</span>
+            ) : null}
           </label>
         ))}
         <label className="grid gap-1 text-xs font-medium">
           Experience in this field <span className="text-destructive">*</span>
           <select
-            className="h-9 rounded-md border px-2 text-sm"
+            className={`h-9 rounded-md border px-2 text-sm ${fieldErrors.experience_in_field ? "border-destructive" : ""}`}
             value={form.experience_in_field}
             onChange={(e) => setField("experience_in_field", e.target.value)}
             required
@@ -237,6 +330,9 @@ function InterviewFormInner() {
             <option value="3-5">3 - 5 Year</option>
             <option value="5+">5+ Year</option>
           </select>
+          {fieldErrors.experience_in_field ? (
+            <span className="text-[11px] text-destructive">{fieldErrors.experience_in_field}</span>
+          ) : null}
         </label>
         {[
           ["address", "Address", true],
@@ -249,11 +345,14 @@ function InterviewFormInner() {
             {label}
             {required ? <span className="text-destructive"> *</span> : null}
             <textarea
-              className="min-h-[72px] rounded-md border px-2 py-1 text-sm"
+              className={`min-h-[72px] rounded-md border px-2 py-1 text-sm ${fieldErrors[key] ? "border-destructive" : ""}`}
               value={form[key]}
               onChange={(e) => setField(key, e.target.value)}
               required={required}
             />
+            {fieldErrors[key] ? (
+              <span className="text-[11px] text-destructive">{fieldErrors[key]}</span>
+            ) : null}
           </label>
         ))}
         <button

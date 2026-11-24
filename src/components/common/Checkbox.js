@@ -1,7 +1,6 @@
 "use client";
 
 import { forwardRef, useRef, useEffect } from "react";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { FIELD_TEXT_SMALL } from "@/utils/formConstants";
 
@@ -49,9 +48,16 @@ const Checkbox = forwardRef(function Checkbox(
     }
   };
 
+  // Use a single wrapping <label> with a <span> for text — nesting
+  // <Label htmlFor> inside <label> double-fires click → unreliable toggles.
   return (
     <div className={cn("w-full flex flex-col gap-0.5", className)}>
-      <label className="flex items-center gap-2 cursor-pointer group">
+      <label
+        className={cn(
+          "flex items-center gap-2 cursor-pointer group",
+          disabled && "cursor-not-allowed opacity-50"
+        )}
+      >
         <input
           ref={resolvedRef}
           type="checkbox"
@@ -80,22 +86,16 @@ const Checkbox = forwardRef(function Checkbox(
           }
           {...otherProps}
         />
-        {label && (
-          <Label
-            htmlFor={name}
-            className={cn(
-              FIELD_TEXT_SMALL,
-              "font-medium cursor-pointer group-disabled:opacity-50"
-            )}
-          >
+        {label ? (
+          <span className={cn(FIELD_TEXT_SMALL, "font-medium select-none")}>
             {label}
-            {required && <span className="text-destructive ml-0.5">*</span>}
-          </Label>
-        )}
+            {required ? <span className="text-destructive ml-0.5">*</span> : null}
+          </span>
+        ) : null}
       </label>
-      {error && helperText && (
+      {error && helperText ? (
         <p className="mt-1.5 text-xs text-destructive">{helperText}</p>
-      )}
+      ) : null}
     </div>
   );
 });

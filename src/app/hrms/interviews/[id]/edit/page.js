@@ -18,6 +18,17 @@ import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
+const SCORECARD_CRITERIA = [
+  "Communication",
+  "Technical",
+  "Culture Fit",
+  "Problem Solving",
+];
+
+function defaultScorecardCriteria() {
+  return SCORECARD_CRITERIA.map((name) => ({ name, score: "" }));
+}
+
 export default function HrmsInterviewEditPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -38,7 +49,12 @@ export default function HrmsInterviewEditPage() {
     result: "",
     feedback: "",
   });
-  const [evalForm, setEvalForm] = useState({ result: "pass", feedback: "" });
+  const [evalForm, setEvalForm] = useState({
+    result: "pass",
+    feedback: "",
+    criteria: defaultScorecardCriteria(),
+  });
+  const [savedScorecard, setSavedScorecard] = useState(null);
   const [errors, setErrors] = useState({});
   const [evalErrors, setEvalErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -74,6 +90,7 @@ export default function HrmsInterviewEditPage() {
           result: row.result || "",
           feedback: row.feedback || "",
         });
+        setSavedScorecard(row.scorecard || null);
       } catch (err) {
         toastErrorFromApi(err, "Failed to load interview");
         router.push("/hrms/interviews");
@@ -138,10 +155,25 @@ export default function HrmsInterviewEditPage() {
     }
   };
 
+  const setCriterionScore = (index, value) => {
+    setEvalForm((f) => {
+      const criteria = f.criteria.map((c, i) => (i === index ? { ...c, score: value } : c));
+      return { ...f, criteria };
+    });
+    const errKey = `criteria_${index}`;
+    if (evalErrors[errKey]) setEvalErrors((p) => ({ ...p, [errKey]: undefined }));
+  };
+
   const onEvaluate = async (e) => {
     e.preventDefault();
     const errs = {};
     if (!evalForm.result) errs.result = "Result is required";
+    evalForm.criteria.forEach((c, index) => {
+      const s = Number(c.score);
+      if (!Number.isInteger(s) || s < 1 || s > 5) {
+        errs[`criteria_${index}`] = "Score 1–5 required";
+      }
+    });
     setEvalErrors(errs);
     if (Object.keys(errs).length) return;
 
@@ -150,6 +182,14 @@ export default function HrmsInterviewEditPage() {
       const res = await hrmsService.evaluateInterview(id, {
         result: evalForm.result,
         feedback: evalForm.feedback.trim() || null,
+        scorecard: {
+          criteria: evalForm.criteria.map((c) => ({
+            name: c.name,
+            score: Number(c.score),
+            max: 5,
+          })),
+          overall_result: evalForm.result,
+        },
       });
       const row = unwrap(res) || {};
       setForm((f) => ({
@@ -158,6 +198,7 @@ export default function HrmsInterviewEditPage() {
         result: row.result || evalForm.result,
         feedback: row.feedback || evalForm.feedback,
       }));
+      setSavedScorecard(row.scorecard || null);
       toastSuccess("Interview evaluated");
     } catch (err) {
       toastErrorFromApi(err, "Evaluate failed");
@@ -303,6 +344,33 @@ export default function HrmsInterviewEditPage() {
                   </FormField>
                 </FormGrid>
               ) : null}
+              {savedScorecard?.criteria?.length ? (
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-semibold text-foreground">Scorecard</p>
+                  <FormGrid>
+                    {savedScorecard.criteria.map((c) => (
+                      <FormField key={c.name}>
+                        <Input
+                          label={c.name}
+                          value={`${c.score ?? "—"} / ${c.max ?? 5}`}
+                          disabled
+                        />
+                      </FormField>
+                    ))}
+                  </FormGrid>
+                  {savedScorecard.overall_result ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Overall result:{" "}
+                      <span className="font-medium text-foreground">{savedScorecard.overall_result}</span>
+                      {savedScorecard.overall_score != null ? (
+                        <span className="ml-2">
+                          (avg {Number(savedScorecard.overall_score).toFixed(1)})
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </FormSection>
             <FormActions>
               <Button type="button" variant="outline" onClick={() => router.push("/hrms/interviews")}>
@@ -360,6 +428,29 @@ export default function HrmsInterviewEditPage() {
                       ))}
                     </Select>
                   </FormField>
+                </FormGrid>
+                <p className="mt-3 text-xs font-semibold text-foreground">Scorecard (1–5 each)</p>
+                <FormGrid className="mt-2">
+                  {evalForm.criteria.map((c, index) => (
+                    <FormField key={c.name}>
+                      <Select
+                        label={c.name}
+                        name={`score_${index}`}
+                        value={c.score}
+                        onChange={(e) => setCriterionScore(index, e.target.value)}
+                        error={!!evalErrors[`criteria_${index}`]}
+                        helperText={evalErrors[`criteria_${index}`]}
+                        required
+                      >
+                        <MenuItem value="">Select</MenuItem>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <MenuItem key={n} value={String(n)}>
+                            {n}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormField>
+                  ))}
                 </FormGrid>
                 <FormField className="mt-3">
                   <Textarea

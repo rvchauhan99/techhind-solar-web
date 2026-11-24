@@ -62,14 +62,36 @@ export async function listPublicPositions() {
   return parseResponse(res);
 }
 
-export async function submitPublicApplication(payload) {
+export async function submitPublicApplication(payload, resumeFile = null) {
   const base = getApiBaseUrl();
+  const form = new FormData();
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value == null || value === "") return;
+    form.append(key, String(value));
+  });
+  if (resumeFile) form.append("resume", resumeFile);
   const res = await fetch(`${base}/public/hrms/apply`, {
     method: "POST",
-    headers: tenantHeaders({ json: true }),
-    body: JSON.stringify(payload),
+    headers: tenantHeaders(),
+    body: form,
     cache: "no-store",
   });
+  return parseResponse(res);
+}
+
+export async function uploadPublicInterviewResume(token, resumeFile) {
+  const base = getApiBaseUrl();
+  const form = new FormData();
+  form.append("resume", resumeFile);
+  const res = await fetch(
+    `${base}/public/hrms/interview-form/${encodeURIComponent(token)}/resume`,
+    {
+      method: "POST",
+      headers: tenantHeaders(),
+      body: form,
+      cache: "no-store",
+    }
+  );
   return parseResponse(res);
 }
 
