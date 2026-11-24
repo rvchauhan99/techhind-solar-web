@@ -664,7 +664,7 @@ export default function StockPage() {
           {
             field: "stock_value",
             label: "Stock Value Excl GST",
-            sortable: false,
+            sortable: true,
             render: (row) => (row.stock_value != null ? formatCurrency(row.stock_value) : "-"),
           },
           {
@@ -754,7 +754,7 @@ export default function StockPage() {
         min_stock_quantity_to: p.min_stock_quantity_to || undefined,
         tracking_type: p.tracking_type || undefined,
         low_stock: p.low_stock !== undefined && p.low_stock !== "" ? p.low_stock : undefined,
-        sortBy: STOCK_SORT_FIELD_MAP[p.sortBy] || p.sortBy || "id",
+        sortBy: STOCK_SORT_FIELD_MAP[p.sortBy] || p.sortBy || "stock_value",
         sortOrder: String(p.sortOrder || "DESC").toUpperCase() === "ASC" ? "ASC" : "DESC",
       });
       const result = response?.result || response;
@@ -1428,7 +1428,7 @@ export default function StockPage() {
             page={page}
             limit={limit}
             q={q}
-            sortBy={sortBy || "id"}
+            sortBy={sortBy || "stock_value"}
             sortOrder={sortOrder || "DESC"}
             onPageChange={(zeroBased) => setPage(zeroBased + 1)}
             onRowsPerPageChange={setLimit}
