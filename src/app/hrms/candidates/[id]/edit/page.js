@@ -41,6 +41,30 @@ function todayYmd() {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Mirror of the API stage list (candidate.stages.js). Used only when the meta
+ * endpoint returns no stages so the saved stage can still render as selected.
+ */
+const FALLBACK_STAGES = [
+  { value: 0, label: "Rejected" },
+  { value: 1, label: "Applied" },
+  { value: 2, label: "Screening" },
+  { value: 3, label: "Shortlisted" },
+  { value: 4, label: "Interview R1" },
+  { value: 5, label: "Interview R2" },
+  { value: 6, label: "Final Eval" },
+  { value: 7, label: "Selected" },
+  { value: 8, label: "Offer Released" },
+  { value: 9, label: "Offer Accepted" },
+  { value: 10, label: "Joined" },
+];
+
+function ymdOnly(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  return s.slice(0, 10);
+}
+
 export default function HrmsCandidateEditPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -145,6 +169,32 @@ export default function HrmsCandidateEditPage() {
       })),
     [designations]
   );
+  // Meta only lists ACTIVE positions; always keep the candidate's saved
+  // position selectable so the stored value renders as selected on edit.
+  const positionOptions = useMemo(() => {
+    const list = (positions || []).map((p) => ({
+      value: String(p.id ?? p.value),
+      label: p.title || p.label || `Position #${p.id ?? p.value}`,
+    }));
+    const currentId =
+      candidate?.position_id != null && candidate?.position_id !== ""
+        ? candidate.position_id
+        : candidate?.position?.id;
+    if (
+      currentId != null &&
+      currentId !== "" &&
+      !list.some((o) => o.value === String(currentId))
+    ) {
+      list.unshift({
+        value: String(currentId),
+        label:
+          candidate?.position?.title ||
+          candidate?.position_title ||
+          `Position #${currentId} (closed)`,
+      });
+    }
+    return list;
+  }, [positions, candidate]);
   const onboardedEmployeeHref = useMemo(() => {
     const eid =
       candidate?.employee_id != null && candidate.employee_id !== ""
@@ -176,17 +226,24 @@ export default function HrmsCandidateEditPage() {
         setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
         const row = unwrap(rowRes) || {};
         setCandidate(row);
+        const seededPositionId =
+          row.position_id != null && row.position_id !== ""
+            ? row.position_id
+            : row.position?.id != null && row.position?.id !== ""
+              ? row.position.id
+              : "";
+        const seededStage = Number(row.stage);
         setForm((f) => ({
           ...f,
-          position_id: row.position_id != null ? String(row.position_id) : "",
+          position_id: seededPositionId !== "" ? String(seededPositionId) : "",
           first_name: row.first_name || "",
           last_name: row.last_name || "",
           email: row.email || "",
           mobile: row.mobile || "",
           reference: row.reference || "",
           notes: row.notes || "",
-          stage: row.stage != null ? String(row.stage) : "1",
-          date_of_birth: row.date_of_birth || "",
+          stage: Number.isFinite(seededStage) ? String(seededStage) : "1",
+          date_of_birth: ymdOnly(row.date_of_birth),
           gender: row.gender || "",
           marital_status: row.marital_status || "",
           address: row.address || "",
@@ -198,7 +255,7 @@ export default function HrmsCandidateEditPage() {
           current_ctc: row.current_ctc != null ? String(row.current_ctc) : "",
           expected_ctc: row.expected_ctc != null ? String(row.expected_ctc) : "",
           in_hand_salary: row.in_hand_salary != null ? String(row.in_hand_salary) : "",
-          joining_date: row.joining_date || "",
+          joining_date: ymdOnly(row.joining_date),
           salary: row.salary != null ? String(row.salary) : "",
           meet_link: row.meet_link || "",
           offer_letter_url: row.offer_letter_url || "",
@@ -392,15 +449,35 @@ export default function HrmsCandidateEditPage() {
   };
 
   // Manual edits may move forward (and skip) but never backwards; offer/joined
-  // are action-only, so keep them out of the dropdown.
+  // are action-only, so keep them out of the dropdown. The saved stage is
+  // always kept as an option so the stored value renders as selected.
   const currentStage = Number(candidate?.stage ?? form.stage ?? 1);
-  const stageOptions = stages.filter((s) => {
-    const value = Number(s.value);
-    if (value === currentStage) return true;
-    if (value < currentStage) return false;
-    if (value === 8 || value === 9 || value === 10) return false;
-    return true;
-  });
+  const stageBase = useMemo(() => {
+    if (Array.isArray(stages) && stages.length) {
+      return stages.map((s) => ({
+        value: Number(s.value),
+        label: s.label || `Stage ${s.value}`,
+      }));
+    }
+    return FALLBACK_STAGES.map((s) => ({ ...s }));
+  }, [stages]);
+  const stageOptions = useMemo(() => {
+    const opts = stageBase.filter((s) => {
+      if (s.value === currentStage) return true;
+      if (s.value < currentStage) return false;
+      if (s.value === 8 || s.value === 9 || s.value === 10) return false;
+      return true;
+    });
+    if (!opts.some((s) => s.value === currentStage)) {
+      opts.unshift(
+        stageBase.find((s) => s.value === currentStage) || {
+          value: currentStage,
+          label: candidate?.stage_label || `Stage ${currentStage}`,
+        }
+      );
+    }
+    return opts;
+  }, [stageBase, currentStage, candidate?.stage_label]);
 
   return (
     <ProtectedRoute>
@@ -451,9 +528,9 @@ export default function HrmsCandidateEditPage() {
                     required
                   >
                     <MenuItem value="">Select position</MenuItem>
-                    {positions.map((p) => (
-                      <MenuItem key={p.id ?? p.value} value={String(p.id ?? p.value)}>
-                        {p.title || p.label}
+                    {positionOptions.map((p) => (
+                      <MenuItem key={p.value} value={p.value}>
+                        {p.label}
                       </MenuItem>
                     ))}
                   </Select>
