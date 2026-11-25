@@ -69,6 +69,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         // panel_size: "",
         panel_type: "",
         panel_technology_id: "",
+        inverter_type_id: "",
+        inverter_phase_id: "",
         // extra_size: "",
         extra_type: "",
         additional_warranty: "",
@@ -87,6 +89,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         productMakes: [],
         measurementUnits: [],
         panelTechnologies: [],
+        inverterTypes: [],
+        inverterPhases: [],
     });
     const [loadingOptions, setLoadingOptions] = useState(false);
 
@@ -190,6 +194,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 // panel_size: properties?.panel?.size ?? "",
                 panel_type: properties?.panel?.type ?? "",
                 panel_technology_id: properties?.panel?.panel_technology_id ?? "",
+                inverter_type_id: properties?.inverter?.inverter_type_id ?? "",
+                inverter_phase_id: properties?.inverter?.inverter_phase_id ?? "",
                 // extra_size,
                 extra_type,
                 additional_warranty,
@@ -207,10 +213,12 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         const loadOptions = async () => {
             setLoadingOptions(true);
             try {
-                const [productTypesRes, measurementUnitsRes, panelTechnologiesRes] = await Promise.all([
+                const [productTypesRes, measurementUnitsRes, panelTechnologiesRes, inverterTypesRes, inverterPhasesRes] = await Promise.all([
                     mastersService.getReferenceOptions("product_type.model"),
                     mastersService.getReferenceOptions("measurement_unit.model"),
                     mastersService.getReferenceOptions("panel_technology.model"),
+                    mastersService.getReferenceOptions("inverter_type.model"),
+                    mastersService.getReferenceOptions("inverter_phase.model"),
                 ]);
 
                 // Handle response structure - same as MasterForm
@@ -218,12 +226,16 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                 const productTypesData = productTypesRes?.result || productTypesRes?.data || productTypesRes || [];
                 const measurementUnitsData = measurementUnitsRes?.result || measurementUnitsRes?.data || measurementUnitsRes || [];
                 const panelTechnologiesData = panelTechnologiesRes?.result || panelTechnologiesRes?.data || panelTechnologiesRes || [];
+                const inverterTypesData = inverterTypesRes?.result || inverterTypesRes?.data || inverterTypesRes || [];
+                const inverterPhasesData = inverterPhasesRes?.result || inverterPhasesRes?.data || inverterPhasesRes || [];
 
                 setOptions({
                     productTypes: Array.isArray(productTypesData) ? productTypesData : [],
                     productMakes: [], // Will be loaded when product_type_id is selected
                     measurementUnits: Array.isArray(measurementUnitsData) ? measurementUnitsData : [],
                     panelTechnologies: Array.isArray(panelTechnologiesData) ? panelTechnologiesData : [],
+                    inverterTypes: Array.isArray(inverterTypesData) ? inverterTypesData : [],
+                    inverterPhases: Array.isArray(inverterPhasesData) ? inverterPhasesData : [],
                 });
             } catch (err) {
                 console.error("Failed to load reference options", err);
@@ -373,6 +385,11 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
             }
         }
 
+        if (selectedTypeName === "inverter") {
+            if (!formData.inverter_type_id) validationErrors.inverter_type_id = "Inverter Type is required";
+            if (!formData.inverter_phase_id) validationErrors.inverter_phase_id = "Inverter Phase is required";
+        }
+
         // Validate tracking_type
         if (!formData.tracking_type) {
             validationErrors.tracking_type = "Tracking Type is required";
@@ -437,7 +454,12 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         }
         const typeName = selectedTypeName.replace(/\s+/g, "_");
         // Build properties object based on product type
-        if (["inverter", "hybrid_inverter", "earthing", "acdb", "dcdb", "la"].includes(typeName)) {
+        if (typeName === "inverter") {
+            payloadProperties.inverter = {
+                inverter_type_id: formData.inverter_type_id ? Number(formData.inverter_type_id) : null,
+                inverter_phase_id: formData.inverter_phase_id ? Number(formData.inverter_phase_id) : null,
+            };
+        } else if (["hybrid_inverter", "earthing", "acdb", "dcdb", "la"].includes(typeName)) {
             payloadProperties[typeName] = {};
         }
 
@@ -482,6 +504,8 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
         // delete payload.panel_size;
         delete payload.panel_type;
         delete payload.panel_technology_id;
+        delete payload.inverter_type_id;
+        delete payload.inverter_phase_id;
         // delete payload.extra_size;
         delete payload.extra_type;
         delete payload.additional_warranty;
@@ -584,6 +608,42 @@ export default function ProductForm({ defaultValues = {}, onSubmit, loading, ser
                                 placeholder="Type to search..."
                                 error={!!errors.panel_technology_id}
                                 helperText={errors.panel_technology_id}
+                            />
+                        </Grid>
+                    )}
+
+                    {/* Inverter Type (Inverter Only) */}
+                    {selectedTypeName === "inverter" && (
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <AutocompleteField
+                                name="inverter_type_id"
+                                label="Inverter Type"
+                                options={options.inverterTypes}
+                                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                                value={options.inverterTypes.find((o) => String(o.id) === String(formData.inverter_type_id)) || (formData.inverter_type_id ? { id: formData.inverter_type_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "inverter_type_id", value: newValue?.id ?? "" } })}
+                                placeholder="Type to search..."
+                                required
+                                error={!!errors.inverter_type_id}
+                                helperText={errors.inverter_type_id}
+                            />
+                        </Grid>
+                    )}
+
+                    {/* Inverter Phase (Inverter Only) */}
+                    {selectedTypeName === "inverter" && (
+                        <Grid item size={{ xs: 12, md: 3 }}>
+                            <AutocompleteField
+                                name="inverter_phase_id"
+                                label="Inverter Phase"
+                                options={options.inverterPhases}
+                                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                                value={options.inverterPhases.find((o) => String(o.id) === String(formData.inverter_phase_id)) || (formData.inverter_phase_id ? { id: formData.inverter_phase_id } : null)}
+                                onChange={(e, newValue) => handleChange({ target: { name: "inverter_phase_id", value: newValue?.id ?? "" } })}
+                                placeholder="Type to search..."
+                                required
+                                error={!!errors.inverter_phase_id}
+                                helperText={errors.inverter_phase_id}
                             />
                         </Grid>
                     )}

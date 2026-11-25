@@ -42,12 +42,19 @@ export default function B2bPreviousPaymentsTable({
   const fetcher = useCallback(
     async (params) => {
       const { page, limit, q, search } = params;
-      return b2bOrderPaymentsService.getPayments({
+      const response = await b2bOrderPaymentsService.getPayments({
         b2b_sales_order_id: orderId,
         page,
         limit,
         search: q || search || undefined,
       });
+      return {
+        data: response.result || [],
+        meta: {
+          total: response.pagination?.total ?? 0,
+          page: response.pagination?.page ?? 1,
+        },
+      };
     },
     [orderId, refreshKey]
   );

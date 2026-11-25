@@ -1,0 +1,26 @@
+# Changes summary — mandatory (client notes)
+
+After completing **any** change in this repo — **before marking the task done** — update the client-facing change notes. They live in the API repo (one place only, not a separate FE/BE log).
+
+## Where to write
+- Day file (create or append): `techhind-solar-api/docs/changes/YYYY-MM-DD.md`
+- Index (newest first): `techhind-solar-api/docs/CHANGES_SUMMARY.md` — add/update that date's line.
+
+## Audience = client
+- Simple words: what the user can do / what is fixed.
+- Functional outcome only.
+- No file paths, code, routes, component names, or "frontend/backend" wording.
+
+## Entry format
+```markdown
+## Fixes | Improvements | New
+- **Short title** — plain-language what changed and why it matters to the user.
+```
+
+Sequence: **Fixes → Improvements → New**. Append-only; never rewrite past day files.
+
+## /stocks changes
+- Every `/stocks` (iStock Dashboard / Stock Qty) change must be appended to the same-day `techhind-solar-api/docs/changes/YYYY-MM-DD.md` and the index line updated before marking the task Done.
+
+## Definition of done
+No task is complete without the day file + index line updated in `techhind-solar-api/docs/`.

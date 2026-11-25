@@ -33,11 +33,11 @@ next-env.d.ts
 # Vercel / deploy
 .vercel
 
-# test / e2e artifacts
+# test / e2e artifacts — local agentic Playwright QA only (not core platform)
 coverage/
 playwright-report/
 test-results/
-e2e/artifacts/
+e2e/
 
 # Local agentic HRMS QA scratch (env-only; do not commit)
 e2e/hrms-*-agentic.mjs

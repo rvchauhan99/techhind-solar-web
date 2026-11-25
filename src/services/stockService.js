@@ -6,6 +6,9 @@ export const getStocks = (params = {}) =>
 export const getStockSummary = (params = {}) =>
   apiClient.get("/stocks/summary", { params }).then((r) => r.data);
 
+export const getAvailableProductTypes = (params = {}) =>
+  apiClient.get("/stocks/available-types", { params }).then((r) => r.data);
+
 export const exportStocks = (params = {}) =>
   apiClient.get("/stocks/export", { params, responseType: "blob" }).then((r) => r.data);
 
@@ -53,6 +56,7 @@ export const validateSerialNotExists = (serialNumber, productId, warehouseId) =>
 export default {
   getStocks,
   getStockSummary,
+  getAvailableProductTypes,
   exportStocks,
   getReservationDetails,
   exportReservationDetails,

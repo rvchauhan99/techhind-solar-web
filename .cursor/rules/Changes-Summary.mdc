@@ -1,0 +1,15 @@
+---
+description: HARD GATE — client day log in API docs only, screen-wise with point counts
+alwaysApply: true
+---
+
+# Client changes summary (HARD GATE)
+
+**Do not mark Done without this.**
+
+Update **only**:
+
+- `techhind-solar-api/docs/changes/YYYY-MM-DD.md`
+- `techhind-solar-api/docs/CHANGES_SUMMARY.md`
+
+Same turn as the fix. **By screen/module**, numbered points, recount day total + table. Client-simple words. Never create change logs in this web repo.
