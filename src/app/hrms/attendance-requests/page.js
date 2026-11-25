@@ -30,6 +30,7 @@ export default function HrmsAttendanceRequestsPage() {
   const [filters, setFilters] = useState({ status: "", request_type: "", search: "" });
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [note, setNote] = useState("");
+  const [correctedAt, setCorrectedAt] = useState("");
   const [deciding, setDeciding] = useState(false);
   const [counts, setCounts] = useState({ l1: null, l2: null, approved: null });
   const [countsLoading, setCountsLoading] = useState(true);
@@ -79,6 +80,14 @@ export default function HrmsAttendanceRequestsPage() {
   const openDecision = (row, level, decision) => {
     setDecisionTarget({ row, level, decision });
     setNote("");
+    if (decision === "approve" && level === 2 && row?.request_at) {
+      const d = new Date(row.request_at);
+      const pad = (n) => String(n).padStart(2, "0");
+      const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setCorrectedAt(local);
+    } else {
+      setCorrectedAt("");
+    }
   };
 
   const confirmDecision = async () => {
@@ -86,7 +95,16 @@ export default function HrmsAttendanceRequestsPage() {
     const { row, level, decision } = decisionTarget;
     setDeciding(true);
     try {
-      await hrmsService.decideAttendanceRequest(row.id, { level, decision, note: note || undefined });
+      const payload = { level, decision, note: note || undefined };
+      if (
+        decision === "approve" &&
+        level === 2 &&
+        correctedAt &&
+        String(correctedAt).trim()
+      ) {
+        payload.corrected_at = new Date(correctedAt).toISOString();
+      }
+      await hrmsService.decideAttendanceRequest(row.id, payload);
       toastSuccess(`Request ${decision}d (L${level})`);
       setDecisionTarget(null);
       setTableKey((k) => k + 1);
@@ -125,7 +143,16 @@ export default function HrmsAttendanceRequestsPage() {
           { value: "break_in", label: "Break in" },
           { value: "break_out", label: "Break out" },
         ],
-        render: (row) => String(row.request_type || "").replace(/_/g, " "),
+        render: (row) => (
+          <div className="flex flex-col gap-0.5">
+            <span>{String(row.request_type || "").replace(/_/g, " ")}</span>
+            {row.source === "system_auto_checkout" && (
+              <span className="inline-flex w-fit rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                Auto punch-out
+              </span>
+            )}
+          </div>
+        ),
       },
       { field: "request_at", label: "Requested at", sortable: false, render: (row) => (row.request_at ? new Date(row.request_at).toLocaleString() : "—") },
       { field: "reason", label: "Reason", sortable: false, render: (row) => <span className="text-xs line-clamp-2">{row.reason}</span> },
@@ -261,8 +288,24 @@ export default function HrmsAttendanceRequestsPage() {
                 {String(decisionTarget?.row?.request_type || "").replace(/_/g, " ")}. You can add an optional note.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="py-2">
+            <div className="space-y-2 py-2">
               <Input label="Note (optional)" name="note" value={note} onChange={(e) => setNote(e.target.value)} />
+              {decisionTarget?.decision === "approve" &&
+                decisionTarget?.level === 2 &&
+                decisionTarget?.row?.request_type === "check_out" && (
+                  <Input
+                    type="datetime-local"
+                    label="Corrected check-out time (optional)"
+                    name="corrected_at"
+                    value={correctedAt}
+                    onChange={(e) => setCorrectedAt(e.target.value)}
+                    helperText={
+                      decisionTarget?.row?.source === "system_auto_checkout"
+                        ? "Adjust the auto punch-out time before applying."
+                        : "Leave as-is to apply the requested time."
+                    }
+                  />
+                )}
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deciding}>Cancel</AlertDialogCancel>

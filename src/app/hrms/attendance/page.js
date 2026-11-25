@@ -30,6 +30,7 @@ import { unwrap } from "@/lib/apiUnwrap";
 import { isRoleAllowed } from "@/lib/platformRoleAccess";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import AttendanceCalendar from "./components/AttendanceCalendar";
 
 const MODULE_KEY = "hrms_attendance";
 const NOW = new Date();
@@ -54,6 +55,7 @@ export default function HrmsAttendancePage() {
   const [counts, setCounts] = useState({ present: null, open: null, pending: null, scope: null });
   const [countsLoading, setCountsLoading] = useState(true);
   const [listScope, setListScope] = useState(null);
+  const [viewMode, setViewMode] = useState("list"); // list | calendar
 
   const canExport = (isSuperAdmin || listScope === "all" || listScope === "team") && perm.can_read;
 
@@ -163,12 +165,15 @@ export default function HrmsAttendancePage() {
     try {
       const res = await hrmsService.autoCheckoutAttendance();
       const r = unwrap(res);
-      toastSuccess(`Auto check-out closed ${r?.closed ?? 0} open punch(es)`);
+      toastSuccess(
+        `Auto punch-out closed ${r?.closed ?? 0} open punch(es)` +
+          (r?.requests_created != null ? `, ${r.requests_created} request(s)` : "")
+      );
       setAutoOpen(false);
       setTableKey((k) => k + 1);
       loadCounts();
     } catch (err) {
-      toastErrorFromApi(err, "Auto check-out failed");
+      toastErrorFromApi(err, "Auto punch-out failed");
     } finally {
       setAutoBusy(false);
     }
@@ -302,6 +307,24 @@ export default function HrmsAttendancePage() {
         subtitle="Punch records for the month — Punch In/Out is the same clock as mobile when tracking is on"
         actions={
           <div className="flex items-center gap-1.5">
+            <div className="flex overflow-hidden rounded-md border border-border">
+              <Button
+                size="sm"
+                variant={viewMode === "list" ? "default" : "ghost"}
+                className="rounded-none"
+                onClick={() => setViewMode("list")}
+              >
+                List
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "calendar" ? "default" : "ghost"}
+                className="rounded-none"
+                onClick={() => setViewMode("calendar")}
+              >
+                <IconCalendarStats className="size-4" /> Calendar
+              </Button>
+            </div>
             {canExport && (
               <Button size="sm" variant="outline" onClick={onExport} loading={exporting}>
                 <IconDownload className="size-4" /> Export
@@ -309,7 +332,7 @@ export default function HrmsAttendancePage() {
             )}
             {isSuperAdmin && perm.can_update && (
               <Button size="sm" variant="outline" onClick={() => setAutoOpen(true)}>
-                <IconClockCheck className="size-4" /> Auto check-out
+                <IconClockCheck className="size-4" /> Auto punch-out
               </Button>
             )}
           </div>
@@ -411,30 +434,36 @@ export default function HrmsAttendancePage() {
           </div>
         </div>
 
-        <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          columnFilterValues={{ status }}
-          onColumnFilterChange={(key, value) => {
-            if (key === "status") {
-              setStatus(value);
-              setTableKey((k) => k + 1);
-            }
-          }}
-          filterParams={{ status }}
-          emptyState={
-            <EmptyState
-              icon={IconFingerprint}
-              title="No punches for this month"
-              description="Pick another month, clear the status filter, or record your own punch above."
+        {viewMode === "calendar" ? (
+          <div className="mb-4 shrink-0">
+            <AttendanceCalendar year={year} month={month} />
+          </div>
+        ) : (
+          <div className="flex min-h-[320px] flex-1 flex-col">
+            <PaginatedTable
+              key={tableKey}
+              columns={columns}
+              fetcher={fetcher}
+              showSearch={false}
+              height="100%"
+              columnFilterValues={{ status }}
+              onColumnFilterChange={(key, value) => {
+                if (key === "status") {
+                  setStatus(value);
+                  setTableKey((k) => k + 1);
+                }
+              }}
+              filterParams={{ status }}
+              emptyState={
+                <EmptyState
+                  icon={IconFingerprint}
+                  title="No punches for this month"
+                  description="Pick another month, clear the status filter, or record your own punch above."
+                />
+              }
             />
-          }
-        />
-        </div>
+          </div>
+        )}
 
         <div className="mt-6 shrink-0">
           <div className="mb-2 flex items-end justify-between">
@@ -462,7 +491,7 @@ export default function HrmsAttendancePage() {
         <AlertDialog open={autoOpen} onOpenChange={setAutoOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Auto check-out open punches</AlertDialogTitle>
+              <AlertDialogTitle>Auto punch-out open punches</AlertDialogTitle>
               <AlertDialogDescription>
                 Close all currently open punches (sets check-out to now and marks them auto-checked-out)?
               </AlertDialogDescription>

@@ -22,8 +22,9 @@ const TABS = [
   { id: "shift", label: "Shift & cutoffs" },
   { id: "late", label: "Late penalty" },
   { id: "pay", label: "Pay & LWP" },
+  { id: "rules", label: "Punch & corrections" },
   { id: "weekoff", label: "Week off" },
-  { id: "auto", label: "Auto check-out" },
+  { id: "auto", label: "Auto punch-out" },
   { id: "visibility", label: "Visibility" },
 ];
 
@@ -43,6 +44,11 @@ const EMPTY = {
   half_day_lwp_factor: 0.5,
   paid_leave_type_ids: [],
   unpaid_leave_type_ids: [],
+  late_waiver_leave_type_ids: [],
+  monthly_correction_limit: 4,
+  default_break_minutes: 45,
+  block_punch_on_leave: true,
+  block_punch_on_holiday: true,
   weekoff_days: ["Sunday"],
   saturday_policy: "first_third",
   use_holiday_calendar: true,
@@ -335,7 +341,85 @@ export default function HrmsAttendanceSettingsPage() {
                         ))}
                       </div>
                     </div>
+                    <div className="sm:col-span-2">
+                      <p className="mb-1 text-xs font-medium text-foreground">
+                        Late-waiver leave types (SolarAce “2 Hours Early Going”)
+                      </p>
+                      <div className="max-h-40 space-y-1 overflow-auto rounded border border-border p-2">
+                        {typesList.map((t) => (
+                          <Checkbox
+                            key={`waiver-${t.id}`}
+                            checked={(form.late_waiver_leave_type_ids || [])
+                              .map(Number)
+                              .includes(Number(t.id))}
+                            onChange={() => toggleLeaveType("late_waiver_leave_type_ids", t.id)}
+                            label={
+                              (t.name || t.title || `Type #${t.id}`) +
+                              (t.waives_late_mark ? " · flag on type" : "")
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
+                </FormSection>
+              )}
+
+              {tab === "rules" && (
+                <FormSection
+                  title="Punch & corrections"
+                  description="SolarAce parity: monthly mispunch cap, punch blocks, default break on break-in approve"
+                >
+                  {(meta?.rules_summary || []).length > 0 && (
+                    <ul className="mb-3 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                      {meta.rules_summary.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <FormGrid cols={2}>
+                    <FormField>
+                      <Input
+                        label="Monthly correction limit"
+                        type="number"
+                        value={form.monthly_correction_limit ?? 4}
+                        onChange={(e) =>
+                          setField("monthly_correction_limit", Number(e.target.value))
+                        }
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Max correction requests per employee per month (0 = unlimited). Super Admin
+                        bypasses.
+                      </p>
+                    </FormField>
+                    <FormField>
+                      <Input
+                        label="Default break minutes"
+                        type="number"
+                        value={form.default_break_minutes ?? 45}
+                        onChange={(e) =>
+                          setField("default_break_minutes", Number(e.target.value))
+                        }
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Applied when a break-in correction is approved without break-out.
+                      </p>
+                    </FormField>
+                    <FormField>
+                      <Checkbox
+                        checked={Boolean(form.block_punch_on_leave)}
+                        onChange={(e) => setField("block_punch_on_leave", e.target.checked)}
+                        label="Block punch in on approved leave"
+                      />
+                    </FormField>
+                    <FormField>
+                      <Checkbox
+                        checked={Boolean(form.block_punch_on_holiday)}
+                        onChange={(e) => setField("block_punch_on_holiday", e.target.checked)}
+                        label="Block punch in on holiday"
+                      />
+                    </FormField>
+                  </FormGrid>
                 </FormSection>
               )}
 
@@ -381,21 +465,23 @@ export default function HrmsAttendanceSettingsPage() {
               )}
 
               {tab === "auto" && (
-                <FormSection title="Auto check-out">
+                <FormSection title="Auto punch-out">
                   <FormGrid cols={2}>
                     <FormField>
                       <Checkbox
                         checked={Boolean(form.auto_checkout_enabled)}
                         onChange={(e) => setField("auto_checkout_enabled", e.target.checked)}
-                        label="Auto check-out enabled"
+                        label="Auto punch-out active"
                       />
                     </FormField>
                     <FormField>
                       <Input
-                        label="Auto check-out time"
-                        value={form.auto_checkout_time || "23:30"}
+                        type="time"
+                        label="Auto punch-out time (IST)"
+                        value={String(form.auto_checkout_time || "23:30").slice(0, 5)}
                         onChange={(e) => setField("auto_checkout_time", e.target.value)}
                         disabled={!form.auto_checkout_enabled}
+                        helperText="Closes forgotten open punches at this time, stops live location duty if tracking is on, and opens an attendance request for approval."
                       />
                     </FormField>
                   </FormGrid>

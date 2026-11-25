@@ -11,7 +11,13 @@ import Select, { MenuItem } from "@/components/common/Select";
 import Checkbox from "@/components/common/Checkbox";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 
-const EMPTY = { title: "", quarterly_leave: "0", status: "active", counts_toward_balance: true };
+const EMPTY = {
+  title: "",
+  quarterly_leave: "0",
+  status: "active",
+  counts_toward_balance: true,
+  waives_late_mark: false,
+};
 
 function toFormState(row) {
   if (!row) return { ...EMPTY };
@@ -20,6 +26,7 @@ function toFormState(row) {
     quarterly_leave: row?.quarterly_leave != null ? String(row.quarterly_leave) : "0",
     status: row.status || "active",
     counts_toward_balance: row?.counts_toward_balance !== false,
+    waives_late_mark: row?.waives_late_mark === true,
   };
 }
 
@@ -84,6 +91,7 @@ export default function LeaveTypeForm({
       quarterly_leave: Number(form.quarterly_leave) || 0,
       status: form.status,
       counts_toward_balance: !!form.counts_toward_balance,
+      waives_late_mark: !!form.waives_late_mark,
     });
   };
 
@@ -138,6 +146,15 @@ export default function LeaveTypeForm({
                 label="Counts toward leave balance"
                 checked={!!form.counts_toward_balance}
                 onChange={(e) => setField("counts_toward_balance", e.target.checked)}
+                disabled={loading}
+              />
+            </FormField>
+            <FormField>
+              <Checkbox
+                name="waives_late_mark"
+                label="Waives late mark (treat day as present for late)"
+                checked={!!form.waives_late_mark}
+                onChange={(e) => setField("waives_late_mark", e.target.checked)}
                 disabled={loading}
               />
             </FormField>

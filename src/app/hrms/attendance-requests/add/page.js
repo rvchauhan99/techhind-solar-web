@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,13 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
 
 export default function HrmsAttendanceRequestAddPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [quotaLimit, setQuotaLimit] = useState(4);
   const [form, setForm] = useState({
     request_type: "check_in",
     request_at: "",
@@ -24,6 +26,23 @@ export default function HrmsAttendanceRequestAddPage() {
   });
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const settingsRes = await hrmsService.getAttendanceSettings();
+        const settings = unwrap(settingsRes) || {};
+        const limit = Math.max(0, Number(settings.monthly_correction_limit ?? 4));
+        if (!cancelled) setQuotaLimit(limit);
+      } catch {
+        /* keep default */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onSubmit = async (e) => {
     e.preventDefault();
@@ -47,6 +66,11 @@ export default function HrmsAttendanceRequestAddPage() {
     }
   };
 
+  const quotaHint =
+    quotaLimit > 0
+      ? `Monthly correction limit: ${quotaLimit} requests (pending + approved). Super Admin is not capped.`
+      : "No monthly correction cap is configured.";
+
   return (
     <ProtectedRoute>
       <AddEditPageShell
@@ -61,6 +85,7 @@ export default function HrmsAttendanceRequestAddPage() {
               title="Correction request"
               description="What punch needs correcting, when it should have been, and why"
             >
+              <p className="mb-2 text-xs text-muted-foreground">{quotaHint}</p>
               <FormGrid cols={2}>
                 <FormField>
                   <Select

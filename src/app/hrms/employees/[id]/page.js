@@ -23,6 +23,7 @@ import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 import { listBranches } from "@/services/companyService";
+import AttendanceCalendar from "@/app/hrms/attendance/components/AttendanceCalendar";
 
 function initials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -561,14 +562,24 @@ export default function HrmsEmployeeDetailPage() {
           </TabsContent>
 
           <TabsContent value="attendance">
-            <Card className="p-4 flex items-center justify-between">
-              <div>
-                <div className="text-sm font-semibold">Attendance</div>
-                <div className="text-xs text-muted-foreground">View attendance records for this employee.</div>
+            <Card className="space-y-3 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">Attendance calendar</div>
+                  <div className="text-xs text-muted-foreground">
+                    Month grid for this employee (Present / Late / Absent / Leave / Holiday).
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => router.push("/hrms/attendance")}>
+                  <IconExternalLink className="h-4 w-4" /> Open Attendance
+                </Button>
               </div>
-              <Button size="sm" variant="outline" onClick={() => router.push("/hrms/attendance")}>
-                <IconExternalLink className="h-4 w-4" /> Open Attendance
-              </Button>
+              <AttendanceCalendar
+                year={String(new Date().getFullYear())}
+                month={String(new Date().getMonth() + 1)}
+                employeeId={emp?.id || id}
+                compact
+              />
             </Card>
           </TabsContent>
 

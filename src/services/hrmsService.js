@@ -71,6 +71,9 @@ export const getAttendanceMonthlySummary = (params) =>
 export const getAttendanceTodaySummary = () =>
   apiClient.get("/hrms/attendance/today-summary").then((r) => r.data);
 
+export const getAttendanceCalendar = (params) =>
+  apiClient.get("/hrms/attendance/calendar", { params }).then((r) => r.data);
+
 export const getAttendanceSettings = () =>
   apiClient.get("/hrms/attendance-settings").then((r) => r.data);
 
@@ -762,6 +765,7 @@ const hrmsService = {
   removeEmployeeProfileImage,
   getAttendanceMonthlySummary,
   getAttendanceTodaySummary,
+  getAttendanceCalendar,
   getAttendanceSettings,
   getAttendanceSettingsMeta,
   updateAttendanceSettings,

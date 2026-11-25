@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconCircle, IconChevronRight } from "@tabler/icons-react";
+import { IconCircle, IconChevronRight, IconFingerprint, IconLogin, IconLogout } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import EmptyState from "@/components/common/EmptyState";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import StatusBadge from "@/components/common/StatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import { getIcon } from "@/utils/iconMapper";
 import { unwrap } from "@/lib/apiUnwrap";
+import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
 const GROUPS = [
@@ -86,6 +89,37 @@ export default function HrmsHubPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [counts, setCounts] = useState({});
+  const [punchStatus, setPunchStatus] = useState(null);
+  const [punching, setPunching] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    hrmsService
+      .getAttendanceStatus()
+      .then((r) => {
+        if (!cancelled) setPunchStatus(unwrap(r));
+      })
+      .catch(() => {
+        if (!cancelled) setPunchStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onHubPunch = async (action) => {
+    setPunching(true);
+    try {
+      await hrmsService.punchAttendance({ action, channel: "WEB" });
+      toastSuccess(`Punch ${action} recorded`);
+      const r = await hrmsService.getAttendanceStatus();
+      setPunchStatus(unwrap(r));
+    } catch (err) {
+      toastErrorFromApi(err, "Punch failed");
+    } finally {
+      setPunching(false);
+    }
+  };
 
   const tiles = useMemo(() => {
     const root = (user?.modules || []).find((m) => m.key === "hrms");
@@ -159,11 +193,43 @@ export default function HrmsHubPage() {
   return (
     <ProtectedRoute>
       <div className="p-4 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">HRMS</h1>
-          <p className="text-sm text-muted-foreground">
-            People, time, leave, payroll and reports. Pending approvals are highlighted.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">HRMS</h1>
+            <p className="text-sm text-muted-foreground">
+              People, time, leave, payroll and reports. Pending approvals are highlighted.
+            </p>
+          </div>
+          {punchStatus !== null || tiles.some((t) => t.key === "hrms_attendance") ? (
+            <Card className="flex items-center gap-2 px-3 py-2">
+              <IconFingerprint className="size-4 text-primary" />
+              <StatusBadge status={punchStatus?.status || (punchStatus?.open ? "IN" : "OUT")} />
+              <Button
+                size="sm"
+                disabled={
+                  punching || Boolean(punchStatus?.already_punched_today && !punchStatus?.open)
+                }
+                onClick={() => onHubPunch("IN")}
+              >
+                <IconLogin className="size-4" /> In
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={punching}
+                onClick={() => onHubPunch("OUT")}
+              >
+                <IconLogout className="size-4" /> Out
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => router.push("/hrms/attendance")}
+              >
+                Open
+              </Button>
+            </Card>
+          ) : null}
         </div>
 
         {tiles.length === 0 ? (
