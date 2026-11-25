@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { IconReceipt, IconExternalLink } from "@tabler/icons-react";
@@ -12,8 +12,17 @@ import EmptyState from "@/components/common/EmptyState";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
+import { listBranches } from "@/services/companyService";
+import AnnexureFilterPanel from "./components/AnnexureFilterPanel";
 
 const MODULE_KEY = "hrms_annexure";
+
+const EMPTY_FILTERS = {
+  status: "active",
+  department_id: "",
+  designation_id: "",
+  branch_id: "",
+};
 
 function initials(name) {
   const parts = String(name || "")
@@ -44,41 +53,91 @@ export default function HrmsAnnexureLandingPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "active", department_id: "", q: "" });
-  const [departments, setDepartments] = useState([]);
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const [branchOptions, setBranchOptions] = useState([]);
 
   useEffect(() => {
-    hrmsService
-      .listDepartments({ limit: 100, status: "active" })
+    listBranches()
+      .catch(() => null)
       .then((res) => {
-        setDepartments(unwrap(res)?.data || []);
-      })
-      .catch(() => setDepartments([]));
+        const payload = unwrap(res);
+        const rows = payload?.data || (Array.isArray(payload) ? payload : []);
+        setBranchOptions(
+          rows.map((b) => ({
+            value: String(b.id),
+            label: b.name || b.title || `Branch #${b.id}`,
+          }))
+        );
+      });
   }, []);
 
-  const deptOptions = useMemo(
-    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
-    [departments]
-  );
+  const listParams = useMemo(() => {
+    const status =
+      filters.status && filters.status !== "all" ? filters.status : undefined;
+    return {
+      search: q.trim() || undefined,
+      status,
+      department_id: filters.department_id || undefined,
+      designation_id: filters.designation_id || undefined,
+      branch_id: filters.branch_id || undefined,
+    };
+  }, [filters, q]);
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.department_id) n += 1;
+    if (filters.designation_id) n += 1;
+    if (filters.branch_id) n += 1;
+    if (filters.status && filters.status !== "active") n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      status: next.status || "active",
+      department_id: next.department_id || "",
+      designation_id: next.designation_id || "",
+      branch_id: next.branch_id || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+    } else if (key === "status") {
+      setFilters((prev) => ({ ...prev, status: "active" }));
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
 
   const openAnnexure = (id) => router.push(`/hrms/employees/${id}/annexure`);
 
-  const fetcher = useMemo(
-    () => async ({ page, limit, q }) => {
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
       const res = await hrmsService.listEmployees({
         page,
         limit,
-        search: filters.q || q || undefined,
-        status: filters.status || undefined,
-        department_id: filters.department_id || undefined,
+        ...listParams,
       });
       const payload = unwrap(res);
       const rows = payload?.data || [];
       const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
       return { data: rows, meta };
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+    [listParams]
   );
 
   const columns = useMemo(
@@ -87,18 +146,12 @@ export default function HrmsAnnexureLandingPage() {
         field: "name",
         label: "Employee",
         sortable: false,
-        filterType: "text",
-        filterKey: "q",
-        defaultFilterOperator: "contains",
         render: (row) => <EmployeeCell row={row} />,
       },
       {
         field: "department",
         label: "Department",
         sortable: false,
-        filterType: "select",
-        filterKey: "department_id",
-        filterOptions: deptOptions,
         render: (row) => row.department?.title || <span className="text-muted-foreground">—</span>,
       },
       {
@@ -111,13 +164,6 @@ export default function HrmsAnnexureLandingPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: [
-          { value: "pending", label: "Pending" },
-          { value: "active", label: "Active" },
-          { value: "disabled", label: "Disabled" },
-        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -140,8 +186,7 @@ export default function HrmsAnnexureLandingPage() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, deptOptions]
+    [router]
   );
 
   if (!perm.can_read) {
@@ -162,35 +207,49 @@ export default function HrmsAnnexureLandingPage() {
         title="Annexure"
         subtitle="Select an employee to view or edit salary CTC breakup and increments"
       >
-        <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
+        <AnnexureFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          branchOptions={branchOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
             setTableKey((k) => k + 1);
           }}
-          filterParams={filters}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          emptyState={
-            <EmptyState
-              icon={IconReceipt}
-              title={
-                filters.status || filters.department_id
-                  ? "No employees match these filters"
-                  : "No employees yet"
-              }
-              description={
-                filters.status || filters.department_id
-                  ? "Try clearing the filters to see the full employee list."
-                  : "Add employees first, then set their salary annexure here."
-              }
-            />
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadDepartments={(query) => hrmsService.searchHrmsDepartments(query)}
+          loadDesignations={(query, deptId) =>
+            hrmsService.searchHrmsDesignations(query, { department_id: deptId || undefined })
           }
+          resolveDepartment={(id) => hrmsService.resolveHrmsDepartment(id)}
+          resolveDesignation={(id) => hrmsService.resolveHrmsDesignation(id)}
         />
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            emptyState={
+              <EmptyState
+                icon={IconReceipt}
+                title={
+                  advancedActiveCount
+                    ? "No employees match these filters"
+                    : "No employees yet"
+                }
+                description={
+                  advancedActiveCount
+                    ? "Try removing a filter chip or clearing the quick search."
+                    : "Add employees first, then set their salary annexure here."
+                }
+              />
+            }
+          />
         </div>
       </ListingPageContainer>
     </ProtectedRoute>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { IconClipboardCheck } from "@tabler/icons-react";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
 import ListingPageContainer from "@/components/common/ListingPageContainer";
@@ -10,50 +10,82 @@ import EmptyState from "@/components/common/EmptyState";
 import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
+import { currentFyYear, fyYearSelectOptions } from "@/components/common/hrmsFilterDates";
+import LeaveBalanceApprovalFilterPanel from "./components/LeaveBalanceApprovalFilterPanel";
 
 const MODULE_KEY = "hrms_leave_balance_approvals";
+const DEFAULT_FY = currentFyYear();
 
-function currentFyYear() {
-  const d = new Date();
-  const m = d.getMonth() + 1;
-  return m >= 4 ? d.getFullYear() : d.getFullYear() - 1;
-}
-
-const STATUS_OPTIONS = [
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Disputed" },
-];
+const EMPTY_FILTERS = {
+  fy_year: DEFAULT_FY,
+  status: "",
+  employee_id: "",
+};
 
 export default function HrmsLeaveBalanceApprovalsPage() {
   useModulePermission(MODULE_KEY);
-  const fyDefault = String(currentFyYear());
-  const [filters, setFilters] = useState({ fy_year: fyDefault, status: "" });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
 
-  const fyOptions = useMemo(() => {
-    const y = currentFyYear();
-    return [0, 1, 2].map((i) => {
-      const fy = y - i;
-      return { value: String(fy), label: `FY ${fy}-${String(fy + 1).slice(-2)}` };
-    });
-  }, []);
+  const fyOptions = useMemo(() => fyYearSelectOptions(), []);
 
-  const fetcher = useMemo(
-    () =>
-      async ({ page, limit }) => {
-        const res = await hrmsService.listLeaveBalanceAcks({
-          page,
-          limit,
-          fy_year: filters.fy_year || undefined,
-          status: filters.status || undefined,
-        });
-        const payload = unwrap(res);
-        const rows = payload?.data || [];
-        const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
-        return { data: rows, meta };
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+  const listParams = useMemo(
+    () => ({
+      fy_year: filters.fy_year || DEFAULT_FY,
+      status: filters.status || undefined,
+      employee_id: filters.employee_id || undefined,
+      search: q.trim() || undefined,
+    }),
+    [filters, q]
+  );
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.status) n += 1;
+    if (filters.employee_id) n += 1;
+    if (q.trim()) n += 1;
+    if (filters.fy_year && filters.fy_year !== DEFAULT_FY) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      fy_year: next.fy_year || DEFAULT_FY,
+      status: next.status || "",
+      employee_id: next.employee_id || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") setQ("");
+    else if (key === "fy_year") setFilters((prev) => ({ ...prev, fy_year: DEFAULT_FY }));
+    else setFilters((prev) => ({ ...prev, [key]: "" }));
+    setTableKey((k) => k + 1);
+  };
+
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
+      const res = await hrmsService.listLeaveBalanceAcks({
+        page,
+        limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
   );
 
   const columns = useMemo(
@@ -74,9 +106,6 @@ export default function HrmsLeaveBalanceApprovalsPage() {
         field: "fy_year",
         label: "FY",
         sortable: false,
-        filterType: "select",
-        filterKey: "fy_year",
-        filterOptions: fyOptions,
         render: (row) =>
           row.fy_year
             ? `FY ${row.fy_year}-${String(row.fy_year + 1).slice(-2)}`
@@ -86,9 +115,6 @@ export default function HrmsLeaveBalanceApprovalsPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => (
           <StatusBadge
             status={row.status === "approved" ? "approved" : "rejected"}
@@ -112,7 +138,7 @@ export default function HrmsLeaveBalanceApprovalsPage() {
           row.decided_at ? new Date(row.decided_at).toLocaleString("en-IN") : "—",
       },
     ],
-    [fyOptions]
+    []
   );
 
   return (
@@ -121,27 +147,37 @@ export default function HrmsLeaveBalanceApprovalsPage() {
         title="Leave balance approvals"
         subtitle="Employee confirmations and disputes of financial-year leave balance"
       >
-        <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
+        <LeaveBalanceApprovalFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          fyYearOptions={fyOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
             setTableKey((k) => k + 1);
           }}
-          filterParams={filters}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          emptyState={
-            <EmptyState
-              icon={IconClipboardCheck}
-              title="No acknowledgements yet"
-              description="When employees confirm or dispute their FY leave balance on Leaves, rows appear here."
-            />
-          }
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadEmployees={(query) => hrmsService.searchHrmsEmployees(query)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
         />
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            emptyState={
+              <EmptyState
+                icon={IconClipboardCheck}
+                title="No acknowledgements yet"
+                description="When employees confirm or dispute their FY leave balance on Leaves, rows appear here."
+              />
+            }
+          />
         </div>
       </ListingPageContainer>
     </ProtectedRoute>

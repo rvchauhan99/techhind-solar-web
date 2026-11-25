@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IconPencil, IconTrash, IconIdBadge2, IconCircleCheck, IconCircleMinus, IconFilterOff } from "@tabler/icons-react";
+import { IconPencil, IconTrash, IconIdBadge2, IconCircleCheck, IconCircleMinus } from "@tabler/icons-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,20 +27,42 @@ import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, getApiErrorMessage } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
+import FormField from "@/components/common/FormField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import DesignationForm from "./DesignationForm";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_designations";
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "", department_id: "" };
 
 export default function HrmsDesignationsPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const list = useListTableState({ filters: { department_id: "", status: "", title: "" } });
-  const [departments, setDepartments] = useState([]);
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const [departmentChipLabel, setDepartmentChipLabel] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q, ["department_id"]),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+      department_id: filters.department_id || undefined,
+    }),
+    [filters, q]
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [counts, setCounts] = useState({ total: null, active: null, inactive: null });
@@ -77,34 +99,51 @@ export default function HrmsDesignationsPage() {
     loadCounts();
   }, [loadCounts]);
 
-  useEffect(() => {
-    hrmsService
-      .listDepartments({ limit: 100 })
-      .then((res) => {
-        setDepartments(unwrap(res)?.data || []);
-      })
-      .catch(() => setDepartments([]));
-  }, []);
-
-  const deptOptions = useMemo(
-    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
-    [departments]
+  const handleApplyFilters = useCallback(
+    async (next) => {
+      filterHandlers.onApply(next);
+      const deptId = next?.department_id;
+      if (deptId) {
+        try {
+          const opt = await hrmsService.resolveHrmsDepartment(deptId);
+          setDepartmentChipLabel(opt?.label || String(deptId));
+        } catch {
+          setDepartmentChipLabel(String(deptId));
+        }
+      } else {
+        setDepartmentChipLabel("");
+      }
+    },
+    [filterHandlers]
   );
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listDesignations({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      department_id: params.department_id || undefined,
-      status: params.status || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const handleResetFilters = useCallback(() => {
+    filterHandlers.onReset();
+    setDepartmentChipLabel("");
+  }, [filterHandlers]);
+
+  const handleRemoveFilter = useCallback(
+    (key) => {
+      filterHandlers.onRemove(key);
+      if (key === "department_id") setDepartmentChipLabel("");
+    },
+    [filterHandlers]
+  );
+
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listDesignations({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const handleOpenAddModal = useCallback(() => {
     setEditRecord(null);
@@ -176,27 +215,18 @@ export default function HrmsDesignationsPage() {
         field: "title",
         label: "Designation",
         sortable: true,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
         field: "department",
         label: "Department",
         sortable: false,
-        filterType: "select",
-        filterKey: "department_id",
-        filterOptions: deptOptions,
         render: (row) => row.department?.title || <span className="text-muted-foreground">Not mapped</span>,
       },
       {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -231,7 +261,7 @@ export default function HrmsDesignationsPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, deptOptions, handleOpenEditModal]
+    [perm.can_update, perm.can_delete, handleOpenEditModal]
   );
 
   return (
@@ -242,6 +272,39 @@ export default function HrmsDesignationsPage() {
         addButtonLabel={perm.can_create ? "Add Designation" : undefined}
         onAddClick={perm.can_create ? handleOpenAddModal : undefined}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-designations-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (designation title)"
+          quickSearchId="hrms-designations-quick-search"
+          activeCount={advancedActiveCount}
+          chipLabels={{ department_id: "Department" }}
+          chipFormatters={{
+            department_id: (raw) => departmentChipLabel || (raw ? `#${raw}` : null),
+          }}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+        >
+          {({ draft, setDraftValue }) => (
+            <FormField>
+              <AutocompleteField
+                label="Department"
+                placeholder="Type to search…"
+                asyncLoadOptions={(query) => hrmsService.searchHrmsDepartments(query)}
+                resolveOptionById={(id) => hrmsService.resolveHrmsDepartment(id)}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={draft.department_id || null}
+                onChange={(_e, opt) =>
+                  setDraftValue("department_id", opt?.id != null ? String(opt.id) : "")
+                }
+              />
+            </FormField>
+          )}
+        </HrmsLightFilterPanel>
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
             compact
@@ -280,24 +343,19 @@ export default function HrmsDesignationsPage() {
           fetcher={fetcher}
           showSearch={false}
           height="100%"
-          columnFilterValues={list.filters}
-          onColumnFilterChange={list.setFilter}
-          filterParams={list.filters}
           page={list.page}
           limit={list.limit}
-          q={list.q}
           sortBy={list.sortBy}
           sortOrder={list.sortOrder}
           onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
           onRowsPerPageChange={list.setLimit}
-          onQChange={list.setQ}
           onSortChange={list.setSort}
           emptyState={
             <EmptyState
               icon={IconIdBadge2}
-              title={list.activeFilterCount ? "No designations match these filters" : "No designations yet"}
+              title={advancedActiveCount ? "No designations match these filters" : "No designations yet"}
               description={
-                list.activeFilterCount
+                advancedActiveCount
                   ? "Try clearing the filters to see all designations."
                   : "Add job titles and map them to a department so employees can be assigned."
               }

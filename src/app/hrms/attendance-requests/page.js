@@ -16,18 +16,43 @@ import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
 import useModulePermission from "@/hooks/useModulePermission";
+import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { currentMonthDefaults } from "@/components/common/hrmsFilterDates";
+import AttendanceRequestFilterPanel from "./components/AttendanceRequestFilterPanel";
 
 const MODULE_KEY = "hrms_attendance_requests";
+const MONTH_DEFAULTS = currentMonthDefaults();
+
+const EMPTY_FILTERS = {
+  status: "",
+  request_type: "",
+  source: "",
+  department_id: "",
+  designation_id: "",
+  employee_id: "",
+  level1_status: "",
+  level2_status: "",
+  from: MONTH_DEFAULTS.from,
+  to: MONTH_DEFAULTS.to,
+  created_from: "",
+  created_to: "",
+};
+
+const ADVANCED_KEYS = Object.keys(EMPTY_FILTERS);
 
 export default function HrmsAttendanceRequestsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
 
+  const list = useListTableState({
+    defaultLimit: 20,
+    filters: { ...EMPTY_FILTERS },
+  });
+
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "", request_type: "", search: "" });
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [note, setNote] = useState("");
   const [correctedAt, setCorrectedAt] = useState("");
@@ -35,13 +60,34 @@ export default function HrmsAttendanceRequestsPage() {
   const [counts, setCounts] = useState({ l1: null, l2: null, approved: null });
   const [countsLoading, setCountsLoading] = useState(true);
 
+  const listParams = useMemo(() => {
+    const f = list.filters;
+    return {
+      status: f.status || undefined,
+      request_type: f.request_type || undefined,
+      source: f.source || undefined,
+      department_id: f.department_id || undefined,
+      designation_id: f.designation_id || undefined,
+      employee_id: f.employee_id || undefined,
+      level1_status: f.level1_status || undefined,
+      level2_status: f.level2_status || undefined,
+      from: f.from || undefined,
+      to: f.to || undefined,
+      created_from: f.created_from || undefined,
+      created_to: f.created_to || undefined,
+      q: list.q || undefined,
+    };
+  }, [list.filters, list.q]);
+
   const loadCounts = useCallback(async () => {
     setCountsLoading(true);
+    const base = { ...listParams, limit: 1 };
+    delete base.status;
     try {
       const [l1, l2, approved] = await Promise.all([
-        hrmsService.listAttendanceRequests({ status: "pending_l1", limit: 1 }),
-        hrmsService.listAttendanceRequests({ status: "pending_l2", limit: 1 }),
-        hrmsService.listAttendanceRequests({ status: "approved", limit: 1 }),
+        hrmsService.listAttendanceRequests({ ...base, status: "pending_l1" }),
+        hrmsService.listAttendanceRequests({ ...base, status: "pending_l2" }),
+        hrmsService.listAttendanceRequests({ ...base, status: "approved" }),
       ]);
       setCounts({
         l1: unwrap(l1)?.meta?.total ?? 0,
@@ -53,28 +99,25 @@ export default function HrmsAttendanceRequestsPage() {
     } finally {
       setCountsLoading(false);
     }
-  }, []);
+  }, [listParams]);
 
   useEffect(() => {
     loadCounts();
   }, [loadCounts]);
 
-  const fetcher = useMemo(
-    () => async ({ page, limit, q, search }) => {
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
       const res = await hrmsService.listAttendanceRequests({
         page,
         limit,
-        status: filters.status || undefined,
-        request_type: filters.request_type || undefined,
-        search: filters.search || search || q || undefined,
+        ...listParams,
       });
       const payload = unwrap(res);
       const rows = payload?.data || [];
       const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
       return { data: rows, meta };
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+    [listParams]
   );
 
   const openDecision = (row, level, decision) => {
@@ -116,15 +159,73 @@ export default function HrmsAttendanceRequestsPage() {
     }
   };
 
+  const advancedActiveCount = useMemo(() => {
+    const keys = ADVANCED_KEYS.filter(
+      (k) => k !== "from" && k !== "to" && String(list.filters[k] ?? "").trim() !== ""
+    );
+    let n = keys.length;
+    if (list.q) n += 1;
+    if (list.filters.from && list.filters.from !== MONTH_DEFAULTS.from) n += 1;
+    if (list.filters.to && list.filters.to !== MONTH_DEFAULTS.to) n += 1;
+    return n;
+  }, [list.filters, list.q]);
+
+  const hasActiveFilters = advancedActiveCount > 0;
+
+  const handleApplyFilters = (draft) => {
+    list.setFilters({
+      status: draft.status || "",
+      request_type: draft.request_type || "",
+      source: draft.source || "",
+      department_id: draft.department_id || "",
+      designation_id: draft.designation_id || "",
+      employee_id: draft.employee_id || "",
+      level1_status: draft.level1_status || "",
+      level2_status: draft.level2_status || "",
+      from: draft.from || "",
+      to: draft.to || "",
+      created_from: draft.created_from || "",
+      created_to: draft.created_to || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    list.setQ("");
+    list.setFilters({ ...EMPTY_FILTERS });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      list.setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "from" || key === "to") {
+      list.setFilters({
+        ...list.filters,
+        from: MONTH_DEFAULTS.from,
+        to: MONTH_DEFAULTS.to,
+      });
+      setTableKey((k) => k + 1);
+      return;
+    }
+    list.setFilter(key, "");
+    setTableKey((k) => k + 1);
+  };
+
+  const filterPanelValues = useMemo(
+    () => ({ ...list.filters, q: list.q }),
+    [list.filters, list.q]
+  );
+
   const columns = useMemo(
     () => [
       {
         field: "user",
         label: "Employee",
         sortable: false,
-        filterType: "text",
-        filterKey: "search",
-        defaultFilterOperator: "contains",
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
@@ -135,14 +236,6 @@ export default function HrmsAttendanceRequestsPage() {
         field: "request_type",
         label: "Type",
         sortable: false,
-        filterType: "select",
-        filterKey: "request_type",
-        filterOptions: [
-          { value: "check_in", label: "Punch in" },
-          { value: "check_out", label: "Punch out" },
-          { value: "break_in", label: "Break in" },
-          { value: "break_out", label: "Break out" },
-        ],
         render: (row) => (
           <div className="flex flex-col gap-0.5">
             <span>{String(row.request_type || "").replace(/_/g, " ")}</span>
@@ -154,22 +247,44 @@ export default function HrmsAttendanceRequestsPage() {
           </div>
         ),
       },
-      { field: "request_at", label: "Requested at", sortable: false, render: (row) => (row.request_at ? new Date(row.request_at).toLocaleString() : "—") },
-      { field: "reason", label: "Reason", sortable: false, render: (row) => <span className="text-xs line-clamp-2">{row.reason}</span> },
-      { field: "l1", label: "Manager (L1)", sortable: false, render: (row) => (row.level1_status ? <StatusBadge status={row.level1_status} /> : <span className="text-xs text-muted-foreground">—</span>) },
-      { field: "l2", label: "HR (L2)", sortable: false, render: (row) => (row.level2_status ? <StatusBadge status={row.level2_status} /> : <span className="text-xs text-muted-foreground">—</span>) },
+      {
+        field: "request_at",
+        label: "Requested at",
+        sortable: false,
+        render: (row) => (row.request_at ? new Date(row.request_at).toLocaleString() : "—"),
+      },
+      {
+        field: "reason",
+        label: "Reason",
+        sortable: false,
+        render: (row) => <span className="text-xs line-clamp-2">{row.reason}</span>,
+      },
+      {
+        field: "l1",
+        label: "Manager (L1)",
+        sortable: false,
+        render: (row) =>
+          row.level1_status ? (
+            <StatusBadge status={row.level1_status} />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
+        field: "l2",
+        label: "HR (L2)",
+        sortable: false,
+        render: (row) =>
+          row.level2_status ? (
+            <StatusBadge status={row.level2_status} />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
       {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: [
-          { value: "pending_l1", label: "Pending L1" },
-          { value: "pending_l2", label: "Pending L2" },
-          { value: "approved", label: "Approved" },
-          { value: "rejected", label: "Rejected" },
-        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -247,34 +362,55 @@ export default function HrmsAttendanceRequestsPage() {
           />
         </div>
 
-
-        <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
+        <AttendanceRequestFilterPanel
+          values={filterPanelValues}
+          quickSearch={list.q}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            list.setQ(v);
             setTableKey((k) => k + 1);
           }}
-          filterParams={filters}
-          emptyState={
-            <EmptyState
-              icon={IconClockExclamation}
-              title={filters.status || filters.request_type ? "No requests match these filters" : "No correction requests"}
-              description={
-                filters.status || filters.request_type
-                  ? "Try clearing the filters to see all requests."
-                  : "When someone raises a missed punch or correction, it will appear here for approval."
-              }
-              actionLabel="New request"
-              onAction={() => router.push("/hrms/attendance-requests/add")}
-            />
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadDepartments={(q) => hrmsService.searchHrmsDepartments(q)}
+          loadDesignations={(q, deptId) =>
+            hrmsService.searchHrmsDesignations(q, { department_id: deptId || undefined })
           }
+          loadEmployees={(q, opts = {}) =>
+            hrmsService.searchHrmsEmployees(q, {
+              department_id: opts.department_id || undefined,
+              designation_id: opts.designation_id || undefined,
+            })
+          }
+          resolveDepartment={(id) => hrmsService.resolveHrmsDepartment(id)}
+          resolveDesignation={(id) => hrmsService.resolveHrmsDesignation(id)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
         />
+
+        <div className="flex min-h-[320px] flex-1 flex-col">
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            emptyState={
+              <EmptyState
+                icon={IconClockExclamation}
+                title={hasActiveFilters ? "No requests match these filters" : "No correction requests"}
+                description={
+                  hasActiveFilters
+                    ? "Try removing a filter chip or clearing the quick search."
+                    : "When someone raises a missed punch or correction, it will appear here for approval."
+                }
+                actionLabel={hasActiveFilters ? undefined : "New request"}
+                onAction={
+                  hasActiveFilters ? undefined : () => router.push("/hrms/attendance-requests/add")
+                }
+              />
+            }
+          />
         </div>
 
         <AlertDialog open={!!decisionTarget} onOpenChange={(open) => !open && setDecisionTarget(null)}>
@@ -324,4 +460,3 @@ export default function HrmsAttendanceRequestsPage() {
     </ProtectedRoute>
   );
 }
-

@@ -24,19 +24,30 @@ import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_policies";
-
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "", category: "" };
 
 export default function HrmsPoliciesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const list = useListTableState({ filters: { status: "", category: "", title: "" } });
   const [tableKey, setTableKey] = useState(0);
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q, ["category"]),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -51,20 +62,29 @@ export default function HrmsPoliciesPage() {
       .catch(() => setCategoryOptions([]));
   }, []);
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listPolicies({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-      category: params.category || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+      category: filters.category || undefined,
+    }),
+    [filters, q]
+  );
+
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listPolicies({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const onDelete = async () => {
     if (!deleteTarget) return;
@@ -97,18 +117,12 @@ export default function HrmsPoliciesPage() {
         field: "title",
         label: "Title",
         sortable: false,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
         field: "category",
         label: "Category",
         sortable: false,
-        filterType: "select",
-        filterKey: "category",
-        filterOptions: categoryOptions,
       },
       { field: "version", label: "Version", sortable: false },
       { field: "issue_date", label: "Issue date", sortable: false },
@@ -116,9 +130,6 @@ export default function HrmsPoliciesPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -173,6 +184,20 @@ export default function HrmsPoliciesPage() {
         addButtonLabel={perm.can_create ? "Add policy" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/policies/add") : undefined}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-policies-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (policy title)"
+          quickSearchId="hrms-policies-quick-search"
+          activeCount={advancedActiveCount}
+          extraSelects={[{ key: "category", label: "Category", options: categoryOptions }]}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={filterHandlers.onApply}
+          onReset={filterHandlers.onReset}
+          onRemove={filterHandlers.onRemove}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
             key={tableKey}
@@ -180,24 +205,19 @@ export default function HrmsPoliciesPage() {
             fetcher={fetcher}
             showSearch={false}
             height="100%"
-            columnFilterValues={list.filters}
-            onColumnFilterChange={list.setFilter}
-            filterParams={list.filters}
             page={list.page}
             limit={list.limit}
-            q={list.q}
             sortBy={list.sortBy}
             sortOrder={list.sortOrder}
             onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
             onRowsPerPageChange={list.setLimit}
-            onQChange={list.setQ}
             onSortChange={list.setSort}
             emptyState={
               <EmptyState
                 icon={IconFileDescription}
-                title={list.activeFilterCount ? "No policies match this filter" : "No policies"}
+                title={advancedActiveCount ? "No policies match this filter" : "No policies"}
                 description={
-                  list.activeFilterCount
+                  advancedActiveCount
                     ? "Try clearing the filters to see all policies."
                     : "Upload company policy PDFs by category."
                 }

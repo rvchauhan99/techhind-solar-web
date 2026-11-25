@@ -19,17 +19,20 @@ import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
 import useModulePermission from "@/hooks/useModulePermission";
-import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { listBranches } from "@/services/companyService";
+import EmployeeFilterPanel from "./components/EmployeeFilterPanel";
 
 const MODULE_KEY = "hrms_employees";
-const STATUS_OPTIONS = [
-  { value: "pending", label: "Pending" },
-  { value: "active", label: "Active" },
-  { value: "disabled", label: "Disabled" },
-];
+
+const EMPTY_FILTERS = {
+  status: "active",
+  department_id: "",
+  designation_id: "",
+  branch_id: "",
+};
 
 function initials(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
@@ -56,14 +59,37 @@ export default function HrmsEmployeesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
 
-  const list = useListTableState({
-    filters: { status: "", department_id: "", designation_id: "", name: "" },
-  });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const [tableKey, setTableKey] = useState(0);
   const [exporting, setExporting] = useState(false);
-  const [departments, setDepartments] = useState([]);
-  const [designations, setDesignations] = useState([]);
+  const [branchOptions, setBranchOptions] = useState([]);
   const [counts, setCounts] = useState({ total: null, active: null, pending: null, disabled: null });
   const [countsLoading, setCountsLoading] = useState(true);
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const listParams = useMemo(() => {
+    const status =
+      filters.status && filters.status !== "all" ? filters.status : undefined;
+    return {
+      search: q.trim() || undefined,
+      status,
+      department_id: filters.department_id || undefined,
+      designation_id: filters.designation_id || undefined,
+      branch_id: filters.branch_id || undefined,
+    };
+  }, [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.department_id) n += 1;
+    if (filters.designation_id) n += 1;
+    if (filters.branch_id) n += 1;
+    if (filters.status && filters.status !== "active") n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
 
   const loadCounts = useCallback(async () => {
     setCountsLoading(true);
@@ -92,41 +118,24 @@ export default function HrmsEmployeesPage() {
   }, [loadCounts]);
 
   useEffect(() => {
-    hrmsService
-      .listDepartments({ limit: 100, status: "active" })
+    listBranches()
+      .catch(() => null)
       .then((res) => {
-        setDepartments(unwrap(res)?.data || []);
-      })
-      .catch(() => setDepartments([]));
+        const payload = unwrap(res);
+        const rows = payload?.data || (Array.isArray(payload) ? payload : []);
+        setBranchOptions(
+          rows.map((b) => ({
+            value: String(b.id),
+            label: b.name || b.title || `Branch #${b.id}`,
+          }))
+        );
+      });
   }, []);
-
-  useEffect(() => {
-    hrmsService
-      .listDesignations({ limit: 200, status: "active" })
-      .then((res) => {
-        setDesignations(unwrap(res)?.data || []);
-      })
-      .catch(() => setDesignations([]));
-  }, []);
-
-  const deptOptions = useMemo(
-    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
-    [departments]
-  );
-
-  const designationOptions = useMemo(
-    () => designations.map((d) => ({ value: String(d.id), label: d.title })),
-    [designations]
-  );
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      const blob = await hrmsService.exportEmployees({
-        status: list.filters.status || undefined,
-        department_id: list.filters.department_id || undefined,
-        designation_id: list.filters.designation_id || undefined,
-      });
+      const blob = await hrmsService.exportEmployees(listParams);
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
       a.href = url;
@@ -141,21 +150,50 @@ export default function HrmsEmployeesPage() {
     }
   };
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listEmployees({
-      page: params.page,
-      limit: params.limit,
-      search: params.name || params.q || undefined,
-      search_op: params.name_op || undefined,
-      status: params.status || undefined,
-      department_id: params.department_id || undefined,
-      designation_id: params.designation_id || undefined,
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listEmployees({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      status: next.status || "active",
+      department_id: next.department_id || "",
+      designation_id: next.designation_id || "",
+      branch_id: next.branch_id || "",
     });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "status") {
+      setFilters((prev) => ({ ...prev, status: "active" }));
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
 
   const columns = useMemo(
     () => [
@@ -163,9 +201,6 @@ export default function HrmsEmployeesPage() {
         field: "name",
         label: "Employee",
         sortable: false,
-        filterType: "text",
-        filterKey: "name",
-        defaultFilterOperator: "contains",
         render: (row) => <EmployeeCell row={row} />,
       },
       {
@@ -178,27 +213,18 @@ export default function HrmsEmployeesPage() {
         field: "department",
         label: "Department",
         sortable: false,
-        filterType: "select",
-        filterKey: "department_id",
-        filterOptions: deptOptions,
         render: (row) => row.department?.title || <span className="text-muted-foreground">—</span>,
       },
       {
         field: "designation",
         label: "Designation",
         sortable: false,
-        filterType: "select",
-        filterKey: "designation_id",
-        filterOptions: designationOptions,
         render: (row) => row.designation?.title || <span className="text-muted-foreground">—</span>,
       },
       {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -231,7 +257,7 @@ export default function HrmsEmployeesPage() {
         ),
       },
     ],
-    [perm.can_update, router, deptOptions, designationOptions]
+    [perm.can_update, router]
   );
 
   return (
@@ -247,6 +273,27 @@ export default function HrmsEmployeesPage() {
           </Button>
         }
       >
+        <EmployeeFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          branchOptions={branchOptions}
+          activeCount={advancedActiveCount}
+          defaultOpen={false}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadDepartments={(query) => hrmsService.searchHrmsDepartments(query)}
+          loadDesignations={(query, deptId) =>
+            hrmsService.searchHrmsDesignations(query, { department_id: deptId || undefined })
+          }
+          resolveDepartment={(id) => hrmsService.resolveHrmsDepartment(id)}
+          resolveDesignation={(id) => hrmsService.resolveHrmsDesignation(id)}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4">
           <StatCard
             compact
@@ -288,28 +335,17 @@ export default function HrmsEmployeesPage() {
 
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
+            key={tableKey}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}
             height="100%"
-            columnFilterValues={list.filters}
-            onColumnFilterChange={list.setFilter}
-            filterParams={list.filters}
-            page={list.page}
-            limit={list.limit}
-            q={list.q}
-            sortBy={list.sortBy}
-            sortOrder={list.sortOrder}
-            onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
-            onRowsPerPageChange={list.setLimit}
-            onQChange={list.setQ}
-            onSortChange={list.setSort}
             emptyState={
               <EmptyState
                 icon={IconUsers}
-                title={list.activeFilterCount ? "No employees match these filters" : "No employees yet"}
+                title={advancedActiveCount ? "No employees match these filters" : "No employees yet"}
                 description={
-                  list.activeFilterCount
+                  advancedActiveCount
                     ? "Try clearing the filters to see the full employee list."
                     : "Add your first employee to start tracking attendance, leave and payroll."
                 }

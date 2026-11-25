@@ -33,8 +33,11 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { currentMonthKey } from "@/components/common/hrmsFilterDates";
+import PayrollFilterPanel from "./components/PayrollFilterPanel";
 
 const MODULE_KEY = "hrms_payroll";
+const DEFAULT_MONTH = currentMonthKey();
 
 const money = (v) =>
   `₹${Number(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,20 +53,51 @@ function monthOptions() {
   });
 }
 
+const EMPTY_FILTERS = {
+  month: DEFAULT_MONTH,
+  employee_id: "",
+  is_acknowledged: "",
+  query_status: "",
+};
+
+function buildApiParams(filters, q) {
+  const params = {};
+  if (filters.month) params.month = filters.month;
+  if (filters.employee_id) params.employee_id = filters.employee_id;
+  if (filters.is_acknowledged !== "" && filters.is_acknowledged != null) {
+    params.is_acknowledged = filters.is_acknowledged;
+  }
+  if (filters.query_status) params.query_status = filters.query_status;
+  if (q?.trim()) params.q = q.trim();
+  return params;
+}
+
 export default function HrmsPayrollPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
   const months = useMemo(monthOptions, []);
-  const [filters, setFilters] = useState({ month: months[0].value, is_acknowledged: "" });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
   const [summary, setSummary] = useState({ employees: null, totalNet: null, totalDeductions: null });
   const [runOpen, setRunOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  const apiParams = useMemo(() => buildApiParams(filters, q), [filters, q]);
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    const keys = ["employee_id", "is_acknowledged", "query_status"];
+    let n = keys.filter((k) => String(filters[k] ?? "").trim() !== "").length;
+    if (q.trim()) n += 1;
+    if (filters.month && filters.month !== DEFAULT_MONTH) n += 1;
+    return n;
+  }, [filters, q]);
+
   const loadSummary = useCallback(async () => {
     try {
-      const res = await hrmsService.listPayrollReports({ month: filters.month, limit: 1 });
+      const res = await hrmsService.listPayrollReports({ ...apiParams, limit: 1 });
       const s = unwrap(res)?.summary;
       setSummary({
         employees: s?.employees ?? 0,
@@ -73,11 +107,40 @@ export default function HrmsPayrollPage() {
     } catch {
       setSummary({ employees: null, totalNet: null, totalDeductions: null });
     }
-  }, [filters.month]);
+  }, [apiParams]);
 
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  const handleApplyFilters = (next) => {
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+      month: next.month || prev.month || DEFAULT_MONTH,
+    }));
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "month") {
+      setFilters((prev) => ({ ...prev, month: DEFAULT_MONTH }));
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
 
   const fetcher = useMemo(
     () =>
@@ -85,8 +148,7 @@ export default function HrmsPayrollPage() {
         const res = await hrmsService.listPayrollReports({
           page,
           limit,
-          month: filters.month || undefined,
-          is_acknowledged: filters.is_acknowledged || undefined,
+          ...apiParams,
         });
         const payload = unwrap(res);
         const rows = payload?.data || [];
@@ -94,7 +156,7 @@ export default function HrmsPayrollPage() {
         return { data: rows, meta };
       },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+    [apiParams, tableKey]
   );
 
   const doRun = async () => {
@@ -132,7 +194,7 @@ export default function HrmsPayrollPage() {
   const doExport = async () => {
     setExporting(true);
     try {
-      const blob = await hrmsService.exportPayoutReport({ month: filters.month });
+      const blob = await hrmsService.exportPayoutReport({ ...apiParams });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
       a.href = url;
@@ -153,9 +215,6 @@ export default function HrmsPayrollPage() {
         field: "salary_month",
         label: "Month",
         sortable: true,
-        filterType: "select",
-        filterKey: "month",
-        filterOptions: months,
         render: (row) =>
           row.salary_month
             ? new Date(`${row.salary_month}-01`).toLocaleString("en", { month: "short", year: "numeric" })
@@ -199,12 +258,6 @@ export default function HrmsPayrollPage() {
         field: "is_acknowledged",
         label: "Ack",
         sortable: false,
-        filterType: "select",
-        filterKey: "is_acknowledged",
-        filterOptions: [
-          { value: "true", label: "Acknowledged" },
-          { value: "false", label: "Pending" },
-        ],
         render: (row) => (
           <StatusBadge
             status={row.is_acknowledged ? "approved" : "pending"}
@@ -240,8 +293,7 @@ export default function HrmsPayrollPage() {
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [router, months]
+    [router]
   );
 
   return (
@@ -265,6 +317,23 @@ export default function HrmsPayrollPage() {
           </div>
         }
       >
+        <PayrollFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          monthOptions={months}
+          activeCount={advancedActiveCount}
+          defaultOpen={false}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadEmployees={(query) => hrmsService.searchHrmsEmployees(query)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
             compact
@@ -294,19 +363,12 @@ export default function HrmsPayrollPage() {
 
 
         <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-
-          key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
           initialSortBy="net_amount"
           initialSortOrder="desc"
           emptyState={

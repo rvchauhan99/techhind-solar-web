@@ -32,19 +32,49 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import CompensatoryFilterPanel from "./components/CompensatoryFilterPanel";
 
 const MODULE_KEY = "hrms_compensatory";
+
+const EMPTY_FILTERS = {
+  status: "",
+  employee_id: "",
+  worked_date: "",
+  leave_date: "",
+};
+
+function buildApiParams(filters, q) {
+  const params = {};
+  if (filters.status) params.status = filters.status;
+  if (filters.employee_id) params.employee_id = filters.employee_id;
+  if (filters.worked_date) params.worked_date = filters.worked_date;
+  if (filters.leave_date) params.leave_date = filters.leave_date;
+  const search = q?.trim();
+  if (search) params.search = search;
+  return params;
+}
 
 export default function HrmsCompensatoryPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
 
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ status: "", search: "" });
-  const [decision, setDecision] = useState(null); // { row, action: "approve" | "reject" }
+  const [decision, setDecision] = useState(null);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState({ pending: null, approvedDays: null });
+
+  const apiParams = useMemo(() => buildApiParams(filters, q), [filters, q]);
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    const keys = ["status", "employee_id", "worked_date", "leave_date"];
+    let n = keys.filter((k) => String(filters[k] ?? "").trim() !== "").length;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -60,14 +90,38 @@ export default function HrmsCompensatoryPage() {
     loadSummary();
   }, [loadSummary]);
 
+  const handleApplyFilters = (next) => {
+    setFilters({
+      status: next.status || "",
+      employee_id: next.employee_id || "",
+      worked_date: next.worked_date || "",
+      leave_date: next.leave_date || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
+
   const fetcher = useMemo(
     () =>
-      async ({ page, limit, search, q }) => {
+      async ({ page, limit }) => {
         const res = await hrmsService.listCompensatory({
           page,
           limit,
-          status: filters.status || undefined,
-          search: filters.search || search || q || undefined,
+          ...apiParams,
         });
         const payload = unwrap(res);
         const rows = payload?.data || [];
@@ -75,7 +129,7 @@ export default function HrmsCompensatoryPage() {
         return { data: rows, meta };
       },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+    [apiParams, tableKey]
   );
 
   const openDecision = (row, action) => {
@@ -113,9 +167,6 @@ export default function HrmsCompensatoryPage() {
         field: "employee_name",
         label: "Employee",
         sortable: false,
-        filterType: "text",
-        filterKey: "search",
-        defaultFilterOperator: "contains",
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name || "—"}</span>
@@ -143,13 +194,6 @@ export default function HrmsCompensatoryPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: [
-          { value: "pending", label: "Pending" },
-          { value: "approved", label: "Approved" },
-          { value: "rejected", label: "Rejected" },
-        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -206,6 +250,22 @@ export default function HrmsCompensatoryPage() {
           ) : null
         }
       >
+        <CompensatoryFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          activeCount={advancedActiveCount}
+          defaultOpen={false}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadEmployees={(query) => hrmsService.searchHrmsEmployees(query)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2">
           <StatCard
             compact
@@ -225,33 +285,25 @@ export default function HrmsCompensatoryPage() {
           />
         </div>
 
-
         <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-
-          key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          initialSortBy="worked_date"
-          initialSortOrder="desc"
-          emptyState={
-            <EmptyState
-              icon={IconArrowsExchange}
-              title="No compensatory requests"
-              description="When someone works a holiday or weekend, record it here to give them an off in lieu."
-              actionLabel={perm.can_create ? "Request Comp-off" : undefined}
-              onAction={perm.can_create ? () => router.push("/hrms/compensatory/add") : undefined}
-            />
-          }
-        />
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            initialSortBy="worked_date"
+            initialSortOrder="desc"
+            emptyState={
+              <EmptyState
+                icon={IconArrowsExchange}
+                title="No compensatory requests"
+                description="When someone works a holiday or weekend, record it here to give them an off in lieu."
+                actionLabel={perm.can_create ? "Request Comp-off" : undefined}
+                onAction={perm.can_create ? () => router.push("/hrms/compensatory/add") : undefined}
+              />
+            }
+          />
         </div>
 
         <AlertDialog open={!!decision} onOpenChange={(open) => !open && setDecision(null)}>

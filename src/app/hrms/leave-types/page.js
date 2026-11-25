@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { IconPencil, IconTrash, IconHistory, IconCalendarStats, IconCircleCheck, IconFilterOff } from "@tabler/icons-react";
+import { IconPencil, IconTrash, IconHistory, IconCalendarStats, IconCircleCheck } from "@tabler/icons-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -23,18 +23,37 @@ import { toastSuccess, toastErrorFromApi, getApiErrorMessage } from "@/utils/toa
 import * as hrmsService from "@/services/hrmsService";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import LeaveTypeForm from "./LeaveTypeForm";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_leave_types";
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "" };
 
 export default function HrmsLeaveTypesPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const list = useListTableState({ filters: { status: "", title: "" } });
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+    }),
+    [filters, q]
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [historyTarget, setHistoryTarget] = useState(null);
@@ -72,19 +91,20 @@ export default function HrmsLeaveTypesPage() {
     loadCounts();
   }, [loadCounts]);
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listLeaveTypes({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listLeaveTypes({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const handleOpenAddModal = useCallback(() => {
     setEditRecord(null);
@@ -170,9 +190,6 @@ export default function HrmsLeaveTypesPage() {
         field: "title",
         label: "Leave type",
         sortable: true,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
@@ -201,9 +218,6 @@ export default function HrmsLeaveTypesPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -259,6 +273,19 @@ export default function HrmsLeaveTypesPage() {
         addButtonLabel={perm.can_create ? "Add Leave Type" : undefined}
         onAddClick={perm.can_create ? handleOpenAddModal : undefined}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-leave-types-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (leave type title)"
+          quickSearchId="hrms-leave-types-quick-search"
+          activeCount={advancedActiveCount}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={filterHandlers.onApply}
+          onReset={filterHandlers.onReset}
+          onRemove={filterHandlers.onRemove}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-2">
           <StatCard
             compact
@@ -287,24 +314,19 @@ export default function HrmsLeaveTypesPage() {
           fetcher={fetcher}
           showSearch={false}
           height="100%"
-          columnFilterValues={list.filters}
-          onColumnFilterChange={list.setFilter}
-          filterParams={list.filters}
           page={list.page}
           limit={list.limit}
-          q={list.q}
           sortBy={list.sortBy}
           sortOrder={list.sortOrder}
           onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
           onRowsPerPageChange={list.setLimit}
-          onQChange={list.setQ}
           onSortChange={list.setSort}
           emptyState={
             <EmptyState
               icon={IconCalendarStats}
-              title={list.activeFilterCount ? "No leave types match this filter" : "No leave types yet"}
+              title={advancedActiveCount ? "No leave types match this filter" : "No leave types yet"}
               description={
-                list.activeFilterCount
+                advancedActiveCount
                   ? "Try clearing the filters to see all leave types."
                   : "Add leave types (Casual, Sick, Earned…) with a quarterly entitlement."
               }

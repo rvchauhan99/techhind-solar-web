@@ -14,44 +14,57 @@ import {
   IconCalendarStats,
   IconDownload,
 } from "@tabler/icons-react";
+import { fyYearSelectOptions, currentFyYear } from "@/components/common/hrmsFilterDates";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import CompensatoryReportFilterPanel from "./components/CompensatoryReportFilterPanel";
 
-const FY_CURRENT = (() => {
-  const now = new Date();
-  return now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
-})();
+const DEFAULT_FY = currentFyYear();
 
-const STATUS_OPTIONS = [
-  { value: "approved", label: "Approved" },
-  { value: "pending", label: "Pending" },
-  { value: "rejected", label: "Rejected" },
-];
+const EMPTY_FILTERS = {
+  fy_year: DEFAULT_FY,
+  status: "",
+  employee_id: "",
+  worked_date: "",
+  leave_date: "",
+};
+
+function buildApiParams(filters, q) {
+  const params = {};
+  if (filters.fy_year) params.fy_year = filters.fy_year;
+  if (filters.status) params.status = filters.status;
+  if (filters.employee_id) params.employee_id = filters.employee_id;
+  if (filters.worked_date) params.worked_date = filters.worked_date;
+  if (filters.leave_date) params.leave_date = filters.leave_date;
+  if (q?.trim()) params.q = q.trim();
+  return params;
+}
 
 export default function HrmsCompensatoryReportPage() {
-  const [filters, setFilters] = useState({ fy_year: String(FY_CURRENT), status: "" });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState({ rows: null, totalDays: null });
   const [summaryLoading, setSummaryLoading] = useState(true);
 
-  const fyOptions = useMemo(
-    () =>
-      [FY_CURRENT - 1, FY_CURRENT, FY_CURRENT + 1].map((y) => ({
-        value: String(y),
-        label: `FY ${y}-${String((y + 1) % 100).padStart(2, "0")}`,
-      })),
-    []
-  );
+  const fyYearOptions = useMemo(() => fyYearSelectOptions(), []);
+  const apiParams = useMemo(() => buildApiParams(filters, q), [filters, q]);
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    const keys = ["status", "employee_id", "worked_date", "leave_date"];
+    let n = keys.filter((k) => String(filters[k] ?? "").trim() !== "").length;
+    if (q.trim()) n += 1;
+    if (filters.fy_year && String(filters.fy_year) !== DEFAULT_FY) n += 1;
+    return n;
+  }, [filters, q]);
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
     try {
-      const res = await hrmsService.getCompensatoryReport({
-        fy_year: filters.fy_year || undefined,
-        status: filters.status || undefined,
-      });
+      const res = await hrmsService.getCompensatoryReport(apiParams);
       const s = unwrap(res)?.summary;
       setSummary({ rows: s?.rows ?? 0, totalDays: s?.totalDays ?? 0 });
     } catch {
@@ -59,23 +72,47 @@ export default function HrmsCompensatoryReportPage() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [filters.fy_year, filters.status]);
+  }, [apiParams]);
 
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
 
+  const handleApplyFilters = (next) => {
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+      fy_year: next.fy_year || prev.fy_year || DEFAULT_FY,
+    }));
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "fy_year") {
+      setFilters((prev) => ({ ...prev, fy_year: DEFAULT_FY }));
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
+
   const fetcher = useMemo(
     () =>
       async (params) => {
-        const res = await hrmsService.getCompensatoryReport({
-          fy_year: params.fy_year || undefined,
-          status: params.status || undefined,
-        });
+        const res = await hrmsService.getCompensatoryReport(apiParams);
         const payload = unwrap(res);
         const rows = payload?.data || [];
-        // The report endpoint is not paginated server-side; page locally so the
-        // shared table contract (data + meta) still holds.
         const take = Math.min(100, Math.max(1, Number(params.limit) || 20));
         const pageNum = Math.max(1, Number(params.page) || 1);
         const start = (pageNum - 1) * take;
@@ -91,16 +128,13 @@ export default function HrmsCompensatoryReportPage() {
         };
       },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+    [apiParams, tableKey]
   );
 
   const onExport = async () => {
     setBusy(true);
     try {
-      const blob = await hrmsService.exportCompensatoryReport({
-        fy_year: filters.fy_year || undefined,
-        status: filters.status || undefined,
-      });
+      const blob = await hrmsService.exportCompensatoryReport(apiParams);
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
       a.href = url;
@@ -154,9 +188,6 @@ export default function HrmsCompensatoryReportPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -171,6 +202,10 @@ export default function HrmsCompensatoryReportPage() {
     []
   );
 
+  const fyLabel =
+    fyYearOptions.find((o) => o.value === filters.fy_year)?.label ||
+    `${filters.fy_year}–${Number(filters.fy_year) + 1}`;
+
   return (
     <ProtectedRoute>
       <ListingPageContainer
@@ -181,18 +216,24 @@ export default function HrmsCompensatoryReportPage() {
             <IconDownload className="size-4" /> Export
           </Button>
         }
-        filterConfig={[{ key: "fy_year", label: "Financial year", type: "select", options: fyOptions }]}
-        filterValues={filters}
-        showFilterLabels
-        onFilterChange={(key, value) => {
-          setFilters((f) => ({ ...f, [key]: value }));
-          setTableKey((k) => k + 1);
-        }}
-        onClearFilters={() => {
-          setFilters({ fy_year: String(FY_CURRENT), status: "" });
-          setTableKey((k) => k + 1);
-        }}
       >
+        <CompensatoryReportFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          fyYearOptions={fyYearOptions}
+          activeCount={advancedActiveCount}
+          defaultOpen={false}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadEmployees={(query) => hrmsService.searchHrmsEmployees(query)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
             compact
@@ -216,36 +257,29 @@ export default function HrmsCompensatoryReportPage() {
             compact
             icon={<IconCalendarStats size={16} />}
             label="Financial year"
-            value={fyOptions.find((o) => o.value === filters.fy_year)?.label || "—"}
+            value={fyLabel || "—"}
             accentColor="#f37021"
             subLabel={filters.status ? `Status: ${filters.status}` : "All statuses"}
           />
         </div>
 
-
         <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
-          height="100%"
-          initialSortBy="worked_date"
-          initialSortOrder="desc"
-          emptyState={
-            <EmptyState
-              icon={IconArrowsExchange}
-              title="No compensatory records"
-              description="No comp-off was recorded for this financial year and status."
-            />
-          }
-        />
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            initialSortBy="worked_date"
+            initialSortOrder="desc"
+            emptyState={
+              <EmptyState
+                icon={IconArrowsExchange}
+                title="No compensatory records"
+                description="No comp-off was recorded for this financial year and status."
+              />
+            }
+          />
         </div>
       </ListingPageContainer>
     </ProtectedRoute>

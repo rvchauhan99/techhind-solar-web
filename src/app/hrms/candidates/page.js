@@ -35,8 +35,14 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, toastInfo } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import CandidateFilterPanel from "./components/CandidateFilterPanel";
 
 const MODULE_KEY = "hrms_candidates";
+
+const ADVANCED_EMPTY = {
+  position_id: "",
+  stage: "",
+};
 
 const TABS = [
   { key: "all", label: "All" },
@@ -150,11 +156,10 @@ function HrmsCandidatesPageContent() {
   const [meta, setMeta] = useState({ positions: [], stages: [] });
   const [summary, setSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [advFilters, setAdvFilters] = useState(() => ({ ...ADVANCED_EMPTY }));
+  const [q, setQ] = useState("");
   const [filters, setFilters] = useState({
-    position_id: "",
-    stage: "",
     tab: "all",
-    search: "",
     pipeline_kpi: "total",
   });
   const [viewMode, setViewMode] = useState("list");
@@ -220,9 +225,9 @@ function HrmsCandidatesPageContent() {
       .listCandidates({
         page: 1,
         limit: 100,
-        search: filters.search || undefined,
-        position_id: filters.position_id || undefined,
-        stage: filters.stage !== "" ? filters.stage : undefined,
+        search: q.trim() || undefined,
+        position_id: advFilters.position_id || undefined,
+        stage: advFilters.stage !== "" ? advFilters.stage : undefined,
         tab: filters.tab || "all",
         pipeline_kpi:
           filters.pipeline_kpi && filters.pipeline_kpi !== "total"
@@ -235,17 +240,13 @@ function HrmsCandidatesPageContent() {
       })
       .catch(() => setBoardRows([]))
       .finally(() => setBoardLoading(false));
-  }, [filters]);
+  }, [filters, advFilters, q]);
 
   useEffect(() => {
     if (viewMode !== "board" || !urlKpiSynced) return;
     loadBoard();
   }, [viewMode, urlKpiSynced, loadBoard, tableKey]);
 
-  const positionOptions = useMemo(
-    () => (meta.positions || []).map((p) => ({ value: String(p.id ?? p.value), label: p.title || p.label })),
-    [meta.positions]
-  );
   const stageOptions = useMemo(
     () => (meta.stages || []).map((s) => ({ value: String(s.value), label: s.label })),
     [meta.stages]
@@ -255,12 +256,9 @@ function HrmsCandidatesPageContent() {
     setFilters((f) => {
       const nextKey = f.pipeline_kpi === key && key !== "total" ? "total" : key;
       syncPipelineKpiUrl(nextKey);
-      return {
-        ...f,
-        pipeline_kpi: nextKey,
-        stage: "",
-      };
+      return { ...f, pipeline_kpi: nextKey };
     });
+    setAdvFilters((prev) => ({ ...prev, stage: "" }));
     setTableKey((k) => k + 1);
   };
 
@@ -275,28 +273,66 @@ function HrmsCandidatesPageContent() {
     return map;
   }, [boardRows, boardColumns]);
 
-  const fetcher = useMemo(
-    () =>
-      async ({ page, limit, q, search }) => {
-        const res = await hrmsService.listCandidates({
-          page,
-          limit,
-          search: filters.search || search || q || undefined,
-          position_id: filters.position_id || undefined,
-          stage: filters.stage !== "" ? filters.stage : undefined,
-          tab: filters.tab || "all",
-          pipeline_kpi:
-            filters.pipeline_kpi && filters.pipeline_kpi !== "total"
-              ? filters.pipeline_kpi
-              : undefined,
-        });
-        const payload = unwrap(res);
-        const rows = payload?.data || [];
-        const metaOut = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
-        return { data: rows, meta: metaOut };
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      position_id: advFilters.position_id || undefined,
+      stage: advFilters.stage !== "" ? advFilters.stage : undefined,
+      tab: filters.tab || "all",
+      pipeline_kpi:
+        filters.pipeline_kpi && filters.pipeline_kpi !== "total"
+          ? filters.pipeline_kpi
+          : undefined,
+    }),
+    [advFilters, q, filters.tab, filters.pipeline_kpi]
+  );
+
+  const filterPanelValues = useMemo(() => ({ ...advFilters, q }), [advFilters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (advFilters.position_id) n += 1;
+    if (advFilters.stage !== "") n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [advFilters, q]);
+
+  const handleApplyFilters = (next) => {
+    setAdvFilters({
+      position_id: next.position_id || "",
+      stage: next.stage ?? "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setAdvFilters({ ...ADVANCED_EMPTY });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+    } else {
+      setAdvFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
+
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
+      const res = await hrmsService.listCandidates({
+        page,
+        limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const metaOut = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
+      return { data: rows, meta: metaOut };
+    },
+    [listParams]
   );
 
   const onDelete = async () => {
@@ -408,9 +444,6 @@ function HrmsCandidatesPageContent() {
         field: "name",
         label: "Full Name",
         sortable: false,
-        filterType: "text",
-        filterKey: "search",
-        defaultFilterOperator: "contains",
         render: (row) => (
           <button
             type="button"
@@ -427,9 +460,6 @@ function HrmsCandidatesPageContent() {
         field: "position",
         label: "Position",
         sortable: false,
-        filterType: "select",
-        filterKey: "position_id",
-        filterOptions: positionOptions,
         render: (row) => row.position_title || row.position?.title || "—",
       },
       {
@@ -454,9 +484,6 @@ function HrmsCandidatesPageContent() {
         field: "stage",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "stage",
-        filterOptions: stageOptions,
         render: (row) => (
           <Badge variant={stageBadgeVariant(row.stage)}>
             {row.stage_label || row.status_label || `Stage ${row.stage}`}
@@ -524,7 +551,7 @@ function HrmsCandidatesPageContent() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router, positionOptions, stageOptions]
+    [perm.can_update, perm.can_delete, router]
   );
 
   return (
@@ -608,6 +635,22 @@ function HrmsCandidatesPageContent() {
           </div>
         </div>
 
+        <CandidateFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          stageOptions={stageOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadPositions={(query) => hrmsService.searchHrmsPositions(query)}
+          resolvePosition={(id) => hrmsService.resolveHrmsPosition(id)}
+        />
+
         {viewMode === "board" ? (
           <div className="flex min-h-[320px] flex-1 flex-col overflow-hidden">
             {boardLoading ? (
@@ -663,17 +706,7 @@ function HrmsCandidatesPageContent() {
         ) : (
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
-            key={`${tableKey}-${filters.pipeline_kpi}-${filters.tab}-${filters.stage}-${filters.position_id}-${filters.search}`}
-            columnFilterValues={filters}
-            onColumnFilterChange={(key, value) => {
-              setFilters((f) => ({
-                ...f,
-                [key]: value,
-                ...(key === "stage" && value !== "" ? { pipeline_kpi: "total" } : {}),
-              }));
-              setTableKey((k) => k + 1);
-            }}
-            filterParams={filters}
+            key={`${tableKey}-${filters.pipeline_kpi}-${filters.tab}-${advFilters.stage}-${advFilters.position_id}-${q}`}
             columns={columns}
             fetcher={fetcher}
             showSearch={false}

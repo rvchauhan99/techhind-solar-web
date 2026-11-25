@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +23,14 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import InterviewFilterPanel from "./components/InterviewFilterPanel";
 
 const MODULE_KEY = "hrms_interviews";
+
+const EMPTY_FILTERS = {
+  round: "",
+  status: "",
+};
 
 function formatWhen(iso) {
   if (!iso) return "—";
@@ -56,7 +62,8 @@ export default function HrmsInterviewsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
   const [meta, setMeta] = useState({ rounds: [], statuses: [] });
-  const [filters, setFilters] = useState({ round: "", status: "" });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -84,23 +91,58 @@ export default function HrmsInterviewsPage() {
     [meta.statuses]
   );
 
-  const fetcher = useMemo(
-    () =>
-      async ({ page, limit, q }) => {
-        const res = await hrmsService.listInterviews({
-          page,
-          limit,
-          search: q || undefined,
-          round: filters.round || undefined,
-          status: filters.status || undefined,
-        });
-        const payload = unwrap(res);
-        const rows = payload?.data || [];
-        const metaOut = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
-        return { data: rows, meta: metaOut };
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      round: filters.round || undefined,
+      status: filters.status || undefined,
+    }),
+    [filters, q]
+  );
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.round) n += 1;
+    if (filters.status) n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      round: next.round || "",
+      status: next.status || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") setQ("");
+    else setFilters((prev) => ({ ...prev, [key]: "" }));
+    setTableKey((k) => k + 1);
+  };
+
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
+      const res = await hrmsService.listInterviews({
+        page,
+        limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const metaOut = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
+      return { data: rows, meta: metaOut };
+    },
+    [listParams]
   );
 
   const onDelete = async () => {
@@ -122,8 +164,7 @@ export default function HrmsInterviewsPage() {
     setExporting(true);
     try {
       const blob = await hrmsService.exportInterviews({
-        round: filters.round || undefined,
-        status: filters.status || undefined,
+        ...listParams,
       });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
@@ -159,9 +200,6 @@ export default function HrmsInterviewsPage() {
         field: "round",
         label: "Round",
         sortable: false,
-        filterType: "select",
-        filterKey: "round",
-        filterOptions: roundOptions,
         render: (row) => row.round_label || `R${row.round}`,
       },
       {
@@ -180,9 +218,6 @@ export default function HrmsInterviewsPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: statusOptions,
         render: (row) => (
           <Badge variant={statusVariant(row.status)}>{row.status_label || row.status}</Badge>
         ),
@@ -230,7 +265,7 @@ export default function HrmsInterviewsPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router, roundOptions, statusOptions]
+    [perm.can_update, perm.can_delete, router]
   );
 
   return (
@@ -246,15 +281,24 @@ export default function HrmsInterviewsPage() {
           </Button>
         }
       >
+        <InterviewFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          roundOptions={roundOptions}
+          statusOptions={statusOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
           key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch={false}

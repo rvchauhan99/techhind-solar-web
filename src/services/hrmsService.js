@@ -188,9 +188,6 @@ export const exportAttendanceReport = (params) =>
     .get("/hrms/reports/attendance/export", { params, responseType: "blob" })
     .then((r) => r.data);
 
-export const autoCheckoutAttendance = (payload = {}) =>
-  apiClient.post("/hrms/attendance/auto-checkout", payload).then((r) => r.data);
-
 export const listLeaves = (params) =>
   apiClient.get("/hrms/leaves", { params }).then((r) => r.data);
 
@@ -802,7 +799,6 @@ const hrmsService = {
   decideAttendanceRequest,
   listAttendanceReport,
   exportAttendanceReport,
-  autoCheckoutAttendance,
   listLeaves,
   getLeave,
   applyLeave,

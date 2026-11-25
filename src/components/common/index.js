@@ -23,6 +23,17 @@ export { default as ProductionOrderFilterPanel, PRODUCTION_ORDER_FILTER_KEYS } f
 export { default as ProductionBookingFilterPanel, PRODUCTION_BOOKING_FILTER_KEYS } from "./ProductionBookingFilterPanel";
 export { default as ProductionDashboardFilterPanel, PRODUCTION_DASHBOARD_FILTER_KEYS } from "./ProductionDashboardFilterPanel";
 export { default as OrderListQuickSearch } from "./OrderListQuickSearch";
+export { default as HrmsAdvancedFilterShell, buildFilterChips, optionLabel } from "./HrmsAdvancedFilterShell";
+export {
+  monthDateBounds,
+  currentMonthDefaults,
+  currentFyYear,
+  fyLabel,
+  yearSelectOptions,
+  monthSelectOptions,
+  fyYearSelectOptions,
+  currentMonthKey,
+} from "./hrmsFilterDates";
 export { default as InquiryFilterPanel, INQUIRY_FILTER_KEYS } from "./InquiryFilterPanel";
 export { default as FormContainer, FormActions } from "./FormContainer";
 export { default as FormField } from "./FormField";

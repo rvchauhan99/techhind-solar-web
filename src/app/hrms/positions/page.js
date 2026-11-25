@@ -20,17 +20,17 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
 import useModulePermission from "@/hooks/useModulePermission";
-import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import PositionFilterPanel from "./components/PositionFilterPanel";
 
 const MODULE_KEY = "hrms_positions";
 
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = {
+  status: "",
+  branch_id: "",
+};
 
 function formatUpdatedAt(value) {
   if (!value) return "—";
@@ -48,7 +48,8 @@ function formatUpdatedAt(value) {
 export default function HrmsPositionsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const list = useListTableState({ filters: { status: "", title: "", branch_id: "" } });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -70,26 +71,65 @@ export default function HrmsPositionsPage() {
     [branches]
   );
 
-  const fetcher = useCallback(async (params) => {
-    const page = Math.max(1, Number(params.page) || 1);
-    const limit = Math.max(1, Number(params.limit) || 20);
-    const res = await hrmsService.listPositions({
-      page,
-      limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-      branch_id: params.branch_id || undefined,
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+      branch_id: filters.branch_id || undefined,
+    }),
+    [filters, q]
+  );
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.status) n += 1;
+    if (filters.branch_id) n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      status: next.status || "",
+      branch_id: next.branch_id || "",
     });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page, pages: 1, limit };
-    const data = rows.map((row, i) => ({
-      ...row,
-      _sr: (page - 1) * limit + i + 1,
-    }));
-    return { data, meta };
-  }, []);
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") setQ("");
+    else setFilters((prev) => ({ ...prev, [key]: "" }));
+    setTableKey((k) => k + 1);
+  };
+
+  const fetcher = useCallback(
+    async ({ page, limit }) => {
+      const pageNum = Math.max(1, Number(page) || 1);
+      const take = Math.max(1, Number(limit) || 20);
+      const res = await hrmsService.listPositions({
+        page: pageNum,
+        limit: take,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: pageNum, pages: 1, limit: take };
+      const data = rows.map((row, i) => ({
+        ...row,
+        _sr: (pageNum - 1) * take + i + 1,
+      }));
+      return { data, meta };
+    },
+    [listParams]
+  );
 
   const onDelete = async () => {
     if (!deleteTarget) return;
@@ -118,18 +158,12 @@ export default function HrmsPositionsPage() {
         field: "title",
         label: "Position",
         sortable: false,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
         field: "branches",
         label: "Branch",
         sortable: false,
-        filterType: "select",
-        filterKey: "branch_id",
-        filterOptions: branchOptions,
         render: (row) =>
           (row.branch_titles || []).length ? row.branch_titles.join(", ") : "—",
       },
@@ -137,9 +171,6 @@ export default function HrmsPositionsPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -186,7 +217,7 @@ export default function HrmsPositionsPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, router, branchOptions]
+    [perm.can_update, perm.can_delete, router]
   );
 
   return (
@@ -197,6 +228,20 @@ export default function HrmsPositionsPage() {
         addButtonLabel={perm.can_create ? "Add position" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/positions/add") : undefined}
       >
+        <PositionFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          branchOptions={branchOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
             key={tableKey}
@@ -204,24 +249,12 @@ export default function HrmsPositionsPage() {
             fetcher={fetcher}
             showSearch={false}
             height="100%"
-            columnFilterValues={list.filters}
-            onColumnFilterChange={list.setFilter}
-            filterParams={list.filters}
-            page={list.page}
-            limit={list.limit}
-            q={list.q}
-            sortBy={list.sortBy}
-            sortOrder={list.sortOrder}
-            onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
-            onRowsPerPageChange={list.setLimit}
-            onQChange={list.setQ}
-            onSortChange={list.setSort}
             emptyState={
               <EmptyState
                 icon={IconBriefcase}
-                title={list.activeFilterCount ? "No positions match this filter" : "No open positions"}
+                title={advancedActiveCount ? "No positions match this filter" : "No open positions"}
                 description={
-                  list.activeFilterCount
+                  advancedActiveCount
                     ? "Try clearing the filters to see all positions."
                     : "Create a position and assign one or more branches."
                 }

@@ -24,19 +24,30 @@ import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_letter_templates";
-
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "", letter_type: "" };
 
 export default function HrmsLetterTemplatesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const list = useListTableState({ filters: { status: "", letter_type: "", title: "" } });
   const [tableKey, setTableKey] = useState(0);
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q, ["letter_type"]),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [typeOptions, setTypeOptions] = useState([]);
@@ -51,20 +62,29 @@ export default function HrmsLetterTemplatesPage() {
       .catch(() => setTypeOptions([]));
   }, []);
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listLetterTemplates({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-      letter_type: params.letter_type || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+      letter_type: filters.letter_type || undefined,
+    }),
+    [filters, q]
+  );
+
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listLetterTemplates({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const onDelete = async () => {
     if (!deleteTarget) return;
@@ -87,9 +107,6 @@ export default function HrmsLetterTemplatesPage() {
         field: "letter_type",
         label: "Type",
         sortable: false,
-        filterType: "select",
-        filterKey: "letter_type",
-        filterOptions: typeOptions,
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.letter_type_label || row.letter_type}
@@ -100,17 +117,11 @@ export default function HrmsLetterTemplatesPage() {
         field: "title",
         label: "Title",
         sortable: false,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
       },
       {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -156,6 +167,20 @@ export default function HrmsLetterTemplatesPage() {
         addButtonLabel={perm.can_create ? "Add template" : undefined}
         onAddClick={perm.can_create ? () => router.push("/hrms/letter-templates/add") : undefined}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-letter-templates-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (template title)"
+          quickSearchId="hrms-letter-templates-quick-search"
+          activeCount={advancedActiveCount}
+          extraSelects={[{ key: "letter_type", label: "Letter type", options: typeOptions }]}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={filterHandlers.onApply}
+          onReset={filterHandlers.onReset}
+          onRemove={filterHandlers.onRemove}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
             key={tableKey}
@@ -163,26 +188,21 @@ export default function HrmsLetterTemplatesPage() {
             fetcher={fetcher}
             showSearch={false}
             height="100%"
-            columnFilterValues={list.filters}
-            onColumnFilterChange={list.setFilter}
-            filterParams={list.filters}
             page={list.page}
             limit={list.limit}
-            q={list.q}
             sortBy={list.sortBy}
             sortOrder={list.sortOrder}
             onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
             onRowsPerPageChange={list.setLimit}
-            onQChange={list.setQ}
             onSortChange={list.setSort}
             emptyState={
               <EmptyState
                 icon={IconFileDescription}
                 title={
-                  list.activeFilterCount ? "No templates match this filter" : "No letter templates"
+                  advancedActiveCount ? "No templates match this filter" : "No letter templates"
                 }
                 description={
-                  list.activeFilterCount
+                  advancedActiveCount
                     ? "Try clearing the filters to see all templates."
                     : "Create one template per letter type (offer, appointment, welcome, …)."
                 }

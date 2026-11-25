@@ -10,7 +10,6 @@ import {
   IconCalendarOff,
   IconClockExclamation,
   IconCircleCheck,
-  IconFilterOff,
 } from "@tabler/icons-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -28,20 +27,63 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import {
+  currentMonthDefaults,
+  monthSelectOptions,
+  yearSelectOptions,
+} from "@/components/common/hrmsFilterDates";
+import LeaveFilterPanel from "./components/LeaveFilterPanel";
 
 const MODULE_KEY = "hrms_leaves";
-const STATUS_OPTIONS = [
-  { value: "pending_l1", label: "Pending L1" },
-  { value: "pending_l2", label: "Pending L2" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "reverted", label: "Reverted" },
-];
-const KIND_OPTIONS = [
-  { value: "false", label: "Planned" },
-  { value: "true", label: "Emergency" },
-];
+const MONTH_DEFAULTS = currentMonthDefaults();
+const EMPTY_FILTERS = {
+  year: MONTH_DEFAULTS.year,
+  month: MONTH_DEFAULTS.month,
+  from: MONTH_DEFAULTS.from,
+  to: MONTH_DEFAULTS.to,
+  end_from: "",
+  end_to: "",
+  created_from: "",
+  created_to: "",
+  department_id: "",
+  designation_id: "",
+  employee_id: "",
+  leave_type_id: "",
+  status: "",
+  is_emergency: "",
+  is_lwp: "",
+  duration: "",
+  level1_status: "",
+  level2_status: "",
+  is_reverted_by_attendance: "",
+};
+
+function buildApiParams(filters, q) {
+  const params = {};
+  if (q?.trim()) params.q = q.trim();
+  if (filters.from) params.from = filters.from;
+  if (filters.to) params.to = filters.to;
+  if (filters.end_from) params.end_from = filters.end_from;
+  if (filters.end_to) params.end_to = filters.end_to;
+  if (filters.created_from) params.created_from = filters.created_from;
+  if (filters.created_to) params.created_to = filters.created_to;
+  if (filters.department_id) params.department_id = filters.department_id;
+  if (filters.designation_id) params.designation_id = filters.designation_id;
+  if (filters.employee_id) params.employee_id = filters.employee_id;
+  if (filters.leave_type_id) params.leave_type_id = filters.leave_type_id;
+  if (filters.status) params.status = filters.status;
+  if (filters.is_emergency !== "" && filters.is_emergency != null) {
+    params.is_emergency = filters.is_emergency;
+  }
+  if (filters.is_lwp !== "" && filters.is_lwp != null) params.is_lwp = filters.is_lwp;
+  if (filters.duration) params.duration = filters.duration;
+  if (filters.level1_status) params.level1_status = filters.level1_status;
+  if (filters.level2_status) params.level2_status = filters.level2_status;
+  if (filters.is_reverted_by_attendance !== "" && filters.is_reverted_by_attendance != null) {
+    params.is_reverted_by_attendance = filters.is_reverted_by_attendance;
+  }
+  return params;
+}
 
 function formatBalanceSummary(balancePayload) {
   const rows = Array.isArray(balancePayload)
@@ -64,34 +106,64 @@ function formatBalanceSummary(balancePayload) {
 export default function HrmsLeavesPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const [filters, setFilters] = useState({
-    status: "",
-    emergency: "",
-    leave_type_id: "",
-    from: "",
-    to: "",
-    search: "",
-  });
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [tableKey, setTableKey] = useState(0);
-  const [leaveTypes, setLeaveTypes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [actionTarget, setActionTarget] = useState(null);
   const [note, setNote] = useState("");
   const [counts, setCounts] = useState({ l1: null, l2: null, approved: null });
   const [countsLoading, setCountsLoading] = useState(true);
-  const [fyAck, setFyAck] = useState(null); // { is_approved_in_current_fy, fy_year, employee_id }
+  const [fyAck, setFyAck] = useState(null);
   const [balanceText, setBalanceText] = useState("");
-  const [fyDialog, setFyDialog] = useState(null); // "confirm" | "dispute" | null
+  const [fyDialog, setFyDialog] = useState(null);
   const [disputeNote, setDisputeNote] = useState("");
   const [fyBusy, setFyBusy] = useState(false);
 
+  const YEAR_OPTIONS = useMemo(() => yearSelectOptions(), []);
+  const MONTH_OPTIONS = useMemo(() => monthSelectOptions(), []);
+
+  const apiParams = useMemo(() => buildApiParams(filters, q), [filters, q]);
+
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    const keys = [
+      "department_id",
+      "designation_id",
+      "employee_id",
+      "leave_type_id",
+      "status",
+      "is_emergency",
+      "is_lwp",
+      "duration",
+      "level1_status",
+      "level2_status",
+      "is_reverted_by_attendance",
+      "end_from",
+      "end_to",
+      "created_from",
+      "created_to",
+    ];
+    let n = keys.filter((k) => String(filters[k] ?? "").trim() !== "").length;
+    if (q.trim()) n += 1;
+    if (filters.from && filters.from !== MONTH_DEFAULTS.from) n += 1;
+    if (filters.to && filters.to !== MONTH_DEFAULTS.to) n += 1;
+    if (String(filters.year) !== MONTH_DEFAULTS.year || String(filters.month) !== MONTH_DEFAULTS.month) {
+      n += 1;
+    }
+    return n;
+  }, [filters, q]);
+
   const loadCounts = useCallback(async () => {
     setCountsLoading(true);
+    const base = { ...apiParams, limit: 1 };
+    delete base.status;
     try {
       const [l1, l2, approved] = await Promise.all([
-        hrmsService.listLeaves({ status: "pending_l1", limit: 1 }),
-        hrmsService.listLeaves({ status: "pending_l2", limit: 1 }),
-        hrmsService.listLeaves({ status: "approved", limit: 1 }),
+        hrmsService.listLeaves({ ...base, status: "pending_l1" }),
+        hrmsService.listLeaves({ ...base, status: "pending_l2" }),
+        hrmsService.listLeaves({ ...base, status: "approved" }),
       ]);
       setCounts({
         l1: unwrap(l1)?.meta?.total ?? 0,
@@ -103,7 +175,7 @@ export default function HrmsLeavesPage() {
     } finally {
       setCountsLoading(false);
     }
-  }, []);
+  }, [apiParams]);
 
   const loadFyAck = useCallback(async () => {
     try {
@@ -131,17 +203,58 @@ export default function HrmsLeavesPage() {
     loadFyAck();
   }, [loadCounts, loadFyAck]);
 
-  useEffect(() => {
-    hrmsService
-      .listLeaveTypes({ limit: 100, status: "active" })
-      .then((res) => setLeaveTypes(unwrap(res)?.data || []))
-      .catch(() => setLeaveTypes([]));
-  }, []);
-
-  const leaveTypeOptions = useMemo(
-    () => leaveTypes.map((t) => ({ value: String(t.id), label: t.title })),
-    [leaveTypes]
+  const fetcher = useMemo(
+    () => async (params) => {
+      const res = await hrmsService.listLeaves({
+        ...apiParams,
+        page: params.page,
+        limit: params.limit,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [apiParams, tableKey]
   );
+
+  const handleApplyFilters = (next) => {
+    setFilters((prev) => ({
+      ...prev,
+      ...next,
+      year: next.year || prev.year,
+      month: next.month || prev.month,
+    }));
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "from" || key === "to" || key === "year" || key === "month") {
+      setFilters((prev) => ({
+        ...prev,
+        year: MONTH_DEFAULTS.year,
+        month: MONTH_DEFAULTS.month,
+        from: MONTH_DEFAULTS.from,
+        to: MONTH_DEFAULTS.to,
+      }));
+      setTableKey((k) => k + 1);
+      return;
+    }
+    setFilters((prev) => ({ ...prev, [key]: "" }));
+    setTableKey((k) => k + 1);
+  };
 
   const submitFyAck = async (status) => {
     if (status === "rejected" && !disputeNote.trim()) {
@@ -165,30 +278,6 @@ export default function HrmsLeavesPage() {
       setFyBusy(false);
     }
   };
-
-  const fetcher = useMemo(
-    () => async (params) => {
-      const res = await hrmsService.listLeaves({
-        page: params.page,
-        limit: params.limit,
-        search: params.search || params.q || undefined,
-        status: params.status || undefined,
-        leave_type_id: params.leave_type_id || undefined,
-        from: params.from || undefined,
-        to: params.to || undefined,
-        is_emergency:
-          params.emergency == null || params.emergency === ""
-            ? undefined
-            : params.emergency === "true",
-      });
-      const payload = unwrap(res);
-      const rows = payload?.data || [];
-      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-      return { data: rows, meta };
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filters, tableKey]
-  );
 
   const openAction = (row, level, decision, extra = {}) => {
     setActionTarget({ row, level, decision, extra });
@@ -223,9 +312,6 @@ export default function HrmsLeavesPage() {
         field: "user",
         label: "Employee",
         sortable: false,
-        filterType: "text",
-        filterKey: "search",
-        defaultFilterOperator: "contains",
         render: (row) => (
           <span className="font-medium text-foreground">
             {row.user?.name || row.employee?.emp_code || `User #${row.user_id}`}
@@ -236,20 +322,12 @@ export default function HrmsLeavesPage() {
         field: "leaveType",
         label: "Type",
         sortable: false,
-        filterType: "select",
-        filterKey: "leave_type_id",
-        filterOptions: leaveTypeOptions,
         render: (row) => row.leaveType?.title || row.leave_type_id,
       },
       {
         field: "dates",
         label: "Dates",
         sortable: false,
-        filterType: "date",
-        filterKey: "from",
-        filterKeyTo: "to",
-        operatorKey: "from_op",
-        defaultFilterOperator: "inRange",
         render: (row) =>
           row.start_date === row.end_date ? row.start_date : `${row.start_date} → ${row.end_date}`,
       },
@@ -259,9 +337,6 @@ export default function HrmsLeavesPage() {
         field: "flags",
         label: "Kind",
         sortable: false,
-        filterType: "select",
-        filterKey: "emergency",
-        filterOptions: KIND_OPTIONS,
         render: (row) =>
           row.is_emergency || row.is_lwp ? (
             <div className="flex flex-wrap gap-1">
@@ -276,9 +351,6 @@ export default function HrmsLeavesPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -362,15 +434,12 @@ export default function HrmsLeavesPage() {
         ),
       },
     ],
-    [busy, perm.can_update, leaveTypeOptions]
+    [busy, perm.can_update]
   );
 
   const target = actionTarget;
   const actionLabel =
     target?.decision === "cancel" ? "Cancel leave" : target?.decision === "approve" ? "Approve" : "Reject";
-  const hasActiveFilters = Object.entries(filters).some(
-    ([k, v]) => !k.endsWith("_op") && v != null && String(v).trim() !== ""
-  );
 
   return (
     <ProtectedRoute>
@@ -400,6 +469,35 @@ export default function HrmsLeavesPage() {
             </div>
           </div>
         ) : null}
+
+        <LeaveFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          yearOptions={YEAR_OPTIONS}
+          monthOptions={MONTH_OPTIONS}
+          activeCount={advancedActiveCount}
+          defaultOpen={false}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadDepartments={(query) => hrmsService.searchHrmsDepartments(query)}
+          loadDesignations={(query) => hrmsService.searchHrmsDesignations(query)}
+          loadEmployees={(query, opts = {}) =>
+            hrmsService.searchHrmsEmployees(query, {
+              department_id: opts.department_id || undefined,
+              designation_id: opts.designation_id || undefined,
+            })
+          }
+          loadLeaveTypes={(query) => hrmsService.searchHrmsLeaveTypes(query)}
+          resolveDepartment={(id) => hrmsService.resolveHrmsDepartment(id)}
+          resolveDesignation={(id) => hrmsService.resolveHrmsDesignation(id)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
+          resolveLeaveType={(id) => hrmsService.resolveHrmsLeaveType(id)}
+        />
 
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
@@ -431,34 +529,27 @@ export default function HrmsLeavesPage() {
           />
         </div>
 
-
         <div className="flex min-h-[320px] flex-1 flex-col">
-        <PaginatedTable
-          key={tableKey}
-          columns={columns}
-          fetcher={fetcher}
-          showSearch={false}
-          height="100%"
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
-          emptyState={
-            <EmptyState
-              icon={IconCalendarOff}
-              title={hasActiveFilters ? "No leaves match these filters" : "No leave applications"}
-              description={
-                hasActiveFilters
-                  ? "Try clearing the filters to see all leave applications."
-                  : "Apply for leave to start the manager → HR approval flow."
-              }
-              actionLabel="Apply leave"
-              onAction={() => router.push("/hrms/leaves/add")}
-            />
-          }
-        />
+          <PaginatedTable
+            key={tableKey}
+            columns={columns}
+            fetcher={fetcher}
+            showSearch={false}
+            height="100%"
+            emptyState={
+              <EmptyState
+                icon={IconCalendarOff}
+                title={advancedActiveCount ? "No leaves match these filters" : "No leave applications"}
+                description={
+                  advancedActiveCount
+                    ? "Try clearing the filters to see all leave applications."
+                    : "Apply for leave to start the manager → HR approval flow."
+                }
+                actionLabel="Apply leave"
+                onAction={() => router.push("/hrms/leaves/add")}
+              />
+            }
+          />
         </div>
 
         <AlertDialog open={!!target} onOpenChange={(open) => !open && setActionTarget(null)}>

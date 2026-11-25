@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { IconCalendarStats, IconRefresh } from "@tabler/icons-react";
+import EmptyState from "@/components/common/EmptyState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
@@ -31,44 +35,66 @@ const TYPE_LABEL = {
   future: "·",
 };
 
+const TYPE_LEGEND = [
+  ["present", "Present"],
+  ["late", "Late"],
+  ["half_day", "Half day"],
+  ["absent", "Absent"],
+  ["leave", "On leave"],
+  ["lwp", "LWP"],
+  ["holiday", "Holiday"],
+  ["week_off", "Week off"],
+  ["mis_punch", "Mis punch"],
+  ["future", "Upcoming"],
+];
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+const timeIST = (v) =>
+  v
+    ? new Date(v).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Asia/Kolkata",
+      })
+    : null;
+
 /**
- * Dense month grid — SolarAce attendance_list parity (Present/Late/Absent/Holiday/Leave).
+ * Dense month grid — SolarAce attendance_list parity (Present/Late/Absent/
+ * Holiday/Leave) with TechHind polish: skeleton loading, retry, badge legend,
+ * per-day in/out times and working hours, selected-employee support.
  */
 export default function AttendanceCalendar({
   year,
   month,
   employeeId = null,
+  refreshKey = 0,
   compact = false,
 }) {
   const [loading, setLoading] = useState(true);
   const [payload, setPayload] = useState(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await hrmsService.getAttendanceCalendar({
+        year: Number(year),
+        month: Number(month),
+        employee_id: employeeId || undefined,
+      });
+      setPayload(unwrap(res));
+    } catch (err) {
+      setPayload(null);
+      toastErrorFromApi(err, "Failed to load calendar");
+    } finally {
+      setLoading(false);
+    }
+  }, [year, month, employeeId]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await hrmsService.getAttendanceCalendar({
-          year: Number(year),
-          month: Number(month),
-          employee_id: employeeId || undefined,
-        });
-        if (!cancelled) setPayload(unwrap(res));
-      } catch (err) {
-        if (!cancelled) {
-          setPayload(null);
-          toastErrorFromApi(err, "Failed to load calendar");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [year, month, employeeId]);
+    load();
+  }, [load, reloadToken, refreshKey]);
 
   const cells = useMemo(() => {
     const days = payload?.days || [];
@@ -88,89 +114,145 @@ export default function AttendanceCalendar({
 
   if (loading) {
     return (
-      <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
-        Loading calendar…
+      <div className="rounded-md border border-border bg-card p-3" aria-busy="true">
+        <div className="mb-2 h-4 w-44 animate-pulse rounded bg-muted" />
+        <div className="grid grid-cols-7 gap-1">
+          {Array.from({ length: 35 }).map((_, i) => (
+            <div key={i} className="min-h-16 animate-pulse rounded bg-muted/40" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!payload) {
     return (
-      <div className="rounded-md border border-border bg-card p-3 text-xs text-muted-foreground">
-        No calendar data
-      </div>
+      <EmptyState
+        icon={IconCalendarStats}
+        title="No calendar data"
+        description="We could not load the attendance calendar for this month."
+        actionLabel="Retry"
+        onAction={() => setReloadToken((t) => t + 1)}
+      />
     );
   }
+
+  const summary = payload.summary || {};
+  const summaryChips = [
+    ["Present", summary.present_days],
+    ["Late", summary.late_marks],
+    ["Half", summary.half_days],
+    ["Absent", summary.absent_days],
+    ["Leave", summary.leave_days],
+    ["Holiday", summary.holiday_days],
+  ];
 
   return (
     <div className={`rounded-md border border-border bg-card ${compact ? "p-2" : "p-3"}`}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className={`font-semibold text-foreground ${compact ? "text-sm" : "text-sm"}`}>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">
             {payload.employee_name || "Employee"}
             {payload.emp_code ? (
               <span className="ml-1 font-normal text-muted-foreground">({payload.emp_code})</span>
             ) : null}
           </p>
-          {!compact && payload.summary ? (
-            <p className="text-xs text-muted-foreground">
-              Present {payload.summary.present_days ?? 0} · Late {payload.summary.late_marks ?? 0} ·
-              Half {payload.summary.half_days ?? 0} · Absent {payload.summary.absent_days ?? 0} · Leave{" "}
-              {payload.summary.leave_days ?? 0}
-            </p>
-          ) : null}
+          <p className="text-xs text-muted-foreground">
+            {employeeId
+              ? "Calendar for the employee selected in Advanced Filters."
+              : "Showing your own calendar — pick an employee in Advanced Filters to view theirs."}
+          </p>
         </div>
-        <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-          {[
-            ["P", "Present"],
-            ["L", "Late"],
-            ["H", "Half"],
-            ["A", "Absent"],
-            ["LV", "Leave"],
-            ["Hol", "Holiday"],
-            ["WO", "Week off"],
-            ["MP", "Mis punch"],
-          ].map(([k, label]) => (
-            <span key={k} className="rounded border border-border px-1.5 py-0.5">
-              {k}={label}
-            </span>
-          ))}
+        <div className="flex flex-wrap items-center gap-1">
+          {!compact &&
+            summaryChips.map(([label, value]) => (
+              <Badge key={label} variant="secondary" className="text-[10px]">
+                {label} {value ?? 0}
+              </Badge>
+            ))}
+          {!compact && summary.working_hours != null ? (
+            <Badge variant="secondary" className="text-[10px]">
+              Hours {Number(summary.working_hours || 0).toFixed(2)}
+            </Badge>
+          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setReloadToken((t) => t + 1)}
+            title="Refresh calendar"
+          >
+            <IconRefresh size={14} /> Refresh
+          </Button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {WEEKDAYS.map((w) => (
-          <div
-            key={w}
-            className="text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+
+      <div className="mb-2 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+        {TYPE_LEGEND.map(([key, label]) => (
+          <span
+            key={key}
+            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${
+              TYPE_STYLE[key] || "border-border bg-background text-foreground"
+            }`}
           >
-            {w}
-          </div>
+            <span className="font-semibold">{TYPE_LABEL[key]}</span>
+            {label}
+          </span>
         ))}
-        {cells.map((cell) =>
-          cell.empty ? (
-            <div key={cell.key} className="min-h-10 rounded border border-transparent" />
-          ) : (
-            <div
-              key={cell.key}
-              title={`${cell.date}${cell.type ? ` · ${cell.type}` : ""}${
-                cell.late_waived ? " · late waived" : ""
-              }`}
-              className={`min-h-10 rounded border px-1 py-0.5 ${
-                TYPE_STYLE[cell.type] || "bg-background border-border text-foreground"
-              }`}
-            >
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[10px] tabular-nums opacity-70">{cell.day}</span>
-                <span className="text-[10px] font-semibold">
-                  {TYPE_LABEL[cell.type] || (cell.type ? "·" : "")}
-                </span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-7 gap-1">
+            {WEEKDAYS.map((w) => (
+              <div
+                key={w}
+                className="text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
+              >
+                {w}
               </div>
-              {cell.late_waived ? (
-                <div className="text-[9px] font-medium text-amber-700">★ waived</div>
-              ) : null}
-            </div>
-          )
-        )}
+            ))}
+            {cells.map((cell) =>
+              cell.empty ? (
+                <div key={cell.key} className="min-h-16 rounded border border-transparent" />
+              ) : (
+                <div
+                  key={cell.key}
+                  title={`${cell.date}${cell.type ? ` · ${cell.type}` : ""}${
+                    cell.late_waived ? " · late waived" : ""
+                  }${cell.check_in_at ? ` · in ${timeIST(cell.check_in_at)}` : ""}${
+                    cell.check_out_at ? ` · out ${timeIST(cell.check_out_at)}` : ""
+                  }`}
+                  aria-label={`Day ${cell.day}: ${
+                    TYPE_LEGEND.find(([k]) => k === cell.type)?.[1] || "No record"
+                  }`}
+                  className={`min-h-16 rounded border px-1 py-0.5 ${
+                    TYPE_STYLE[cell.type] || "bg-background border-border text-foreground"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] tabular-nums opacity-70">{cell.day}</span>
+                    <span className="text-[10px] font-semibold">
+                      {TYPE_LABEL[cell.type] || (cell.type ? "·" : "")}
+                    </span>
+                  </div>
+                  {cell.check_in_at || cell.check_out_at ? (
+                    <div className="mt-0.5 text-[9px] tabular-nums opacity-80">
+                      {timeIST(cell.check_in_at) || "—"} – {timeIST(cell.check_out_at) || "—"}
+                    </div>
+                  ) : null}
+                  {cell.working_hours != null ? (
+                    <div className="text-[9px] tabular-nums opacity-70">
+                      {Number(cell.working_hours).toFixed(2)}h
+                    </div>
+                  ) : null}
+                  {cell.late_waived ? (
+                    <div className="text-[9px] font-medium text-amber-700">★ waived</div>
+                  ) : null}
+                </div>
+              )
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

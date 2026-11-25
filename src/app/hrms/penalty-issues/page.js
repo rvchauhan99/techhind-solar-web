@@ -32,10 +32,20 @@ import useModulePermission from "@/hooks/useModulePermission";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, getApiErrorMessage } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { currentMonthKey } from "@/components/common/hrmsFilterDates";
 import { DIALOG_FORM_LARGE } from "@/utils/formConstants";
 import PenaltyIssueForm from "./PenaltyIssueForm";
+import PenaltyIssueFilterPanel from "./components/PenaltyIssueFilterPanel";
 
 const MODULE_KEY = "hrms_penalty_issues";
+const DEFAULT_MONTH = currentMonthKey();
+
+const EMPTY_FILTERS = {
+  month: DEFAULT_MONTH,
+  status: "",
+  employee_id: "",
+  penalty_id: "",
+};
 
 const money = (value) =>
   `₹${Number(value || 0).toLocaleString("en-IN", {
@@ -43,15 +53,22 @@ const money = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-const THIS_MONTH = new Date().toISOString().slice(0, 7);
+function penaltyIssueMatchesQ(row, search) {
+  const needle = String(search || "").trim().toLowerCase();
+  if (!needle) return true;
+  const hay = [row.employee_name, row.emp_code, row.penalty_title, row.remarks, row.department_title]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return hay.includes(needle);
+}
 
 export default function HrmsPenaltyIssuesPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const [filters, setFilters] = useState({ month: THIS_MONTH, status: "", employee_id: "", penalty_id: "" });
-  const [employees, setEmployees] = useState([]);
-  const [penalties, setPenalties] = useState([]);
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const [cancelTarget, setCancelTarget] = useState(null);
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState({ count: null, activeAmount: null });
@@ -64,45 +81,71 @@ export default function HrmsPenaltyIssuesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState(null);
 
+  const [penaltyTypeCount, setPenaltyTypeCount] = useState(0);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [empRes, penRes] = await Promise.all([
-          hrmsService.listEmployees({ limit: 100, status: "active" }),
-          hrmsService.listPenalties({ limit: 100, status: "active" }),
-        ]);
-        if (cancelled) return;
-        setEmployees(unwrap(empRes)?.data || []);
-        setPenalties(unwrap(penRes)?.data || []);
-      } catch {
-        /* filter options are best-effort */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    hrmsService
+      .listPenalties({ limit: 1, status: "active" })
+      .then((res) => setPenaltyTypeCount(unwrap(res)?.meta?.total ?? 0))
+      .catch(() => setPenaltyTypeCount(0));
   }, []);
 
-  const employeeFilterOptions = useMemo(
-    () =>
-      employees.map((emp) => ({
-        value: String(emp.id),
-        label: emp.user?.name ? `${emp.user.name} (${emp.emp_code})` : emp.emp_code,
-      })),
-    [employees]
+  const listParams = useMemo(
+    () => ({
+      month: filters.month || DEFAULT_MONTH,
+      status: filters.status || undefined,
+      employee_id: filters.employee_id || undefined,
+      penalty_id: filters.penalty_id || undefined,
+    }),
+    [filters]
   );
 
-  const penaltyFilterOptions = useMemo(
-    () => penalties.map((p) => ({ value: String(p.id), label: p.title })),
-    [penalties]
-  );
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.status) n += 1;
+    if (filters.employee_id) n += 1;
+    if (filters.penalty_id) n += 1;
+    if (filters.month && filters.month !== DEFAULT_MONTH) n += 1;
+    if (q.trim()) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      month: next.month || DEFAULT_MONTH,
+      status: next.status || "",
+      employee_id: next.employee_id || "",
+      penalty_id: next.penalty_id || "",
+    });
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") {
+      setQ("");
+      setTableKey((k) => k + 1);
+      return;
+    }
+    if (key === "month") {
+      setFilters((prev) => ({ ...prev, month: DEFAULT_MONTH }));
+    } else {
+      setFilters((prev) => ({ ...prev, [key]: "" }));
+    }
+    setTableKey((k) => k + 1);
+  };
 
   const loadSummary = useCallback(async () => {
     try {
       const res = await hrmsService.listPenaltyIssues({
-        month: filters.month || undefined,
-        status: filters.status || undefined,
+        ...listParams,
         limit: 1,
       });
       const s = unwrap(res)?.summary;
@@ -110,28 +153,47 @@ export default function HrmsPenaltyIssuesPage() {
     } catch {
       setSummary({ count: null, activeAmount: null });
     }
-  }, [filters.month, filters.status]);
+  }, [listParams]);
 
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
 
   const fetcher = useCallback(
-    async ({ page, limit, employee_id, penalty_id, status, month }) => {
+    async ({ page, limit }) => {
+      const search = q.trim();
+      if (search) {
+        const res = await hrmsService.listPenaltyIssues({
+          page: 1,
+          limit: 100,
+          ...listParams,
+        });
+        const payload = unwrap(res);
+        const allRows = (payload?.data || []).filter((row) => penaltyIssueMatchesQ(row, search));
+        const total = allRows.length;
+        const start = (page - 1) * limit;
+        const rows = allRows.slice(start, start + limit);
+        return {
+          data: rows,
+          meta: {
+            total,
+            page,
+            pages: Math.ceil(total / limit) || 1,
+            limit: limit || 20,
+          },
+        };
+      }
       const res = await hrmsService.listPenaltyIssues({
         page,
         limit,
-        month: month || undefined,
-        employee_id: employee_id || undefined,
-        penalty_id: penalty_id || undefined,
-        status: status || undefined,
+        ...listParams,
       });
       const payload = unwrap(res);
       const rows = payload?.data || [];
       const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: limit || 20 };
       return { data: rows, meta };
     },
-    []
+    [listParams, q]
   );
 
   const handleOpenAddModal = useCallback(() => {
@@ -185,10 +247,7 @@ export default function HrmsPenaltyIssuesPage() {
   const doExport = async () => {
     setExporting(true);
     try {
-      const blob = await hrmsService.exportPenaltyIssues({
-        month: filters.month || undefined,
-        status: filters.status || undefined,
-      });
+      const blob = await hrmsService.exportPenaltyIssues({ ...listParams });
       const url = window.URL.createObjectURL(new Blob([blob]));
       const a = document.createElement("a");
       a.href = url;
@@ -235,9 +294,6 @@ export default function HrmsPenaltyIssuesPage() {
         field: "employee_name",
         label: "Employee",
         sortable: false,
-        filterType: "select",
-        filterKey: "employee_id",
-        filterOptions: employeeFilterOptions,
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name || "—"}</span>
@@ -251,18 +307,12 @@ export default function HrmsPenaltyIssuesPage() {
         field: "penalty_title",
         label: "Penalty",
         sortable: false,
-        filterType: "select",
-        filterKey: "penalty_id",
-        filterOptions: penaltyFilterOptions,
         render: (row) => <span>{row.penalty_title || "—"}</span>,
       },
       {
         field: "penalty_month",
         label: "Month",
         sortable: true,
-        filterType: "select",
-        filterKey: "month",
-        filterOptions: monthOptions,
       },
       {
         field: "amount",
@@ -282,12 +332,6 @@ export default function HrmsPenaltyIssuesPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: [
-          { value: "active", label: "Active" },
-          { value: "cancelled", label: "Cancelled" },
-        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -322,7 +366,7 @@ export default function HrmsPenaltyIssuesPage() {
         ),
       },
     ],
-    [perm.can_update, employeeFilterOptions, penaltyFilterOptions, handleOpenEditModal, monthOptions]
+    [perm.can_update, handleOpenEditModal]
   );
 
   return (
@@ -364,22 +408,34 @@ export default function HrmsPenaltyIssuesPage() {
             compact
             icon={<IconBan size={16} />}
             label="Active penalty types"
-            value={penalties.length}
+            value={penaltyTypeCount}
             accentColor="#f37021"
             subLabel="Available to issue"
           />
         </div>
 
 
+        <PenaltyIssueFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          monthOptions={monthOptions}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v || "");
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+          loadEmployees={(query) => hrmsService.searchHrmsEmployees(query)}
+          loadPenalties={(query) => hrmsService.searchHrmsPenalties(query)}
+          resolveEmployee={(id) => hrmsService.resolveHrmsEmployee(id)}
+          resolvePenalty={(id) => hrmsService.resolveHrmsPenalty(id)}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
           key={tableKey}
-          columnFilterValues={filters}
-          onColumnFilterChange={(key, value) => {
-            setFilters((f) => ({ ...f, [key]: value }));
-            setTableKey((k) => k + 1);
-          }}
-          filterParams={filters}
           columns={columns}
           fetcher={fetcher}
           showSearch={false}

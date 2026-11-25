@@ -24,13 +24,13 @@ import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_announcements";
-
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "" };
 
 function formatRange(row) {
   const start = row.start_date || "—";
@@ -41,24 +41,44 @@ function formatRange(row) {
 export default function HrmsAnnouncementsPage() {
   const router = useRouter();
   const perm = useModulePermission(MODULE_KEY);
-  const list = useListTableState({ filters: { status: "", title: "" } });
   const [tableKey, setTableKey] = useState(0);
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listAnnouncements({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+    }),
+    [filters, q]
+  );
+
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listAnnouncements({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const onDelete = async () => {
     if (!deleteTarget) return;
@@ -81,9 +101,6 @@ export default function HrmsAnnouncementsPage() {
         field: "title",
         label: "Title",
         sortable: false,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
@@ -105,9 +122,6 @@ export default function HrmsAnnouncementsPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -155,6 +169,19 @@ export default function HrmsAnnouncementsPage() {
         secondaryButtonLabel="My Announcements"
         onSecondaryClick={() => router.push("/hrms/announcements/feed")}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-announcements-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (announcement title)"
+          quickSearchId="hrms-announcements-quick-search"
+          activeCount={advancedActiveCount}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={filterHandlers.onApply}
+          onReset={filterHandlers.onReset}
+          onRemove={filterHandlers.onRemove}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
           <PaginatedTable
             key={tableKey}
@@ -162,26 +189,21 @@ export default function HrmsAnnouncementsPage() {
             fetcher={fetcher}
             showSearch={false}
             height="100%"
-            columnFilterValues={list.filters}
-            onColumnFilterChange={list.setFilter}
-            filterParams={list.filters}
             page={list.page}
             limit={list.limit}
-            q={list.q}
             sortBy={list.sortBy}
             sortOrder={list.sortOrder}
             onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
             onRowsPerPageChange={list.setLimit}
-            onQChange={list.setQ}
             onSortChange={list.setSort}
             emptyState={
               <EmptyState
                 icon={IconSpeakerphone}
                 title={
-                  list.activeFilterCount ? "No announcements match this filter" : "No announcements"
+                  advancedActiveCount ? "No announcements match this filter" : "No announcements"
                 }
                 description={
-                  list.activeFilterCount
+                  advancedActiveCount
                     ? "Try clearing the filters to see all announcements."
                     : "Create an announcement and target one or more departments."
                 }

@@ -31,11 +31,18 @@ import useListTableState from "@/hooks/useListTableState";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, getApiErrorMessage } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { yearSelectOptions } from "@/components/common/hrmsFilterDates";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import HolidayForm from "./HolidayForm";
+import HolidayFilterPanel from "./components/HolidayFilterPanel";
 
 const MODULE_KEY = "hrms_holidays";
 const THIS_YEAR = new Date().getFullYear();
+
+const EMPTY_FILTERS = {
+  year: String(THIS_YEAR),
+  status: "",
+};
 const MONTH_LABEL = (dateStr) => {
   if (!dateStr) return "—";
   const d = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
@@ -47,8 +54,9 @@ export default function HrmsHolidaysPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
   const list = useListTableState({
-    filters: { year: String(THIS_YEAR), status: "", title: "" },
     sortBy: "holiday_date",
     sortOrder: "asc",
   });
@@ -73,7 +81,7 @@ export default function HrmsHolidaysPage() {
   const loadCounts = useCallback(async () => {
     setCountsLoading(true);
     try {
-      const res = await hrmsService.listHolidays({ year: list.filters.year || undefined, limit: 200 });
+      const res = await hrmsService.listHolidays({ year: filters.year || undefined, limit: 200 });
       const rows = unwrap(res)?.data || [];
       const today = new Date().toISOString().slice(0, 10);
       setCounts({
@@ -86,31 +94,68 @@ export default function HrmsHolidaysPage() {
     } finally {
       setCountsLoading(false);
     }
-  }, [list.filters.year]);
+  }, [filters.year]);
 
   useEffect(() => {
     loadCounts();
   }, [loadCounts]);
 
-  const yearOptions = useMemo(
-    () => [THIS_YEAR - 1, THIS_YEAR, THIS_YEAR + 1, THIS_YEAR + 2].map((y) => ({ value: String(y), label: String(y) })),
-    []
+  const yearOptions = useMemo(() => yearSelectOptions(), []);
+
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      year: filters.year || String(THIS_YEAR),
+      status: filters.status || undefined,
+    }),
+    [filters, q]
   );
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listHolidays({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      year: params.year || undefined,
-      status: params.status || undefined,
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+
+  const advancedActiveCount = useMemo(() => {
+    let n = 0;
+    if (filters.status) n += 1;
+    if (q.trim()) n += 1;
+    if (filters.year && filters.year !== String(THIS_YEAR)) n += 1;
+    return n;
+  }, [filters, q]);
+
+  const handleApplyFilters = (next) => {
+    setFilters({
+      year: next.year || String(THIS_YEAR),
+      status: next.status || "",
     });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+    setTableKey((k) => k + 1);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ ...EMPTY_FILTERS });
+    setQ("");
+    setTableKey((k) => k + 1);
+  };
+
+  const handleRemoveFilter = (key) => {
+    if (key === "q") setQ("");
+    else if (key === "year") setFilters((prev) => ({ ...prev, year: String(THIS_YEAR) }));
+    else setFilters((prev) => ({ ...prev, [key]: "" }));
+    setTableKey((k) => k + 1);
+  };
+
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listHolidays({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
 
   const handleOpenAddModal = useCallback(() => {
@@ -231,9 +276,6 @@ export default function HrmsHolidaysPage() {
         field: "holiday_date",
         label: "Date",
         sortable: true,
-        filterType: "select",
-        filterKey: "year",
-        filterOptions: yearOptions,
         render: (row) => <span className="font-medium text-foreground">{row.holiday_date}</span>,
       },
       {
@@ -246,20 +288,11 @@ export default function HrmsHolidaysPage() {
         field: "title",
         label: "Holiday",
         sortable: true,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
       },
       {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: [
-          { value: "active", label: "Active" },
-          { value: "inactive", label: "Inactive" },
-        ],
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -294,7 +327,7 @@ export default function HrmsHolidaysPage() {
         ),
       },
     ],
-    [perm.can_update, perm.can_delete, handleOpenEditModal, yearOptions]
+    [perm.can_update, perm.can_delete, handleOpenEditModal]
   );
 
   return (
@@ -326,7 +359,7 @@ export default function HrmsHolidaysPage() {
           <StatCard
             compact
             icon={<IconCalendarEvent size={16} />}
-            label={`Holidays in ${list.filters.year || THIS_YEAR}`}
+            label={`Holidays in ${filters.year || THIS_YEAR}`}
             value={counts.total ?? "—"}
             accentColor="#1b365d"
             subLabel="Listed for the year"
@@ -353,6 +386,21 @@ export default function HrmsHolidaysPage() {
         </div>
 
 
+        <HolidayFilterPanel
+          values={filterPanelValues}
+          quickSearch={q}
+          yearOptions={yearOptions}
+          defaultYear={String(THIS_YEAR)}
+          activeCount={advancedActiveCount}
+          onQuickSearch={(v) => {
+            setQ(v);
+            setTableKey((k) => k + 1);
+          }}
+          onApply={handleApplyFilters}
+          onReset={handleResetFilters}
+          onRemove={handleRemoveFilter}
+        />
+
         <div className="flex min-h-[320px] flex-1 flex-col">
         <PaginatedTable
           key={tableKey}
@@ -360,9 +408,6 @@ export default function HrmsHolidaysPage() {
           fetcher={fetcher}
           showSearch={false}
           height="100%"
-          columnFilterValues={list.filters}
-          onColumnFilterChange={list.setFilter}
-          filterParams={list.filters}
           page={list.page}
           limit={list.limit}
           q={list.q}
@@ -375,7 +420,7 @@ export default function HrmsHolidaysPage() {
           emptyState={
             <EmptyState
               icon={IconCalendarEvent}
-              title={`No holidays for ${list.filters.year || THIS_YEAR}`}
+              title={`No holidays for ${filters.year || THIS_YEAR}`}
               description="Add holidays one by one, bulk import a list, or clone last year calendar."
               actionLabel={perm.can_create ? "Add Holiday" : undefined}
               onAction={perm.can_create ? handleOpenAddModal : undefined}

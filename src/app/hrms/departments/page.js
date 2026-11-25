@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IconPencil, IconTrash, IconBuildingCommunity, IconCircleCheck, IconCircleMinus, IconFilterOff } from "@tabler/icons-react";
+import { IconPencil, IconTrash, IconBuildingCommunity, IconCircleCheck, IconCircleMinus } from "@tabler/icons-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,18 +28,37 @@ import { toastSuccess, toastErrorFromApi, getApiErrorMessage } from "@/utils/toa
 import * as hrmsService from "@/services/hrmsService";
 import { DIALOG_FORM_MEDIUM } from "@/utils/formConstants";
 import DepartmentForm from "./DepartmentForm";
+import HrmsLightFilterPanel, {
+  countHrmsLightActiveFilters,
+  createHrmsLightFilterHandlers,
+} from "@/app/hrms/components/HrmsLightFilterPanel";
 
 const MODULE_KEY = "hrms_departments";
-const STATUS_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+const EMPTY_FILTERS = { status: "" };
 
 export default function HrmsDepartmentsPage() {
   const perm = useModulePermission(MODULE_KEY);
 
   const [tableKey, setTableKey] = useState(0);
-  const list = useListTableState({ filters: { status: "", title: "" } });
+  const list = useListTableState();
+  const [filters, setFilters] = useState(() => ({ ...EMPTY_FILTERS }));
+  const [q, setQ] = useState("");
+  const filterPanelValues = useMemo(() => ({ ...filters, q }), [filters, q]);
+  const advancedActiveCount = useMemo(
+    () => countHrmsLightActiveFilters(filters, q),
+    [filters, q]
+  );
+  const filterHandlers = useMemo(
+    () => createHrmsLightFilterHandlers(EMPTY_FILTERS, { setFilters, setQ, setTableKey }),
+    []
+  );
+  const listParams = useMemo(
+    () => ({
+      search: q.trim() || undefined,
+      status: filters.status || undefined,
+    }),
+    [filters, q]
+  );
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [counts, setCounts] = useState({ total: null, active: null, inactive: null });
@@ -76,19 +95,20 @@ export default function HrmsDepartmentsPage() {
     loadCounts();
   }, [loadCounts]);
 
-  const fetcher = useCallback(async (params) => {
-    const res = await hrmsService.listDepartments({
-      page: params.page,
-      limit: params.limit,
-      search: params.title || params.q || undefined,
-      search_op: params.title_op || undefined,
-      status: params.status || undefined,
-    });
-    const payload = unwrap(res);
-    const rows = payload?.data || [];
-    const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
-    return { data: rows, meta };
-  }, []);
+  const fetcher = useCallback(
+    async (params) => {
+      const res = await hrmsService.listDepartments({
+        page: params.page,
+        limit: params.limit,
+        ...listParams,
+      });
+      const payload = unwrap(res);
+      const rows = payload?.data || [];
+      const meta = payload?.meta || { total: rows.length, page: 1, pages: 1, limit: params.limit || 20 };
+      return { data: rows, meta };
+    },
+    [listParams]
+  );
 
   const handleOpenAddModal = useCallback(() => {
     setEditRecord(null);
@@ -160,9 +180,6 @@ export default function HrmsDepartmentsPage() {
         field: "title",
         label: "Department",
         sortable: true,
-        filterType: "text",
-        filterKey: "title",
-        defaultFilterOperator: "contains",
         render: (row) => <span className="font-medium text-foreground">{row.title}</span>,
       },
       {
@@ -176,9 +193,6 @@ export default function HrmsDepartmentsPage() {
         field: "status",
         label: "Status",
         sortable: false,
-        filterType: "select",
-        filterKey: "status",
-        filterOptions: STATUS_OPTIONS,
         render: (row) => <StatusBadge status={row.status} />,
       },
       {
@@ -224,6 +238,19 @@ export default function HrmsDepartmentsPage() {
         addButtonLabel={perm.can_create ? "Add Department" : undefined}
         onAddClick={perm.can_create ? handleOpenAddModal : undefined}
       >
+        <HrmsLightFilterPanel
+          panelId="hrms-departments-advanced-filters"
+          values={filterPanelValues}
+          quickSearch={q}
+          quickSearchPlaceholder="Quick Search (department title)"
+          quickSearchId="hrms-departments-quick-search"
+          activeCount={advancedActiveCount}
+          onQuickSearch={filterHandlers.onQuickSearch}
+          onApply={filterHandlers.onApply}
+          onReset={filterHandlers.onReset}
+          onRemove={filterHandlers.onRemove}
+        />
+
         <div className="mb-1.5 grid shrink-0 grid-cols-1 gap-2 sm:grid-cols-3">
           <StatCard
             compact
@@ -262,24 +289,19 @@ export default function HrmsDepartmentsPage() {
           fetcher={fetcher}
           showSearch={false}
           height="100%"
-          columnFilterValues={list.filters}
-          onColumnFilterChange={list.setFilter}
-          filterParams={list.filters}
           page={list.page}
           limit={list.limit}
-          q={list.q}
           sortBy={list.sortBy}
           sortOrder={list.sortOrder}
           onPageChange={(zeroBased) => list.setPage(zeroBased + 1)}
           onRowsPerPageChange={list.setLimit}
-          onQChange={list.setQ}
           onSortChange={list.setSort}
           emptyState={
             <EmptyState
               icon={IconBuildingCommunity}
-              title={list.activeFilterCount ? "No departments match this filter" : "No departments yet"}
+              title={advancedActiveCount ? "No departments match this filter" : "No departments yet"}
               description={
-                list.activeFilterCount
+                advancedActiveCount
                   ? "Try clearing the filters to see all departments."
                   : "Create your first department so employees and designations can be grouped."
               }
