@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -11,16 +11,16 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
-import Checkbox from "@/components/common/Checkbox";
 import Textarea from "@/components/common/Textarea";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 
 export default function HrmsPositionAddPage() {
   const router = useRouter();
-  const [branches, setBranches] = useState([]);
+  const [branchSelections, setBranchSelections] = useState([]);
   const [form, setForm] = useState({
     title: "",
     job_description: "",
@@ -30,27 +30,9 @@ export default function HrmsPositionAddPage() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    hrmsService
-      .getPositionMeta()
-      .then((res) => setBranches(unwrap(res)?.branches || []))
-      .catch(() => setBranches([]));
-  }, []);
-
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
-  };
-
-  const toggleBranch = (id) => {
-    const n = Number(id);
-    setForm((f) => {
-      const set = new Set((f.branch_ids || []).map(Number));
-      if (set.has(n)) set.delete(n);
-      else set.add(n);
-      return { ...f, branch_ids: Array.from(set) };
-    });
-    if (errors.branch_ids) setErrors((p) => ({ ...p, branch_ids: undefined }));
   };
 
   const onSubmit = async (e) => {
@@ -111,27 +93,31 @@ export default function HrmsPositionAddPage() {
                     <MenuItem value="inactive">Inactive</MenuItem>
                   </Select>
                 </FormField>
+                <FormField className="sm:col-span-2">
+                  <AutocompleteField
+                    label="Branches"
+                    name="branch_ids"
+                    multiple
+                    required
+                    placeholder="Type to search branches…"
+                    asyncLoadOptions={(q) =>
+                      getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })
+                    }
+                    getOptionLabel={(b) => b?.label ?? b?.name ?? b?.branch_name ?? ""}
+                    value={branchSelections}
+                    onChange={(_e, opts) => {
+                      const list = Array.isArray(opts) ? opts : [];
+                      setBranchSelections(list);
+                      setField(
+                        "branch_ids",
+                        list.map((b) => b?.id ?? b?.value).filter((id) => id != null && id !== "")
+                      );
+                    }}
+                    error={!!errors.branch_ids}
+                    helperText={errors.branch_ids}
+                  />
+                </FormField>
               </FormGrid>
-
-              <FormField className="mt-3">
-                <div className="mb-1.5 text-sm font-medium">
-                  Branches <span className="text-destructive">*</span>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {branches.map((b) => (
-                    <Checkbox
-                      key={b.id}
-                      name={`branch_${b.id}`}
-                      label={b.name || b.label}
-                      checked={(form.branch_ids || []).map(Number).includes(Number(b.id))}
-                      onChange={() => toggleBranch(b.id)}
-                    />
-                  ))}
-                </div>
-                {errors.branch_ids ? (
-                  <p className="mt-1.5 text-xs text-destructive">{errors.branch_ids}</p>
-                ) : null}
-              </FormField>
 
               <FormField className="mt-3">
                 <Textarea

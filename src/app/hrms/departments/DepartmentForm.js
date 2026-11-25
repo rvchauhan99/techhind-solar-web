@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
@@ -11,7 +11,10 @@ import Select, { MenuItem } from "@/components/common/Select";
 import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import * as hrmsService from "@/services/hrmsService";
-import { unwrap } from "@/lib/apiUnwrap";
+import {
+  getReferenceOptionsSearch,
+  getReferenceOptionById,
+} from "@/services/mastersService";
 
 const EMPTY = { title: "", status: "active", department_head_user_id: "" };
 
@@ -52,7 +55,6 @@ export default function DepartmentForm({
   const isEdit = Boolean(defaultValues?.id);
   const [form, setForm] = useState(() => toFormState(defaultValues));
   const [errors, setErrors] = useState({});
-  const [employees, setEmployees] = useState([]);
 
   // Hydrate whenever the parent supplies a (newly fetched) record.
   useEffect(() => {
@@ -69,29 +71,6 @@ export default function DepartmentForm({
       setErrors((prev) => ({ ...prev, title: serverError }));
     }
   }, [serverError]);
-
-  useEffect(() => {
-    let cancelled = false;
-    hrmsService
-      .listEmployees({ limit: 100, status: "active" })
-      .then((res) => {
-        if (!cancelled) setEmployees(unwrap(res)?.data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setEmployees([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const headOptions = useMemo(
-    () =>
-      employees
-        .filter((e) => e.user_id)
-        .map((e) => ({ value: String(e.user_id), label: e.user?.name || e.emp_code || `User ${e.user_id}` })),
-    [employees]
-  );
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -151,11 +130,17 @@ export default function DepartmentForm({
             <FormField>
               <AutocompleteField
                 label="Department Head (optional)"
-                placeholder="Select employee"
-                options={headOptions}
-                getOptionLabel={(o) => o?.label ?? ""}
-                value={form.department_head_user_id}
-                onChange={(e, opt) => setField("department_head_user_id", opt?.value ?? "")}
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) =>
+                  getReferenceOptionsSearch("user.model", { q, limit: 20, status: "active" })
+                }
+                resolveOptionById={(uid) => getReferenceOptionById("user.model", uid)}
+                referenceModel="user.model"
+                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                value={form.department_head_user_id || null}
+                onChange={(_e, opt) =>
+                  setField("department_head_user_id", opt?.id != null ? String(opt.id) : "")
+                }
                 disabled={loading}
               />
             </FormField>

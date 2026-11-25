@@ -16,12 +16,12 @@ import ProtectedRoute from "@/components/common/ProtectedRoute";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import HtmlTemplateField from "@/components/common/HtmlTemplateField";
 import StatusBadge from "@/components/common/StatusBadge";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
-import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
 
 function initials(name) {
@@ -63,16 +63,14 @@ export default function HrmsEmployeeDetailPage() {
 
   const [emp, setEmp] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
   const [quotas, setQuotas] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
   const [activateOpen, setActivateOpen] = useState(false);
   const [activating, setActivating] = useState(false);
   const [activateForm, setActivateForm] = useState({ name: "", email: "", mobile_number: "", role_id: "", branch_ids: [] });
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
-  const [quotaForm, setQuotaForm] = useState({ leave_type_id: "", quarterly_leave: "0" });
+  const [quotaForm, setQuotaForm] = useState({ leave_type_id: "", leave_type_label: "", quarterly_leave: "0" });
   const [savingQuota, setSavingQuota] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [docCategory, setDocCategory] = useState("aadhar_card");
@@ -91,17 +89,15 @@ export default function HrmsEmployeeDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [empRes, qRes, tRes, docRes, lettersRes, metaRes] = await Promise.all([
+      const [empRes, qRes, docRes, lettersRes, metaRes] = await Promise.all([
         hrmsService.getEmployee(id),
         hrmsService.listEmployeeLeaveQuotas(id).catch(() => null),
-        hrmsService.listLeaveTypes({ limit: 100, status: "active" }).catch(() => null),
         hrmsService.listEmployeeDocuments(id).catch(() => null),
         hrmsService.listEmployeeLetters(id).catch(() => null),
         hrmsService.getLetterTemplateMeta().catch(() => null),
       ]);
       setEmp(unwrap(empRes));
       setQuotas(unwrap(qRes)?.data || []);
-      setLeaveTypes(unwrap(tRes)?.data || []);
       setDocuments(unwrap(docRes)?.data || []);
       setLetters(unwrap(lettersRes)?.data || []);
       const types = unwrap(metaRes)?.types || [];
@@ -118,10 +114,9 @@ export default function HrmsEmployeeDetailPage() {
   useEffect(() => { if (id) load(); }, [id, load]);
 
   useEffect(() => {
-    Promise.all([roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null), listBranches().catch(() => null)])
-      .then(([roleRes, branchRes]) => {
-        const rp = unwrap(roleRes);
-        setRoles(rp?.data || rp?.rows || (Array.isArray(rp) ? rp : []));
+    listBranches()
+      .catch(() => null)
+      .then((branchRes) => {
         const bp = unwrap(branchRes);
         setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
       });
@@ -183,7 +178,7 @@ export default function HrmsEmployeeDetailPage() {
         quarterly_leave: Number(quotaForm.quarterly_leave) || 0,
       });
       toastSuccess("Quota saved");
-      setQuotaForm({ leave_type_id: "", quarterly_leave: "0" });
+      setQuotaForm({ leave_type_id: "", leave_type_label: "", quarterly_leave: "0" });
       const qRes = await hrmsService.listEmployeeLeaveQuotas(id);
       setQuotas(unwrap(qRes)?.data || []);
     } catch (err) {
@@ -522,9 +517,26 @@ export default function HrmsEmployeeDetailPage() {
               </div>
               <form onSubmit={saveQuota} className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[200px]">
-                  <Select label="Leave Type" name="leave_type_id" value={quotaForm.leave_type_id} onChange={(e) => setQuotaForm((f) => ({ ...f, leave_type_id: e.target.value }))} placeholder="Select leave type">
-                    {leaveTypes.map((t) => (<MenuItem key={t.id} value={String(t.id)}>{t.title}</MenuItem>))}
-                  </Select>
+                  <AutocompleteField
+                    label="Leave Type"
+                    name="leave_type_id"
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsLeaveTypes(q)}
+                    resolveOptionById={(tid) => hrmsService.resolveHrmsLeaveType(tid)}
+                    getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                    value={
+                      quotaForm.leave_type_id
+                        ? { id: quotaForm.leave_type_id, value: quotaForm.leave_type_id, label: quotaForm.leave_type_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) =>
+                      setQuotaForm((f) => ({
+                        ...f,
+                        leave_type_id: opt?.id != null ? String(opt.id) : "",
+                        leave_type_label: opt?.label ?? opt?.title ?? "",
+                      }))
+                    }
+                  />
                 </div>
                 <div className="w-40">
                   <Input label="Quarterly" name="quarterly_leave" type="number" value={quotaForm.quarterly_leave} onChange={(e) => setQuotaForm((f) => ({ ...f, quarterly_leave: e.target.value }))} />
@@ -730,9 +742,18 @@ export default function HrmsEmployeeDetailPage() {
               <FormField><Input label="Login Email" name="act_email" type="email" value={activateForm.email} onChange={(e) => setActivateForm((f) => ({ ...f, email: e.target.value }))} required /></FormField>
               <FormField><Input label="Mobile" name="act_mobile" value={activateForm.mobile_number} onChange={(e) => setActivateForm((f) => ({ ...f, mobile_number: e.target.value }))} /></FormField>
               <FormField>
-                <Select label="Role" name="act_role" value={activateForm.role_id} onChange={(e) => setActivateForm((f) => ({ ...f, role_id: e.target.value }))} placeholder="Default User role">
-                  {roles.map((r) => (<MenuItem key={r.id} value={String(r.id)}>{r.name}</MenuItem>))}
-                </Select>
+                <AutocompleteField
+                  label="Role"
+                  name="act_role"
+                  placeholder="Type to search… (default User role)"
+                  asyncLoadOptions={(q) => hrmsService.searchHrmsRoles(q)}
+                  resolveOptionById={(rid) => hrmsService.resolveHrmsRole(rid)}
+                  getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                  value={activateForm.role_id || null}
+                  onChange={(_e, opt) =>
+                    setActivateForm((f) => ({ ...f, role_id: opt?.id != null ? String(opt.id) : "" }))
+                  }
+                />
               </FormField>
               <div>
                 <div className="text-xs font-medium text-muted-foreground mb-1">Branches</div>

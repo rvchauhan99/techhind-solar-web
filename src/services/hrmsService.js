@@ -571,6 +571,173 @@ export const downloadExport = (path, filename) =>
       window.URL.revokeObjectURL(url);
     });
 
+/** Normalize API envelope / list payload to a row array. */
+function unwrapList(res) {
+  const payload = res?.result ?? res?.data ?? res;
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  return [];
+}
+
+function unwrapRow(res) {
+  const payload = res?.result ?? res?.data ?? res;
+  if (payload == null) return null;
+  if (Array.isArray(payload)) return payload[0] ?? null;
+  if (payload?.data && !Array.isArray(payload.data) && typeof payload.data === "object") {
+    return payload.data;
+  }
+  return payload;
+}
+
+function toOption(row, labelKeys = ["title", "name", "label", "emp_code"]) {
+  if (row == null) return null;
+  const id = row.id ?? row.value;
+  if (id == null || id === "") return null;
+  let label = row.label;
+  if (label == null || label === "") {
+    for (const k of labelKeys) {
+      if (row[k] != null && String(row[k]).trim() !== "") {
+        label = String(row[k]).trim();
+        break;
+      }
+    }
+  }
+  if (label == null || label === "") {
+    const first = row.first_name || "";
+    const last = row.last_name || "";
+    const full = `${first} ${last}`.trim();
+    if (full) label = full;
+  }
+  if ((label == null || label === "") && row.user?.name) label = String(row.user.name);
+  if (label == null || label === "") label = `#${id}`;
+  return { id, value: id, label, ...row };
+}
+
+/**
+ * Autocomplete asyncLoadOptions helpers — return Array<{ id, value, label }>.
+ * Prefer HRMS module list APIs with `search` (same pattern as Order reference search).
+ */
+export const searchHrmsPositions = (q, params = {}) =>
+  listPositions({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) => unwrapList(res).map((r) => toOption(r, ["title", "name", "label"])));
+
+export const resolveHrmsPosition = (id) =>
+  getPosition(id).then((res) => toOption(unwrapRow(res), ["title", "name", "label"]));
+
+export const searchHrmsEmployees = (q, params = {}) =>
+  listEmployees({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) =>
+    unwrapList(res).map((r) => {
+      const name = r.user?.name || r.name || r.emp_code || "";
+      const code = r.emp_code ? ` (${r.emp_code})` : "";
+      const label = name ? `${name}${code}` : r.emp_code || `#${r.id}`;
+      return { id: r.id, value: r.id, label, ...r };
+    })
+  );
+
+export const resolveHrmsEmployee = (id) =>
+  getEmployee(id).then((res) => {
+    const r = unwrapRow(res);
+    if (!r) return null;
+    const name = r.user?.name || r.name || r.emp_code || "";
+    const code = r.emp_code ? ` (${r.emp_code})` : "";
+    const label = name ? `${name}${code}` : r.emp_code || `#${r.id}`;
+    return { id: r.id, value: r.id, label, ...r };
+  });
+
+export const searchHrmsCandidates = (q, params = {}) =>
+  listCandidates({
+    search: q || undefined,
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) =>
+    unwrapList(res).map((r) => {
+      const name = `${r.first_name || ""} ${r.last_name || ""}`.trim();
+      const label = name || r.email || r.mobile || `#${r.id}`;
+      return { id: r.id, value: r.id, label, ...r };
+    })
+  );
+
+export const resolveHrmsCandidate = (id) =>
+  getCandidate(id).then((res) => {
+    const r = unwrapRow(res);
+    if (!r) return null;
+    const name = `${r.first_name || ""} ${r.last_name || ""}`.trim();
+    const label = name || r.email || r.mobile || `#${r.id}`;
+    return { id: r.id, value: r.id, label, ...r };
+  });
+
+export const searchHrmsDepartments = (q, params = {}) =>
+  listDepartments({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) => unwrapList(res).map((r) => toOption(r, ["title", "name", "label"])));
+
+export const resolveHrmsDepartment = (id) =>
+  getDepartment(id).then((res) => toOption(unwrapRow(res), ["title", "name", "label"]));
+
+export const searchHrmsDesignations = (q, params = {}) =>
+  listDesignations({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    department_id: params.department_id,
+    ...params,
+  }).then((res) => unwrapList(res).map((r) => toOption(r, ["title", "name", "label"])));
+
+export const resolveHrmsDesignation = (id) =>
+  getDesignation(id).then((res) => toOption(unwrapRow(res), ["title", "name", "label"]));
+
+export const searchHrmsLeaveTypes = (q, params = {}) =>
+  listLeaveTypes({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) => unwrapList(res).map((r) => toOption(r, ["title", "name", "label"])));
+
+export const resolveHrmsLeaveType = (id) =>
+  getLeaveType(id).then((res) => toOption(unwrapRow(res), ["title", "name", "label"]));
+
+export const searchHrmsPenalties = (q, params = {}) =>
+  listPenalties({
+    search: q || undefined,
+    status: params.status ?? "active",
+    limit: params.limit ?? 20,
+    page: 1,
+    ...params,
+  }).then((res) => unwrapList(res).map((r) => toOption(r, ["title", "name", "label"])));
+
+export const resolveHrmsPenalty = (id) =>
+  getPenalty(id).then((res) => toOption(unwrapRow(res), ["title", "name", "label"]));
+
+/** Role master (User Master roles) — used on Employee form Role picker. */
+export const searchHrmsRoles = (q, params = {}) =>
+  apiClient
+    .get("/role-master/list", {
+      params: { q: q || undefined, status: params.status ?? "active", limit: params.limit ?? 20, page: 1, ...params },
+    })
+    .then((r) => unwrapList(r.data).map((row) => toOption(row, ["name", "title", "label"])));
+
+export const resolveHrmsRole = (id) =>
+  apiClient.get(`/role-master/${id}`).then((r) => toOption(unwrapRow(r.data), ["name", "title", "label"]));
 
 const hrmsService = {
   listDepartments,
@@ -738,6 +905,22 @@ const hrmsService = {
   exportCompensatoryReportPath,
   exportCompensatoryReport,
   downloadExport,
+  searchHrmsPositions,
+  resolveHrmsPosition,
+  searchHrmsEmployees,
+  resolveHrmsEmployee,
+  searchHrmsCandidates,
+  resolveHrmsCandidate,
+  searchHrmsDepartments,
+  resolveHrmsDepartment,
+  searchHrmsDesignations,
+  resolveHrmsDesignation,
+  searchHrmsLeaveTypes,
+  resolveHrmsLeaveType,
+  searchHrmsPenalties,
+  resolveHrmsPenalty,
+  searchHrmsRoles,
+  resolveHrmsRole,
 };
 
 export default hrmsService;

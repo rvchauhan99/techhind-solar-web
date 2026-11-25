@@ -13,6 +13,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import DateTimeField from "@/components/common/DateTimeField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -32,13 +33,13 @@ function defaultScorecardCriteria() {
 export default function HrmsInterviewEditPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [candidates, setCandidates] = useState([]);
   const [rounds, setRounds] = useState([]);
   const [modes, setModes] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [results, setResults] = useState([]);
   const [form, setForm] = useState({
     candidate_id: "",
+    candidate_label: "",
     round: "1",
     scheduled_at: "",
     mode: "in_person",
@@ -61,6 +62,7 @@ export default function HrmsInterviewEditPage() {
   const [saving, setSaving] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [evaluating, setEvaluating] = useState(false);
+  const [panelMembers, setPanelMembers] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,14 +74,17 @@ export default function HrmsInterviewEditPage() {
         ]);
         if (cancelled) return;
         const meta = unwrap(metaRes) || {};
-        setCandidates(meta.candidates || []);
         setRounds(meta.rounds || []);
         setModes(meta.modes || []);
         setStatuses(meta.statuses || []);
         setResults(meta.results || []);
         const row = unwrap(rowRes) || {};
+        const candName = row.candidate
+          ? `${row.candidate.first_name || ""} ${row.candidate.last_name || ""}`.trim()
+          : row.candidate_name || "";
         setForm({
           candidate_id: row.candidate_id != null ? String(row.candidate_id) : "",
+          candidate_label: candName,
           round: row.round != null ? String(row.round) : "1",
           scheduled_at: row.scheduled_at || "",
           mode: row.mode || "in_person",
@@ -90,6 +95,27 @@ export default function HrmsInterviewEditPage() {
           result: row.result || "",
           feedback: row.feedback || "",
         });
+        const memberIds = Array.isArray(row.panel_member_ids)
+          ? row.panel_member_ids.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+        if (memberIds.length) {
+          const resolved = await Promise.all(
+            memberIds.map((eid) =>
+              hrmsService.resolveHrmsEmployee(eid).catch(() => ({ id: eid, label: `#${eid}` }))
+            )
+          );
+          if (!cancelled) {
+            setPanelMembers(
+              resolved.filter(Boolean).map((r) => ({
+                id: r.id,
+                label: r.label || r.name || `#${r.id}`,
+              }))
+            );
+          }
+        } else if (row.panel) {
+          // Free-text panel from older rows — keep as one chip (name-only, no id).
+          setPanelMembers([{ id: `text:${row.panel}`, label: row.panel }]);
+        }
         setSavedScorecard(row.scorecard || null);
       } catch (err) {
         toastErrorFromApi(err, "Failed to load interview");
@@ -108,6 +134,30 @@ export default function HrmsInterviewEditPage() {
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
   };
 
+  const syncPanelFields = (members) => {
+    const labels = members.map((m) => m.label).filter(Boolean);
+    setField("panel", labels.join(", "));
+  };
+
+  const addPanelMember = (_e, opt) => {
+    if (!opt?.id) return;
+    const id = String(opt.id);
+    setPanelMembers((prev) => {
+      if (prev.some((m) => String(m.id) === id)) return prev;
+      const next = [...prev.filter((m) => !String(m.id).startsWith("text:")), { id: opt.id, label: opt.label || opt.name || `#${opt.id}` }];
+      syncPanelFields(next);
+      return next;
+    });
+  };
+
+  const removePanelMember = (mid) => {
+    setPanelMembers((prev) => {
+      const next = prev.filter((m) => String(m.id) !== String(mid));
+      syncPanelFields(next);
+      return next;
+    });
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
@@ -122,6 +172,9 @@ export default function HrmsInterviewEditPage() {
 
     setSaving(true);
     try {
+      const panelIds = panelMembers
+        .map((m) => Number(m.id))
+        .filter((n) => Number.isFinite(n) && n > 0);
       await hrmsService.updateInterview(id, {
         candidate_id: Number(form.candidate_id),
         round: Number(form.round),
@@ -129,6 +182,7 @@ export default function HrmsInterviewEditPage() {
         mode: form.mode,
         duration_minutes: mins,
         panel: form.panel.trim() || null,
+        panel_member_ids: panelIds.length ? panelIds : null,
         notes: form.notes.trim() || null,
         status: form.status,
       });
@@ -226,22 +280,26 @@ export default function HrmsInterviewEditPage() {
             <FormSection variant="card" title="Interview">
               <FormGrid>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Candidate"
                     name="candidate_id"
-                    value={form.candidate_id}
-                    onChange={(e) => setField("candidate_id", e.target.value)}
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsCandidates(q)}
+                    resolveOptionById={(cid) => hrmsService.resolveHrmsCandidate(cid)}
+                    getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                    value={
+                      form.candidate_id
+                        ? { id: form.candidate_id, value: form.candidate_id, label: form.candidate_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("candidate_id", opt?.id != null ? String(opt.id) : "");
+                      setField("candidate_label", opt?.label ?? opt?.name ?? "");
+                    }}
                     error={!!errors.candidate_id}
                     helperText={errors.candidate_id}
-                    required
-                  >
-                    <MenuItem value="">Select candidate</MenuItem>
-                    {candidates.map((c) => (
-                      <MenuItem key={c.id ?? c.value} value={String(c.id ?? c.value)}>
-                        {c.label || c.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField>
                   <Select
@@ -310,13 +368,34 @@ export default function HrmsInterviewEditPage() {
                     ))}
                   </Select>
                 </FormField>
-                <FormField>
-                  <Input
-                    label="Panel"
-                    name="panel"
-                    value={form.panel}
-                    onChange={(e) => setField("panel", e.target.value)}
+                <FormField className="sm:col-span-2">
+                  <div className="mb-1 text-xs font-medium text-foreground">Interview Panel</div>
+                  <AutocompleteField
+                    label=""
+                    name="panel_search"
+                    placeholder="Type to search employees…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsEmployees(q)}
+                    getOptionLabel={(o) => o?.label ?? ""}
+                    value={null}
+                    onChange={addPanelMember}
                   />
+                  {panelMembers.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {panelMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
+                          onClick={() => removePanelMember(m.id)}
+                        >
+                          {m.label}
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">Search and add panel members</p>
+                  )}
                 </FormField>
               </FormGrid>
               <FormField className="mt-3">

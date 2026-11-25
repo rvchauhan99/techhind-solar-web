@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -10,9 +10,9 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import DateTimeField from "@/components/common/DateTimeField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, toastInfo } from "@/utils/toast";
@@ -53,11 +53,10 @@ async function readResumeAutofill(file) {
 
 export default function HrmsCandidateAddPage() {
   const router = useRouter();
-  const [positions, setPositions] = useState([]);
-  const [interviewers, setInterviewers] = useState([]);
   const [resumeFile, setResumeFile] = useState(null);
   const [form, setForm] = useState({
     position_id: "",
+    position_label: "",
     first_name: "",
     last_name: "",
     email: "",
@@ -66,34 +65,15 @@ export default function HrmsCandidateAddPage() {
     notes: "",
     interview_datetime: "",
     taken_by: "",
+    taken_by_label: "",
     job_desc_snapshot: "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    hrmsService
-      .getCandidateMeta()
-      .then((res) => setPositions(unwrap(res)?.positions || []))
-      .catch(() => setPositions([]));
-    hrmsService
-      .listEmployees({ page: 1, limit: 200, status: "active" })
-      .then((res) => {
-        const payload = unwrap(res);
-        setInterviewers(payload?.data || []);
-      })
-      .catch(() => setInterviewers([]));
-  }, []);
-
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
-  };
-
-  const onPositionChange = (positionId) => {
-    setField("position_id", positionId);
-    const pos = positions.find((p) => String(p.id ?? p.value) === String(positionId));
-    if (pos?.job_description) setField("job_desc_snapshot", pos.job_description);
   };
 
   const onResumePick = async (e) => {
@@ -176,22 +156,27 @@ export default function HrmsCandidateAddPage() {
             >
               <FormGrid>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Position"
                     name="position_id"
-                    value={form.position_id}
-                    onChange={(e) => onPositionChange(e.target.value)}
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsPositions(q)}
+                    resolveOptionById={(pid) => hrmsService.resolveHrmsPosition(pid)}
+                    getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                    value={
+                      form.position_id
+                        ? { id: form.position_id, value: form.position_id, label: form.position_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("position_id", opt?.id != null ? String(opt.id) : "");
+                      setField("position_label", opt?.label ?? opt?.title ?? "");
+                      if (opt?.job_description) setField("job_desc_snapshot", opt.job_description);
+                    }}
                     error={!!errors.position_id}
                     helperText={errors.position_id}
-                    required
-                  >
-                    <MenuItem value="">Select position</MenuItem>
-                    {positions.map((p) => (
-                      <MenuItem key={p.id ?? p.value} value={String(p.id ?? p.value)}>
-                        {p.title || p.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField>
                   <Input
@@ -260,21 +245,26 @@ export default function HrmsCandidateAddPage() {
                   />
                 </FormField>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="First Interview By"
                     name="taken_by"
-                    value={form.taken_by}
-                    onChange={(e) => setField("taken_by", e.target.value)}
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsEmployees(q)}
+                    resolveOptionById={(eid) => hrmsService.resolveHrmsEmployee(eid)}
+                    getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                    value={
+                      form.taken_by
+                        ? { id: form.taken_by, value: form.taken_by, label: form.taken_by_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      const uid = opt?.user_id ?? opt?.id ?? opt?.value ?? "";
+                      setField("taken_by", uid !== "" ? String(uid) : "");
+                      setField("taken_by_label", opt?.label ?? opt?.name ?? "");
+                    }}
                     error={!!errors.taken_by}
                     helperText={errors.taken_by}
-                  >
-                    <MenuItem value="">Select interviewer</MenuItem>
-                    {interviewers.map((u) => (
-                      <MenuItem key={u.id} value={String(u.user_id || u.id)}>
-                        {u.name || u.full_name || u.emp_code || `Employee #${u.id}`}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField className="sm:col-span-2">
                   <label className="mb-1 block text-xs font-medium text-foreground">

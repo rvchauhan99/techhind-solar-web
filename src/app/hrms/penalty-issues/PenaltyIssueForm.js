@@ -9,8 +9,8 @@ import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import { unwrap } from "@/lib/apiUnwrap";
 import * as hrmsService from "@/services/hrmsService";
 
 const THIS_MONTH = new Date().toISOString().slice(0, 7);
@@ -67,41 +67,26 @@ export default function PenaltyIssueForm({
   const isEdit = Boolean(defaultValues?.id);
   const [form, setForm] = useState(() => toFormState(defaultValues));
   const [errors, setErrors] = useState({});
-  const [employees, setEmployees] = useState([]);
-  const [penalties, setPenalties] = useState([]);
-  const [optionsLoading, setOptionsLoading] = useState(true);
+  const [penaltyLabel, setPenaltyLabel] = useState("");
+  const [employeeLabel, setEmployeeLabel] = useState("");
+  const [selectedPenaltyAmount, setSelectedPenaltyAmount] = useState(null);
 
   // Hydrate whenever the parent supplies a (newly fetched) record.
   useEffect(() => {
-    setForm(toFormState(defaultValues));
+    const next = toFormState(defaultValues);
+    setForm(next);
     setErrors({});
+    if (defaultValues?.employee?.user?.name || defaultValues?.employee?.emp_code) {
+      const name = defaultValues.employee.user?.name || "";
+      const code = defaultValues.employee.emp_code ? ` (${defaultValues.employee.emp_code})` : "";
+      setEmployeeLabel(name ? `${name}${code}` : defaultValues.employee.emp_code || "");
+    }
+    if (defaultValues?.penalty?.title) {
+      setPenaltyLabel(defaultValues.penalty.title);
+      setSelectedPenaltyAmount(defaultValues.penalty.amount ?? null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultValues]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [empRes, penRes] = await Promise.all([
-          hrmsService.listEmployees({ limit: 100, status: "active" }),
-          hrmsService.listPenalties({ limit: 100, status: "active" }),
-        ]);
-        if (cancelled) return;
-        setEmployees(unwrap(empRes)?.data || []);
-        setPenalties(unwrap(penRes)?.data || []);
-      } catch {
-        if (!cancelled) {
-          setEmployees([]);
-          setPenalties([]);
-        }
-      } finally {
-        if (!cancelled) setOptionsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const monthOptions = useMemo(() => {
     const now = new Date();
@@ -121,19 +106,7 @@ export default function PenaltyIssueForm({
     }
   };
 
-  // Choosing a penalty pre-fills its master amount (still editable).
-  const onPenaltyChange = (value) => {
-    const chosen = penalties.find((p) => String(p.id) === String(value));
-    setForm((f) => ({
-      ...f,
-      penalty_id: value,
-      amount: chosen ? String(chosen.amount ?? "") : f.amount,
-    }));
-    if (errors.penalty_id) setErrors((p) => ({ ...p, penalty_id: undefined }));
-  };
-
-  const selectedPenalty = penalties.find((p) => String(p.id) === String(form.penalty_id));
-  const busy = loading || optionsLoading;
+  const busy = loading;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -165,47 +138,69 @@ export default function PenaltyIssueForm({
         >
           <FormGrid cols={2}>
             <FormField>
-              <Select
+              <AutocompleteField
                 label="Employee"
                 name="employee_id"
-                value={form.employee_id}
-                onChange={(e) => setField("employee_id", e.target.value)}
+                required
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) => hrmsService.searchHrmsEmployees(q)}
+                resolveOptionById={(eid) => hrmsService.resolveHrmsEmployee(eid)}
+                getOptionLabel={(o) => o?.label ?? ""}
+                value={
+                  form.employee_id
+                    ? { id: form.employee_id, value: form.employee_id, label: employeeLabel || "" }
+                    : null
+                }
+                onChange={(_e, opt) => {
+                  setField("employee_id", opt?.id != null ? String(opt.id) : "");
+                  setEmployeeLabel(opt?.label ?? "");
+                }}
                 error={!!errors.employee_id}
                 helperText={errors.employee_id || "Only active employees can be penalised"}
-                required
                 disabled={busy || isEdit}
-              >
-                <MenuItem value="">Select employee…</MenuItem>
-                {employees.map((emp) => (
-                  <MenuItem key={emp.id} value={String(emp.id)}>
-                    {emp.user?.name ? `${emp.user.name} (${emp.emp_code})` : emp.emp_code}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </FormField>
             <FormField>
-              <Select
+              <AutocompleteField
                 label="Penalty"
                 name="penalty_id"
-                value={form.penalty_id}
-                onChange={(e) => onPenaltyChange(e.target.value)}
+                required
+                placeholder="Type to search…"
+                asyncLoadOptions={async (q) => {
+                  const opts = await hrmsService.searchHrmsPenalties(q);
+                  return (opts || []).map((p) => ({
+                    ...p,
+                    label: `${p.label || p.title} — ${money(p.amount)}`,
+                  }));
+                }}
+                resolveOptionById={async (pid) => {
+                  const p = await hrmsService.resolveHrmsPenalty(pid);
+                  if (!p) return null;
+                  return { ...p, label: `${p.label || p.title} — ${money(p.amount)}` };
+                }}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={
+                  form.penalty_id
+                    ? { id: form.penalty_id, value: form.penalty_id, label: penaltyLabel || "" }
+                    : null
+                }
+                onChange={(_e, opt) => {
+                  setField("penalty_id", opt?.id != null ? String(opt.id) : "");
+                  setPenaltyLabel(opt?.label ?? opt?.title ?? "");
+                  setSelectedPenaltyAmount(opt?.amount ?? null);
+                  if (opt?.amount != null && opt.amount !== "") {
+                    setField("amount", String(opt.amount));
+                  }
+                }}
                 error={!!errors.penalty_id}
                 helperText={
                   errors.penalty_id ||
-                  (selectedPenalty
-                    ? `Standard amount ${money(selectedPenalty.amount)}`
+                  (selectedPenaltyAmount != null
+                    ? `Standard amount ${money(selectedPenaltyAmount)}`
                     : "Only active penalties can be issued")
                 }
-                required
                 disabled={busy}
-              >
-                <MenuItem value="">Select penalty…</MenuItem>
-                {penalties.map((p) => (
-                  <MenuItem key={p.id} value={String(p.id)}>
-                    {`${p.title} — ${money(p.amount)}`}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </FormField>
             <FormField>
               <Select

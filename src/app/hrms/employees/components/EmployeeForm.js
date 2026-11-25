@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
@@ -28,9 +28,10 @@ import {
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
-import { getReferenceOptions } from "@/services/mastersService";
-import roleService from "@/services/roleMasterService";
-import { listBranches } from "@/services/companyService";
+import {
+  getReferenceOptionsSearch,
+  getReferenceOptionById,
+} from "@/services/mastersService";
 import { unwrap } from "@/lib/apiUnwrap";
 
 const SECTION_NAV = [
@@ -63,75 +64,45 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
   const [form, setForm] = useState({ ...EMPTY, ...(initial || {}) });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [departments, setDepartments] = useState([]);
-  const [designations, setDesignations] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [branches, setBranches] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [stateOptions, setStateOptions] = useState([]);
-  const [cityOptions, setCityOptions] = useState([]);
+  const [branchSelections, setBranchSelections] = useState([]);
 
+  // Resolve branch chips for edit seed (multi Autocomplete skips resolveOptionById).
   useEffect(() => {
-    Promise.all([
-      hrmsService.listDepartments({ limit: 100, status: "active" }).catch(() => null),
-      roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null),
-      listBranches().catch(() => null),
-      hrmsService.listEmployees({ limit: 200 }).catch(() => null),
-      getReferenceOptions("state.model").catch(() => null),
-      getReferenceOptions("city.model").catch(() => null),
-    ]).then(([deptRes, roleRes, branchRes, empRes, stateRes, cityRes]) => {
-      const d = unwrap(deptRes);
-      setDepartments(d?.data || []);
-      const rp = unwrap(roleRes);
-      setRoles(rp?.data || rp?.rows || (Array.isArray(rp) ? rp : []));
-      const bp = unwrap(branchRes);
-      setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
-      const ep = unwrap(empRes);
-      setEmployees(ep?.data || []);
-      setStateOptions(unwrap(stateRes)?.result || unwrap(stateRes) || []);
-      setCityOptions(unwrap(cityRes)?.result || unwrap(cityRes) || []);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!form.department_id) {
-      setDesignations([]);
+    const ids = (form.branch_ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+    if (!ids.length) {
+      setBranchSelections([]);
       return;
     }
-    hrmsService
-      .listDesignations({ department_id: form.department_id, limit: 100, status: "active" })
-      .then((res) => {
-        setDesignations(unwrap(res)?.data || []);
-      })
-      .catch(() => setDesignations([]));
-  }, [form.department_id]);
-
-  const managerOptions = useMemo(
-    () =>
-      employees
-        .filter((e) => String(e.id) !== String(employeeId))
-        .map((e) => ({ value: String(e.id), label: `${e.user?.name || e.emp_code} (${e.emp_code})` })),
-    [employees, employeeId]
-  );
+    let cancelled = false;
+    Promise.all(ids.map((id) => getReferenceOptionById("company_branch.model", id).catch(() => ({ id, label: `#${id}` }))))
+      .then((rows) => {
+        if (cancelled) return;
+        setBranchSelections(
+          rows
+            .filter(Boolean)
+            .map((r) => ({
+              id: r.id,
+              value: r.id,
+              label: r.label || r.name || r.branch_name || `#${r.id}`,
+              name: r.name || r.label || r.branch_name,
+            }))
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Only re-resolve when the id list identity changes from outside selection UX.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify((form.branch_ids || []).map(Number).sort())]);
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
   };
 
-  const toggleBranch = (id) => {
-    setForm((f) => {
-      const set = new Set((f.branch_ids || []).map(Number));
-      if (set.has(Number(id))) set.delete(Number(id));
-      else set.add(Number(id));
-      return { ...f, branch_ids: Array.from(set) };
-    });
-  };
-
   const onSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
-    if (!form.emp_code.trim()) errs.emp_code = "Employee code is required";
     const needUser = (mode === "add" && form.status === "active") || (mode === "edit" && hasUser);
     if (needUser) {
       if (!form.name.trim()) errs.name = "Name is required";
@@ -141,7 +112,6 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
     if (Object.keys(errs).length) return;
 
     const payload = {
-      emp_code: form.emp_code.trim(),
       employee_type: Number(form.employee_type) || 1,
       department_id: toNum(form.department_id),
       designation_id: toNum(form.designation_id),
@@ -228,7 +198,19 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
         >
           <FormGrid cols={4}>
             <FormField>
-              <Input label="Employee Code" name="emp_code" value={form.emp_code} onChange={(e) => setField("emp_code", e.target.value)} error={!!errors.emp_code} helperText={errors.emp_code} required />
+              <Input
+                label="Employee Code"
+                name="emp_code"
+                value={mode === "add" ? "" : form.emp_code}
+                placeholder={mode === "add" ? "Assigned from Serial Master on save" : undefined}
+                disabled
+                readOnly
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {mode === "add"
+                  ? "Generated from Serial Master (EMPLOYEE) when you save"
+                  : "Assigned from Serial Master — not editable"}
+              </p>
             </FormField>
             {mode === "add" && (
               <FormField>
@@ -259,29 +241,38 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
               </FormField>
             )}
             <FormField>
-              <Select label="Role" name="role_id" value={form.role_id} onChange={(e) => setField("role_id", e.target.value)} placeholder="Default User role">
-                {roles.map((r) => (<MenuItem key={r.id} value={String(r.id)}>{r.name}</MenuItem>))}
-              </Select>
+              <AutocompleteField
+                label="Role"
+                name="role_id"
+                placeholder="Type to search… (default User role)"
+                asyncLoadOptions={(q) => hrmsService.searchHrmsRoles(q)}
+                resolveOptionById={(rid) => hrmsService.resolveHrmsRole(rid)}
+                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                value={form.role_id || null}
+                onChange={(_e, opt) => setField("role_id", opt?.id != null ? String(opt.id) : "")}
+              />
             </FormField>
             <FormField className="md:col-span-2 lg:col-span-4">
-              <div className="mb-1 text-xs font-medium text-muted-foreground">
-                Branches <span className="font-normal">— the login can access these branches</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {branches.length === 0 && (
-                  <span className="text-xs text-muted-foreground">No branches configured for this company.</span>
-                )}
-                {branches.map((b) => (
-                  <Checkbox
-                    key={b.id}
-                    name={`branch_${b.id}`}
-                    label={b.name || b.branch_name || `Branch ${b.id}`}
-                    checked={(form.branch_ids || []).map(Number).includes(Number(b.id))}
-                    onChange={() => toggleBranch(b.id)}
-                    className="w-auto rounded border border-border bg-card px-2 py-1"
-                  />
-                ))}
-              </div>
+              <AutocompleteField
+                label="Branches"
+                name="branch_ids"
+                multiple
+                placeholder="Type to search branches…"
+                asyncLoadOptions={(q) =>
+                  getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })
+                }
+                getOptionLabel={(b) => b?.label ?? b?.name ?? b?.branch_name ?? ""}
+                value={branchSelections}
+                onChange={(_e, opts) => {
+                  const list = Array.isArray(opts) ? opts : [];
+                  setBranchSelections(list);
+                  setField(
+                    "branch_ids",
+                    list.map((b) => b?.id ?? b?.value).filter((id) => id != null && id !== "")
+                  );
+                }}
+                helperText="The login can access these branches"
+              />
             </FormField>
           </FormGrid>
         </FormSection>
@@ -296,17 +287,50 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
         >
           <FormGrid cols={4}>
             <FormField>
-              <Select label="Department" name="department_id" value={form.department_id} onChange={(e) => { setField("department_id", e.target.value); setField("designation_id", ""); }} placeholder="Select department">
-                {departments.map((d) => (<MenuItem key={d.id} value={String(d.id)}>{d.title}</MenuItem>))}
-              </Select>
+              <AutocompleteField
+                label="Department"
+                name="department_id"
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) => hrmsService.searchHrmsDepartments(q)}
+                resolveOptionById={(did) => hrmsService.resolveHrmsDepartment(did)}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={form.department_id || null}
+                onChange={(_e, opt) => {
+                  setField("department_id", opt?.id != null ? String(opt.id) : "");
+                  setField("designation_id", "");
+                }}
+              />
             </FormField>
             <FormField>
-              <Select label="Designation" name="designation_id" value={form.designation_id} onChange={(e) => setField("designation_id", e.target.value)} placeholder={form.department_id ? "Select designation" : "Select department first"} disabled={!form.department_id}>
-                {designations.map((d) => (<MenuItem key={d.id} value={String(d.id)}>{d.title}</MenuItem>))}
-              </Select>
+              <AutocompleteField
+                label="Designation"
+                name="designation_id"
+                placeholder={form.department_id ? "Type to search…" : "Select department first"}
+                asyncLoadOptions={(q) =>
+                  hrmsService.searchHrmsDesignations(q, {
+                    department_id: form.department_id || undefined,
+                  })
+                }
+                resolveOptionById={(did) => hrmsService.resolveHrmsDesignation(did)}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={form.designation_id || null}
+                onChange={(_e, opt) => setField("designation_id", opt?.id != null ? String(opt.id) : "")}
+                disabled={!form.department_id}
+              />
             </FormField>
             <FormField>
-              <AutocompleteField label="Reports To (manager)" placeholder="Select employee" options={managerOptions} getOptionLabel={(o) => o?.label ?? ""} value={form.manager_employee_id} onChange={(e, opt) => setField("manager_employee_id", opt?.value ?? "")} />
+              <AutocompleteField
+                label="Reports To (manager)"
+                placeholder="Type to search…"
+                asyncLoadOptions={async (q) => {
+                  const opts = await hrmsService.searchHrmsEmployees(q);
+                  return (opts || []).filter((o) => String(o.id) !== String(employeeId));
+                }}
+                resolveOptionById={(eid) => hrmsService.resolveHrmsEmployee(eid)}
+                getOptionLabel={(o) => o?.label ?? ""}
+                value={form.manager_employee_id || null}
+                onChange={(_e, opt) => setField("manager_employee_id", opt?.id != null ? String(opt.id) : "")}
+              />
               <p className="mt-1 text-xs text-muted-foreground">
                 The manager approves this employee&apos;s leave and attendance corrections (L1).
               </p>
@@ -368,40 +392,40 @@ export default function EmployeeForm({ mode = "add", employeeId = null, initial 
         >
           <FormGrid cols={4}>
             <FormField>
-              <Select
+              <AutocompleteField
                 label="State"
                 name="state_id"
-                value={form.state_id}
-                onChange={(e) => {
-                  setField("state_id", e.target.value);
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) =>
+                  getReferenceOptionsSearch("state.model", { q, limit: 40 })
+                }
+                referenceModel="state.model"
+                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                value={form.state_id || null}
+                onChange={(_e, opt) => {
+                  setField("state_id", opt?.id != null ? String(opt.id) : "");
                   setField("city_id", "");
                 }}
-                placeholder="Select state"
-              >
-                {stateOptions.map((s) => (
-                  <MenuItem key={s.id} value={String(s.id)}>
-                    {s.label || s.name}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </FormField>
             <FormField>
-              <Select
+              <AutocompleteField
                 label="City"
                 name="city_id"
-                value={form.city_id}
-                onChange={(e) => setField("city_id", e.target.value)}
-                placeholder={form.state_id ? "Select city" : "Select state first"}
+                placeholder={form.state_id ? "Type to search…" : "Select state first"}
+                asyncLoadOptions={(q) =>
+                  getReferenceOptionsSearch("city.model", {
+                    q,
+                    limit: 20,
+                    ...(form.state_id ? { state_id: form.state_id } : {}),
+                  })
+                }
+                referenceModel="city.model"
+                getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                value={form.city_id || null}
+                onChange={(_e, opt) => setField("city_id", opt?.id != null ? String(opt.id) : "")}
                 disabled={!form.state_id}
-              >
-                {cityOptions
-                  .filter((c) => !form.state_id || String(c.state_id) === String(form.state_id))
-                  .map((c) => (
-                    <MenuItem key={c.id} value={String(c.id)}>
-                      {c.label || c.name}
-                    </MenuItem>
-                  ))}
-              </Select>
+              />
             </FormField>
             <FormField className="md:col-span-2">
               <Input

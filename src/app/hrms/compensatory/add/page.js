@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import ProtectedRoute from "@/components/common/ProtectedRoute";
@@ -10,11 +10,10 @@ import FormSection from "@/components/common/FormSection";
 import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
-import Select, { MenuItem } from "@/components/common/Select";
 import DateField from "@/components/common/DateField";
 import Textarea from "@/components/common/Textarea";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
-import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
@@ -25,6 +24,7 @@ export default function CompensatoryAddPage() {
 
   const [form, setForm] = useState({
     employee_id: "",
+    employee_label: "",
     worked_date: "",
     requested_leave_date: "",
     number_of_days: "1",
@@ -33,25 +33,6 @@ export default function CompensatoryAddPage() {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [employees, setEmployees] = useState([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await hrmsService.listEmployees({ limit: 100, status: "active" });
-        if (!cancelled) setEmployees(unwrap(res)?.data || []);
-      } catch {
-        /* employee list is best-effort */
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -127,23 +108,26 @@ export default function CompensatoryAddPage() {
             >
               <FormGrid>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Employee"
                     name="employee_id"
-                    value={form.employee_id}
-                    onChange={(e) => setField("employee_id", e.target.value)}
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsEmployees(q)}
+                    resolveOptionById={(eid) => hrmsService.resolveHrmsEmployee(eid)}
+                    getOptionLabel={(o) => o?.label ?? ""}
+                    value={
+                      form.employee_id
+                        ? { id: form.employee_id, value: form.employee_id, label: form.employee_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("employee_id", opt?.id != null ? String(opt.id) : "");
+                      setField("employee_label", opt?.label ?? "");
+                    }}
                     error={!!errors.employee_id}
                     helperText={errors.employee_id}
-                    required
-                    disabled={loading}
-                  >
-                    <MenuItem value="">Select employee…</MenuItem>
-                    {employees.map((emp) => (
-                      <MenuItem key={emp.id} value={String(emp.id)}>
-                        {emp.user?.name ? `${emp.user.name} (${emp.emp_code})` : emp.emp_code}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField>
                   <DateField
@@ -154,7 +138,6 @@ export default function CompensatoryAddPage() {
                     error={!!errors.worked_date}
                     helperText={errors.worked_date || workedDateHint}
                     required
-                    disabled={loading}
                   />
                 </FormField>
                 <FormField>
@@ -166,7 +149,6 @@ export default function CompensatoryAddPage() {
                     error={!!errors.requested_leave_date}
                     helperText={errors.requested_leave_date || "The date this comp-off will be used"}
                     required
-                    disabled={loading}
                   />
                 </FormField>
               </FormGrid>
@@ -191,7 +173,6 @@ export default function CompensatoryAddPage() {
                     error={!!errors.number_of_days}
                     helperText={errors.number_of_days || "Typically 1 day per holiday/weekend worked"}
                     required
-                    disabled={loading}
                   />
                 </FormField>
                 <FormField>
@@ -206,7 +187,6 @@ export default function CompensatoryAddPage() {
                     error={!!errors.hours_worked}
                     helperText={errors.hours_worked || `Minimum ${MIN_HOURS} hours to qualify`}
                     required
-                    disabled={loading}
                   />
                 </FormField>
               </FormGrid>
@@ -218,13 +198,12 @@ export default function CompensatoryAddPage() {
                   value={form.notes}
                   onChange={(e) => setField("notes", e.target.value)}
                   helperText="What work was done on that day"
-                  disabled={loading}
                 />
               </div>
             </FormSection>
 
             <FormActions>
-              <Button type="submit" size="sm" loading={saving} disabled={loading}>
+              <Button type="submit" size="sm" loading={saving}>
                 Submit request
               </Button>
               <Button type="button" size="sm" variant="outline" onClick={() => router.back()}>

@@ -30,8 +30,8 @@ import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
-import roleService from "@/services/roleMasterService";
 import { listBranches } from "@/services/companyService";
+import { getReferenceOptionsSearch } from "@/services/mastersService";
 
 function todayYmd() {
   const d = new Date();
@@ -68,15 +68,12 @@ function ymdOnly(value) {
 export default function HrmsCandidateEditPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [positions, setPositions] = useState([]);
   const [stages, setStages] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [designations, setDesignations] = useState([]);
-  const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
   const [candidate, setCandidate] = useState(null);
   const [form, setForm] = useState({
     position_id: "",
+    position_label: "",
     first_name: "",
     last_name: "",
     email: "",
@@ -145,6 +142,8 @@ export default function HrmsCandidateEditPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectError, setRejectError] = useState("");
   const [onboarding, setOnboarding] = useState(false);
+  /** Local only — used to filter city.model; candidate API stores state/city names. */
+  const [geoStateId, setGeoStateId] = useState("");
 
   const canOnboard =
     candidate &&
@@ -153,48 +152,6 @@ export default function HrmsCandidateEditPage() {
     Number(candidate.stage) >= 8 &&
     Number(candidate.stage) !== 0;
 
-  const departmentOptions = useMemo(
-    () =>
-      (departments || []).map((d) => ({
-        value: String(d.id),
-        label: d.title || d.name || `Department #${d.id}`,
-      })),
-    [departments]
-  );
-  const designationOptions = useMemo(
-    () =>
-      (designations || []).map((d) => ({
-        value: String(d.id),
-        label: d.title || d.name || `Designation #${d.id}`,
-      })),
-    [designations]
-  );
-  // Meta only lists ACTIVE positions; always keep the candidate's saved
-  // position selectable so the stored value renders as selected on edit.
-  const positionOptions = useMemo(() => {
-    const list = (positions || []).map((p) => ({
-      value: String(p.id ?? p.value),
-      label: p.title || p.label || `Position #${p.id ?? p.value}`,
-    }));
-    const currentId =
-      candidate?.position_id != null && candidate?.position_id !== ""
-        ? candidate.position_id
-        : candidate?.position?.id;
-    if (
-      currentId != null &&
-      currentId !== "" &&
-      !list.some((o) => o.value === String(currentId))
-    ) {
-      list.unshift({
-        value: String(currentId),
-        label:
-          candidate?.position?.title ||
-          candidate?.position_title ||
-          `Position #${currentId} (closed)`,
-      });
-    }
-    return list;
-  }, [positions, candidate]);
   const onboardedEmployeeHref = useMemo(() => {
     const eid =
       candidate?.employee_id != null && candidate.employee_id !== ""
@@ -203,88 +160,106 @@ export default function HrmsCandidateEditPage() {
     return eid && Number.isFinite(eid) ? `/hrms/employees/${eid}` : null;
   }, [candidate?.employee_id]);
 
+  const seedFormFromRow = (row) => {
+    const seededPositionId =
+      row.position_id != null && row.position_id !== ""
+        ? row.position_id
+        : row.position?.id != null && row.position?.id !== ""
+          ? row.position.id
+          : "";
+    const seededStage = Number(row.stage);
+    const positionLabel =
+      row.position?.title ||
+      row.position_title ||
+      row.position?.label ||
+      "";
+    return {
+      position_id: seededPositionId !== "" ? String(seededPositionId) : "",
+      position_label: positionLabel,
+      first_name: row.first_name || "",
+      last_name: row.last_name || "",
+      email: row.email || "",
+      mobile: row.mobile || "",
+      reference: row.reference || "",
+      notes: row.notes || "",
+      stage: Number.isFinite(seededStage) ? String(seededStage) : "1",
+      date_of_birth: ymdOnly(row.date_of_birth),
+      gender: row.gender || "",
+      marital_status: row.marital_status || "",
+      address: row.address || "",
+      state: row.state || "",
+      city: row.city || "",
+      education: row.education || "",
+      experience: row.experience || "",
+      current_designation: row.current_designation || "",
+      current_ctc: row.current_ctc != null ? String(row.current_ctc) : "",
+      expected_ctc: row.expected_ctc != null ? String(row.expected_ctc) : "",
+      in_hand_salary: row.in_hand_salary != null ? String(row.in_hand_salary) : "",
+      joining_date: ymdOnly(row.joining_date),
+      salary: row.salary != null ? String(row.salary) : "",
+      meet_link: row.meet_link || "",
+      offer_letter_url: row.offer_letter_url || "",
+      manager_feedback: row.manager_feedback || "",
+      describe_yourself: row.describe_yourself || "",
+      same_field: row.same_field || "",
+      experience_in_field: row.experience_in_field || "",
+      job_responsibilities: row.job_responsibilities || "",
+      why_this_job: row.why_this_job || "",
+      previous_job_status: row.previous_job_status || "",
+      days_left: row.days_left != null ? String(row.days_left) : "",
+      gap_months: row.gap_months != null ? String(row.gap_months) : "",
+      join_timeline: row.join_timeline || "",
+      notice_period_days: row.notice_period_days != null ? String(row.notice_period_days) : "",
+      relocation: row.relocation || "",
+      solar_experience: row.solar_experience || "",
+      currently_working: row.currently_working || "",
+      ready_for_travel: row.ready_for_travel || "",
+      own_vehicle: row.own_vehicle || "",
+      aptitude_mark: row.aptitude_mark != null ? String(row.aptitude_mark) : "",
+      aptitude_upload_url: row.aptitude_upload_url || "",
+      practical_upload_url: row.practical_upload_url || "",
+      practical_comments_others: row.practical_comments_others || "",
+      practical_comments_admin: row.practical_comments_admin || "",
+      policy_understanding: row.policy_understanding || "",
+      probation_understanding: row.probation_understanding || "",
+      notice_understanding: row.notice_understanding || "",
+      time_rules_understanding: row.time_rules_understanding || "",
+    };
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [metaRes, rowRes, deptRes, roleRes, branchRes] = await Promise.all([
+        const [metaRes, rowRes, branchRes] = await Promise.all([
           hrmsService.getCandidateMeta(),
           hrmsService.getCandidate(id),
-          hrmsService.listDepartments({ limit: 100, status: "active" }).catch(() => null),
-          roleService.listRoleMasters({ page: 1, limit: 200 }).catch(() => null),
           listBranches().catch(() => null),
         ]);
         if (cancelled) return;
         const meta = unwrap(metaRes) || {};
-        setPositions(meta.positions || []);
         setStages(meta.stages || []);
-        const d = unwrap(deptRes);
-        setDepartments(d?.data || []);
-        const rp = unwrap(roleRes);
-        setRoles(rp?.data || rp?.rows || (Array.isArray(rp) ? rp : []));
         const bp = unwrap(branchRes);
         setBranches(bp?.data || (Array.isArray(bp) ? bp : []));
         const row = unwrap(rowRes) || {};
         setCandidate(row);
-        const seededPositionId =
-          row.position_id != null && row.position_id !== ""
-            ? row.position_id
-            : row.position?.id != null && row.position?.id !== ""
-              ? row.position.id
-              : "";
-        const seededStage = Number(row.stage);
-        setForm((f) => ({
-          ...f,
-          position_id: seededPositionId !== "" ? String(seededPositionId) : "",
-          first_name: row.first_name || "",
-          last_name: row.last_name || "",
-          email: row.email || "",
-          mobile: row.mobile || "",
-          reference: row.reference || "",
-          notes: row.notes || "",
-          stage: Number.isFinite(seededStage) ? String(seededStage) : "1",
-          date_of_birth: ymdOnly(row.date_of_birth),
-          gender: row.gender || "",
-          marital_status: row.marital_status || "",
-          address: row.address || "",
-          state: row.state || "",
-          city: row.city || "",
-          education: row.education || "",
-          experience: row.experience || "",
-          current_designation: row.current_designation || "",
-          current_ctc: row.current_ctc != null ? String(row.current_ctc) : "",
-          expected_ctc: row.expected_ctc != null ? String(row.expected_ctc) : "",
-          in_hand_salary: row.in_hand_salary != null ? String(row.in_hand_salary) : "",
-          joining_date: ymdOnly(row.joining_date),
-          salary: row.salary != null ? String(row.salary) : "",
-          meet_link: row.meet_link || "",
-          offer_letter_url: row.offer_letter_url || "",
-          manager_feedback: row.manager_feedback || "",
-          describe_yourself: row.describe_yourself || "",
-          same_field: row.same_field || "",
-          experience_in_field: row.experience_in_field || "",
-          job_responsibilities: row.job_responsibilities || "",
-          why_this_job: row.why_this_job || "",
-          previous_job_status: row.previous_job_status || "",
-          days_left: row.days_left != null ? String(row.days_left) : "",
-          gap_months: row.gap_months != null ? String(row.gap_months) : "",
-          join_timeline: row.join_timeline || "",
-          notice_period_days: row.notice_period_days != null ? String(row.notice_period_days) : "",
-          relocation: row.relocation || "",
-          solar_experience: row.solar_experience || "",
-          currently_working: row.currently_working || "",
-          ready_for_travel: row.ready_for_travel || "",
-          own_vehicle: row.own_vehicle || "",
-          aptitude_mark: row.aptitude_mark != null ? String(row.aptitude_mark) : "",
-          aptitude_upload_url: row.aptitude_upload_url || "",
-          practical_upload_url: row.practical_upload_url || "",
-          practical_comments_others: row.practical_comments_others || "",
-          practical_comments_admin: row.practical_comments_admin || "",
-          policy_understanding: row.policy_understanding || "",
-          probation_understanding: row.probation_understanding || "",
-          notice_understanding: row.notice_understanding || "",
-          time_rules_understanding: row.time_rules_understanding || "",
-        }));
+        const seeded = seedFormFromRow(row);
+        setForm(seeded);
+        if (seeded.state) {
+          getReferenceOptionsSearch("state.model", { q: seeded.state, limit: 10 })
+            .then((opts) => {
+              if (cancelled) return;
+              const match = (opts || []).find(
+                (o) =>
+                  String(o.name || o.label || "").toLowerCase() ===
+                  String(seeded.state).toLowerCase()
+              );
+              if (match?.id != null) setGeoStateId(String(match.id));
+            })
+            .catch(() => {});
+        } else {
+          setGeoStateId("");
+        }
         hrmsService
           .listCandidateActivities(id, { limit: 30 })
           .then((actRes) => {
@@ -303,21 +278,6 @@ export default function HrmsCandidateEditPage() {
       cancelled = true;
     };
   }, [id, router]);
-
-  useEffect(() => {
-    if (!onboardForm.department_id) {
-      setDesignations([]);
-      return;
-    }
-    hrmsService
-      .listDesignations({
-        department_id: onboardForm.department_id,
-        limit: 100,
-        status: "active",
-      })
-      .then((res) => setDesignations(unwrap(res)?.data || []))
-      .catch(() => setDesignations([]));
-  }, [onboardForm.department_id]);
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -365,19 +325,49 @@ export default function HrmsCandidateEditPage() {
         stage: Number(form.stage),
         date_of_birth: form.date_of_birth || null,
         gender: form.gender || null,
+        marital_status: form.marital_status || null,
         address: form.address.trim() || null,
+        state: form.state.trim() || null,
+        city: form.city.trim() || null,
         education: form.education.trim() || null,
         experience: form.experience.trim() || null,
+        current_designation: form.current_designation.trim() || null,
         current_ctc: form.current_ctc !== "" ? Number(form.current_ctc) : null,
         expected_ctc: form.expected_ctc !== "" ? Number(form.expected_ctc) : null,
+        in_hand_salary: form.in_hand_salary !== "" ? Number(form.in_hand_salary) : null,
         joining_date: form.joining_date || null,
         salary: form.salary !== "" ? Number(form.salary) : null,
         meet_link: form.meet_link.trim() || null,
         offer_letter_url: form.offer_letter_url.trim() || null,
         manager_feedback: form.manager_feedback.trim() || null,
+        describe_yourself: form.describe_yourself.trim() || null,
+        same_field: form.same_field || null,
+        experience_in_field: form.experience_in_field || null,
+        job_responsibilities: form.job_responsibilities.trim() || null,
+        why_this_job: form.why_this_job.trim() || null,
+        previous_job_status: form.previous_job_status.trim() || null,
+        days_left: form.days_left !== "" ? Number(form.days_left) : null,
+        gap_months: form.gap_months !== "" ? Number(form.gap_months) : null,
+        join_timeline: form.join_timeline || null,
+        notice_period_days: form.notice_period_days !== "" ? Number(form.notice_period_days) : null,
+        relocation: form.relocation.trim() || null,
+        solar_experience: form.solar_experience || null,
+        currently_working: form.currently_working || null,
+        ready_for_travel: form.ready_for_travel || null,
+        own_vehicle: form.own_vehicle || null,
+        aptitude_mark: form.aptitude_mark !== "" ? Number(form.aptitude_mark) : null,
+        aptitude_upload_url: form.aptitude_upload_url.trim() || null,
+        practical_upload_url: form.practical_upload_url.trim() || null,
+        practical_comments_others: form.practical_comments_others.trim() || null,
+        practical_comments_admin: form.practical_comments_admin.trim() || null,
+        policy_understanding: form.policy_understanding || null,
+        probation_understanding: form.probation_understanding || null,
+        notice_understanding: form.notice_understanding || null,
+        time_rules_understanding: form.time_rules_understanding || null,
       });
       const row = unwrap(res) || {};
       setCandidate(row);
+      setForm(seedFormFromRow(row));
       toastSuccess("Candidate updated");
     } catch (err) {
       toastErrorFromApi(err, "Update failed");
@@ -412,7 +402,6 @@ export default function HrmsCandidateEditPage() {
   const onOnboard = async (e) => {
     e.preventDefault();
     const errs = {};
-    if (!onboardForm.emp_code.trim()) errs.emp_code = "Employee code is required";
     if (!onboardForm.department_id) errs.department_id = "Department is required";
     if (!onboardForm.designation_id) errs.designation_id = "Designation is required";
     if (!onboardForm.joining_date) errs.joining_date = "Joining date is required";
@@ -423,7 +412,6 @@ export default function HrmsCandidateEditPage() {
     setOnboarding(true);
     try {
       const payload = {
-        emp_code: onboardForm.emp_code.trim(),
         department_id: Number(onboardForm.department_id),
         designation_id: Number(onboardForm.designation_id),
         joining_date: onboardForm.joining_date,
@@ -492,12 +480,8 @@ export default function HrmsCandidateEditPage() {
               <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
             ))}
           </div>
-        ) : null}
-        <form
-          onSubmit={onSubmit}
-          onKeyDown={preventEnterSubmit}
-          className={loading ? "hidden" : undefined}
-        >
+        ) : (
+        <form onSubmit={onSubmit} onKeyDown={preventEnterSubmit}>
           <FormContainer>
             <FormSection variant="card" title="Candidate">
               {candidate?.is_onboarded ? (
@@ -518,22 +502,26 @@ export default function HrmsCandidateEditPage() {
               ) : null}
               <FormGrid>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Position"
                     name="position_id"
-                    value={form.position_id}
-                    onChange={(e) => setField("position_id", e.target.value)}
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsPositions(q)}
+                    resolveOptionById={(pid) => hrmsService.resolveHrmsPosition(pid)}
+                    getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                    value={
+                      form.position_id
+                        ? { id: form.position_id, value: form.position_id, label: form.position_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("position_id", opt?.id != null ? String(opt.id) : opt?.value != null ? String(opt.value) : "");
+                      setField("position_label", opt?.label ?? opt?.title ?? "");
+                    }}
                     error={!!errors.position_id}
                     helperText={errors.position_id}
-                    required
-                  >
-                    <MenuItem value="">Select position</MenuItem>
-                    {positionOptions.map((p) => (
-                      <MenuItem key={p.value} value={p.value}>
-                        {p.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField>
                   <Select
@@ -652,17 +640,38 @@ export default function HrmsCandidateEditPage() {
                   </Select>
                 </FormField>
                 <FormField>
-                  <Input
+                  <AutocompleteField
                     label="State"
-                    value={form.state}
-                    onChange={(e) => setField("state", e.target.value)}
+                    name="state"
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) =>
+                      getReferenceOptionsSearch("state.model", { q, limit: 40 })
+                    }
+                    getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                    value={form.state ? { name: form.state, label: form.state, id: geoStateId || undefined } : null}
+                    onChange={(_e, opt) => {
+                      setField("state", opt?.name ?? opt?.label ?? "");
+                      setGeoStateId(opt?.id != null ? String(opt.id) : "");
+                      setField("city", "");
+                    }}
                   />
                 </FormField>
                 <FormField>
-                  <Input
+                  <AutocompleteField
                     label="City"
-                    value={form.city}
-                    onChange={(e) => setField("city", e.target.value)}
+                    name="city"
+                    placeholder={form.state ? "Type to search…" : "Select state first"}
+                    asyncLoadOptions={(q) =>
+                      getReferenceOptionsSearch("city.model", {
+                        q,
+                        limit: 20,
+                        ...(geoStateId ? { state_id: geoStateId } : {}),
+                      })
+                    }
+                    getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                    value={form.city ? { name: form.city, label: form.city } : null}
+                    onChange={(_e, opt) => setField("city", opt?.name ?? opt?.label ?? "")}
+                    disabled={!form.state}
                   />
                 </FormField>
                 <FormField className="sm:col-span-2">
@@ -1336,13 +1345,10 @@ export default function HrmsCandidateEditPage() {
             </FormActions>
           </FormContainer>
         </form>
+        )}
 
-        {canOnboard ? (
-          <form
-            onSubmit={onOnboard}
-            onKeyDown={preventEnterSubmit}
-            className={loading ? "hidden" : "mt-4"}
-          >
+        {!loading && canOnboard ? (
+          <form onSubmit={onOnboard} onKeyDown={preventEnterSubmit} className="mt-4">
             <FormContainer>
               <FormSection variant="card" title="Onboard to employee">
                 <p className="mb-3 text-sm text-muted-foreground">
@@ -1354,48 +1360,56 @@ export default function HrmsCandidateEditPage() {
                     <Input
                       label="Employee code"
                       name="emp_code"
-                      value={onboardForm.emp_code}
-                      onChange={(e) => setOnboardField("emp_code", e.target.value)}
-                      error={!!onboardErrors.emp_code}
-                      helperText={onboardErrors.emp_code}
-                      required
+                      value=""
+                      placeholder="Assigned from Serial Master on save"
+                      disabled
+                      readOnly
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Generated from Serial Master (EMPLOYEE) when you onboard
+                    </p>
                   </FormField>
                   <FormField>
                     <AutocompleteField
                       label="Department"
                       name="department_id"
-                      placeholder="Search department…"
-                      options={departmentOptions}
-                      getOptionLabel={(o) => o?.label ?? ""}
+                      required
+                      placeholder="Type to search…"
+                      asyncLoadOptions={(q) => hrmsService.searchHrmsDepartments(q)}
+                      resolveOptionById={(did) => hrmsService.resolveHrmsDepartment(did)}
+                      getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
                       value={onboardForm.department_id || null}
                       onChange={(_e, opt) => {
-                        setOnboardField("department_id", opt?.value ?? "");
+                        setOnboardField("department_id", opt?.id != null ? String(opt.id) : "");
                         setOnboardField("designation_id", "");
                       }}
                       error={!!onboardErrors.department_id}
                       helperText={onboardErrors.department_id}
-                      required
                     />
                   </FormField>
                   <FormField>
                     <AutocompleteField
                       label="Designation"
                       name="designation_id"
+                      required
                       placeholder={
                         onboardForm.department_id
-                          ? "Search designation…"
+                          ? "Type to search…"
                           : "Select department first"
                       }
-                      options={designationOptions}
-                      getOptionLabel={(o) => o?.label ?? ""}
+                      asyncLoadOptions={(q) =>
+                        hrmsService.searchHrmsDesignations(q, {
+                          department_id: onboardForm.department_id || undefined,
+                        })
+                      }
+                      resolveOptionById={(did) => hrmsService.resolveHrmsDesignation(did)}
+                      getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
                       value={onboardForm.designation_id || null}
                       onChange={(_e, opt) =>
-                        setOnboardField("designation_id", opt?.value ?? "")
+                        setOnboardField("designation_id", opt?.id != null ? String(opt.id) : "")
                       }
                       error={!!onboardErrors.designation_id}
                       helperText={onboardErrors.designation_id}
-                      required
                       disabled={!onboardForm.department_id}
                     />
                   </FormField>
@@ -1414,19 +1428,18 @@ export default function HrmsCandidateEditPage() {
                     />
                   </FormField>
                   <FormField>
-                    <Select
+                    <AutocompleteField
                       label="Role (optional)"
                       name="role_id"
-                      value={onboardForm.role_id}
-                      onChange={(e) => setOnboardField("role_id", e.target.value)}
-                    >
-                      <MenuItem value="">Default role</MenuItem>
-                      {roles.map((r) => (
-                        <MenuItem key={r.id} value={String(r.id)}>
-                          {r.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
+                      placeholder="Type to search…"
+                      asyncLoadOptions={(q) => hrmsService.searchHrmsRoles(q)}
+                      resolveOptionById={(rid) => hrmsService.resolveHrmsRole(rid)}
+                      getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                      value={onboardForm.role_id || null}
+                      onChange={(_e, opt) =>
+                        setOnboardField("role_id", opt?.id != null ? String(opt.id) : "")
+                      }
+                    />
                   </FormField>
                 </FormGrid>
                 <div className="mt-3">

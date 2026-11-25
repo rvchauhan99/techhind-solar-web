@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import FormContainer, { FormActions } from "@/components/common/FormContainer";
 import FormSection from "@/components/common/FormSection";
@@ -8,9 +8,9 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import * as hrmsService from "@/services/hrmsService";
-import { unwrap } from "@/lib/apiUnwrap";
 
 const EMPTY = { title: "", department_id: "", status: "active" };
 
@@ -50,7 +50,6 @@ export default function DesignationForm({
   const isEdit = Boolean(defaultValues?.id);
   const [form, setForm] = useState(() => toFormState(defaultValues));
   const [errors, setErrors] = useState({});
-  const [departments, setDepartments] = useState([]);
 
   // Hydrate whenever the parent supplies a (newly fetched) record.
   useEffect(() => {
@@ -67,26 +66,6 @@ export default function DesignationForm({
       setErrors((prev) => ({ ...prev, title: serverError }));
     }
   }, [serverError]);
-
-  useEffect(() => {
-    let cancelled = false;
-    hrmsService
-      .listDepartments({ limit: 100 })
-      .then((res) => {
-        if (!cancelled) setDepartments(unwrap(res)?.data || []);
-      })
-      .catch(() => {
-        if (!cancelled) setDepartments([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const deptOptions = useMemo(
-    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
-    [departments]
-  );
 
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
@@ -131,22 +110,22 @@ export default function DesignationForm({
               />
             </FormField>
             <FormField>
-              <Select
+              <AutocompleteField
                 label="Department"
                 name="department_id"
-                value={form.department_id}
-                onChange={(e) => setField("department_id", e.target.value)}
+                required
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) => hrmsService.searchHrmsDepartments(q)}
+                resolveOptionById={(did) => hrmsService.resolveHrmsDepartment(did)}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={form.department_id || null}
+                onChange={(_e, opt) =>
+                  setField("department_id", opt?.id != null ? String(opt.id) : "")
+                }
                 error={!!errors.department_id}
                 helperText={errors.department_id}
-                required
                 disabled={loading}
-              >
-                {deptOptions.map((d) => (
-                  <MenuItem key={d.value} value={d.value}>
-                    {d.label}
-                  </MenuItem>
-                ))}
-              </Select>
+              />
             </FormField>
             <FormField>
               <Select

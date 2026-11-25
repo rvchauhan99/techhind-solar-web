@@ -13,6 +13,7 @@ import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import DateTimeField from "@/components/common/DateTimeField";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
@@ -22,14 +23,12 @@ export default function InterviewAddForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefCandidateId = searchParams.get("candidate_id") || "";
-  const [candidates, setCandidates] = useState([]);
   const [rounds, setRounds] = useState([]);
   const [modes, setModes] = useState([]);
-  const [employees, setEmployees] = useState([]);
-  const [panelIds, setPanelIds] = useState([]);
-  const [panelSearch, setPanelSearch] = useState("");
+  const [panelMembers, setPanelMembers] = useState([]);
   const [form, setForm] = useState({
     candidate_id: prefCandidateId,
+    candidate_label: "",
     round: "1",
     scheduled_at: "",
     mode: "in_person",
@@ -50,19 +49,13 @@ export default function InterviewAddForm() {
       .getInterviewMeta()
       .then((res) => {
         const payload = unwrap(res) || {};
-        setCandidates(payload.candidates || []);
         setRounds(payload.rounds || []);
         setModes(payload.modes || []);
       })
       .catch(() => {
-        setCandidates([]);
         setRounds([]);
         setModes([]);
       });
-    hrmsService
-      .listEmployees({ page: 1, limit: 200, status: "active" })
-      .then((res) => setEmployees(unwrap(res)?.data || []))
-      .catch(() => setEmployees([]));
   }, []);
 
   useEffect(() => {
@@ -70,34 +63,23 @@ export default function InterviewAddForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefCandidateId]);
 
-  const filteredEmployees = useMemo(() => {
-    const q = panelSearch.trim().toLowerCase();
-    if (!q) return employees;
-    return employees.filter((emp) => {
-      const hay = [
-        emp.name,
-        emp.full_name,
-        emp.emp_code,
-        emp.email,
-        emp.department_name,
-        emp.designation_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [employees, panelSearch]);
+  const panelIds = useMemo(() => panelMembers.map((m) => String(m.id)), [panelMembers]);
 
-  const togglePanel = (emp) => {
-    const id = String(emp.id);
-    setPanelIds((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      const names = employees
-        .filter((e) => next.includes(String(e.id)))
-        .map((e) => e.name || e.full_name || e.emp_code)
-        .filter(Boolean);
-      setField("panel", names.join(", "));
+  const addPanelMember = (_e, opt) => {
+    if (!opt?.id) return;
+    const id = String(opt.id);
+    setPanelMembers((prev) => {
+      if (prev.some((m) => String(m.id) === id)) return prev;
+      const next = [...prev, { id: opt.id, label: opt.label || opt.name || `#${opt.id}` }];
+      setField("panel", next.map((m) => m.label).join(", "));
+      return next;
+    });
+  };
+
+  const removePanelMember = (id) => {
+    setPanelMembers((prev) => {
+      const next = prev.filter((m) => String(m.id) !== String(id));
+      setField("panel", next.map((m) => m.label).join(", "));
       return next;
     });
   };
@@ -149,22 +131,26 @@ export default function InterviewAddForm() {
             >
               <FormGrid>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Candidate"
                     name="candidate_id"
-                    value={form.candidate_id}
-                    onChange={(e) => setField("candidate_id", e.target.value)}
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsCandidates(q)}
+                    resolveOptionById={(cid) => hrmsService.resolveHrmsCandidate(cid)}
+                    getOptionLabel={(o) => o?.label ?? o?.name ?? ""}
+                    value={
+                      form.candidate_id
+                        ? { id: form.candidate_id, value: form.candidate_id, label: form.candidate_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("candidate_id", opt?.id != null ? String(opt.id) : "");
+                      setField("candidate_label", opt?.label ?? opt?.name ?? "");
+                    }}
                     error={!!errors.candidate_id}
                     helperText={errors.candidate_id}
-                    required
-                  >
-                    <MenuItem value="">Select candidate</MenuItem>
-                    {candidates.map((c) => (
-                      <MenuItem key={c.id ?? c.value} value={String(c.id ?? c.value)}>
-                        {c.label || c.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                  />
                 </FormField>
                 <FormField>
                   <Select
@@ -227,43 +213,33 @@ export default function InterviewAddForm() {
                   <div className="text-xs font-medium text-foreground mb-1">
                     Interview Panel <span className="text-destructive">*</span>
                   </div>
-                  <Input
+                  <AutocompleteField
+                    label=""
                     name="panel_search"
-                    placeholder="Search employees by name or code…"
-                    value={panelSearch}
-                    onChange={(e) => setPanelSearch(e.target.value)}
-                    className="mb-2"
+                    placeholder="Type to search employees…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsEmployees(q)}
+                    getOptionLabel={(o) => o?.label ?? ""}
+                    value={null}
+                    onChange={addPanelMember}
+                    error={!!errors.panel}
+                    helperText={errors.panel}
                   />
-                  <div className="max-h-36 overflow-y-auto rounded-md border p-2 grid gap-1 sm:grid-cols-2">
-                    {filteredEmployees.length === 0 ? (
-                      <p className="col-span-full text-xs text-muted-foreground px-1 py-2">
-                        No employees match “{panelSearch.trim()}”.
-                      </p>
-                    ) : (
-                      filteredEmployees.map((emp) => {
-                        const id = String(emp.id);
-                        const checked = panelIds.includes(id);
-                        return (
-                          <label key={id} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => togglePanel(emp)}
-                            />
-                            <span>
-                              {emp.name || emp.full_name || emp.emp_code || `#${emp.id}`}
-                            </span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                  {errors.panel ? (
-                    <p className="mt-1 text-xs text-destructive">{errors.panel}</p>
+                  {panelMembers.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {panelMembers.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs"
+                          onClick={() => removePanelMember(m.id)}
+                        >
+                          {m.label}
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                    </div>
                   ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Selected ({panelIds.length}): {form.panel || "none"}
-                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">Search and add panel members</p>
                   )}
                 </FormField>
               </FormGrid>

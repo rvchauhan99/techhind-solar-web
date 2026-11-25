@@ -11,17 +11,21 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
-import Checkbox from "@/components/common/Checkbox";
 import Textarea from "@/components/common/Textarea";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import { preventEnterSubmit } from "@/lib/preventEnterSubmit";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
+import {
+  getReferenceOptionsSearch,
+  getReferenceOptionById,
+} from "@/services/mastersService";
 
 export default function HrmsPositionEditPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [branches, setBranches] = useState([]);
+  const [branchSelections, setBranchSelections] = useState([]);
   const [form, setForm] = useState({
     title: "",
     job_description: "",
@@ -36,19 +40,36 @@ export default function HrmsPositionEditPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [metaRes, rowRes] = await Promise.all([
-          hrmsService.getPositionMeta(),
-          hrmsService.getPosition(id),
-        ]);
+        const rowRes = await hrmsService.getPosition(id);
         if (cancelled) return;
-        setBranches(unwrap(metaRes)?.branches || []);
         const row = unwrap(rowRes) || {};
+        const ids = (row.branch_ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0);
         setForm({
           title: row.title || "",
           job_description: row.job_description || "",
           status: row.status || "active",
-          branch_ids: (row.branch_ids || []).map(Number),
+          branch_ids: ids,
         });
+        if (ids.length) {
+          const rows = await Promise.all(
+            ids.map((bid) =>
+              getReferenceOptionById("company_branch.model", bid).catch(() => ({
+                id: bid,
+                label: `#${bid}`,
+              }))
+            )
+          );
+          if (!cancelled) {
+            setBranchSelections(
+              rows.filter(Boolean).map((r) => ({
+                id: r.id,
+                value: r.id,
+                label: r.label || r.name || r.branch_name || `#${r.id}`,
+                name: r.name || r.label || r.branch_name,
+              }))
+            );
+          }
+        }
       } catch (err) {
         toastErrorFromApi(err, "Failed to load position");
         router.push("/hrms/positions");
@@ -64,17 +85,6 @@ export default function HrmsPositionEditPage() {
   const setField = (key, value) => {
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((p) => ({ ...p, [key]: undefined }));
-  };
-
-  const toggleBranch = (branchId) => {
-    const n = Number(branchId);
-    setForm((f) => {
-      const set = new Set((f.branch_ids || []).map(Number));
-      if (set.has(n)) set.delete(n);
-      else set.add(n);
-      return { ...f, branch_ids: Array.from(set) };
-    });
-    if (errors.branch_ids) setErrors((p) => ({ ...p, branch_ids: undefined }));
   };
 
   const onSubmit = async (e) => {
@@ -111,80 +121,81 @@ export default function HrmsPositionEditPage() {
               <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
             ))}
           </div>
-        ) : null}
-        <form
-          onSubmit={onSubmit}
-          onKeyDown={preventEnterSubmit}
-          className={loading ? "hidden" : undefined}
-        >
-          <FormContainer>
-            <FormSection variant="card" title="Position">
-              <FormGrid>
-                <FormField>
-                  <Input
-                    label="Title"
-                    name="title"
-                    value={form.title}
-                    onChange={(e) => setField("title", e.target.value)}
-                    error={!!errors.title}
-                    helperText={errors.title}
-                    required
+        ) : (
+          <form onSubmit={onSubmit} onKeyDown={preventEnterSubmit}>
+            <FormContainer>
+              <FormSection variant="card" title="Position">
+                <FormGrid>
+                  <FormField>
+                    <Input
+                      label="Title"
+                      name="title"
+                      value={form.title}
+                      onChange={(e) => setField("title", e.target.value)}
+                      error={!!errors.title}
+                      helperText={errors.title}
+                      required
+                    />
+                  </FormField>
+                  <FormField>
+                    <Select
+                      label="Status"
+                      name="status"
+                      value={form.status}
+                      onChange={(e) => setField("status", e.target.value)}
+                    >
+                      <MenuItem value="active">Active</MenuItem>
+                      <MenuItem value="inactive">Inactive</MenuItem>
+                    </Select>
+                  </FormField>
+                  <FormField className="sm:col-span-2">
+                    <AutocompleteField
+                      label="Branches"
+                      name="branch_ids"
+                      multiple
+                      required
+                      placeholder="Type to search branches…"
+                      asyncLoadOptions={(q) =>
+                        getReferenceOptionsSearch("company_branch.model", { q, limit: 20 })
+                      }
+                      getOptionLabel={(b) => b?.label ?? b?.name ?? b?.branch_name ?? ""}
+                      value={branchSelections}
+                      onChange={(_e, opts) => {
+                        const list = Array.isArray(opts) ? opts : [];
+                        setBranchSelections(list);
+                        setField(
+                          "branch_ids",
+                          list.map((b) => b?.id ?? b?.value).filter((id) => id != null && id !== "")
+                        );
+                      }}
+                      error={!!errors.branch_ids}
+                      helperText={errors.branch_ids}
+                    />
+                  </FormField>
+                </FormGrid>
+
+                <FormField className="mt-3">
+                  <Textarea
+                    name="job_description"
+                    label="Job description"
+                    value={form.job_description}
+                    onChange={(e) => setField("job_description", e.target.value)}
+                    rows={6}
+                    placeholder="Enter job description"
                   />
                 </FormField>
-                <FormField>
-                  <Select
-                    label="Status"
-                    name="status"
-                    value={form.status}
-                    onChange={(e) => setField("status", e.target.value)}
-                  >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="inactive">Inactive</MenuItem>
-                  </Select>
-                </FormField>
-              </FormGrid>
-
-              <FormField className="mt-3">
-                <div className="mb-1.5 text-sm font-medium">
-                  Branches <span className="text-destructive">*</span>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {branches.map((b) => (
-                    <Checkbox
-                      key={b.id}
-                      name={`branch_${b.id}`}
-                      label={b.name || b.label}
-                      checked={(form.branch_ids || []).map(Number).includes(Number(b.id))}
-                      onChange={() => toggleBranch(b.id)}
-                    />
-                  ))}
-                </div>
-                {errors.branch_ids ? (
-                  <p className="mt-1.5 text-xs text-destructive">{errors.branch_ids}</p>
-                ) : null}
-              </FormField>
-
-              <FormField className="mt-3">
-                <Textarea
-                  name="job_description"
-                  label="Job description"
-                  value={form.job_description}
-                  onChange={(e) => setField("job_description", e.target.value)}
-                  rows={6}
-                  placeholder="Enter job description"
-                />
-              </FormField>
-            </FormSection>
-            <FormActions>
-              <Button type="button" variant="outline" onClick={() => router.push("/hrms/positions")}>
-                Cancel
-              </Button>
-              <Button type="submit" loading={saving}>
-                Save
-              </Button>
-            </FormActions>
-          </FormContainer>
-        </form>
+              </FormSection>
+              <FormActions>
+                <Button type="button" variant="outline" onClick={() => router.push("/hrms/positions")}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={saving}>
+                  Save
+                </Button>
+              </FormActions>
+            </FormContainer>
+          </form>
+        )}
       </AddEditPageShell>
     </ProtectedRoute>
   );

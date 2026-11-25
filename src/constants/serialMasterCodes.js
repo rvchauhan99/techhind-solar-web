@@ -18,6 +18,7 @@ export const SERIAL_MASTER_CODE_OPTIONS = [
   { value: "PRODBOM", label: "PRODBOM — Production BOM" },
   { value: "PRODORDER", label: "PRODORDER — Work Order" },
   { value: "PRODBOOKING", label: "PRODBOOKING — Production Booking" },
+  { value: "EMPLOYEE", label: "EMPLOYEE — Employee Code" },
 ];
 
 const KNOWN = new Set(SERIAL_MASTER_CODE_OPTIONS.map((o) => o.value));

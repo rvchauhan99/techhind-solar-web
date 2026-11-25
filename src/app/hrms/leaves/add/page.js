@@ -11,6 +11,7 @@ import FormGrid from "@/components/common/FormGrid";
 import FormField from "@/components/common/FormField";
 import Input from "@/components/common/Input";
 import Select, { MenuItem } from "@/components/common/Select";
+import AutocompleteField from "@/components/common/AutocompleteField";
 import Checkbox from "@/components/common/Checkbox";
 import { Badge } from "@/components/ui/badge";
 import { IconCalendarPlus } from "@tabler/icons-react";
@@ -32,10 +33,10 @@ const countDays = (form) => {
 export default function HrmsLeaveAddPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
-  const [types, setTypes] = useState([]);
   const [balances, setBalances] = useState([]);
   const [form, setForm] = useState({
     leave_type_id: "",
+    leave_type_label: "",
     start_date: "",
     end_date: "",
     duration: "full",
@@ -43,15 +44,6 @@ export default function HrmsLeaveAddPage() {
     title: "",
     is_emergency: false,
   });
-
-  useEffect(() => {
-    hrmsService
-      .listLeaveTypes({ status: "active", limit: 100 })
-      .then((res) => {
-        setTypes(unwrap(res)?.data || []);
-      })
-      .catch((err) => toastErrorFromApi(err, "Failed to load leave types"));
-  }, []);
 
   useEffect(() => {
     hrmsService
@@ -158,19 +150,24 @@ export default function HrmsLeaveAddPage() {
             >
               <FormGrid cols={2}>
                 <FormField>
-                  <Select
+                  <AutocompleteField
                     label="Leave type *"
                     name="leave_type_id"
-                    value={form.leave_type_id}
-                    onChange={(e) => setField("leave_type_id", e.target.value)}
-                  >
-                    <MenuItem value="">Select type</MenuItem>
-                    {types.map((t) => (
-                      <MenuItem key={t.id} value={String(t.id)}>
-                        {t.title}
-                      </MenuItem>
-                    ))}
-                  </Select>
+                    required
+                    placeholder="Type to search…"
+                    asyncLoadOptions={(q) => hrmsService.searchHrmsLeaveTypes(q)}
+                    resolveOptionById={(tid) => hrmsService.resolveHrmsLeaveType(tid)}
+                    getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                    value={
+                      form.leave_type_id
+                        ? { id: form.leave_type_id, value: form.leave_type_id, label: form.leave_type_label || "" }
+                        : null
+                    }
+                    onChange={(_e, opt) => {
+                      setField("leave_type_id", opt?.id != null ? String(opt.id) : "");
+                      setField("leave_type_label", opt?.label ?? opt?.title ?? "");
+                    }}
+                  />
                   {selectedBalance ? (
                     selectedBalance.counts_toward_balance === false ? (
                       <p className="mt-1 text-xs text-muted-foreground">

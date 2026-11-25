@@ -17,6 +17,9 @@ import PaginatedTable from "@/components/common/PaginatedTable";
 import StatCard from "@/components/common/StatCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import EmptyState from "@/components/common/EmptyState";
+import AutocompleteField from "@/components/common/AutocompleteField";
+import FormGrid from "@/components/common/FormGrid";
+import FormField from "@/components/common/FormField";
 import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
@@ -51,8 +54,6 @@ export default function HrmsAttendanceReportPage() {
   const [employeeId, setEmployeeId] = useState("");
   const [attendanceType, setAttendanceType] = useState("");
   const [search, setSearch] = useState("");
-  const [departments, setDepartments] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [tableKey, setTableKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -86,55 +87,6 @@ export default function HrmsAttendanceReportPage() {
       })),
     []
   );
-  const departmentOptions = useMemo(
-    () => departments.map((d) => ({ value: String(d.id), label: d.title })),
-    [departments]
-  );
-  const employeeOptions = useMemo(
-    () =>
-      employees
-        .filter((e) => (departmentId ? String(e.department_id) === String(departmentId) : true))
-        .map((e) => ({
-          value: String(e.id),
-          label: `${e.user?.name || e.name || e.emp_code || `Employee #${e.id}`}${
-            e.emp_code ? ` (${e.emp_code})` : ""
-          }`,
-        })),
-    [employees, departmentId]
-  );
-
-  useEffect(() => {
-    let active = true;
-    const loadAll = async (fetchPage, pageCap) => {
-      const rows = [];
-      let page = 1;
-      for (;;) {
-        const payload = unwrap(await fetchPage({ page, limit: 100 }));
-        rows.push(...(payload?.data || []));
-        const pages = Number(payload?.meta?.pages || 1);
-        if (page >= pages || page >= pageCap) break;
-        page += 1;
-      }
-      return rows;
-    };
-    (async () => {
-      try {
-        const [deptRows, empRows] = await Promise.all([
-          loadAll((params) => hrmsService.listDepartments(params), 5),
-          loadAll((params) => hrmsService.listEmployees(params), 10),
-        ]);
-        if (!active) return;
-        setDepartments(deptRows);
-        setEmployees(empRows);
-      } catch {
-        // Filters are optional; the report still loads without them.
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
-
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true);
     try {
@@ -210,14 +162,12 @@ export default function HrmsAttendanceReportPage() {
   );
 
   const onColumnFilterChange = useCallback((key, value) => {
-    if (key === "department_id") {
-      setDepartmentId(value || "");
-      setEmployeeId("");
-    } else if (key === "employee_id") setEmployeeId(value || "");
-    else if (key === "attendance_type") setAttendanceType(value || "");
+    if (key === "attendance_type") setAttendanceType(value || "");
     else if (key === "q") setSearch(value || "");
     setTableKey((k) => k + 1);
   }, []);
+
+  const bumpFilters = () => setTableKey((k) => k + 1);
 
   const summaryColumns = useMemo(
     () => [
@@ -241,9 +191,6 @@ export default function HrmsAttendanceReportPage() {
         field: "department_title",
         label: "Department",
         sortable: false,
-        filterType: "select",
-        filterKey: "department_id",
-        filterOptions: departmentOptions,
         render: (row) => <span>{row.department_title || "—"}</span>,
       },
       { field: "present_days", label: "Present", sortable: false },
@@ -263,7 +210,7 @@ export default function HrmsAttendanceReportPage() {
         ),
       },
     ],
-    [departmentOptions]
+    []
   );
 
   const detailColumns = useMemo(
@@ -272,9 +219,6 @@ export default function HrmsAttendanceReportPage() {
         field: "employee_name",
         label: "Employee",
         sortable: false,
-        filterType: "select",
-        filterKey: "employee_id",
-        filterOptions: employeeOptions,
         render: (row) => (
           <div className="flex flex-col">
             <span className="font-medium text-foreground">{row.employee_name}</span>
@@ -326,7 +270,7 @@ export default function HrmsAttendanceReportPage() {
         render: (row) => <span>{row.leave_type || "—"}</span>,
       },
     ],
-    [employeeOptions]
+    []
   );
 
   const onExport = async () => {
@@ -347,7 +291,6 @@ export default function HrmsAttendanceReportPage() {
     }
   };
 
-  const hasFilters = Boolean(departmentId || employeeId || attendanceType || search.trim());
   return (
     <ProtectedRoute>
       <ListingPageContainer
@@ -372,9 +315,50 @@ export default function HrmsAttendanceReportPage() {
         onClearFilters={() => {
           setYear(String(NOW.getFullYear()));
           setMonth(String(NOW.getMonth() + 1));
+          setDepartmentId("");
+          setEmployeeId("");
+          setAttendanceType("");
+          setSearch("");
           setTableKey((k) => k + 1);
         }}
       >
+        <div className="mb-2 rounded-md border border-border bg-card p-2">
+          <FormGrid cols={3}>
+            <FormField>
+              <AutocompleteField
+                label="Department"
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) => hrmsService.searchHrmsDepartments(q)}
+                resolveOptionById={(did) => hrmsService.resolveHrmsDepartment(did)}
+                getOptionLabel={(o) => o?.label ?? o?.title ?? ""}
+                value={departmentId || null}
+                onChange={(_e, opt) => {
+                  setDepartmentId(opt?.id != null ? String(opt.id) : "");
+                  setEmployeeId("");
+                  bumpFilters();
+                }}
+              />
+            </FormField>
+            <FormField>
+              <AutocompleteField
+                label="Employee"
+                placeholder="Type to search…"
+                asyncLoadOptions={(q) =>
+                  hrmsService.searchHrmsEmployees(q, {
+                    department_id: departmentId || undefined,
+                  })
+                }
+                resolveOptionById={(eid) => hrmsService.resolveHrmsEmployee(eid)}
+                getOptionLabel={(o) => o?.label ?? ""}
+                value={employeeId || null}
+                onChange={(_e, opt) => {
+                  setEmployeeId(opt?.id != null ? String(opt.id) : "");
+                  bumpFilters();
+                }}
+              />
+            </FormField>
+          </FormGrid>
+        </div>
         <div className="mb-1.5 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           <StatCard
             compact
