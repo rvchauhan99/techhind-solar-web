@@ -600,9 +600,11 @@ export default function UserOrderCommissionRatesPage() {
             </DialogHeader>
             <div className="flex flex-col gap-3">
               <p className="text-muted-foreground text-sm">
-                Use the sample CSV headers. Each row creates one rate. User column: name, email, mobile, or
-                exported &quot;Name &lt;email&gt;&quot; — not database ids. Optional masters: order type, branch,
-                and project scheme by name or code. Effective dates: DD-MM-YYYY (optional).
+                Use the sample CSV headers. Each row creates a rate, or updates an existing one when the same
+                user, order type, branch, scheme, and overlapping effective dates already exist. User column:
+                name, email, mobile, or exported &quot;Name &lt;email&gt;&quot; — not database ids. Optional
+                masters: order type, branch, and project scheme by name or code. Effective dates: DD-MM-YYYY
+                (optional; blank dates on update keep the existing period).
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={handleSampleCsv}>
@@ -632,11 +634,15 @@ export default function UserOrderCommissionRatesPage() {
                       const data = await userOrderCommissionRateService.importUserOrderCommissionRates(file);
                       const result = data?.result ?? data;
                       const created = result?.created ?? 0;
-                      if (created > 0) {
-                        toast.success(`${created} row(s) imported`);
+                      const updated = result?.updated ?? 0;
+                      const parts = [];
+                      if (created > 0) parts.push(`${created} created`);
+                      if (updated > 0) parts.push(`${updated} updated`);
+                      if (parts.length > 0) {
+                        toast.success(parts.join(", "));
                         setTableKey((prev) => prev + 1);
                       } else {
-                        toast.info("Import finished with no new rows");
+                        toast.info("Import finished with no changes");
                       }
                       setImportDialogOpen(false);
                     } catch (err) {
