@@ -18,6 +18,16 @@ import { unwrap } from "@/lib/apiUnwrap";
 import { toastSuccess, toastErrorFromApi, toastInfo } from "@/utils/toast";
 import * as hrmsService from "@/services/hrmsService";
 
+/** Optional interview time: ISO string, or null when blank / unparsable. */
+function toOptionalIso(value) {
+  const raw = value && typeof value === "object" && value.target != null ? value.target.value : value;
+  if (raw == null || raw === "") return null;
+  const str = String(raw).trim();
+  if (!str || str.toLowerCase() === "invalid date") return null;
+  const d = new Date(str);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 function extractFromResumeText(text) {
   const out = {};
   if (!text) return out;
@@ -126,7 +136,7 @@ export default function HrmsCandidateAddPage() {
         mobile: form.mobile.trim(),
         reference: form.reference.trim(),
         notes: form.notes.trim() || null,
-        interview_datetime: form.interview_datetime || null,
+        interview_datetime: toOptionalIso(form.interview_datetime),
         taken_by: form.taken_by ? Number(form.taken_by) : null,
         job_desc_snapshot: form.job_desc_snapshot.trim() || null,
       });
@@ -239,7 +249,7 @@ export default function HrmsCandidateAddPage() {
                     label="Interview Date and Time"
                     name="interview_datetime"
                     value={form.interview_datetime}
-                    onChange={(v) => setField("interview_datetime", v)}
+                    onChange={(e) => setField("interview_datetime", e?.target?.value ?? "")}
                     error={!!errors.interview_datetime}
                     helperText={errors.interview_datetime}
                   />

@@ -139,12 +139,16 @@ export default function AttendanceCalendar({
 
   const summary = payload.summary || {};
   const summaryChips = [
-    ["Present", summary.present_days],
-    ["Late", summary.late_marks],
-    ["Half", summary.half_days],
+    ["Present days", summary.present_days],
+    ["Half days", summary.half_days],
+    ["Late marks", summary.late_marks],
+    ["Mis punches", summary.mis_punch_days],
     ["Absent", summary.absent_days],
-    ["Leave", summary.leave_days],
-    ["Holiday", summary.holiday_days],
+    ["On leave", summary.leave_days],
+    ["LWP", summary.lwp_days],
+    ["Holidays", summary.holiday_days],
+    ["Week offs", summary.week_off_days],
+    ["Open punches", summary.open_punches],
   ];
 
   return (

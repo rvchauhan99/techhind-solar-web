@@ -481,7 +481,7 @@ export default function HrmsAttendanceSettingsPage() {
                         value={String(form.auto_checkout_time || "23:30").slice(0, 5)}
                         onChange={(e) => setField("auto_checkout_time", e.target.value)}
                         disabled={!form.auto_checkout_enabled}
-                        helperText="Closes forgotten open punches at this time, stops live location duty if tracking is on, and opens an attendance request for approval."
+                        helperText="Closes forgotten open punches at this IST time (and overnight catch-up if a window was missed). Stops live location duty when tracking is on, and opens an attendance request. API kill-switch: HRMS_AUTO_CHECKOUT_SCHEDULER_ENABLED=false."
                       />
                     </FormField>
                   </FormGrid>
